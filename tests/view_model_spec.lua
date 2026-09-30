@@ -508,3 +508,79 @@ describe("ViewModel readiness tab helpers", function()
     end
   end)
 end)
+
+describe("ViewModel minimap helpers", function()
+  local function event(id, title, status, startAt)
+    return { eventId = id, title = title, status = status, startAt = startAt, attendance = {}, assignments = {} }
+  end
+
+  it("picks the soonest planned or open event that has not started", function()
+    local events = {
+      past = event("past", "Past", "planned", 50),
+      closed = event("closed", "Closed", "closed", 120),
+      soon = event("soon", "Soon", "planned", 200),
+      later = event("later", "Later", "planned", 300),
+    }
+    assert.are.equal("soon", ViewModel.NextEvent(events, 100).eventId)
+  end)
+
+  it("keeps an open event that already started, and falls back to an undated one", function()
+    assert.are.equal("live", ViewModel.NextEvent({ live = event("live", "Live", "open", 50) }, 100).eventId)
+    assert.are.equal("tbd", ViewModel.NextEvent({ tbd = event("tbd", "TBD", "planned", nil) }, 100).eventId)
+    assert.is_nil(ViewModel.NextEvent({ old = event("old", "Old", "planned", 50) }, 100))
+    assert.is_nil(ViewModel.NextEvent({}, 100))
+  end)
+
+  local function args(overrides)
+    local a = {
+      events = { e = event("e", "Molten Core", "planned", 200) },
+      now = 100,
+      formatDate = function(timestamp)
+        return "date:" .. timestamp
+      end,
+      readinessText = "1/3 met, 2 unknown",
+      pending = 0,
+      paused = false,
+    }
+    for k, v in pairs(overrides or {}) do
+      a[k] = v
+    end
+    return a
+  end
+
+  it("shows the next event, the readiness score and the sync queue", function()
+    local lines = ViewModel.MinimapTooltip(args())
+    assert.are.same({
+      "Next event: Molten Core - date:200",
+      "Readiness: 1/3 met, 2 unknown",
+      "Sync queue: empty",
+    }, lines)
+  end)
+
+  it("says when nothing is planned and when messages are waiting or held back", function()
+    local lines = ViewModel.MinimapTooltip(args({ events = {}, pending = 3, paused = true }))
+    assert.are.equal("Next event: none planned", lines[1])
+    assert.are.equal("Sync queue: 3 message(s) waiting (held back: encounter in progress)", lines[3])
+    assert.are.equal("Sync queue: 2 message(s) waiting", ViewModel.MinimapTooltip(args({ pending = 2 }))[3])
+  end)
+
+  it("escapes the event title", function()
+    local lines = ViewModel.MinimapTooltip(args({ events = { e = event("e", "|cffff0000Evil", "planned", 200) } }))
+    assert.is_truthy(lines[1]:find("||cffff0000Evil", 1, true))
+  end)
+
+  it("has a menu entry for every tab plus a sync request", function()
+    local entries = ViewModel.MinimapMenu()
+    assert.are.equal(#ViewModel.TABS + 1, #entries)
+    for index, tab in ipairs(ViewModel.TABS) do
+      assert.are.same({ text = tab.text, action = "tab", value = tab.value }, entries[index])
+    end
+    assert.are.equal("sync", entries[#entries].action)
+  end)
+
+  it("words the result of a sync request", function()
+    assert.is_truthy(ViewModel.SyncRequestResult(true):find("asked the guild", 1, true))
+    assert.is_truthy(ViewModel.SyncRequestResult(false, "cooldown"):find("wait a little", 1, true))
+    assert.are.equal("not requested: weird", ViewModel.SyncRequestResult(false, "weird"))
+  end)
+end)
