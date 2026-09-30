@@ -180,6 +180,7 @@ function ViewModel.HelpLines()
     "/nrage attendance    attendance for an event (attendance <n> <Name-Realm> <state>)",
     "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
     "/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)",
+    "/nrage template      save an event's assignments as a template and apply it to another event",
     "/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)",
     "/nrage export        copy all raid events, attendance and assignments as text",
     "/nrage import        paste an export to merge it into your data (RL/admin only)",

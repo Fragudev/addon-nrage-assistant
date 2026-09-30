@@ -25,7 +25,7 @@ describe("Store.Load", function()
     assert.are.equal(raw, db)
     assert.are.equal("me", db.keep)
     assert.is_nil(db.schemaVersion)
-    assert.are.equal(2, db.global.schemaVersion)
+    assert.are.equal(3, db.global.schemaVersion)
   end)
 
   it("is idempotent", function()
@@ -33,7 +33,7 @@ describe("Store.Load", function()
     db.global.roster["A-B"] = { level = 60 }
     local again = Store.Load(db)
     assert.are.equal(60, again.global.roster["A-B"].level)
-    assert.are.equal(2, again.global.schemaVersion)
+    assert.are.equal(3, again.global.schemaVersion)
   end)
 
   it("refuses data from a newer schema and leaves it untouched", function()
@@ -47,14 +47,14 @@ describe("Store.Load", function()
 
   it("recovers from corrupted values instead of raising", function()
     local db = Store.Load({ schemaVersion = "banana", global = "oops", chars = 5 })
-    assert.are.equal(2, db.global.schemaVersion)
+    assert.are.equal(3, db.global.schemaVersion)
     assert.is_table(db.global.roster)
     assert.is_table(db.chars)
   end)
 
   it("treats a non-table saved variable as empty", function()
     local db = Store.Load("garbage")
-    assert.are.equal(2, db.global.schemaVersion)
+    assert.are.equal(3, db.global.schemaVersion)
   end)
 end)
 
@@ -69,5 +69,36 @@ describe("Store.GetChar", function()
     assert.is_table(char.consent)
     assert.is_table(char.publish)
     assert.are.equal(60, Store.GetChar(db, "Nrager-ClassicBetaPvP").profile.level)
+  end)
+end)
+
+describe("Store migration to schema 3", function()
+  local Store = load_store()
+
+  it("adds the templates table to a v2 database and keeps everything else", function()
+    local raw = {
+      global = {
+        schemaVersion = 2, roster = { ["A-B"] = { level = 60 } }, events = { e = { title = "Raid" } }, loot = {},
+        sync = { seen = {}, tombstones = { t = { at = 1, rev = 2 } } },
+      },
+      chars = { ["Me-Realm"] = { profile = { level = 60 } } },
+    }
+    local db = Store.Load(raw)
+    assert.are.equal(raw, db)
+    assert.are.equal(3, db.global.schemaVersion)
+    assert.are.same({}, db.global.templates)
+    assert.are.equal(60, db.global.roster["A-B"].level)
+    assert.are.equal("Raid", db.global.events.e.title)
+    assert.are.equal(2, db.global.sync.tombstones.t.rev)
+    assert.are.equal(60, db.chars["Me-Realm"].profile.level)
+  end)
+
+  it("does not touch templates that already exist", function()
+    local db = Store.Load({ global = { schemaVersion = 3, templates = { Boss = { slots = {} } } } })
+    assert.is_table(db.global.templates.Boss)
+  end)
+
+  it("creates the templates table for a fresh database", function()
+    assert.are.same({}, Store.Load(nil).global.templates)
   end)
 end)

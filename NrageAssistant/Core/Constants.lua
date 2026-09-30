@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 2,
+  SCHEMA_VERSION = 3,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -81,6 +81,10 @@ ns.Constants = {
   EVENT_RETENTION_SECONDS = 90 * 24 * 3600,
   TOMBSTONE_MAX = 500,
   TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+
+  -- Assignment templates, kept on this client only.
+  TEMPLATES_MAX = 20,
+  TEMPLATE_NAME_MAX = 40,
 
   -- Loot council sessions, per event (bounded like everything shared).
   LOOT_SESSIONS_MAX = 40,
