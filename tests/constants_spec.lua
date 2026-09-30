@@ -19,6 +19,8 @@ describe("Init", function()
   it("loads and registers the /nrage slash command", function()
     local ns = {}
     assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/Core/Platform.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/Core/AccessGuard.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/Core/Init.lua"))("NrageAssistant", ns)
     assert.is_function(SlashCmdList.NRAGE)
   end)

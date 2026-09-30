@@ -11,7 +11,14 @@ globals = {
 -- WoW client API used by the addon. Extend as new APIs are adopted.
 read_globals = {
   "C_AddOns",
+  "C_ChatInfo",
+  "C_Club",
   "CreateFrame",
+  "GetBuildInfo",
+  "GetGuildInfo",
+  "GetNormalizedRealmName",
+  "IsInGuild",
+  "UnitFactionGroup",
 }
 
 files["tests/"] = {

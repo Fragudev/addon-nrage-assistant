@@ -8,4 +8,6 @@
 # Interface number assumes Mainline 12.1.5; confirm the Forever value with /dump select(4, GetBuildInfo())
 
 Core\Constants.lua
+Core\Platform.lua
+Core\AccessGuard.lua
 Core\Init.lua
