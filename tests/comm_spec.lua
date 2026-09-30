@@ -7,7 +7,8 @@ local function load_addon()
 
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue", "Sync/Comm",
+    "Core/Constants", "Core/Validate", "Domain/EventModel", "Sync/Codec", "Sync/Protocol",
+    "Sync/Inbox", "Sync/OutboundQueue", "Sync/Comm",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end

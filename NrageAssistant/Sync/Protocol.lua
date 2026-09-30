@@ -5,7 +5,7 @@ local _, ns = ...
 -- Everything received is hostile input: only whitelisted types and fields survive, values are
 -- bounds-checked, unknown fields are dropped, and strings carrying escape sequences are rejected
 -- (so a message can never smuggle colour codes or links into the UI).
--- The MVP implements HELLO and PROFILE only.
+-- HELLO and PROFILE are the phase 1 messages; the raid operations follow below.
 local Protocol = {}
 
 local MAX_VERSION_LENGTH = 32
@@ -95,9 +95,82 @@ local function validateProfile(payload)
   return clean
 end
 
+-- Raid operations (phase 2). Editing authority is NOT decided here: the receiver checks the
+-- sender's role from its own guild roster. `recordedBy`/`updatedBy` are never taken from the
+-- payload either; they come from the sender of the message.
+local MAX_TIMESTAMP = 4102444800 -- 2100-01-01
+
+local function validateRevision(payload)
+  return isInt(payload.rev, 1, MAX_REV) and isInt(payload.updatedAt, 0, MAX_TIMESTAMP)
+end
+
+local function validateEventUpsert(payload)
+  if not (isId(payload.eventId) and validateRevision(payload)) then
+    return nil
+  end
+  local fields = ns.EventModel.ValidateEvent(payload)
+  if not fields then
+    return nil
+  end
+  fields.eventId, fields.rev, fields.updatedAt = payload.eventId, payload.rev, payload.updatedAt
+  return fields
+end
+
+local function validateAttendanceUpsert(payload)
+  if not (isId(payload.eventId) and validateRevision(payload)) then
+    return nil
+  end
+  if not (ns.EventModel.IsCharacterKey(payload.characterKey) and ns.EventModel.IsAttendanceState(payload.state)) then
+    return nil
+  end
+  return {
+    eventId = payload.eventId,
+    characterKey = payload.characterKey,
+    state = payload.state,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+  }
+end
+
+local function validateAssignUpsert(payload)
+  if not (isId(payload.eventId) and isId(payload.assignmentId) and validateRevision(payload)) then
+    return nil
+  end
+  local fields = ns.EventModel.ValidateAssignment(payload)
+  if not fields then
+    return nil
+  end
+  fields.eventId, fields.assignmentId = payload.eventId, payload.assignmentId
+  fields.rev, fields.updatedAt = payload.rev, payload.updatedAt
+  return fields
+end
+
+local DELETE_KINDS = { event = true, assignment = true }
+
+local function validateDelete(payload)
+  if not (type(payload.kind) == "string" and DELETE_KINDS[payload.kind]) then
+    return nil
+  end
+  if not (isId(payload.eventId) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  local clean = { kind = payload.kind, eventId = payload.eventId, rev = payload.rev }
+  if payload.kind == "assignment" then
+    if not isId(payload.assignmentId) then
+      return nil
+    end
+    clean.assignmentId = payload.assignmentId
+  end
+  return clean
+end
+
 local VALIDATORS = {
   HELLO = validateHello,
   PROFILE = validateProfile,
+  EVENT_UPSERT = validateEventUpsert,
+  ATTENDANCE_UPSERT = validateAttendanceUpsert,
+  ASSIGN_UPSERT = validateAssignUpsert,
+  DELETE = validateDelete,
 }
 
 function Protocol.Build(messageType, payload, id)
