@@ -164,18 +164,18 @@ function UI.ShowTransfer(mode)
   ReleaseTransfer()
 
   local AceGUI = LibStub("AceGUI-3.0")
-  local frame = AceGUI:Create("Frame")
-  transferFrame = frame
-  frame:SetTitle(mode == "export" and "Nrage export" or "Nrage import")
-  frame:SetWidth(520)
-  frame:SetHeight(360)
-  frame:SetLayout("Fill")
-  frame:SetCallback("OnClose", ReleaseTransfer)
+  local window = AceGUI:Create("Frame")
+  transferFrame = window
+  window:SetTitle(mode == "export" and "Nrage export" or "Nrage import")
+  window:SetWidth(520)
+  window:SetHeight(360)
+  window:SetLayout("Fill")
+  window:SetCallback("OnClose", ReleaseTransfer)
 
   local box = AceGUI:Create("MultiLineEditBox")
   box:SetFullWidth(true)
   box:SetFullHeight(true)
-  frame:AddChild(box)
+  window:AddChild(box)
 
   if mode == "export" then
     local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
