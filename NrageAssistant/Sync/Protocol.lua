@@ -164,6 +164,63 @@ local function validateDelete(payload)
   return clean
 end
 
+-- Loot council. As with the raid operations, authority is not in the payload and neither is the
+-- author: a candidate or a voter is always the sender.
+local function validateLootSession(payload)
+  if not (isId(payload.eventId) and isId(payload.sessionId) and validateRevision(payload)) then
+    return nil
+  end
+  local item = ns.LootModel.ValidateItem(payload)
+  if not item or not (payload.status == "open" or payload.status == "closed") then
+    return nil
+  end
+  return {
+    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
+    itemId = item.itemId, itemName = item.itemName, status = payload.status,
+  }
+end
+
+local function validateLootAward(payload)
+  if not (isId(payload.eventId) and isId(payload.sessionId) and validateRevision(payload)) then
+    return nil
+  end
+  local item = ns.LootModel.ValidateItem(payload)
+  if not (item and ns.LootModel.IsCharacterKey(payload.characterKey) and ns.LootModel.IsReason(payload.reason)) then
+    return nil
+  end
+  return {
+    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
+    itemId = item.itemId, itemName = item.itemName, characterKey = payload.characterKey, reason = payload.reason,
+  }
+end
+
+local function validateLootCandidate(payload)
+  if not (isId(payload.eventId) and isId(payload.sessionId) and validateRevision(payload)) then
+    return nil
+  end
+  local candidate = ns.LootModel.ValidateCandidate(payload)
+  if not candidate then
+    return nil
+  end
+  return {
+    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
+    spec = candidate.spec, need = candidate.need, upgrade = candidate.upgrade,
+  }
+end
+
+local function validateLootVote(payload)
+  if not (isId(payload.eventId) and isId(payload.sessionId) and validateRevision(payload)) then
+    return nil
+  end
+  if not ns.LootModel.IsCharacterKey(payload.target) then
+    return nil
+  end
+  return {
+    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
+    target = payload.target,
+  }
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -181,6 +238,10 @@ end
 local VALIDATORS = {
   HELLO = validateHello,
   PROFILE = validateProfile,
+  LOOT_SESSION = validateLootSession,
+  LOOT_AWARD = validateLootAward,
+  LOOT_CANDIDATE = validateLootCandidate,
+  LOOT_VOTE = validateLootVote,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

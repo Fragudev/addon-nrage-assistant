@@ -331,6 +331,29 @@ function Comm:SendAssignment(eventId, assignment)
   return self:Send("ASSIGN_UPSERT", payload, ("AS:%s:%s"):format(eventId, assignment.assignmentId))
 end
 
+function Comm:SendLootSession(eventId, session)
+  local payload = ns.LootSync.SessionPayload(eventId, session)
+  return self:Send("LOOT_SESSION", payload, ("LS:%s:%s"):format(eventId, session.sessionId))
+end
+
+function Comm:SendLootAward(eventId, session)
+  if not session.award then
+    return false, "no_award"
+  end
+  local payload = ns.LootSync.AwardPayload(eventId, session)
+  return self:Send("LOOT_AWARD", payload, ("LA:%s:%s"):format(eventId, session.sessionId))
+end
+
+function Comm:SendLootCandidate(eventId, sessionId, candidate)
+  local payload = ns.LootSync.CandidatePayload(eventId, sessionId, candidate)
+  return self:Send("LOOT_CANDIDATE", payload, ("LC:%s:%s"):format(eventId, sessionId))
+end
+
+function Comm:SendLootVote(eventId, sessionId, vote)
+  local payload = ns.LootSync.VotePayload(eventId, sessionId, vote)
+  return self:Send("LOOT_VOTE", payload, ("LV:%s:%s"):format(eventId, sessionId))
+end
+
 function Comm:SendDeleteEvent(eventId)
   local payload = ns.EventSync.DeleteEventPayload(self.tombstones, eventId)
   if not payload then

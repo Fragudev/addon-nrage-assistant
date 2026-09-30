@@ -8,7 +8,8 @@ local function load_addon()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue", "Sync/EventSync", "Sync/Transfer", "Sync/Comm",
+    "Domain/LootModel", "Domain/LootService", "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue",
+    "Sync/SyncRules", "Sync/EventSync", "Sync/LootSync", "Sync/Transfer", "Sync/Comm",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -581,5 +582,121 @@ describe("Comm whisper guards", function()
     assert.is_true(env.comm:HandleMessage(snapshot_text("s-1", { event_item("new") }), "Lead-Realm", "WHISPER"))
     assert.is_nil(env.events["new"])
     assert.are.equal(0, env.comm.lastSnapshot.applied)
+  end)
+end)
+
+describe("Comm loot council", function()
+  local env
+
+  local function event()
+    return {
+      eventId = "ev-1", title = "Molten Core", status = "open", rev = 1, updatedAt = 1,
+      attendance = {}, assignments = {}, loot = {},
+    }
+  end
+
+  local function session_text(id, overrides)
+    local payload = {
+      eventId = "ev-1", sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 19019, itemName = "Thunderfury",
+      status = "open",
+    }
+    for k, v in pairs(overrides or {}) do payload[k] = v end
+    return env.wire("LOOT_SESSION", payload, id)
+  end
+
+  before_each(function()
+    env = build_env()
+    env.events["ev-1"] = event()
+    env.roles["Boss-Realm"] = "council"
+    env.roles["Ann-Realm"] = "member"
+  end)
+
+  it("applies a session opened by the council, as that sender", function()
+    assert.is_true(env.comm:HandleMessage(session_text("m-1"), "Boss-Realm", "GUILD"))
+    local session = env.events["ev-1"].loot["s-1"]
+    assert.are.equal("Thunderfury", session.itemName)
+    assert.are.equal("Boss-Realm", session.updatedBy)
+  end)
+
+  it("refuses a session from a member or from someone the roster does not know", function()
+    assert.are.equal("forbidden", select(2, env.comm:HandleMessage(session_text("m-1"), "Ann-Realm", "GUILD")))
+    assert.are.equal("unknown_sender", select(2, env.comm:HandleMessage(session_text("m-2"), "Nobody-Realm", "GUILD")))
+    assert.is_nil(next(env.events["ev-1"].loot))
+  end)
+
+  it("sends local loot changes as keyed messages that another client accepts", function()
+    local session = {
+      sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 19019, itemName = "Thunderfury", status = "open",
+    }
+    local candidate = { spec = "Fury", need = "main", rev = 1, updatedAt = 11 }
+    local vote = { target = "Ann-Realm", rev = 1, updatedAt = 12 }
+    local awarded = {
+      sessionId = "s-1", rev = 2, updatedAt = 13, itemId = 19019, itemName = "Thunderfury", status = "closed",
+      award = { characterKey = "Ann-Realm", reason = "Highest need" },
+    }
+
+    assert.is_true(env.comm:SendLootSession("ev-1", session))
+    assert.is_true(env.comm:SendLootCandidate("ev-1", "s-1", candidate))
+    assert.is_true(env.comm:SendLootVote("ev-1", "s-1", vote))
+    assert.is_true(env.comm:SendLootAward("ev-1", awarded))
+    assert.are.equal(4, #env.sent)
+
+    -- The same four messages, received from the people who would really have sent them.
+    local receiver = build_env()
+    receiver.events["ev-1"] = event()
+    receiver.roles["Boss-Realm"] = "council"
+    receiver.roles["Ann-Realm"] = "member"
+    assert.is_true(receiver.comm:HandleMessage(env.sent[1], "Boss-Realm", "GUILD"))
+    assert.is_true(receiver.comm:HandleMessage(env.sent[2], "Ann-Realm", "GUILD"))
+    assert.is_true(receiver.comm:HandleMessage(env.sent[3], "Boss-Realm", "GUILD"))
+    assert.is_true(receiver.comm:HandleMessage(env.sent[4], "Boss-Realm", "GUILD"))
+
+    local stored = receiver.events["ev-1"].loot["s-1"]
+    assert.are.equal("closed", stored.status)
+    assert.are.equal("Ann-Realm", stored.award.characterKey)
+    assert.are.equal("Fury", stored.candidates["Ann-Realm"].spec)
+    assert.are.equal("Ann-Realm", stored.votes["Boss-Realm"].target)
+  end)
+
+  it("does not send an award for a session that has none", function()
+    local ok, reason = env.comm:SendLootAward("ev-1", { sessionId = "s-1" })
+    assert.is_false(ok)
+    assert.are.equal("no_award", reason)
+    assert.are.equal(0, #env.sent)
+  end)
+
+  it("replaces a queued vote of the same session during a lockdown", function()
+    env.locked = true
+    env.comm:SendLootVote("ev-1", "s-1", { target = "Ann-Realm", rev = 1, updatedAt = 10 })
+    env.comm:SendLootVote("ev-1", "s-1", { target = "Bob-Realm", rev = 2, updatedAt = 11 })
+    env.comm:SendLootCandidate("ev-1", "s-1", { spec = "Fury", need = "main", rev = 1, updatedAt = 10 })
+    assert.are.equal(2, env.queue:Pending())
+  end)
+
+  it("gives a late joiner the awards and open sessions of a leader's snapshot", function()
+    local leader = build_env()
+    leader.ownRole = "rl"
+    leader.events["ev-1"] = event()
+    leader.events["ev-1"].loot = {
+      ["s-1"] = {
+        sessionId = "s-1", itemId = 19019, itemName = "Thunderfury", status = "closed", rev = 2, updatedAt = 20,
+        candidates = { ["Ann-Realm"] = { spec = "Fury", need = "main", rev = 1, updatedAt = 10 } },
+        votes = { ["Boss-Realm"] = { target = "Ann-Realm", rev = 1, updatedAt = 11 } },
+        award = { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm", at = 20 },
+      },
+      ["s-2"] = {
+        sessionId = "s-2", itemId = 2, itemName = "Other", status = "open", rev = 1, updatedAt = 30,
+        candidates = {}, votes = {},
+      },
+    }
+    assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+
+    env.roles["Lead-Realm"] = "admin"
+    assert.is_true(env.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+    local loot = env.events["ev-1"].loot
+    assert.are.equal("Ann-Realm", loot["s-1"].award.characterKey)
+    assert.are.equal("Highest need", loot["s-1"].award.reason)
+    assert.are.equal("open", loot["s-2"].status)
+    assert.is_nil(next(loot["s-1"].candidates))
   end)
 end)

@@ -3,6 +3,7 @@ local function load_protocol()
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/EventModel.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
 end
@@ -290,5 +291,93 @@ describe("Protocol.Validate SYNC_REQ and SYNC_DATA", function()
     local items = {}
     for i = 1, Constants.IMPORT_MAX_ITEMS + 1 do items[i] = { t = "DELETE", p = {} } end
     assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", { items = items }))))
+  end)
+end)
+
+describe("Protocol.Validate loot messages", function()
+  local function base(overrides)
+    local p = { eventId = "ev-1", sessionId = "s-1", rev = 2, updatedAt = 100 }
+    for k, v in pairs(overrides or {}) do p[k] = v end
+    return p
+  end
+
+  local function invalid(messageType, payload)
+    local clean, reason = Protocol.Validate(raid_message(messageType, payload))
+    assert.is_nil(clean)
+    assert.are.equal("bad_payload", reason)
+  end
+
+  it("accepts a LOOT_SESSION and drops unknown fields", function()
+    local clean = Protocol.Validate(raid_message("LOOT_SESSION", base({
+      itemId = 19019, itemName = "Thunderfury", status = "open", junk = "x",
+    })))
+    assert.are.same({
+      eventId = "ev-1", sessionId = "s-1", rev = 2, updatedAt = 100,
+      itemId = 19019, itemName = "Thunderfury", status = "open",
+    }, clean.p)
+  end)
+
+  it("rejects an invalid LOOT_SESSION", function()
+    local good = { itemId = 1, itemName = "X", status = "open" }
+    for _, overrides in ipairs({
+      { eventId = "bad id" }, { sessionId = "a:b" }, { rev = 0 }, { updatedAt = -1 },
+      { itemId = 0 }, { itemId = "1" }, { itemName = "|cffff0000X" }, { itemName = "" },
+      { status = "won" }, { status = 5 },
+    }) do
+      local payload = base(good)
+      for k, v in pairs(overrides) do payload[k] = v end
+      invalid("LOOT_SESSION", payload)
+    end
+  end)
+
+  it("accepts a LOOT_AWARD, which carries the item, and never the awarder", function()
+    local clean = Protocol.Validate(raid_message("LOOT_AWARD", base({
+      itemId = 1, itemName = "X", characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Fake-Realm",
+    })))
+    assert.are.equal("Ann-Realm", clean.p.characterKey)
+    assert.are.equal("Highest need", clean.p.reason)
+    assert.is_nil(clean.p.awardedBy)
+  end)
+
+  it("rejects an invalid LOOT_AWARD", function()
+    local good = { itemId = 1, itemName = "X", characterKey = "Ann-Realm", reason = "why" }
+    for _, overrides in ipairs({
+      { characterKey = "" }, { characterKey = "A|B" }, { reason = "" }, { reason = "|cffff0000x" },
+      { reason = ("r"):rep(101) }, { itemId = 0 }, { rev = 0 },
+    }) do
+      local payload = base(good)
+      for k, v in pairs(overrides) do payload[k] = v end
+      invalid("LOOT_AWARD", payload)
+    end
+  end)
+
+  it("accepts a LOOT_CANDIDATE without a candidate key", function()
+    local clean = Protocol.Validate(raid_message("LOOT_CANDIDATE", base({
+      spec = "Fury", need = "main", upgrade = "Better axe", candidate = "Fake-Realm",
+    })))
+    assert.are.equal("Fury", clean.p.spec)
+    assert.are.equal("main", clean.p.need)
+    assert.are.equal("Better axe", clean.p.upgrade)
+    assert.is_nil(clean.p.candidate)
+  end)
+
+  it("rejects an invalid LOOT_CANDIDATE", function()
+    for _, overrides in ipairs({
+      { spec = "" }, { need = "greed" }, { need = 5 }, { upgrade = "|Hitem:1|h" },
+    }) do
+      local payload = base({ spec = "Fury", need = "main" })
+      for k, v in pairs(overrides) do payload[k] = v end
+      invalid("LOOT_CANDIDATE", payload)
+    end
+    invalid("LOOT_CANDIDATE", base({ need = "main" }))
+  end)
+
+  it("accepts a LOOT_VOTE without a voter and rejects a bad target", function()
+    local clean = Protocol.Validate(raid_message("LOOT_VOTE", base({ target = "Ann-Realm", voter = "Fake-Realm" })))
+    assert.are.equal("Ann-Realm", clean.p.target)
+    assert.is_nil(clean.p.voter)
+    invalid("LOOT_VOTE", base({ target = "" }))
+    invalid("LOOT_VOTE", base({ target = "A|B" }))
+    invalid("LOOT_VOTE", base({}))
   end)
 end)

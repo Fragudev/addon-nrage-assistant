@@ -34,6 +34,10 @@ function Transfer.BuildItems(events, tombstones)
     for _, assignmentId in ipairs(sortedKeys(event.assignments)) do
       add("ASSIGN_UPSERT", ns.EventSync.AssignPayload(eventId, event.assignments[assignmentId]))
     end
+    -- Sessions and awards only: candidates and votes cannot be re-attributed to another sender.
+    for _, item in ipairs(ns.LootSync.SessionItems(eventId, event)) do
+      add(item.t, item.p)
+    end
   end
 
   for _, key in ipairs(sortedKeys(tombstones)) do
