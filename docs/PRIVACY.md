@@ -1,0 +1,63 @@
+# Privacy and data
+
+What Nrage Assistant stores, what it shares and how to take it back. The guild's decisions on retention and on
+which fields are shared are still open (see the issues labelled `decision`).
+
+## The short version
+
+- Nothing about you leaves your client until you say so, one kind of data at a time.
+- **Addon messages are not encrypted or confidential.** Anything shared is readable by every guild member running
+  the addon, and possibly by others. Do not share what you would not put in guild chat.
+- The addon is meant for the Nrage guild only and disables itself elsewhere.
+
+## What is stored on your machine
+
+Everything is kept in the game's `SavedVariables` (`NrageAssistantDB`). It is a normal file on your disk, not a
+secret store.
+
+| Data | Where it comes from |
+|---|---|
+| Your sheet: class, level, item level, professions, guid, and the fields you declared (role, main, notes) | read from the game, or typed by you |
+| Your consent choices and readiness confirmations | you |
+| Profiles received from other members | the guild channel |
+| Raid events, attendance, assignments, loot sessions and awards | you, or received |
+| Tombstones (records of deletions) | local deletions and received ones |
+| Assignment templates | you; never shared |
+
+Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
+
+## What is shared, and only with your consent
+
+Publishing your sheet is always an explicit action (`/nrage publish confirm`) after a preview of exactly what
+goes out. Consent is per kind of data:
+
+| Consent | Shared |
+|---|---|
+| `profile` | class, level, declared role and main |
+| `gear` | item level |
+| `professions` | professions and skill |
+| `notes` | declared notes |
+
+Never shared: your guid, your inventory, chat, or anything you did not consent to. Text you declare has escape
+characters (`|`) and control characters stripped before it is sent.
+
+Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
+publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are
+visible to everyone** while a session is open.
+
+## Taking data back
+
+- Turning a consent off stops future publications. It **cannot recall** what other clients already received.
+- Deleting an event or an assignment sends a tombstone so other clients delete it too, but a client that never
+  receives it keeps its copy.
+- A tool to view, export and delete your own data is planned (tracked as an issue).
+
+## Retention
+
+Events are purged from your client 90 days after their start, and tombstones after 30 days. These periods are
+placeholders until the guild decides them.
+
+## Where data comes from when it is not yours
+
+Everything received is validated before it is stored, and marked `received`. A received value is never shown as
+verified, and a received profile older than seven days is shown as `stale` in the roster.
