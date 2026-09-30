@@ -34,6 +34,8 @@ ns.Constants = {
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,
+  -- A received profile older than this is shown as stale, never as current.
+  ROSTER_STALE_SECONDS = 7 * 24 * 3600,
   PEERS_MAX_ENTRIES = 200,
 
   -- HELLO: sent shortly after login, and once more (jittered, rate limited) when a new peer shows up.

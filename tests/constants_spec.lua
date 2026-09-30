@@ -21,13 +21,40 @@ describe("Addon load", function()
     assert.is_function(SlashCmdList.NRAGE)
   end)
 
-  it("prints the version for a bare /nrage", function()
+  local function run(command)
     dofile("tests/support/addon.lua")({})
-    local printed
+    local printed = {}
     local original = _G.print
-    _G.print = function(text) printed = text end
-    SlashCmdList.NRAGE("")
+    _G.print = function(text) printed[#printed + 1] = text end
+    local ok, err = pcall(SlashCmdList.NRAGE, command)
     _G.print = original
-    assert.is_truthy(printed:find("version dev", 1, true))
+    assert(ok, err)
+    return table.concat(printed, "\n")
+  end
+
+  it("prints the version for a bare /nrage while the addon is disabled", function()
+    assert.is_truthy(run(""):find("version dev", 1, true))
+  end)
+
+  it("prints the version for /nrage version", function()
+    assert.is_truthy(run("version"):find("version dev", 1, true))
+  end)
+
+  it("lists the commands for /nrage help", function()
+    local text = run("help")
+    assert.is_truthy(text:find("/nrage publish", 1, true))
+    assert.is_truthy(text:find("/nrage consent", 1, true))
+  end)
+
+  it("points to help for an unknown command", function()
+    local text = run("frobnicate")
+    assert.is_truthy(text:find("unknown command 'frobnicate'", 1, true))
+    assert.is_truthy(text:find("/nrage help", 1, true))
+  end)
+
+  it("refuses data commands while the addon is disabled instead of raising", function()
+    for _, command in ipairs({ "profile", "ready", "sync", "consent", "publish" }) do
+      assert.is_truthy(run(command):find("unavailable while the addon is disabled", 1, true), command)
+    end
   end)
 end)
