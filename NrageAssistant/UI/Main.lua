@@ -645,4 +645,17 @@ function UI.Toggle()
   tabs:SelectTab(currentTab)
 end
 
+-- Opens the window on `tab` (a value of ViewModel.TABS), or switches to it when the window is already open.
+function UI.OpenTab(tab)
+  if not ns.active or not ns.character then
+    return
+  end
+  currentTab = tab
+  if frame then
+    Redraw()
+  else
+    UI.Toggle()
+  end
+end
+
 ns.UI = UI

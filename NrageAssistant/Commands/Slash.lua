@@ -117,22 +117,13 @@ local function PublishCommand(rest)
   say("Type /nrage publish confirm to send.")
 end
 
-local SYNC_REQUEST_ERRORS = {
-  cooldown = "you asked a moment ago, wait a little.",
-  full = "the send queue is full, try again shortly.",
-}
-
 local function SyncCommand(rest)
   if not ns.active or not ns.comm then
     say("sync is unavailable while the addon is disabled.")
     return
   end
   if rest == "request" then
-    local ok, reason = ns.comm:RequestSync()
-    say(
-      ok and "asked the guild for the latest raid data; leaders answer by whisper."
-        or ("not requested: " .. (SYNC_REQUEST_ERRORS[reason] or tostring(reason)))
-    )
+    say(ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()))
     return
   end
   for _, line in ipairs(ns.comm:Status()) do

@@ -336,6 +336,68 @@ function ViewModel.ManualItems(rules, results)
   return items
 end
 
+-- The event to put first in the minimap tooltip: among the planned or open events, the one starting soonest that
+-- has not started yet (an open event is kept even after its start); undated ones come last. nil when none.
+function ViewModel.NextEvent(events, now)
+  local best
+  for _, event in ipairs(ns.EventService.List({ events = events })) do
+    local active = event.status == "planned" or event.status == "open"
+    local upcoming = event.startAt == nil or event.startAt >= now or event.status == "open"
+    if active and upcoming then
+      best = best or event
+      if event.startAt then
+        return event
+      end
+    end
+  end
+  return best
+end
+
+-- Lines for the minimap tooltip. It reads only what the addon already holds: no game API is called, so it is
+-- safe during an encounter lockdown.
+-- args: events, now, formatDate(timestamp), readinessText, pending (queued messages), paused (queue held back)
+function ViewModel.MinimapTooltip(args)
+  local lines = {}
+  local event = ViewModel.NextEvent(args.events, args.now)
+  if event then
+    local when = event.startAt and (" - " .. args.formatDate(event.startAt)) or ""
+    lines[#lines + 1] = ("Next event: %s%s"):format(ViewModel.Escape(event.title), when)
+  else
+    lines[#lines + 1] = "Next event: none planned"
+  end
+  lines[#lines + 1] = "Readiness: " .. args.readinessText
+  if args.pending == 0 then
+    lines[#lines + 1] = "Sync queue: empty"
+  else
+    local held = args.paused and " (held back: encounter in progress)" or ""
+    lines[#lines + 1] = ("Sync queue: %d message(s) waiting%s"):format(args.pending, held)
+  end
+  return lines
+end
+
+-- Right-click menu of the minimap button: a shortcut to each tab, then a sync request.
+function ViewModel.MinimapMenu()
+  local entries = {}
+  for _, tab in ipairs(ViewModel.TABS) do
+    entries[#entries + 1] = { text = tab.text, action = "tab", value = tab.value }
+  end
+  entries[#entries + 1] = { text = "Request a sync", action = "sync" }
+  return entries
+end
+
+ViewModel.SYNC_REQUEST_ERRORS = {
+  cooldown = "you asked a moment ago, wait a little.",
+  full = "the send queue is full, try again shortly.",
+}
+
+-- The line to print after asking the guild for the latest raid data.
+function ViewModel.SyncRequestResult(ok, reason)
+  if ok then
+    return "asked the guild for the latest raid data; leaders answer by whisper."
+  end
+  return "not requested: " .. (ViewModel.SYNC_REQUEST_ERRORS[reason] or tostring(reason))
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },
