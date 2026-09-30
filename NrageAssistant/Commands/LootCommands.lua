@@ -118,7 +118,7 @@ local function voteSummary(session)
   return #parts > 0 and ("votes: " .. table.concat(parts, ", ")) or "no votes yet"
 end
 
-function LootCommands:ListSessions(event)
+local function listSessions(event)
   local sessions = ns.LootService.Sessions(event)
   if #sessions == 0 then
     return { ("No loot sessions for '%s' yet."):format(event.title) }
@@ -131,7 +131,7 @@ function LootCommands:ListSessions(event)
   return lines
 end
 
-function LootCommands:Detail(session)
+local function detail(session)
   local lines = { ("%s [%s]"):format(session.itemName, session.status) }
   local keys = {}
   for key in pairs(session.candidates) do
@@ -176,7 +176,7 @@ function LootCommands:Session(event, session, verb, args)
   local eventId, sessionId = event.eventId, session.sessionId
 
   if verb == "" then
-    return self:Detail(session)
+    return detail(session)
   end
 
   if verb == "apply" then
@@ -273,7 +273,7 @@ function LootCommands:Loot(rest)
 
   local action, args = remainder:match("^(%S*)%s*(.-)$")
   if action == "" or action == "list" then
-    return self:ListSessions(event)
+    return listSessions(event)
   end
   if action == "open" then
     return self:Open(event, args)
