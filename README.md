@@ -15,10 +15,11 @@ This addon is for Nrage members only:
 ## Installation
 
 1. Open the repository's **Releases** page and download the latest `NrageAssistant-<version>.zip`.
-2. Extract it into your addons folder so the result is:
+2. Extract the zip into your addons folder:
    ```text
-   World of Warcraft/<forever client folder>/Interface/AddOns/NrageAssistant/NrageAssistant.toc
+   World of Warcraft/<forever client folder>/Interface/AddOns/
    ```
+   The zip already contains the `NrageAssistant` folder, so do not create it yourself.
 3. Restart the game or run `/reload`, and make sure **Nrage Assistant** is enabled in the AddOns list.
 
 ## Usage
