@@ -17,11 +17,19 @@ read_globals = {
   "CreateFrame",
   "date",
   "GetTime",
+  "GetAverageItemLevel",
   "GetBuildInfo",
   "GetGuildInfo",
   "GetNormalizedRealmName",
+  "GetProfessionInfo",
+  "GetProfessions",
+  "GetServerTime",
   "IsInGuild",
+  "UnitClass",
   "UnitFactionGroup",
+  "UnitGUID",
+  "UnitLevel",
+  "UnitName",
 }
 
 files["tests/"] = {
