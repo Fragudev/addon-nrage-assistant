@@ -159,13 +159,20 @@ local function listAttendance(event)
 end
 
 function RaidCommands:Attendance(rest)
-  local token, characterKey, state = rest:match("^(%S*)%s*(%S*)%s*(%S*)")
+  local token, remainder = rest:match("^(%S*)%s*(.-)$")
   local event, problem = self:Resolve(token)
   if not event then
-    return { problem, "usage: /nrage attendance <n> [<Name-Realm> <state>]" }
+    return { problem, "usage: /nrage attendance <n> [<name> <state>]" }
   end
-  if characterKey == "" then
+  if remainder == "" then
     return listAttendance(event)
+  end
+
+  -- The state is the last word; the name (which may have several) is everything before it.
+  local name, state = remainder:match("^(.-)%s+(%S+)$")
+  local characterKey = name and ns.Args.Unquote(name) or ""
+  if characterKey == "" then
+    return { "usage: /nrage attendance <n> [<name> <state>]" }
   end
 
   local ctx = self:Context()
@@ -213,7 +220,7 @@ function RaidCommands:Assign(rest)
   local token, sub, args = rest:match("^(%S*)%s*(%S*)%s*(.-)$")
   local event, problem = self:Resolve(token)
   if not event then
-    return { problem, "usage: /nrage assign <n> [add <Name-Realm> <encounter> | remove <k>]" }
+    return { problem, "usage: /nrage assign <n> [add <name> <encounter> | remove <k>]" }
   end
   if sub == "" or sub == "list" then
     return listAssignments(event)
@@ -221,9 +228,10 @@ function RaidCommands:Assign(rest)
 
   local ctx = self:Context()
   if sub == "add" then
-    local characterKey, encounter = args:match("^(%S+)%s+(.+)$")
-    if not characterKey then
-      return { "usage: /nrage assign <n> add <Name-Realm> <encounter>" }
+    -- A name with spaces goes in double quotes: assign 1 add "Yonemon Gg" Ragnaros
+    local characterKey, encounter = ns.Args.TakeName(args)
+    if not characterKey or encounter == "" then
+      return { 'usage: /nrage assign <n> add <name> <encounter>   (put a name with spaces in "quotes")' }
     end
     local assignment, reason = ns.EventService.AddAssignment(ctx, event.eventId, {
       characterKey = characterKey, encounter = encounter,
@@ -252,7 +260,7 @@ function RaidCommands:Assign(rest)
     }
   end
 
-  return { "usage: /nrage assign <n> [list | add <Name-Realm> <encounter> | remove <k>]" }
+  return { "usage: /nrage assign <n> [list | add <name> <encounter> | remove <k>]" }
 end
 
 ns.RaidCommands = RaidCommands

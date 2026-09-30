@@ -1,8 +1,8 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Domain/LootModel", "Domain/LootService", "Commands/LootCommands",
+    "Core/Constants", "Core/Validate", "Core/Args", "Domain/PermissionService", "Domain/EventModel",
+    "Domain/EventService", "Domain/LootModel", "Domain/LootService", "Commands/LootCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -240,5 +240,38 @@ describe("LootCommands lists, minutes and errors", function()
     assert.is_truthy(text(env.loot:Loot("help")):find("/nrage loot acta", 1, true))
     env.loot:Loot("1 open 1 Alpha")
     assert.is_truthy(text(env.loot:Loot("1 1 dance")):find("usage:", 1, true))
+  end)
+end)
+
+describe("LootCommands character names with spaces", function()
+  local env
+
+  before_each(function()
+    env = build("Council", { identity = "Yonemon Gg" })
+    env.loot:Loot("1 open 19019 Thunderfury")
+    env.loot:Loot("1 1 apply Fury main")
+    env.sent = {}
+  end)
+
+  it("votes for a name with spaces, quoted or not", function()
+    assert.is_truthy(text(env.loot:Loot("1 1 vote Yonemon Gg")):find("voted for Yonemon Gg", 1, true))
+    assert.is_truthy(text(env.loot:Loot('1 1 vote "Yonemon Gg"')):find("voted for Yonemon Gg", 1, true))
+    assert.are.equal("Yonemon Gg", env.sent[1].args[3].target)
+  end)
+
+  it("awards to a quoted name with spaces, taking the rest as the reason", function()
+    local lines = text(env.loot:Loot('1 1 award "Yonemon Gg" Highest need in the raid'))
+    assert.is_truthy(lines:find("Thunderfury awarded to Yonemon Gg", 1, true))
+    assert.are.equal("Yonemon Gg", first_session(env).award.characterKey)
+    assert.are.equal("Highest need in the raid", first_session(env).award.reason)
+  end)
+
+  it("asks for a reason, and explains the quotes, when the award is malformed", function()
+    for _, args in ipairs({ '"Yonemon Gg"', '"Yonemon Gg', "" }) do
+      local lines = text(env.loot:Loot("1 1 award " .. args))
+      assert.is_truthy(lines:find("usage:", 1, true), args)
+      assert.is_truthy(lines:find("quotes", 1, true), args)
+    end
+    assert.are.equal("open", first_session(env).status)
   end)
 end)

@@ -62,6 +62,17 @@ Manual items are confirmed with `/nrage ready set <item> <met|missing|waived|unk
 score but stays visible. The guild has not chosen the level, item level and profession thresholds yet, so today
 the list only holds the items that need no numbers.
 
+## Character names with several words
+
+Character names on Forever can have several words (`Yonemon Gg`). Where a command takes a name followed by more
+text, put a name with spaces in double quotes:
+
+- `/nrage assign 1 add "Yonemon Gg" Ragnaros`
+- `/nrage loot 1 2 award "Yonemon Gg" highest need`
+
+Two commands need no quotes: `attendance` (the last word is the state, the name is what is before it, as in
+`/nrage attendance 1 Yonemon Gg present`) and `loot ... vote` (everything after `vote` is the name).
+
 ## Raid events
 
 Events are created by raid leaders and admins and are shared with the guild. They are numbered as in the list:
@@ -78,13 +89,13 @@ Events are created by raid leaders and admins and are shared with the guild. The
 ### Attendance
 
 `/nrage attendance <n>` lists the recorded attendance of event *n*, and
-`/nrage attendance <n> <Name-Realm> <state>` records one. States: `invited`, `confirmed`, `present`, `late`,
+`/nrage attendance <n> <name> <state>` records one. States: `invited`, `confirmed`, `present`, `late`,
 `leftEarly`, `absent`, `excused`, `unknown`. Only an explicit entry changes a state: a disconnect is never
 turned into an absence.
 
 ### Assignments
 
-`/nrage assign <n>` lists them, `/nrage assign <n> add <Name-Realm> <encounter>` adds one and
+`/nrage assign <n>` lists them, `/nrage assign <n> add <name> <encounter>` adds one and
 `/nrage assign <n> remove <k>` removes the *k*-th.
 
 ### Templates
@@ -105,8 +116,8 @@ the addon refuses, because the session could not be announced.
 | `/nrage loot <event> open <item link>` | council, admin | open a session; shift-click the item, or give `<id> <name>` |
 | `/nrage loot <event> <n>` | anyone | show a session: candidates, votes, decision |
 | `/nrage loot <event> <n> apply <spec> <main\|off\|other> [upgrade]` | anyone | put yourself forward |
-| `/nrage loot <event> <n> vote <Name-Realm>` | council, admin | vote for a candidate (you can change it) |
-| `/nrage loot <event> <n> award <Name-Realm> <reason>` | council, admin | award the item and close the session |
+| `/nrage loot <event> <n> vote <name>` | council, admin | vote for a candidate (you can change it) |
+| `/nrage loot <event> <n> award <name> <reason>` | council, admin | award the item and close the session |
 | `/nrage loot <event> <n> close` | council, admin | close without awarding |
 | `/nrage loot acta <event>` | anyone | the minutes: what was decided and why |
 
