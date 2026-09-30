@@ -145,7 +145,7 @@ function LootService.Vote(ctx, eventId, sessionId, targetKey)
 end
 
 -- Awards the item to a candidate, with a reason, and closes the session.
-function LootService.Award(ctx, eventId, sessionId, targetKey, reason)
+function LootService.Award(ctx, eventId, sessionId, targetKey, awardReason)
   if not Can(ctx.role, "loot_award") then
     return nil, "forbidden"
   end
@@ -156,11 +156,11 @@ function LootService.Award(ctx, eventId, sessionId, targetKey, reason)
   if not ns.LootModel.IsCharacterKey(targetKey) or not session.candidates[targetKey] then
     return nil, "not_candidate"
   end
-  if not ns.LootModel.IsReason(reason) then
+  if not ns.LootModel.IsReason(awardReason) then
     return nil, "invalid:reason"
   end
 
-  session.award = { characterKey = targetKey, reason = reason, awardedBy = ctx.actor, at = ctx.now() }
+  session.award = { characterKey = targetKey, reason = awardReason, awardedBy = ctx.actor, at = ctx.now() }
   session.status = "closed"
   stamp(ctx, session)
   return session
