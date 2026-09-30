@@ -1,0 +1,27 @@
+.busted
+  s_58126f9867149c::t_97a858bd214d8c 1-7
+.github/workflows/ci.yml
+  s_58126f9867149c::t_136f0071ea28ea 1-33
+.luacheckrc
+  s_58126f9867149c::t_68360d7d930b03 1-20
+tests/constants_spec.lua
+  s_58126f9867149c::t_8756984b38a99a 1-25
+tests/stubs/wow_api.lua
+  s_58126f9867149c::t_3dc95b3726e557 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61b3fe186517e97e49f95f7efe07a8397ce541e9",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
