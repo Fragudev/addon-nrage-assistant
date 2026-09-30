@@ -2,7 +2,7 @@ local function load_view_model()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "UI/ViewModel",
+    "Domain/LootModel", "Domain/LootService", "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -94,13 +94,13 @@ describe("ViewModel misc", function()
   it("offers a tab for each view", function()
     local values = {}
     for _, tab in ipairs(ViewModel.TABS) do values[tab.value] = true end
-    assert.are.same({ home = true, profile = true, ready = true, raid = true, roster = true }, values)
+    assert.are.same({ home = true, profile = true, ready = true, raid = true, loot = true, roster = true }, values)
   end)
 
   it("documents every user command in the help", function()
     local text = table.concat(ViewModel.HelpLines(), "\n")
     for _, command in ipairs({
-      "role", "profile", "ready", "consent", "publish", "event", "attendance", "assign", "export", "import",
+      "role", "profile", "ready", "consent", "publish", "event", "attendance", "assign", "loot", "export", "import",
       "sync", "help", "version",
     }) do
       assert.is_truthy(text:find("/nrage " .. command, 1, true), command)
@@ -164,5 +164,77 @@ describe("ViewModel.Raid", function()
     assert.is_truthy(text:find("||cffff0000Evil", 1, true))
     assert.is_truthy(text:find("||cff00ff00late", 1, true))
     assert.is_truthy(text:find("||Hplayer:x||h", 1, true))
+  end)
+end)
+
+describe("ViewModel.Loot", function()
+  local function event(id, title, loot)
+    return {
+      eventId = id, title = title, status = "open", startAt = 1, attendance = {}, assignments = {}, loot = loot or {},
+    }
+  end
+
+  it("explains that there are no sessions and always warns that messages are not private", function()
+    local lines = ViewModel.Loot({ ["ev-1"] = event("ev-1", "Raid") })
+    assert.is_truthy(lines[1]:find("No loot sessions yet", 1, true))
+    assert.is_truthy(lines[#lines]:find("not private", 1, true))
+  end)
+
+  it("shows open sessions with aggregate counts only, never who voted for whom", function()
+    local lines = ViewModel.Loot({
+      ["ev-1"] = event("ev-1", "Molten Core", {
+        s1 = {
+          sessionId = "s1", itemName = "Thunderfury", status = "open",
+          candidates = { ["Ann-Realm"] = {}, ["Bob-Realm"] = {} },
+          votes = { ["Boss-Realm"] = { target = "Ann-Realm" }, ["Two-Realm"] = { target = "Ann-Realm" } },
+        },
+      }),
+    })
+    local text = table.concat(lines, "\n")
+    assert.is_truthy(text:find("Molten Core", 1, true))
+    assert.is_truthy(text:find("Thunderfury [open] - 2 candidate(s), 2 vote(s) cast", 1, true))
+    assert.is_nil(text:find("Boss-Realm", 1, true))
+  end)
+
+  it("shows the decision and reason of an awarded session, and closed sessions without award", function()
+    local lines = ViewModel.Loot({
+      ["ev-1"] = event("ev-1", "Molten Core", {
+        s1 = {
+          sessionId = "s1", itemName = "Alpha", status = "closed", candidates = {}, votes = {},
+          award = { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm" },
+        },
+        s2 = { sessionId = "s2", itemName = "Beta", status = "closed", candidates = {}, votes = {} },
+      }),
+    })
+    local text = table.concat(lines, "\n")
+    assert.is_truthy(text:find("Alpha [closed] - awarded to Ann-Realm - Highest need", 1, true))
+    assert.is_truthy(text:find("Beta [closed] - closed, not awarded", 1, true))
+  end)
+
+  it("lists only the events that have sessions, in event order", function()
+    local lines = ViewModel.Loot({
+      a = event("a", "Has loot", {
+        s1 = { sessionId = "s1", itemName = "X", status = "open", candidates = {}, votes = {} },
+      }),
+      b = event("b", "No loot"),
+    })
+    local text = table.concat(lines, "\n")
+    assert.is_truthy(text:find("Has loot", 1, true))
+    assert.is_nil(text:find("No loot", 1, true))
+  end)
+
+  it("escapes everything that came from the guild", function()
+    local lines = ViewModel.Loot({
+      ["ev-1"] = event("ev-1", "|cffff0000Evil", {
+        s1 = {
+          sessionId = "s1", itemName = "|Hitem:1|h[Bad]|h", status = "closed", candidates = {}, votes = {},
+          award = { characterKey = "|cff00ff00Ann", reason = "|rwhy" },
+        },
+      }),
+    })
+    local text = table.concat(lines, "\n")
+    assert.is_nil(text:find("[^|]|[cHr]"))
+    assert.is_truthy(text:find("||cffff0000Evil", 1, true))
+    assert.is_truthy(text:find("||cff00ff00Ann", 1, true))
   end)
 end)

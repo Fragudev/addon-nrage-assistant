@@ -180,6 +180,27 @@ function LootService.Close(ctx, eventId, sessionId)
   return session
 end
 
+-- Whether votes may be shown as they are now: always once the session is closed, and while it is
+-- open only if Constants.VOTE_VISIBILITY is "open". Views must check this before showing counts.
+function LootService.VotesVisible(session)
+  return session.status == "closed" or ns.Constants.VOTE_VISIBILITY == "open"
+end
+
+-- The sessions of an event in a stable order (item name, then id), the order the commands number them.
+function LootService.Sessions(event)
+  local sessions = {}
+  for _, session in pairs(event.loot or {}) do
+    sessions[#sessions + 1] = session
+  end
+  table.sort(sessions, function(a, b)
+    if a.itemName ~= b.itemName then
+      return a.itemName < b.itemName
+    end
+    return a.sessionId < b.sessionId
+  end)
+  return sessions
+end
+
 -- Vote counts per candidate, most votes first. `voters` (who voted for whom) is included only when
 -- the policy allows: always once the session is closed, and while it is open only if
 -- Constants.VOTE_VISIBILITY is "open".
