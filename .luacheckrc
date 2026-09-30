@@ -28,6 +28,7 @@ read_globals = {
   "GetProfessions",
   "GetServerTime",
   "IsInGuild",
+  "LibStub",
   "UnitClass",
   "UnitFactionGroup",
   "UnitGUID",
