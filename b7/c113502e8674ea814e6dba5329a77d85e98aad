@@ -1,0 +1,27 @@
+README.md
+  s_58126f9867149c::t_41f0a3af7297a3 5,13,27-28,31-46,52-60,63-73,82
+docs/API_NOTES.md
+  s_58126f9867149c::t_6127af486aca16 1-53
+docs/PRIVACY.md
+  s_58126f9867149c::t_f00c744bacc07d 1-63
+docs/PROTOCOL.md
+  s_58126f9867149c::t_72bd27aef40221 1-114
+docs/USER_GUIDE.md
+  s_58126f9867149c::t_01417859d9c236 1-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7c113502e8674ea814e6dba5329a77d85e98aad",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
