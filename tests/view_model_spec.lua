@@ -95,7 +95,7 @@ describe("ViewModel misc", function()
 
   it("documents every user command in the help", function()
     local text = table.concat(ViewModel.HelpLines(), "\n")
-    for _, command in ipairs({ "profile", "ready", "consent", "publish", "sync", "help", "version" }) do
+    for _, command in ipairs({ "role", "profile", "ready", "consent", "publish", "sync", "help", "version" }) do
       assert.is_truthy(text:find("/nrage " .. command, 1, true), command)
     end
   end)

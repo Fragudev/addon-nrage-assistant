@@ -20,6 +20,33 @@ function Platform.GetGuildName()
   return name
 end
 
+-- Rank name of the player in their own guild, or nil.
+function Platform.GetOwnGuildRank()
+  local _, rankName = GetGuildInfo("player")
+  return rankName
+end
+
+-- Asks the server for a fresh guild roster; the answer arrives as GUILD_ROSTER_UPDATE.
+function Platform.RequestGuildRoster()
+  if C_GuildInfo and C_GuildInfo.GuildRoster then
+    C_GuildInfo.GuildRoster()
+  end
+end
+
+function Platform.GetNumGuildMembers()
+  local total = GetNumGuildMembers()
+  return total or 0
+end
+
+-- { name, rankName, rankIndex, level, class } for roster row `index`, or nil.
+function Platform.GetGuildRosterEntry(index)
+  local name, rankName, rankIndex, level, _, _, _, _, _, _, class = GetGuildRosterInfo(index)
+  if not name then
+    return nil
+  end
+  return { name = name, rankName = rankName, rankIndex = rankIndex, level = level, class = class }
+end
+
 function Platform.GetFaction()
   local faction = UnitFactionGroup("player")
   return faction

@@ -82,6 +82,7 @@ function ViewModel.HelpLines()
     "/nrage               open the window",
     "/nrage help          this list",
     "/nrage version       addon version",
+    "/nrage role          your guild rank, addon role and what it allows",
     "/nrage profile       show your profile (profile set <role|main|notes> <text>)",
     "/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)",
     "/nrage consent       what you agree to share (consent <key> on|off)",

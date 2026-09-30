@@ -32,6 +32,22 @@ ns.Constants = {
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
 
+  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "admin". Placeholder ranks until
+  -- Nrage defines its own; a rank that is not listed here is treated as "member".
+  RANK_ROLES = {
+    gm = "admin",
+    officer = "admin",
+    rl = "rl",
+    roster = "member",
+    member = "member",
+    alter = "member",
+  },
+
+  -- Guild roster cache: bounded, rebuilt in chunks so a big guild never stalls the UI.
+  GUILD_ROSTER_MAX = 1000,
+  GUILD_ROSTER_CHUNK = 100,
+  GUILD_ROSTER_MIN_INTERVAL_SECONDS = 10,
+
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,
   -- A received profile older than this is shown as stale, never as current.
