@@ -1,0 +1,51 @@
+assets/README.md
+  s_58126f9867149c::t_69aac32cca4f61 1-20
+tests/constants_spec.lua
+  s_58126f9867149c::t_28f141362cfbe5 13-14,58
+tests/minimap_button_spec.lua
+  s_58126f9867149c::t_0faf9bafd89f0a 1-163
+tests/store_spec.lua
+  s_58126f9867149c::t_d09561c4096fa9 28,36,50,57,88,105-131
+tests/view_model_spec.lua
+  s_58126f9867149c::t_fa15a46d99d14d 104
+tools/make_tga.swift
+  s_58126f9867149c::t_4662cf6ff231aa 1-63
+.luacheckrc
+  s_58126f9867149c::t_f0597c8393eb58 27-28,30,37
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_9e31aa8918ba4c 255-262,294
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_1443d1effe8759 5,87-91
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_aecf1c80bc7614 45,75
+NrageAssistant/Core/Store.lua
+  s_58126f9867149c::t_0c826fef9c332d 4-5,35-38
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_f7086682a626ca 7,44
+NrageAssistant/UI/Main.lua
+  s_58126f9867149c::t_06af5b5a52d056 56-69,71,75-77
+NrageAssistant/UI/MinimapButton.lua
+  s_58126f9867149c::t_647fda3082c3fb 1-153
+NrageAssistant/UI/ViewModel.lua
+  s_58126f9867149c::t_63c5e9cff4bcf2 188
+README.md
+  s_58126f9867149c::t_3d5d40c968b80a 38,59-61
+docs/USER_GUIDE.md
+  s_58126f9867149c::t_a3d4b7e7cf3b3d 16-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33e0d254779d91cfecd6f6204ae5bd8b8c1fe3a0",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
