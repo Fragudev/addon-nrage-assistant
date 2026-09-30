@@ -230,6 +230,87 @@ function ViewModel.AttendanceRows(event, memberNames, filter, limit)
   return rows, matched
 end
 
+-- What the Loot tab offers a role: the same checks as the commands (LootService repeats them on every change).
+function ViewModel.LootActions(role)
+  local can = ns.PermissionService.Can
+  return {
+    open = can(role, "loot_open"),
+    apply = can(role, "loot_apply"),
+    vote = can(role, "loot_vote"),
+    award = can(role, "loot_award"),
+  }
+end
+
+ViewModel.LOOT_NEEDS = { "main", "off", "other" }
+
+-- One loot session as lines: item, candidates, votes and decision. Vote counts follow the session's
+-- visibility policy (hidden while open unless configured otherwise); everything is escaped.
+function ViewModel.LootSession(session)
+  local lines = { ("%s [%s]"):format(ViewModel.Escape(session.itemName), ViewModel.Escape(session.status)) }
+
+  local keys = {}
+  for key in pairs(session.candidates) do
+    keys[#keys + 1] = key
+  end
+  table.sort(keys)
+  if #keys == 0 then
+    lines[#lines + 1] = "  no candidates yet"
+  end
+  for _, key in ipairs(keys) do
+    local candidate = session.candidates[key]
+    local upgrade = candidate.upgrade and (" - " .. ViewModel.Escape(candidate.upgrade)) or ""
+    lines[#lines + 1] = ("  %s: %s, %s%s"):format(
+      ViewModel.Escape(key),
+      ViewModel.Escape(candidate.spec),
+      ViewModel.Escape(candidate.need),
+      upgrade
+    )
+  end
+
+  if ns.LootService.VotesVisible(session) then
+    local parts = {}
+    for _, entry in ipairs(ns.LootService.Tally(session)) do
+      parts[#parts + 1] = ("%s %d"):format(ViewModel.Escape(entry.characterKey), entry.count)
+    end
+    lines[#lines + 1] = "  " .. (#parts > 0 and ("votes: " .. table.concat(parts, ", ")) or "no votes yet")
+  else
+    local voters = 0
+    for _ in pairs(session.votes) do
+      voters = voters + 1
+    end
+    lines[#lines + 1] = ("  %d vote(s) cast (hidden until the session closes)"):format(voters)
+  end
+
+  if session.award then
+    lines[#lines + 1] = ("  awarded to %s by %s: %s"):format(
+      ViewModel.Escape(session.award.characterKey),
+      ViewModel.Escape(session.award.awardedBy),
+      ViewModel.Escape(session.award.reason)
+    )
+  elseif session.status == "closed" then
+    lines[#lines + 1] = "  closed, not awarded"
+  end
+  return lines
+end
+
+-- Dropdown entries for the candidates of a session: list[characterKey] = label, plus the keys sorted.
+function ViewModel.CandidateChoices(session)
+  local list, order = {}, {}
+  for key in pairs(session.candidates) do
+    order[#order + 1] = key
+  end
+  table.sort(order)
+  for _, key in ipairs(order) do
+    local candidate = session.candidates[key]
+    list[key] = ("%s (%s, %s)"):format(
+      ViewModel.Escape(key),
+      ViewModel.Escape(candidate.spec),
+      ViewModel.Escape(candidate.need)
+    )
+  end
+  return list, order
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },

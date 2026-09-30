@@ -131,7 +131,7 @@ end
 -- the slash commands, so the checks and the messages sent to the guild are the same.
 local selectedEventId
 local attendanceFilter = ""
-local raidMessage
+local actionMessage
 local ATTENDANCE_ROWS_MAX = 40
 
 local function RaidServices()
@@ -156,7 +156,7 @@ local function Report(lines)
   for _, line in ipairs(lines) do
     parts[#parts + 1] = line
   end
-  raidMessage = table.concat(parts, " ")
+  actionMessage = table.concat(parts, " ")
   Redraw()
 end
 
@@ -286,7 +286,7 @@ local function DrawAssignments(container, raid, event, members)
   local encounter = AddField(container, "Encounter", 0.3)
   AddButton(container, "Add", 0.25, function()
     if not newMember then
-      raidMessage = "Pick a member first."
+      actionMessage = "Pick a member first."
       Redraw()
       return
     end
@@ -309,7 +309,7 @@ local function DrawTemplates(container, templates, event)
     end)
     AddButton(container, "Apply to this event", 0.4, function()
       if not chosen then
-        raidMessage = "Pick a template first."
+        actionMessage = "Pick a template first."
         Redraw()
         return
       end
@@ -328,8 +328,8 @@ local function DrawRaid(container)
   local actions = ns.ViewModel.RaidActions(ns.comm and ns.PermissionService.OwnRole(ns.Platform) or nil)
   local raid, templates = RaidServices()
 
-  if raidMessage then
-    AddLines(container, { ns.ViewModel.Escape(raidMessage), "" })
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
   end
 
   if actions.events then
@@ -371,9 +371,129 @@ local function DrawRaid(container)
   end
 end
 
+-- Loot tab. Anyone can apply to an open session; opening, voting and awarding only show for the roles
+-- that may (ViewModel.LootActions). Each control calls the same LootCommands method as the slash command.
+local function DrawLootApply(container, loot, event, session)
+  local spec = AddField(container, "Spec", 0.3)
+  local upgrade = AddField(container, "Upgrade (optional)", 0.7)
+  for _, need in ipairs(ns.ViewModel.LOOT_NEEDS) do
+    AddButton(container, "Apply: " .. need, 0.33, function()
+      local text = upgrade:GetText()
+      Report(loot:Apply(event, session, {
+        spec = spec:GetText(),
+        need = need,
+        upgrade = text ~= "" and text or nil,
+      }))
+    end)
+  end
+end
+
+local function DrawLootCouncil(container, loot, event, session, actions)
+  local list, order = ns.ViewModel.CandidateChoices(session)
+  if #order == 0 then
+    return
+  end
+  local chosen
+  AddDropdown(container, "Candidate", list, order, nil, 1, function(key)
+    chosen = key
+  end)
+
+  local function withCandidate(action)
+    return function()
+      if not chosen then
+        actionMessage = "Pick a candidate first."
+        Redraw()
+        return
+      end
+      action()
+    end
+  end
+
+  if actions.vote then
+    AddButton(
+      container,
+      "Vote",
+      0.3,
+      withCandidate(function()
+        Report(loot:VoteFor(event, session, chosen))
+      end)
+    )
+  end
+  if actions.award then
+    local reason = AddField(container, "Reason for the award", 0.7)
+    AddButton(
+      container,
+      "Award",
+      0.3,
+      withCandidate(function()
+        Report(loot:AwardTo(event, session, chosen, reason:GetText()))
+      end)
+    )
+    AddButton(container, "Close without awarding", 0.7, function()
+      Report(loot:CloseSession(event, session))
+    end)
+  end
+end
+
+local function DrawLootSession(container, loot, event, session, actions)
+  AddLines(container, { "" })
+  AddLines(container, ns.ViewModel.LootSession(session))
+  if session.status == "closed" then
+    return
+  end
+  if actions.apply then
+    DrawLootApply(container, loot, event, session)
+  end
+  if actions.vote or actions.award then
+    DrawLootCouncil(container, loot, event, session, actions)
+  end
+end
+
 local function DrawLoot(container)
-  AddLines(container, ns.ViewModel.Loot(ns.db.global.events))
-  AddLines(container, { "Manage sessions with /nrage loot." })
+  -- Without a sync transport nothing could be sent, so the tab stays read-only.
+  local actions = ns.ViewModel.LootActions(ns.comm and ns.PermissionService.OwnRole(ns.Platform) or nil)
+  local list, order = ns.ViewModel.EventChoices(ns.db.global.events)
+  if #order == 0 then
+    AddLines(container, ns.ViewModel.Loot(ns.db.global.events))
+    return
+  end
+  if not list[selectedEventId] then
+    selectedEventId = order[1]
+  end
+  local event = ns.db.global.events[selectedEventId]
+  local loot = ns.LootCommands.New({ events = ns.db.global.events, platform = ns.Platform, comm = ns.comm })
+
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
+  end
+  AddDropdown(container, "Event", list, order, selectedEventId, 1, function(key)
+    selectedEventId = key
+    Redraw()
+  end)
+
+  if actions.open then
+    AddHeading(container, "Open a session")
+    local item = AddField(container, "Item link (shift-click the item into this box)", 0.7)
+    AddButton(container, "Open", 0.3, function()
+      local parsed = ns.LootCommands.ParseItem(item:GetText())
+      if not parsed then
+        actionMessage = "Paste or shift-click an item link first."
+        Redraw()
+        return
+      end
+      Report(loot:OpenItem(event, parsed))
+    end)
+  end
+
+  local sessions = ns.LootService.Sessions(event)
+  AddHeading(container, "Sessions")
+  if #sessions == 0 then
+    AddLines(container, { "No loot sessions for this event yet." })
+  end
+  for _, session in ipairs(sessions) do
+    DrawLootSession(container, loot, event, session, actions)
+  end
+  AddLines(container, { "", "Addon messages are not private: anyone with the addon can read votes." })
 end
 
 local DRAWERS = {
@@ -386,6 +506,9 @@ local DRAWERS = {
 }
 
 local function OnTabSelected(container, _, group)
+  if group ~= currentTab then
+    actionMessage = nil
+  end
   currentTab = group
   container:ReleaseChildren()
 

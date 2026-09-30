@@ -132,6 +132,12 @@ boss does not have to be planned again each week. Also `template list`, `templat
 Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
 the addon refuses, because the session could not be announced.
 
+The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,
+votes and decision. Anyone can apply to an open session with a spec and the *Apply: main / off / other* buttons
+(the upgrade field is optional). Council and admins also get *Vote*, *Award* (with a reason) and *Close without
+awarding*, and a field to paste or shift-click an item link to open a session. Controls your role does not allow
+are not shown. The commands below keep working the same way.
+
 | Command | Who | What it does |
 |---|---|---|
 | `/nrage loot <event>` | anyone | list the sessions of the event |
