@@ -141,13 +141,13 @@ describe("PermissionService beta admin exception", function()
   end
 
   it("recognises the listed name, ignoring case, spaces and the realm suffix", function()
-    for _, key in ipairs({ "Yonemongg-Realm", "yonemongg", "YONEMONGG-ClassicBetaPvP", "Yonemongg" }) do
+    for _, key in ipairs({ "Yonemon-Realm", "yonemon", "YONEMON-ClassicBetaPvP", "Yonemon" }) do
       assert.is_true(Service.IsBetaAdmin(key), key)
     end
   end)
 
   it("does not recognise anyone else", function()
-    for _, key in ipairs({ "Yonemon-Realm", "Gg-Realm", "Someone-Realm", "Yonemonggg-Realm", "", "-Realm" }) do
+    for _, key in ipairs({ "Yonemongg-Realm", "Gg-Realm", "Someone-Realm", "Yonemo-Realm", "", "-Realm" }) do
       assert.is_false(Service.IsBetaAdmin(key), key)
     end
     assert.is_false(Service.IsBetaAdmin(nil))
@@ -156,8 +156,8 @@ describe("PermissionService beta admin exception", function()
 
   it("can be switched off in one place", function()
     Constants.BETA_ADMIN_ENABLED = false
-    local recognised = Service.IsBetaAdmin("Yonemongg-Realm")
-    local role = Service.RoleOf(roster_of({ ["Yonemongg-Realm"] = { rankName = "member" } }), "Yonemongg-Realm")
+    local recognised = Service.IsBetaAdmin("Yonemon-Realm")
+    local role = Service.RoleOf(roster_of({ ["Yonemon-Realm"] = { rankName = "member" } }), "Yonemon-Realm")
     Constants.BETA_ADMIN_ENABLED = true
     assert.is_false(recognised)
     assert.are.equal("member", role)
@@ -165,23 +165,23 @@ describe("PermissionService beta admin exception", function()
 
   it("makes a guild member on the list an admin whatever their rank", function()
     local roster = roster_of({
-      ["Yonemongg-Realm"] = { rankName = "alter" },
+      ["Yonemon-Realm"] = { rankName = "alter" },
       ["Other-Realm"] = { rankName = "alter" },
     })
-    assert.are.equal("admin", Service.RoleOf(roster, "Yonemongg-Realm"))
+    assert.are.equal("admin", Service.RoleOf(roster, "Yonemon-Realm"))
     assert.are.equal("member", Service.RoleOf(roster, "Other-Realm"))
-    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemongg-Realm"), "moderate"))
-    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemongg-Realm"), "loot_award"))
+    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemon-Realm"), "moderate"))
+    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemon-Realm"), "loot_award"))
   end)
 
   it("gives nothing to a listed name the guild roster does not know", function()
-    assert.is_nil(Service.RoleOf(roster_of({}), "Yonemongg-Realm"))
+    assert.is_nil(Service.RoleOf(roster_of({}), "Yonemon-Realm"))
   end)
 
   it("applies to the own role only for someone who is in a guild", function()
-    assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemongg-Realm")))
+    assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemon-Realm")))
     assert.are.equal("member", Service.OwnRole(platform_of("alter", "Other-Realm")))
-    assert.is_nil(Service.OwnRole(platform_of(nil, "Yonemongg-Realm")))
-    assert.is_nil(Service.OwnRole(platform_of("", "Yonemongg-Realm")))
+    assert.is_nil(Service.OwnRole(platform_of(nil, "Yonemon-Realm")))
+    assert.is_nil(Service.OwnRole(platform_of("", "Yonemon-Realm")))
   end)
 end)
