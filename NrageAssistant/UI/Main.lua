@@ -322,6 +322,16 @@ local function DrawTemplates(container, templates, event)
     list[name] = ns.ViewModel.Escape(name)
   end
 
+  local suggested = ns.TemplateService.Suggest(ns.db.global.templates, event)
+  if #suggested > 0 then
+    AddLines(container, { "Suggested for this event (nothing is applied until you click):" })
+    for _, name in ipairs(suggested) do
+      AddButton(container, "Apply: " .. ns.ViewModel.Escape(name), 1, function()
+        Report(templates:ApplyToEvent(event, name))
+      end)
+    end
+  end
+
   local chosen
   if #names > 0 then
     AddDropdown(container, "Saved templates", list, names, nil, 0.6, function(key)
@@ -354,7 +364,18 @@ local function DrawRaid(container)
 
   if actions.events then
     AddTextInput(container, "New event title (Enter to create)", "", 1, function(value)
-      Report(raid:CreateEvent(value))
+      local before = {}
+      for eventId in pairs(ns.db.global.events) do
+        before[eventId] = true
+      end
+      local lines = raid:CreateEvent(value)
+      -- Open the new event, so templates that match its title are suggested right away.
+      for eventId in pairs(ns.db.global.events) do
+        if not before[eventId] then
+          selectedEventId = eventId
+        end
+      end
+      Report(lines)
     end)
   end
 

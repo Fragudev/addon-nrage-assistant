@@ -199,3 +199,58 @@ describe("TemplateService.Describe", function()
     )
   end)
 end)
+
+describe("TemplateService.Suggest", function()
+  local function template(name, ...)
+    local slots = {}
+    for _, encounter in ipairs({ ... }) do
+      slots[#slots + 1] = { encounter = encounter, characterKey = "Ann-Realm" }
+    end
+    return { name = name, slots = slots }
+  end
+
+  local function event(title, instance, assignments)
+    return { title = title, instance = instance, assignments = assignments or {} }
+  end
+
+  local templates = {
+    ["Molten Core"] = template("Molten Core", "Garr"),
+    ["Naxx"] = template("Naxx", "Patchwerk"),
+    ["Onyxia"] = template("Onyxia", "Onyxia"),
+    ["MC"] = template("MC", "Garr"),
+  }
+
+  it("suggests templates whose name appears in the title, ignoring case", function()
+    assert.are.same({ "Molten Core" }, Service.Suggest(templates, event("molten core night", nil)))
+  end)
+
+  it("also matches the instance, and a title that contains the template name or the reverse", function()
+    assert.are.same({ "Naxx" }, Service.Suggest(templates, event("Tuesday raid", "Naxx")))
+    assert.are.same({ "Molten Core" }, Service.Suggest(templates, event("Molten", nil)))
+    local reversed = { ["Molten Core Week 1"] = template("Molten Core Week 1", "Garr") }
+    assert.are.same({ "Molten Core Week 1" }, Service.Suggest(reversed, event("Molten Core", nil)))
+  end)
+
+  it("suggests nothing for unrelated titles, very short names or an untitled event", function()
+    assert.are.same({}, Service.Suggest(templates, event("Karazhan", nil)))
+    assert.are.same({}, Service.Suggest(templates, event("MC night", nil)))
+    assert.are.same({}, Service.Suggest(templates, event("", nil)))
+  end)
+
+  it("leaves out a template the event already has in full", function()
+    local has = { a = { encounter = "Garr", characterKey = "Ann-Realm" } }
+    assert.are.same({}, Service.Suggest(templates, event("Molten Core night", nil, has)))
+    local partial = { ["Molten Core"] = template("Molten Core", "Garr", "Geddon") }
+    assert.are.same({ "Molten Core" }, Service.Suggest(partial, event("Molten Core", nil, has)))
+  end)
+
+  it("returns the names sorted and changes nothing", function()
+    local many = {
+      ["Onyxia B"] = template("Onyxia B", "Onyxia"),
+      ["Onyxia A"] = template("Onyxia A", "Onyxia"),
+    }
+    local target = event("Onyxia", nil)
+    assert.are.same({ "Onyxia A", "Onyxia B" }, Service.Suggest(many, target))
+    assert.is_nil(next(target.assignments))
+  end)
+end)
