@@ -1,0 +1,35 @@
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_dded9662ee4298 175-193,196-198
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_4a913738741463 34
+NrageAssistant/UI/ViewModel.lua
+  s_58126f9867149c::t_aea41dd74fba06 90-92
+tests/constants_spec.lua
+  s_58126f9867149c::t_eedcfd8b07c8e4 56
+tests/raid_commands_spec.lua
+  s_58126f9867149c::t_b560946399f9a3 1-221
+tests/view_model_spec.lua
+  s_58126f9867149c::t_6129f80a632f93 98-100
+NrageAssistant/Commands/RaidCommands.lua
+  s_58126f9867149c::t_ee87869c983106 1-243
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_5eebc7aaf0ed0e 38-42
+NrageAssistant/Core/Platform.lua
+  s_58126f9867149c::t_c5e6d8b08716fc 122-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "de75ce85a31e3671070a554404ce51f1e216eeda",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
