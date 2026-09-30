@@ -92,7 +92,7 @@ function ViewModel.HelpLines()
     "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
     "/nrage export        copy all raid events, attendance and assignments as text",
     "/nrage import        paste an export to merge it into your data (RL/admin only)",
-    "/nrage sync          sync state, queue and peers",
+    "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",
   }
 end
 

@@ -164,9 +164,25 @@ local function validateDelete(payload)
   return clean
 end
 
+-- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
+-- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
+-- its own validator, when it is applied.
+local function validateSyncReq()
+  return {}
+end
+
+local function validateSyncData(payload)
+  if type(payload.items) ~= "table" or #payload.items > ns.Constants.IMPORT_MAX_ITEMS then
+    return nil
+  end
+  return { items = payload.items }
+end
+
 local VALIDATORS = {
   HELLO = validateHello,
   PROFILE = validateProfile,
+  SYNC_REQ = validateSyncReq,
+  SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,
   ATTENDANCE_UPSERT = validateAttendanceUpsert,
   ASSIGN_UPSERT = validateAssignUpsert,

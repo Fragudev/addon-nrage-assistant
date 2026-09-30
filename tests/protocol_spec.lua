@@ -271,3 +271,24 @@ describe("Protocol.Validate DELETE", function()
     end
   end)
 end)
+
+describe("Protocol.Validate SYNC_REQ and SYNC_DATA", function()
+  it("accepts an empty request and drops anything it carries", function()
+    local clean = Protocol.Validate(raid_message("SYNC_REQ", { junk = "x" }))
+    assert.are.same({}, clean.p)
+  end)
+
+  it("keeps the items of a snapshot without judging them", function()
+    local items = { { t = "EVENT_UPSERT", p = {} }, "whatever" }
+    local clean = Protocol.Validate(raid_message("SYNC_DATA", { items = items, junk = 1 }))
+    assert.are.same({ items = items }, clean.p)
+  end)
+
+  it("rejects a snapshot without a list or with too many items", function()
+    assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", { items = "no" }))))
+    assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", {}))))
+    local items = {}
+    for i = 1, Constants.IMPORT_MAX_ITEMS + 1 do items[i] = { t = "DELETE", p = {} } end
+    assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", { items = items }))))
+  end)
+end)

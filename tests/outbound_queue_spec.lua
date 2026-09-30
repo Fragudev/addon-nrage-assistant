@@ -128,3 +128,22 @@ describe("OutboundQueue", function()
     assert.are.equal(0, queue:Pending())
   end)
 end)
+
+describe("OutboundQueue whisper targets", function()
+  local OutboundQueue = load_queue()
+
+  it("passes the target to send and keeps guild messages targetless", function()
+    local calls = {}
+    local queue = OutboundQueue.New({
+      guard = { CanSend = function() return true end },
+      now = function() return 0 end,
+      send = function(text, target) calls[#calls + 1] = { text = text, target = target } end,
+      jitter = function() return 0 end,
+    })
+    queue:Enqueue("to-guild", "g")
+    queue:Enqueue("to-someone", "w", "Ann-Realm")
+    assert.are.equal(2, queue:Flush())
+    assert.are.same({ text = "to-guild" }, calls[1])
+    assert.are.same({ text = "to-someone", target = "Ann-Realm" }, calls[2])
+  end)
+end)

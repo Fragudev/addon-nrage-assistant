@@ -2,14 +2,14 @@ local _, ns = ...
 
 -- Ties the codec, protocol, inbox guards and outbound queue together.
 --   Comm.New(deps) builds the testable core; Comm.Start() wires it to AceComm and timers (client only).
--- Only the GUILD channel is accepted in this MVP. The sender identity always comes from the
--- client event, never from the payload.
+-- Guild traffic arrives on GUILD; a snapshot for a late joiner arrives as a WHISPER from a leader.
+-- The sender identity always comes from the client event, never from the payload.
 local Comm = {}
 Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
---       roleOf(sender) -> role or nil, version (string), now() -> seconds,
---       schedule(delaySeconds, fn), random(low, high) -> number
+--       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
+--       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
   return setmetatable({
     platform = deps.platform,
@@ -20,6 +20,12 @@ function Comm.New(deps)
     events = deps.events,
     tombstones = deps.tombstones,
     roleOf = deps.roleOf,
+    ownRole = deps.ownRole,
+    snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
+    served = {},
+    servedCount = 0,
+    lastSyncRequestAt = nil,
+    lastSnapshot = nil,
     version = deps.version,
     now = deps.now,
     schedule = deps.schedule,
@@ -42,13 +48,15 @@ function Comm:Flush()
 end
 
 -- Encodes and queues a message; the queue holds it back during a lockdown.
-function Comm:Send(messageType, payload, key)
+-- `options` (optional): { target = whisper recipient, maxBytes = size limit override }.
+function Comm:Send(messageType, payload, key, options)
+  options = options or {}
   local message = ns.Protocol.Build(messageType, payload, self:NextId())
-  local text, reason = self.codec:Encode(message)
+  local text, reason = self.codec:Encode(message, options.maxBytes)
   if not text then
     return false, reason
   end
-  local ok, queueReason = self.queue:Enqueue(text, key)
+  local ok, queueReason = self.queue:Enqueue(text, key, options.target)
   if not ok then
     return false, queueReason
   end
@@ -135,7 +143,7 @@ end
 
 -- Full receive pipeline. Returns true, or false plus the reason the message was dropped.
 function Comm:HandleMessage(text, sender, channel)
-  if channel ~= "GUILD" then
+  if channel ~= "GUILD" and channel ~= "WHISPER" then
     return false, "wrong_channel"
   end
   if type(sender) ~= "string" or sender == "" then
@@ -143,6 +151,9 @@ function Comm:HandleMessage(text, sender, channel)
   end
   if sender == self.platform.GetIdentityKey() then
     return false, "own_message"
+  end
+  if channel == "WHISPER" then
+    return self:HandleWhisper(text, sender)
   end
 
   -- Cheapest check first: a flooding sender never reaches the decoder.
@@ -171,10 +182,127 @@ function Comm:HandleMessage(text, sender, channel)
   if message.t == "HELLO" then
     return self:HandleHello(sender, message.p)
   end
+  if message.t == "SYNC_REQ" then
+    return self:HandleSyncRequest(sender)
+  end
   if ns.EventSync.IsRaidMessage(message.t) then
     return self:HandleRaid(sender, message)
   end
-  return self:HandleProfile(sender, message.p)
+  if message.t == "PROFILE" then
+    return self:HandleProfile(sender, message.p)
+  end
+  -- SYNC_DATA is only ever accepted as a whisper.
+  return false, "wrong_channel"
+end
+
+-- Snapshot request from a late joiner. Only a leader (RL/admin by guild rank) answers, because
+-- only a leader's data will be accepted by the requester; each requester is served at most once per
+-- cooldown, after a random delay so several leaders do not all answer at the same instant.
+function Comm:HandleSyncRequest(sender)
+  local constants = ns.Constants
+  if not ns.PermissionService.Can(self.ownRole(), "manage_events") then
+    return false, "not_leader"
+  end
+
+  local now = self.now()
+  local last = self.served[sender]
+  if last and now - last < constants.SYNC_SERVE_COOLDOWN_SECONDS then
+    return false, "cooldown"
+  end
+  if not last then
+    if self.servedCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+      for name, servedAt in pairs(self.served) do
+        if now - servedAt >= constants.SYNC_SERVE_COOLDOWN_SECONDS then
+          self.served[name] = nil
+          self.servedCount = self.servedCount - 1
+        end
+      end
+      if self.servedCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+        return false, "busy"
+      end
+    end
+    self.servedCount = self.servedCount + 1
+  end
+  self.served[sender] = now
+
+  local delay = self.random(constants.SYNC_RESPONSE_DELAY_MIN, constants.SYNC_RESPONSE_DELAY_MAX)
+  self.schedule(delay, function()
+    self:SendSnapshot(sender)
+  end)
+  return true
+end
+
+-- Whispers `target` the most recent events, halving how many are sent until the message fits.
+function Comm:SendSnapshot(target)
+  local constants = ns.Constants
+  local count = constants.SYNC_MAX_EVENTS
+  while count >= 1 do
+    local items = ns.Transfer.BuildSnapshot(self.events, self.tombstones, count)
+    if #items == 0 then
+      return false, "empty"
+    end
+    local ok, reason = self:Send("SYNC_DATA", { items = items }, "SYNC:" .. target, {
+      target = target,
+      maxBytes = constants.SYNC_MAX_ENCODED_BYTES,
+    })
+    if ok or reason ~= "too_large" then
+      return ok, reason
+    end
+    count = math.floor(count / 2)
+  end
+  return false, "too_large"
+end
+
+-- Asks the guild for a snapshot; leaders answer by whisper.
+function Comm:RequestSync()
+  local now = self.now()
+  local cooldown = ns.Constants.SYNC_REQUEST_COOLDOWN_SECONDS
+  if self.lastSyncRequestAt and now - self.lastSyncRequestAt < cooldown then
+    return false, "cooldown"
+  end
+  self.lastSyncRequestAt = now
+  return self:Send("SYNC_REQ", {}, "SYNC_REQ")
+end
+
+-- A whisper can only carry a snapshot, and only a leader's snapshot is worth decoding. Both are
+-- checked from the local guild roster before any decompression happens, and snapshots have a much
+-- stricter rate limit than guild traffic because each one is expensive to decode.
+function Comm:HandleWhisper(text, sender)
+  local constants = ns.Constants
+  local role = self.roleOf(sender)
+  if role == nil then
+    return false, "unknown_sender"
+  end
+  if not ns.PermissionService.Can(role, "manage_events") then
+    return false, "forbidden"
+  end
+  if not self.snapshotInbox:AllowRate(sender, self.now()) then
+    return false, "rate_limited"
+  end
+
+  local decoded, reason = self.codec:Decode(text, {
+    encoded = constants.SYNC_MAX_ENCODED_BYTES,
+    decompressed = constants.SYNC_MAX_DECOMPRESSED_BYTES,
+  })
+  if not decoded then
+    return false, reason
+  end
+  local message
+  message, reason = ns.Protocol.Validate(decoded)
+  if not message then
+    return false, reason
+  end
+  if message.t ~= "SYNC_DATA" then
+    return false, "wrong_channel"
+  end
+  if not self.inbox:MarkSeen(sender .. "\n" .. message.id) then
+    return false, "duplicate"
+  end
+
+  local ctx = { events = self.events, tombstones = self.tombstones, now = self.platform.ServerTime }
+  local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
+  self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
+  return true
 end
 
 -- Raid operations: the sender's role is read from the local guild roster, never from the message.
@@ -228,6 +356,11 @@ function Comm:Status()
     lines[1] = "sync ready"
   end
   lines[#lines + 1] = ("queued messages: %d"):format(self.queue:Pending())
+  if self.lastSnapshot then
+    local snapshot = self.lastSnapshot
+    lines[#lines + 1] = ("last snapshot: %d of %d record(s) applied, from %s"):format(
+      snapshot.applied, snapshot.total, snapshot.from)
+  end
 
   local names = {}
   for name in pairs(self.peers) do
@@ -262,8 +395,12 @@ function Comm.Start()
   local queue = ns.OutboundQueue.New({
     guard = ns.lockdown,
     now = platform.Now,
-    send = function(text)
-      AceComm:SendCommMessage(constants.ADDON_PREFIX, text, "GUILD")
+    send = function(text, target)
+      if target then
+        AceComm:SendCommMessage(constants.ADDON_PREFIX, text, "WHISPER", target)
+      else
+        AceComm:SendCommMessage(constants.ADDON_PREFIX, text, "GUILD")
+      end
     end,
   })
 
@@ -281,6 +418,9 @@ function Comm.Start()
         return nil
       end
       return ns.PermissionService.RoleOf(ns.guildRoster, sender)
+    end,
+    ownRole = function()
+      return ns.PermissionService.OwnRole(platform)
     end,
     version = ns.GetVersion(),
     now = platform.Now,
@@ -308,6 +448,14 @@ function Comm.Start()
   C_Timer.After(math.random(constants.HELLO_LOGIN_DELAY_MIN, constants.HELLO_LOGIN_DELAY_MAX), function()
     if ns.active then
       comm:SendHello()
+    end
+  end)
+
+  -- Late joiners ask for a snapshot once the guild roster has had time to load, so that the
+  -- role checks on the answer have something to check against.
+  C_Timer.After(math.random(constants.SYNC_LOGIN_REQUEST_DELAY_MIN, constants.SYNC_LOGIN_REQUEST_DELAY_MAX), function()
+    if ns.active then
+      comm:RequestSync()
     end
   end)
 

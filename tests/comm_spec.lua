@@ -8,7 +8,7 @@ local function load_addon()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue", "Sync/EventSync", "Sync/Comm",
+    "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue", "Sync/EventSync", "Sync/Transfer", "Sync/Comm",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -23,6 +23,7 @@ local function build_env()
     clock = 0,
     locked = false,
     sent = {},
+    targets = {},
     scheduled = {},
     roster = {},
     events = {},
@@ -43,7 +44,10 @@ local function build_env()
   env.queue = ns.OutboundQueue.New({
     guard = env.guard,
     now = function() return env.clock end,
-    send = function(text) env.sent[#env.sent + 1] = text end,
+    send = function(text, target)
+      env.sent[#env.sent + 1] = text
+      env.targets[#env.sent] = target
+    end,
     jitter = function() return 0 end,
   })
   env.comm = ns.Comm.New({
@@ -55,6 +59,7 @@ local function build_env()
     events = env.events,
     tombstones = env.tombstones,
     roleOf = function(sender) return env.roles[sender] end,
+    ownRole = function() return env.ownRole end,
     version = "0.1.0",
     now = function() return env.clock end,
     schedule = function(delay, fn) env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn } end,
@@ -325,5 +330,246 @@ describe("Comm raid operations", function()
     assert.is_true(env.comm:SendDeleteEvent("ev-1"))
     assert.is_true(env.comm:SendDeleteAssignment("ev-1", "as-1"))
     assert.are.equal(2, #env.sent)
+  end)
+end)
+
+describe("Comm snapshot for late joiners", function()
+  local leader, joiner
+
+  -- Fills `env` with one full event plus a deletion, as a leader would have it.
+  local function seed(env)
+    env.events["ev-1"] = {
+      eventId = "ev-1", title = "Molten Core", status = "open", startAt = 5000, rev = 3, updatedAt = 100,
+      updatedBy = "Lead-Realm", source = "declared",
+      attendance = { ["Ann-Realm"] = { state = "present", rev = 1, updatedAt = 100 } },
+      assignments = {
+        ["as-1"] = {
+          assignmentId = "as-1", encounter = "Ragnaros", characterKey = "Ann-Realm", group = 1,
+          rev = 1, updatedAt = 100,
+        },
+      },
+    }
+    env.tombstones["E:ev-0"] = { at = 50, rev = 2 }
+  end
+
+  -- A fresh SYNC_REQ frame each time, sent straight through Send so RequestSync's own cooldown
+  -- does not get in the way of tests about the responder.
+  local requests = 0
+  local function request_text(env)
+    requests = requests + 1
+    assert.is_true(env.comm:Send("SYNC_REQ", {}, "req-" .. requests))
+    return env.sent[#env.sent]
+  end
+
+  before_each(function()
+    leader, joiner = build_env(), build_env()
+    leader.ownRole = "rl"
+    seed(leader)
+    joiner.roles["Lead-Realm"] = "rl"
+  end)
+
+  it("brings a late joiner up to date through request, whisper and apply", function()
+    local request = request_text(joiner)
+    assert.is_nil(joiner.targets[1])
+
+    assert.is_true(leader.comm:HandleMessage(request, "Joiner-Realm", "GUILD"))
+    assert.are.equal(ns.Constants.SYNC_RESPONSE_DELAY_MIN, leader.scheduled[1].delay)
+    assert.are.equal(0, #leader.sent)
+
+    leader.scheduled[1].fn()
+    assert.are.equal(1, #leader.sent)
+    assert.are.equal("Joiner-Realm", leader.targets[1])
+
+    assert.is_true(joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+    local event = joiner.events["ev-1"]
+    assert.are.equal("Molten Core", event.title)
+    assert.are.equal("present", event.attendance["Ann-Realm"].state)
+    assert.are.equal("Ragnaros", event.assignments["as-1"].encounter)
+    assert.are.equal("Lead-Realm", event.updatedBy)
+    assert.are.equal("received", event.source)
+    assert.are.equal(2, joiner.tombstones["E:ev-0"].rev)
+
+    local status = table.concat(joiner.comm:Status(), "\n")
+    assert.is_truthy(status:find("last snapshot: 4 of 4 record(s) applied, from Lead-Realm", 1, true))
+  end)
+
+  it("does not answer unless the responder is a leader", function()
+    for _, role in ipairs({ "member", "" }) do
+      leader.ownRole = role ~= "" and role or nil
+      local ok, reason = leader.comm:HandleMessage(request_text(joiner), "Joiner-Realm", "GUILD")
+      assert.is_false(ok)
+      assert.are.equal("not_leader", reason)
+    end
+    assert.are.equal(0, #leader.scheduled)
+  end)
+
+  it("serves each requester at most once per cooldown", function()
+    assert.is_true(leader.comm:HandleMessage(request_text(joiner), "A-Realm", "GUILD"))
+    local ok, reason = leader.comm:HandleMessage(request_text(joiner), "A-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("cooldown", reason)
+
+    assert.is_true(leader.comm:HandleMessage(request_text(joiner), "B-Realm", "GUILD"))
+    assert.are.equal(2, #leader.scheduled)
+
+    leader.clock = ns.Constants.SYNC_SERVE_COOLDOWN_SECONDS
+    assert.is_true(leader.comm:HandleMessage(request_text(joiner), "A-Realm", "GUILD"))
+  end)
+
+  it("stops serving new requesters when its tracker is full of recent ones", function()
+    local max = ns.Constants.SYNC_SERVED_MAX_ENTRIES
+    for i = 1, max do leader.comm.served["R" .. i .. "-Realm"] = 0 end
+    leader.comm.servedCount = max
+
+    local ok, reason = leader.comm:HandleSyncRequest("Late-Realm")
+    assert.is_false(ok)
+    assert.are.equal("busy", reason)
+
+    leader.clock = ns.Constants.SYNC_SERVE_COOLDOWN_SECONDS
+    assert.is_true(leader.comm:HandleSyncRequest("Late-Realm"))
+    assert.are.equal(1, leader.comm.servedCount)
+  end)
+
+  it("limits how often a joiner asks", function()
+    assert.is_true(joiner.comm:RequestSync())
+    local ok, reason = joiner.comm:RequestSync()
+    assert.is_false(ok)
+    assert.are.equal("cooldown", reason)
+    joiner.clock = ns.Constants.SYNC_REQUEST_COOLDOWN_SECONDS
+    assert.is_true(joiner.comm:RequestSync())
+  end)
+
+  it("sends nothing when there is nothing to send", function()
+    leader.events, leader.tombstones = {}, {}
+    leader.comm.events, leader.comm.tombstones = leader.events, leader.tombstones
+    local ok, reason = leader.comm:SendSnapshot("Joiner-Realm")
+    assert.is_false(ok)
+    assert.are.equal("empty", reason)
+    assert.are.equal(0, #leader.sent)
+  end)
+
+  it("sends fewer, newer events when the snapshot would not fit", function()
+    local saved = ns.Constants.SYNC_MAX_ENCODED_BYTES
+    ns.Constants.SYNC_MAX_ENCODED_BYTES = 700
+    math.randomseed(7)
+    leader.events, leader.tombstones = {}, {}
+    leader.comm.events, leader.comm.tombstones = leader.events, leader.tombstones
+    for i = 1, 20 do
+      local noise = {}
+      for j = 1, 60 do noise[j] = string.char(math.random(97, 122)) end
+      local id = "ev-" .. i
+      leader.events[id] = {
+        eventId = id, title = table.concat(noise), status = "planned", startAt = 1000 * i, rev = 1,
+        updatedAt = 10, attendance = {}, assignments = {},
+      }
+    end
+
+    local ok = leader.comm:SendSnapshot("Joiner-Realm")
+    ns.Constants.SYNC_MAX_ENCODED_BYTES = saved
+    assert.is_true(ok)
+
+    joiner.roles["Lead-Realm"] = "rl"
+    assert.is_true(joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+    local received = 0
+    for _ in pairs(joiner.events) do received = received + 1 end
+    assert.is_true(received >= 1 and received < 20, received)
+    assert.is_truthy(joiner.events["ev-20"])
+  end)
+end)
+
+describe("Comm whisper guards", function()
+  local env
+
+  local function snapshot_text(id, items)
+    return env.wire("SYNC_DATA", { items = items or {} }, id)
+  end
+
+  local function event_item(eventId)
+    return { t = "EVENT_UPSERT", p = { eventId = eventId, rev = 1, updatedAt = 10, title = "From snapshot" } }
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Lead-Realm"] = "rl"
+    env.roles["Raider-Realm"] = "member"
+  end)
+
+  it("applies a leader's snapshot as that leader", function()
+    local text = snapshot_text("s-1", { event_item("ev-1") })
+    assert.is_true(env.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+    assert.are.equal("Lead-Realm", env.events["ev-1"].updatedBy)
+  end)
+
+  it("refuses members and unknown senders before decoding anything", function()
+    local decoded = 0
+    local original = env.codec.Decode
+    env.codec.Decode = function(...)
+      decoded = decoded + 1
+      return original(...)
+    end
+    local text = snapshot_text("s-1", { event_item("ev-1") })
+    assert.are.equal("forbidden", select(2, env.comm:HandleMessage(text, "Raider-Realm", "WHISPER")))
+    assert.are.equal("unknown_sender", select(2, env.comm:HandleMessage(text, "Stranger-Realm", "WHISPER")))
+    assert.are.equal(0, decoded)
+    assert.is_nil(next(env.events))
+  end)
+
+  it("ignores its own whispers and missing senders", function()
+    local text = snapshot_text("s-1")
+    assert.are.equal("own_message", select(2, env.comm:HandleMessage(text, "Me-Realm", "WHISPER")))
+    assert.are.equal("bad_sender", select(2, env.comm:HandleMessage(text, nil, "WHISPER")))
+  end)
+
+  it("accepts only snapshots as whispers and only whispers for snapshots", function()
+    local hello = env.wire("HELLO", { version = "0.1.0" }, "h-1")
+    assert.are.equal("wrong_channel", select(2, env.comm:HandleMessage(hello, "Lead-Realm", "WHISPER")))
+    local snapshot = snapshot_text("s-1", { event_item("ev-1") })
+    assert.are.equal("wrong_channel", select(2, env.comm:HandleMessage(snapshot, "Lead-Realm", "GUILD")))
+    assert.is_nil(next(env.events))
+    assert.are.equal("wrong_channel", select(2, env.comm:HandleMessage(snapshot, "Lead-Realm", "SAY")))
+  end)
+
+  it("rate limits snapshots much harder than guild traffic", function()
+    local limit = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW
+    for i = 1, limit do
+      assert.is_true(env.comm:HandleMessage(snapshot_text("s-" .. i), "Lead-Realm", "WHISPER"))
+    end
+    local ok, reason = env.comm:HandleMessage(snapshot_text("s-next"), "Lead-Realm", "WHISPER")
+    assert.is_false(ok)
+    assert.are.equal("rate_limited", reason)
+  end)
+
+  it("does not apply the same snapshot twice", function()
+    local text = snapshot_text("s-1", { event_item("ev-1") })
+    assert.is_true(env.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+    assert.are.equal("duplicate", select(2, env.comm:HandleMessage(text, "Lead-Realm", "WHISPER")))
+  end)
+
+  it("drops garbage and oversized whispers without raising", function()
+    local ok, reason = env.comm:HandleMessage("not a real frame", "Lead-Realm", "WHISPER")
+    assert.is_false(ok)
+    assert.is_string(reason)
+    local huge = ("a"):rep(ns.Constants.SYNC_MAX_ENCODED_BYTES + 1)
+    assert.are.equal("too_large", select(2, env.comm:HandleMessage(huge, "Lead-Realm", "WHISPER")))
+  end)
+
+  it("skips invalid or unsupported items and still applies the good ones", function()
+    local items = {
+      event_item("ev-1"),
+      { t = "PROFILE", p = { rev = 1, class = "MAGE", level = 60 } },
+      { t = "EVENT_UPSERT", p = { eventId = "bad id", rev = 1, updatedAt = 10, title = "Bad" } },
+      "not an item",
+    }
+    assert.is_true(env.comm:HandleMessage(snapshot_text("s-1", items), "Lead-Realm", "WHISPER"))
+    assert.is_truthy(env.events["ev-1"])
+    assert.are.equal(1, env.comm.lastSnapshot.applied)
+    assert.are.equal(4, env.comm.lastSnapshot.total)
+  end)
+
+  it("does not let a snapshot bypass authority or the event limit", function()
+    for i = 1, ns.Constants.EVENT_MAX do env.events["e" .. i] = { rev = 1, updatedAt = 1 } end
+    assert.is_true(env.comm:HandleMessage(snapshot_text("s-1", { event_item("new") }), "Lead-Realm", "WHISPER"))
+    assert.is_nil(env.events["new"])
+    assert.are.equal(0, env.comm.lastSnapshot.applied)
   end)
 end)

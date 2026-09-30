@@ -49,6 +49,19 @@ ns.Constants = {
   GUILD_ROSTER_CHUNK = 100,
   GUILD_ROSTER_MIN_INTERVAL_SECONDS = 10,
 
+  -- Snapshot for late joiners: a leader answers a SYNC_REQ by whisper with the most recent events.
+  SYNC_MAX_EVENTS = 20,
+  SYNC_MAX_ENCODED_BYTES = 32768,
+  SYNC_MAX_DECOMPRESSED_BYTES = 262144,
+  SYNC_REQUEST_COOLDOWN_SECONDS = 60,
+  SYNC_SERVE_COOLDOWN_SECONDS = 60,
+  SYNC_SERVED_MAX_ENTRIES = 200,
+  SYNC_INBOX_MAX_PER_WINDOW = 4,
+  SYNC_LOGIN_REQUEST_DELAY_MIN = 8,
+  SYNC_LOGIN_REQUEST_DELAY_MAX = 20,
+  SYNC_RESPONSE_DELAY_MIN = 1,
+  SYNC_RESPONSE_DELAY_MAX = 10,
+
   -- Text import/export of raid data. LibDeflate has no output limit, so the encoded input is capped
   -- first (a deflate stream expands at most ~1000x) and the result is capped again afterwards.
   IMPORT_MAX_ENCODED_BYTES = 32768,
