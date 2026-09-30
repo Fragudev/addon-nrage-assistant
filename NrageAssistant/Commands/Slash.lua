@@ -151,7 +151,11 @@ local function RoleCommand()
   end
   local rank = ns.Platform.GetOwnGuildRank()
   local role = ns.PermissionService.OwnRole(ns.Platform)
-  say(("guild rank: %s -> addon role: %s"):format(tostring(rank), tostring(role)))
+  local identityKey = ns.Platform.GetIdentityKey()
+  say(("%s - guild rank: %s -> addon role: %s"):format(identityKey, tostring(rank), tostring(role)))
+  if role == "admin" and ns.PermissionService.IsBetaAdmin(identityKey) then
+    print("  beta admin exception: active (temporary, tracked in issue #25)")
+  end
   for _, action in ipairs({ "manage_events", "record_attendance", "manage_assignments", "moderate" }) do
     print(("  %s: %s"):format(action, ns.PermissionService.Can(role, action) and "allowed" or "not allowed"))
   end

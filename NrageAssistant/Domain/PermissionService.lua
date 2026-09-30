@@ -29,18 +29,55 @@ function PermissionService.RoleForRank(rankName, mapping)
   return mapping[rankName:lower()] or "member"
 end
 
+-- Lowercase, no spaces: "Yonemon Gg" and "yonemongg" are the same name. Character names cannot
+-- contain spaces in the game, so this only makes the configured list forgiving.
+local function normalizeName(text)
+  return (text:lower():gsub("%s+", ""))
+end
+
+-- BETA ONLY (tracked in issue #25): the characters listed in Constants.BETA_ADMIN_NAMES are treated as
+-- admins, as if they were the guild master. `identityKey` is "Name" or "Name-Realm"; only the name
+-- part is compared. Callers apply this only to someone who is really in the guild.
+function PermissionService.IsBetaAdmin(identityKey)
+  local constants = ns.Constants
+  if not constants.BETA_ADMIN_ENABLED or type(identityKey) ~= "string" then
+    return false
+  end
+  local name = identityKey:match("^([^%-]+)")
+  if not name then
+    return false
+  end
+  name = normalizeName(name)
+  for _, admin in ipairs(constants.BETA_ADMIN_NAMES) do
+    if normalizeName(admin) == name then
+      return true
+    end
+  end
+  return false
+end
+
 -- Role of `name` according to the local guild roster, or nil when the roster does not know them
--- (not in the guild, or the roster has not loaded yet). nil never grants anything.
+-- (not in the guild, or the roster has not loaded yet). nil never grants anything, and neither
+-- does the beta exception: it only applies to someone the roster knows.
 function PermissionService.RoleOf(guildRoster, name, mapping)
   local entry = guildRoster:Lookup(name)
   if not entry then
     return nil
   end
+  if PermissionService.IsBetaAdmin(name) then
+    return "admin"
+  end
   return PermissionService.RoleForRank(entry.rankName, mapping)
 end
 
+-- Own role from the own guild rank. Without a rank (not in a guild) there is no role, beta
+-- exception included.
 function PermissionService.OwnRole(platform, mapping)
-  return PermissionService.RoleForRank(platform.GetOwnGuildRank(), mapping)
+  local role = PermissionService.RoleForRank(platform.GetOwnGuildRank(), mapping)
+  if role ~= nil and PermissionService.IsBetaAdmin(platform.GetIdentityKey()) then
+    return "admin"
+  end
+  return role
 end
 
 function PermissionService.Can(role, action)
