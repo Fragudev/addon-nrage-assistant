@@ -1,0 +1,97 @@
+NrageAssistant/Libs/Ace3-LICENSE.txt
+  s_58126f9867149c::t_b9d779c0b659be 1-29
+NrageAssistant/Libs/AceComm-3.0/AceComm-3.0.lua
+  s_58126f9867149c::t_83099ff5a865dc 1-301
+NrageAssistant/Libs/AceComm-3.0/AceComm-3.0.xml
+  s_58126f9867149c::t_64463ac1557e99 1-5
+NrageAssistant/Libs/AceComm-3.0/ChatThrottleLib.lua
+  s_58126f9867149c::t_3fa16a0c047257 1-703
+NrageAssistant/Libs/AceGUI-3.0/AceGUI-3.0.lua
+  s_58126f9867149c::t_fad0eaa60aa63f 1-1020
+NrageAssistant/Libs/AceGUI-3.0/AceGUI-3.0.xml
+  s_58126f9867149c::t_9e6199a94712fe 1-28
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-BlizOptionsGroup.lua
+  s_58126f9867149c::t_09c14ceb9ee049 1-143
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-DropDownGroup.lua
+  s_58126f9867149c::t_f0f7a165dbd806 1-157
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-Frame.lua
+  s_58126f9867149c::t_6fdaa6aa4b6568 1-318
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-InlineGroup.lua
+  s_58126f9867149c::t_bf34b68fd3aa26 1-103
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-ScrollFrame.lua
+  s_58126f9867149c::t_bb168f2ff38288 1-215
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-SimpleGroup.lua
+  s_58126f9867149c::t_4649e87cd94085 1-69
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-TabGroup.lua
+  s_58126f9867149c::t_e5038fbf2c0e4f 1-535
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-TreeGroup.lua
+  s_58126f9867149c::t_a6586aafdb3c9b 1-719
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIContainer-Window.lua
+  s_58126f9867149c::t_e07464deed94fc 1-336
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Button.lua
+  s_58126f9867149c::t_46f2ce1ee85dcd 1-103
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-CheckBox.lua
+  s_58126f9867149c::t_dec155c4aae168 1-292
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-ColorPicker.lua
+  s_58126f9867149c::t_86ffde1b41e912 1-230
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-DropDown-Items.lua
+  s_58126f9867149c::t_400634d0c6d336 1-471
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-DropDown.lua
+  s_58126f9867149c::t_3ad6e1486142ff 1-732
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-EditBox.lua
+  s_58126f9867149c::t_81cc2889a7f11f 1-267
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Heading.lua
+  s_58126f9867149c::t_583c8ada3cb09c 1-78
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Icon.lua
+  s_58126f9867149c::t_f0267aa119b37c 1-140
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-InteractiveLabel.lua
+  s_58126f9867149c::t_e1064f59e0ad23 1-94
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Keybinding.lua
+  s_58126f9867149c::t_a92a0cd5dae240 1-251
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Label.lua
+  s_58126f9867149c::t_c0dab75e39cb0f 1-179
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-MultiLineEditBox.lua
+  s_58126f9867149c::t_e7b0cdddb522c7 1-377
+NrageAssistant/Libs/AceGUI-3.0/widgets/AceGUIWidget-Slider.lua
+  s_58126f9867149c::t_c620405435bd41 1-281
+NrageAssistant/Libs/CallbackHandler-1.0/CallbackHandler-1.0.lua
+  s_58126f9867149c::t_2faa40c9fa5597 1-202
+NrageAssistant/Libs/CallbackHandler-1.0/CallbackHandler-1.0.xml
+  s_58126f9867149c::t_a3282175e8bb72 1-4
+NrageAssistant/Libs/LibDeflate/LICENSE.txt
+  s_58126f9867149c::t_755f22e8ff88cf 1-19
+NrageAssistant/Libs/LibDeflate/LibDeflate.lua
+  s_58126f9867149c::t_0d723d0fe026c2 1-3536
+NrageAssistant/Libs/LibSerialize/LICENSE
+  s_58126f9867149c::t_cf319373f069d0 1-21
+NrageAssistant/Libs/LibSerialize/LibSerialize.lua
+  s_58126f9867149c::t_4e6f8f8373f566 1-1932
+NrageAssistant/Libs/LibStub/LibStub.lua
+  s_58126f9867149c::t_7b8699877c649b 1-30
+NrageAssistant/Libs/README.md
+  s_58126f9867149c::t_28a13e80f02d0f 1-11
+NrageAssistant/embeds.xml
+  s_58126f9867149c::t_dec5ec6d10bbd5 1-8
+.luacheckrc
+  s_58126f9867149c::t_cc4f96c36c6e89 2-4
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_d23509cdf88508 10-11
+tests/embeds_spec.lua
+  s_58126f9867149c::t_c20859a96fd20c 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f7be3aaf7131787b5d6bb6d4b0052340fda37ee",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
