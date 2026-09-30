@@ -8,25 +8,13 @@ local _, ns = ...
 -- The MVP implements HELLO and PROFILE only.
 local Protocol = {}
 
-local MAX_ID_LENGTH = 40
 local MAX_VERSION_LENGTH = 32
 local MAX_CLASS_LENGTH = 20
 local MAX_PROFESSIONS = 8
 local MAX_PROFESSION_NAME = 40
 local MAX_REV = 2147483647
 
-local function isInt(value, low, high)
-  return type(value) == "number" and value % 1 == 0 and value >= low and value <= high
-end
-
--- Plain text only: no "|" (colour/link escapes) and no control characters.
-local function isText(value, maxLength)
-  return type(value) == "string"
-    and #value >= 1
-    and #value <= maxLength
-    and not value:find("|", 1, true)
-    and not value:find("%c")
-end
+local isInt, isText, isId = ns.Validate.Int, ns.Validate.Text, ns.Validate.Id
 
 local function validateHello(payload)
   if not isText(payload.version, MAX_VERSION_LENGTH) then
@@ -140,7 +128,7 @@ function Protocol.Validate(message)
   if not validator then
     return nil, "unknown_type"
   end
-  if not (isText(message.id, MAX_ID_LENGTH) and message.id:find("^[%w%-_:]+$")) then
+  if not isId(message.id) then
     return nil, "bad_id"
   end
   if type(message.p) ~= "table" then

@@ -11,6 +11,7 @@ embeds.xml
 
 Core\Constants.lua
 Core\Platform.lua
+Core\Validate.lua
 Core\AccessGuard.lua
 Core\LockdownGuard.lua
 Core\LockdownProbe.lua
@@ -20,6 +21,8 @@ Domain\ReadinessService.lua
 Domain\PublishService.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
+Domain\EventModel.lua
+Domain\EventService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
