@@ -7,7 +7,8 @@ local function load_modules()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel",
-    "Domain/EventService", "Sync/Protocol", "Sync/EventSync", "Sync/Transfer",
+    "Domain/EventService", "Domain/LootModel", "Domain/LootService", "Sync/Protocol", "Sync/SyncRules",
+    "Sync/EventSync", "Sync/LootSync", "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -289,5 +290,69 @@ describe("Transfer.BuildSnapshot and ApplyItems", function()
     assert.are.equal(0, denied.applied)
     assert.are.equal(1, denied.skipped.forbidden)
     assert.is_nil(target.events["ev-2"])
+  end)
+end)
+
+describe("Transfer with loot sessions", function()
+  local LootService = ns.LootService
+  local ITEM = { itemId = 19019, itemName = "Thunderfury" }
+
+  -- One event with an awarded session (with a candidate and a vote) and an open one.
+  local function with_loot()
+    local source = store()
+    local event = assert(EventService.Create(source.ctx("rl"), { title = "Molten Core" }))
+    local admin = source.ctx("admin")
+    local awarded = assert(LootService.OpenSession(admin, event.eventId, ITEM))
+    local ann = source.ctx("member")
+    ann.actor = "Ann-Realm"
+    assert(LootService.Register(ann, event.eventId, awarded.sessionId, { spec = "Fury", need = "main" }))
+    assert(LootService.Vote(admin, event.eventId, awarded.sessionId, "Ann-Realm"))
+    assert(LootService.Award(admin, event.eventId, awarded.sessionId, "Ann-Realm", "Highest need"))
+    local open = assert(LootService.OpenSession(admin, event.eventId, { itemId = 2, itemName = "Other" }))
+    return source, event, awarded, open
+  end
+
+  it("exports awards and open sessions, and an admin imports them", function()
+    local source, event, awarded, open = with_loot()
+    local text = assert(Transfer.Export(libs, source.events, source.tombstones))
+
+    local target = store()
+    local summary = assert(import_into(target, text, "admin"))
+    assert.are.equal(summary.total, summary.applied)
+
+    local loot = target.events[event.eventId].loot
+    assert.are.equal("closed", loot[awarded.sessionId].status)
+    assert.are.equal("Ann-Realm", loot[awarded.sessionId].award.characterKey)
+    assert.are.equal("Highest need", loot[awarded.sessionId].award.reason)
+    assert.are.equal("Thunderfury", loot[awarded.sessionId].itemName)
+    assert.are.equal("open", loot[open.sessionId].status)
+  end)
+
+  it("leaves candidates and votes out, because they cannot be re-attributed", function()
+    local source, event, awarded = with_loot()
+    local target = store()
+    assert(import_into(target, assert(Transfer.Export(libs, source.events, source.tombstones)), "admin"))
+    local imported = target.events[event.eventId].loot[awarded.sessionId]
+    assert.are.same({}, imported.candidates)
+    assert.are.same({}, imported.votes)
+  end)
+
+  it("lets a raid leader import the events but skips the loot they may not touch", function()
+    local source, event = with_loot()
+    local target = store()
+    local summary = assert(import_into(target, assert(Transfer.Export(libs, source.events, source.tombstones)), "rl"))
+    assert.are.equal(2, summary.skipped.forbidden)
+    assert.is_truthy(target.events[event.eventId])
+    assert.is_nil(next(target.events[event.eventId].loot))
+  end)
+
+  it("puts an event's loot in its snapshot", function()
+    local source = with_loot()
+    local snapshot = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+    local types = {}
+    for _, item in ipairs(snapshot) do types[item.t] = (types[item.t] or 0) + 1 end
+    assert.are.equal(1, types.EVENT_UPSERT)
+    assert.are.equal(1, types.LOOT_AWARD)
+    assert.are.equal(1, types.LOOT_SESSION)
   end)
 end)

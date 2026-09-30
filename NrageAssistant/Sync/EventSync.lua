@@ -16,46 +16,9 @@ local _, ns = ...
 --   "unknown_sender" | "forbidden" | "unknown_event" | "stale" | "tombstoned" | "limit" | "unsupported"
 local EventSync = {}
 
-local MAX_FUTURE_SKEW_SECONDS = 300
-
-local function countKeys(tbl)
-  local count = 0
-  for _ in pairs(tbl) do
-    count = count + 1
-  end
-  return count
-end
-
--- nil when allowed, otherwise the reason. A sender the roster does not know gets nothing.
-local function authorize(role, action)
-  if role == nil then
-    return "unknown_sender"
-  end
-  if not ns.PermissionService.Can(role, action) then
-    return "forbidden"
-  end
-  return nil
-end
-
-local function clampTimestamp(ctx, updatedAt)
-  return math.min(updatedAt, ctx.now() + MAX_FUTURE_SKEW_SECONDS)
-end
-
-local function wins(rev, updatedAt, sender, current)
-  if rev ~= current.rev then
-    return rev > current.rev
-  end
-  if updatedAt ~= current.updatedAt then
-    return updatedAt > current.updatedAt
-  end
-  return sender > (current.updatedBy or "")
-end
-
--- Returns true if the tombstone blocks an upsert with this revision.
-local function blockedByTombstone(ctx, key, rev)
-  local tombstone = ctx.tombstones[key]
-  return tombstone ~= nil and rev <= tombstone.rev
-end
+local Rules = ns.SyncRules
+local countKeys, authorize, clampTimestamp = Rules.CountKeys, Rules.Authorize, Rules.ClampTimestamp
+local wins, blockedByTombstone = Rules.Wins, Rules.BlockedByTombstone
 
 local function applyEventUpsert(ctx, payload, sender, role)
   local denied = authorize(role, "manage_events")
@@ -222,6 +185,12 @@ end
 
 function EventSync.IsRaidMessage(messageType)
   return APPLIERS[messageType] ~= nil
+end
+
+-- Lets another module (loot council) add the messages it knows how to apply. Only meant to be
+-- called while the addon files load.
+function EventSync.RegisterApplier(messageType, applier)
+  APPLIERS[messageType] = applier
 end
 
 -- Payload builders: what a local change looks like on the wire.
