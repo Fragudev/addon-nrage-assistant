@@ -10,8 +10,8 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 2", function()
-    assert.are.equal(2, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 3", function()
+    assert.are.equal(3, ns.Constants.SCHEMA_VERSION)
   end)
 end)
 
@@ -55,7 +55,7 @@ describe("Addon load", function()
   it("refuses data commands while the addon is disabled instead of raising", function()
     local commands = {
       "profile", "ready", "sync", "consent", "publish", "event", "attendance", "assign", "export", "import",
-      "loot", "report",
+      "loot", "report", "template",
     }
     for _, command in ipairs(commands) do
       assert.is_truthy(run(command):find("unavailable while the addon is disabled", 1, true), command)

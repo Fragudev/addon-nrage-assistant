@@ -231,6 +231,22 @@ local function LootCommand(rest)
   end
 end
 
+local function TemplateCommand(rest)
+  if not ns.active or not ns.comm then
+    say("templates are unavailable while the addon is disabled.")
+    return
+  end
+  local templates = ns.TemplateCommands.New({
+    events = ns.db.global.events,
+    templates = ns.db.global.templates,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  for _, line in ipairs(templates:Template(rest)) do
+    print(line)
+  end
+end
+
 local function ReportCommand(rest)
   if not ns.active or not ns.db then
     say("reports are unavailable while the addon is disabled.")
@@ -245,6 +261,7 @@ end
 local COMMANDS = {
   help = HelpCommand,
   report = ReportCommand,
+  template = TemplateCommand,
   loot = LootCommand,
   export = TransferCommand("export"),
   import = TransferCommand("import"),
