@@ -252,6 +252,14 @@ local function LootCommand(rest)
   end
 end
 
+local function MinimapCommand(rest)
+  if not ns.active or not ns.db then
+    say("the minimap button is unavailable while the addon is disabled.")
+    return
+  end
+  say(ns.MinimapButton.Command(ns.db, rest:match("^(%S*)")))
+end
+
 local function TemplateCommand(rest)
   if not ns.active or not ns.comm then
     say("templates are unavailable while the addon is disabled.")
@@ -283,6 +291,7 @@ local COMMANDS = {
   help = HelpCommand,
   report = ReportCommand,
   template = TemplateCommand,
+  minimap = MinimapCommand,
   loot = LootCommand,
   export = TransferCommand("export"),
   import = TransferCommand("import"),

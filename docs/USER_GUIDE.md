@@ -13,6 +13,16 @@ ruleset**; on any other character the addon switches itself off and says why onc
 3. Type `/nrage` to open the window, or `/nrage help` for the list of commands.
 4. Something looks wrong? Run `/nrage debug selftest` and `/nrage debug info`, and send the output to an officer.
 
+## The minimap button
+
+The guild logo sits in a gold ring on the edge of the minimap, like most addons' buttons.
+
+- **Left click** opens the window; **drag** it to move it around the minimap.
+- `/nrage minimap hide` hides it, `/nrage minimap show` brings it back, and `/nrage minimap reset` puts it back in
+  its default place. The position and whether it is hidden are saved for your whole account.
+- The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
+- The button only shows on characters where the addon is active.
+
 ## What you can do, by role
 
 Your role comes from your **guild rank**. The addon never trusts what a message says about its sender: every

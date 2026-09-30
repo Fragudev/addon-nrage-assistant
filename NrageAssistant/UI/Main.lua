@@ -53,12 +53,28 @@ local function ReadinessSummary()
   return summary
 end
 
+local LOGO_SIZE = 64
+
+-- The title line with the guild logo beside it. The logo is white, so it sits on the window's dark
+-- background.
+local function AddLogoHeader(container, title)
+  local header = LibStub("AceGUI-3.0"):Create("Label")
+  header:SetImage(ns.Constants.LOGO_TEXTURE)
+  header:SetImageSize(LOGO_SIZE, LOGO_SIZE)
+  header:SetText(title)
+  header:SetFontObject(GameFontNormalLarge)
+  header:SetFullWidth(true)
+  container:AddChild(header)
+end
+
 local function DrawHome(container)
-  AddLines(container, ns.ViewModel.Home({
+  local lines = ns.ViewModel.Home({
     version = ns.GetVersion(),
     syncLines = ns.comm and ns.comm:Status() or { "sync not started" },
     readinessText = ReadinessSummary().text,
-  }))
+  })
+  AddLogoHeader(container, table.remove(lines, 1))
+  AddLines(container, lines)
 end
 
 local function DrawProfile(container)

@@ -4,6 +4,7 @@
 ## Author: Fragudev
 ## Version: @project-version@
 ## SavedVariables: NrageAssistantDB
+## IconTexture: Interface\AddOns\NrageAssistant\Media\nrage_logo
 
 # Interface number measured on the Forever beta client (build 16001) with /dump select(4, GetBuildInfo()).
 
@@ -40,6 +41,7 @@ Sync\Transfer.lua
 Sync\Comm.lua
 UI\ViewModel.lua
 UI\Main.lua
+UI\MinimapButton.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\ReportCommands.lua

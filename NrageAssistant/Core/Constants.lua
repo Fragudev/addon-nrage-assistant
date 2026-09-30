@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 3,
+  SCHEMA_VERSION = 4,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -83,6 +83,11 @@ ns.Constants = {
   EVENT_RETENTION_SECONDS = 90 * 24 * 3600,
   TOMBSTONE_MAX = 500,
   TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+
+  -- The guild logo as a game texture (TGA, no extension), and the minimap button around it.
+  LOGO_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\nrage_logo",
+  MINIMAP_DEFAULT_ANGLE = 225,
+  MINIMAP_RADIUS_MARGIN = 5,
 
   -- Assignment templates, kept on this client only.
   TEMPLATES_MAX = 20,

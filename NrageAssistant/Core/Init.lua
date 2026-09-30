@@ -42,6 +42,7 @@ local function Activate()
     now = ns.Platform.ServerTime,
   })
   ns.Comm.Start()
+  ns.MinimapButton.Create()
   ns.guildRoster = ns.GuildRoster.New({
     platform = ns.Platform,
     schedule = C_Timer.After,
@@ -71,6 +72,7 @@ local function EvaluateAccess()
   end
 
   ns.active = false
+  ns.MinimapButton.Refresh()
   if not noticeShown then
     noticeShown = true
     print(("%s %s"):format(PREFIX, NOTICES[reason]))
