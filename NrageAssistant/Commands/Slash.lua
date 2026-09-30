@@ -76,9 +76,20 @@ local function ReadyCommand(rest)
   end
 end
 
+local function SyncCommand()
+  if not ns.active or not ns.comm then
+    say("sync is unavailable while the addon is disabled.")
+    return
+  end
+  for _, line in ipairs(ns.comm:Status()) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   profile = ProfileCommand,
   ready = ReadyCommand,
+  sync = SyncCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     if sub == "identity" then

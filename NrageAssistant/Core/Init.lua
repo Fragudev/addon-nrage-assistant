@@ -35,6 +35,7 @@ local function Activate()
   ns.active = true
   ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+  ns.Comm.Start()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end
 
