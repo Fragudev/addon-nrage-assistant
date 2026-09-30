@@ -40,3 +40,98 @@ describe("Platform.ParseDate", function()
     end
   end)
 end)
+
+-- Runs `fn` with some client globals replaced, then puts them back.
+local function with_globals(values, fn)
+  local saved = {}
+  for name, value in pairs(values) do
+    saved[name] = _G[name]
+    _G[name] = value
+  end
+  local ok, err = pcall(fn)
+  for name in pairs(values) do _G[name] = saved[name] end
+  assert(ok, err)
+end
+
+describe("Platform.NormalizeName", function()
+  local function normalize(name)
+    local result
+    with_globals({ GetNormalizedRealmName = function() return "ClassicBetaPvP" end }, function()
+      result = load_platform().NormalizeName(name)
+    end)
+    return result
+  end
+
+  it("drops the suffix of this realm, so a received name matches the roster's", function()
+    assert.are.equal("Yonemon Gg", normalize("Yonemon Gg-ClassicBetaPvP"))
+    assert.are.equal("Black Coffee", normalize("Black Coffee-ClassicBetaPvP"))
+  end)
+
+  it("leaves names without a suffix, or with another realm, as they are", function()
+    assert.are.equal("Yonemon Gg", normalize("Yonemon Gg"))
+    assert.are.equal("Yonemon-OtherRealm", normalize("Yonemon-OtherRealm"))
+    assert.are.equal("A-ClassicBetaPvPX", normalize("A-ClassicBetaPvPX"))
+  end)
+
+  it("never returns an empty name, and passes non-strings through", function()
+    assert.are.equal("-ClassicBetaPvP", normalize("-ClassicBetaPvP"))
+    assert.is_nil(normalize(nil))
+    assert.are.equal(5, normalize(5))
+  end)
+
+  it("does nothing when the realm is unknown", function()
+    local result
+    with_globals({ GetNormalizedRealmName = function() return nil end }, function()
+      result = load_platform().NormalizeName("Name-Realm")
+    end)
+    assert.are.equal("Name-Realm", result)
+  end)
+end)
+
+describe("Platform identity key", function()
+  local function client()
+    return {
+      UnitName = function() return "Yonemon" end,
+      GetNormalizedRealmName = function() return "ClassicBetaPvP" end,
+    }
+  end
+
+  it("starts as the UnitName-based key, which is also the stable key of the saved data", function()
+    with_globals(client(), function()
+      local platform = load_platform()
+      assert.are.equal("Yonemon-ClassicBetaPvP", platform.GetIdentityKey())
+      assert.are.equal("Yonemon-ClassicBetaPvP", platform.GetLegacyIdentityKey())
+    end)
+  end)
+
+  it("becomes the roster's full name once it is known, without touching the saved-data key", function()
+    with_globals(client(), function()
+      local platform = load_platform()
+      platform.SetCanonicalName("Yonemon Gg")
+      assert.are.equal("Yonemon Gg", platform.GetIdentityKey())
+      assert.are.equal("Yonemon-ClassicBetaPvP", platform.GetLegacyIdentityKey())
+
+      platform.SetCanonicalName(nil)
+      assert.are.equal("Yonemon-ClassicBetaPvP", platform.GetIdentityKey())
+    end)
+  end)
+end)
+
+describe("Platform.GetGuildRosterEntry", function()
+  it("returns the GUID, the seventeenth value of the roster row", function()
+    local row = { "Yonemon Gg", "Soldado", 3, 60, "Warrior", "Zone", "", "", true, 0, "WARRIOR",
+      0, 0, false, false, 0, "Player-1-ABC" }
+    with_globals({ GetGuildRosterInfo = function() return unpack(row) end }, function()
+      local entry = load_platform().GetGuildRosterEntry(1)
+      assert.are.same({
+        name = "Yonemon Gg", rankName = "Soldado", rankIndex = 3, level = 60, class = "WARRIOR", guid = "Player-1-ABC",
+      }, entry)
+    end)
+  end)
+
+  it("returns nothing for an empty row", function()
+    with_globals({ GetGuildRosterInfo = function() return nil end }, function()
+      assert.is_nil(load_platform().GetGuildRosterEntry(1))
+    end)
+  end)
+end)

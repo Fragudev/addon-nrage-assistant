@@ -170,6 +170,8 @@ local function PrintRoster()
   local identityKey = ns.Platform.GetIdentityKey()
   say(("guild roster: %d members, ready=%s"):format(roster:Count(), tostring(roster:IsReady())))
   print(("  own key '%s': %s"):format(identityKey, roster:Lookup(identityKey) and "found" or "NOT found"))
+  print(("  UnitName gives '%s'; found in the roster by GUID as '%s'"):format(
+    tostring(ns.Platform.GetPlayerName()), tostring(roster.ownName)))
   local shown = 0
   for name, entry in pairs(roster.entries) do
     print(("  e.g. '%s' rank '%s'"):format(name, tostring(entry.rankName)))
@@ -177,6 +179,25 @@ local function PrintRoster()
     if shown >= 3 then
       break
     end
+  end
+end
+
+-- The last addon messages received, as the client delivered the sender, and whether the roster knows them.
+local function PrintSenders()
+  if not ns.comm then
+    say("no sync yet (addon disabled).")
+    return
+  end
+  local recent = ns.comm.recentSenders
+  if #recent == 0 then
+    say("no addon messages received yet. Ask another member with the addon to log in or run /nrage sync request.")
+    return
+  end
+  say(("last %d sender(s), raw -> read as -> roster:"):format(#recent))
+  for _, entry in ipairs(recent) do
+    local known = ns.guildRoster and ns.guildRoster:Lookup(entry.name)
+    print(("  '%s' -> '%s' -> %s"):format(entry.raw, entry.name,
+      known and ("found, rank '" .. tostring(known.rankName) .. "'") or "NOT found"))
   end
 end
 
@@ -285,6 +306,8 @@ local COMMANDS = {
       ns.Probe.Handle(action)
     elseif sub == "roster" then
       PrintRoster()
+    elseif sub == "senders" then
+      PrintSenders()
     elseif sub == "selftest" then
       local results, summary = ns.Diagnostics.SelfTest(_G, ns)
       for _, line in ipairs(ns.Diagnostics.DescribeSelfTest(results, summary)) do
@@ -295,7 +318,7 @@ local COMMANDS = {
         print(line)
       end
     else
-      say("usage: /nrage debug identity | roster | selftest | info | lockdown <action>")
+      say("usage: /nrage debug identity | roster | senders | selftest | info | lockdown <action>")
     end
   end,
 }

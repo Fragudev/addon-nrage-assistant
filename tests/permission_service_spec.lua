@@ -141,13 +141,18 @@ describe("PermissionService beta admin exception", function()
   end
 
   it("recognises the listed name, ignoring case, spaces and the realm suffix", function()
-    for _, key in ipairs({ "Yonemon-Realm", "yonemon", "YONEMON-ClassicBetaPvP", "Yonemon" }) do
+    for _, key in ipairs({
+      "Yonemon Gg", "yonemon gg", "YONEMON GG-ClassicBetaPvP", "Yonemon Gg-Realm", -- the full name
+      "Yonemon-Realm", "yonemon", "YONEMON-ClassicBetaPvP", "Yonemon", -- what UnitName gives
+    }) do
       assert.is_true(Service.IsBetaAdmin(key), key)
     end
   end)
 
   it("does not recognise anyone else", function()
-    for _, key in ipairs({ "Yonemongg-Realm", "Gg-Realm", "Someone-Realm", "Yonemo-Realm", "", "-Realm" }) do
+    for _, key in ipairs({
+      "Yonemon Gh", "Yonemon G", "Gg-Realm", "Someone-Realm", "Yonemo-Realm", "Other Yonemon Gg", "", "-Realm",
+    }) do
       assert.is_false(Service.IsBetaAdmin(key), key)
     end
     assert.is_false(Service.IsBetaAdmin(nil))
@@ -174,11 +179,21 @@ describe("PermissionService beta admin exception", function()
     assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemon-Realm"), "loot_award"))
   end)
 
+  it("finds the full name in the roster, as the client writes it, and makes it admin", function()
+    local roster = roster_of({
+      ["Yonemon Gg"] = { rankName = "Soldado" },
+      ["Black Coffee"] = { rankName = "Soldado" },
+    })
+    assert.are.equal("admin", Service.RoleOf(roster, "Yonemon Gg"))
+    assert.are.equal("member", Service.RoleOf(roster, "Black Coffee"))
+  end)
+
   it("gives nothing to a listed name the guild roster does not know", function()
     assert.is_nil(Service.RoleOf(roster_of({}), "Yonemon-Realm"))
   end)
 
   it("applies to the own role only for someone who is in a guild", function()
+    assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemon Gg")))
     assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemon-Realm")))
     assert.are.equal("member", Service.OwnRole(platform_of("alter", "Other-Realm")))
     assert.is_nil(Service.OwnRole(platform_of(nil, "Yonemon-Realm")))

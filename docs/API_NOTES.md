@@ -13,13 +13,26 @@ from it and measured behaviour belong here.
 | Guild club id (`C_Club.GetGuildClubId()`) | read once by a Nrage member (the value is in `Constants.lua`); that it is the same across sessions and members is not confirmed yet | access check |
 | Faction | `Alliance` | access check |
 
-All of these are beta values and must be measured again at launch (tracked as an issue).
+| Character names | **can have several words** (`Yonemon Gg`, `Black Coffee`) | everywhere a character is named |
+| `UnitName("player")` | only the **first word** (`Yonemon` for `Yonemon Gg`) | must not be used to identify a character |
+| `GetGuildRosterInfo` names | the full name, **without** a realm suffix (`Macedonio Macedoniez`) | the authority for names in permission checks |
+
+All of the beta values above must be measured again at launch (tracked as an issue).
+
+### How the addon identifies a character
+
+Because `UnitName` is not the roster's name, the addon finds its own full name in the guild roster by GUID (the
+seventeenth value of `GetGuildRosterInfo`) and uses that as its identity in everything shared. Until the roster has
+loaded it falls back to the `UnitName`-based key, which is also the stable key of the saved data. Names received
+from other clients are compared without a `-<this realm>` suffix. `/nrage debug roster` shows the result and
+`/nrage debug senders` shows the last senders exactly as the client delivered them.
 
 ## Assumed, not measured yet
 
 - The libraries (Ace3 parts, LibSerialize, LibDeflate) load on the Forever build.
-- The `sender` of `CHAT_MSG_ADDON` has the same `Name-Realm` shape as the names from `GetGuildRosterInfo` and as
-  the addon's own identity key. `/nrage debug selftest` reports whether the own key is found in the roster.
+- The `sender` of `CHAT_MSG_ADDON` is the full name, with or without the realm suffix. If it turns out to be the
+  first word only, like `UnitName`, permission lookups by sender will not work. `/nrage debug senders` (after
+  another member's message arrives) shows the raw sender and whether the roster finds it.
 - Addon whispers between guild members work and their sender name can be used as a whisper target.
 - The behaviour of the encounter lockdown: when it starts and ends, and what happens to queued messages. The probe
   (`/nrage debug lockdown start | send | log | clear`) exists; the two-client test has not been run.

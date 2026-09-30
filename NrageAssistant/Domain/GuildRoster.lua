@@ -16,6 +16,9 @@ function GuildRoster.New(deps)
     max = deps.max or constants.GUILD_ROSTER_MAX,
     chunk = deps.chunk or constants.GUILD_ROSTER_CHUNK,
     minInterval = deps.minInterval or constants.GUILD_ROSTER_MIN_INTERVAL_SECONDS,
+    -- Optional: how this character finds itself in the roster (by GUID) and what to do with the name.
+    ownGuid = deps.ownGuid,
+    onOwnName = deps.onOwnName,
     entries = {},
     count = 0,
     rebuilding = false,
@@ -43,11 +46,31 @@ function GuildRoster:IsReady()
   return self.lastCompletedAt ~= nil
 end
 
+-- The roster is the authority on how this character's name is written, and it gives the GUID of each
+-- member: the entry with our own GUID tells us our full name.
+function GuildRoster:FindOwnName()
+  if not (self.ownGuid and self.onOwnName) then
+    return
+  end
+  local guid = self.ownGuid()
+  if not guid then
+    return
+  end
+  for name, entry in pairs(self.entries) do
+    if entry.guid == guid then
+      self.ownName = name
+      self.onOwnName(name)
+      return
+    end
+  end
+end
+
 function GuildRoster:Finish(entries, count)
   self.entries = entries
   self.count = count
   self.lastCompletedAt = self.now()
   self.rebuilding = false
+  self:FindOwnName()
   if self.dirty then
     self.dirty = false
     self:Rebuild()
@@ -83,6 +106,7 @@ function GuildRoster:Rebuild()
           rankIndex = entry.rankIndex,
           level = entry.level,
           class = entry.class,
+          guid = entry.guid,
         }
       end
     end
