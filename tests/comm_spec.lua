@@ -123,10 +123,20 @@ describe("Comm receiving", function()
     assert.are.equal("duplicate", reason)
   end)
 
-  it("only accepts the GUILD channel", function()
+  it("only accepts the GUILD and WHISPER channels", function()
+    for _, channel in ipairs({ "SAY", "PARTY", "RAID", "CHANNEL", "" }) do
+      local ok, reason = env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }), "Other-Realm", channel)
+      assert.is_false(ok)
+      assert.are.equal("wrong_channel", reason)
+    end
+  end)
+
+  it("does not take guild messages from a whisper", function()
     local ok, reason = env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }), "Other-Realm", "WHISPER")
     assert.is_false(ok)
-    assert.are.equal("wrong_channel", reason)
+    assert.are_not.equal(true, ok)
+    assert.is_nil(env.comm.peers["Other-Realm"])
+    assert.is_string(reason)
   end)
 
   it("ignores its own messages and missing senders", function()
