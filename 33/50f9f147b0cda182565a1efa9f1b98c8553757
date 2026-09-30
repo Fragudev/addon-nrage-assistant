@@ -1,0 +1,27 @@
+.github/workflows/release.yml
+  s_dcf33a8274b337::t_16c346ea7e215e 1-36
+NrageAssistant/Core/Constants.lua
+  s_dcf33a8274b337::t_54d23738e32dee 1-6
+NrageAssistant/Core/Init.lua
+  s_dcf33a8274b337::t_38348e30651923 1-34
+NrageAssistant/NrageAssistant.toc
+  s_dcf33a8274b337::t_e40d8c9652e05c 1-11
+.gitignore
+  s_dcf33a8274b337::t_89a4cff9669789 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3350f9f147b0cda182565a1efa9f1b98c8553757",
+  "prompts": {},
+  "sessions": {
+    "s_dcf33a8274b337": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7da1c00f-f523-444b-9b42-ec66e2e65fdc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
