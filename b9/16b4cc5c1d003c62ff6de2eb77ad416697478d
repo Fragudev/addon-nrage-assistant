@@ -1,0 +1,25 @@
+NrageAssistant/Domain/TemplateService.lua
+  s_3fd4a5fb5b130a::t_a1ae338fafcd5f 125-162
+NrageAssistant/UI/Main.lua
+  s_3fd4a5fb5b130a::t_9962b9f4a010a7 325-334,367-378
+docs/USER_GUIDE.md
+  s_3fd4a5fb5b130a::t_845e5cdd585a88 136-139
+tests/template_service_spec.lua
+  s_3fd4a5fb5b130a::t_6d836ab189119f 202-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b916b4cc5c1d003c62ff6de2eb77ad416697478d",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
