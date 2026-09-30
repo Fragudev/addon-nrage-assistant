@@ -1,0 +1,27 @@
+NrageAssistant/Core/AccessGuard.lua
+  s_58126f9867149c::t_3748d750db89aa 3,7,25-29
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_1324e7663cbb0b 8-9,11-13
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_296dba562954a2 10
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_a3e44c34b531d6 1,8
+tests/access_guard_spec.lua
+  s_58126f9867149c::t_a95ec69c6d192f 13,21-22,50-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e3edaa57e06f78759f08dadcb15bd96a6d383856",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
