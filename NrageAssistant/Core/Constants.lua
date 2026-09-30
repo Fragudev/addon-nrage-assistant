@@ -49,6 +49,12 @@ ns.Constants = {
   GUILD_ROSTER_CHUNK = 100,
   GUILD_ROSTER_MIN_INTERVAL_SECONDS = 10,
 
+  -- Text import/export of raid data. LibDeflate has no output limit, so the encoded input is capped
+  -- first (a deflate stream expands at most ~1000x) and the result is capped again afterwards.
+  IMPORT_MAX_ENCODED_BYTES = 32768,
+  IMPORT_MAX_DECOMPRESSED_BYTES = 262144,
+  IMPORT_MAX_ITEMS = 3000,
+
   -- Raid events, attendance and assignments (bounded so shared data cannot grow without limit).
   EVENT_MAX = 100,
   EVENT_ATTENDANCE_MAX = 60,

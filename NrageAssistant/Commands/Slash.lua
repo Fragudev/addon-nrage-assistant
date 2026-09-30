@@ -172,6 +172,16 @@ local function HelpCommand()
   end
 end
 
+local function TransferCommand(mode)
+  return function()
+    if not ns.active or not ns.character then
+      say("export and import are unavailable while the addon is disabled.")
+      return
+    end
+    ns.UI.ShowTransfer(mode)
+  end
+end
+
 -- Builds the raid command handler for `method` (Event, Attendance or Assign).
 local function RaidCommand(method)
   return function(rest)
@@ -193,6 +203,8 @@ end
 
 local COMMANDS = {
   help = HelpCommand,
+  export = TransferCommand("export"),
+  import = TransferCommand("import"),
   event = RaidCommand("Event"),
   attendance = RaidCommand("Attendance"),
   assign = RaidCommand("Assign"),

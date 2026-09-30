@@ -71,7 +71,7 @@ describe("Protocol.Validate envelope", function()
   end)
 
   it("rejects bad ids", function()
-    for _, id in ipairs({ "", ("x"):rep(41), "has space", "pipe|id", 7 }) do
+    for _, id in ipairs({ "", ("x"):rep(41), "has space", "pipe|id", "colon:id", 7 }) do
       local _, reason = Protocol.Validate(message(nil, { id = id }))
       assert.are.equal("bad_id", reason)
     end

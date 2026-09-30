@@ -133,6 +133,79 @@ local function OnTabSelected(container, _, group)
   DRAWERS[group](scroll)
 end
 
+-- Small window with a text box: shows the export text, or takes pasted text to import.
+local transferFrame
+
+local function ReleaseTransfer()
+  if transferFrame then
+    LibStub("AceGUI-3.0"):Release(transferFrame)
+    transferFrame = nil
+  end
+end
+
+local function TransferLibs()
+  return { serialize = LibStub("LibSerialize"), deflate = LibStub("LibDeflate") }
+end
+
+local IMPORT_ERRORS = {
+  forbidden = "your guild rank does not allow importing raid data.",
+  not_string = "nothing to import.",
+  bad_header = "that does not look like a Nrage export (it should start with NRAGE1:).",
+  too_large = "that text is too large to import.",
+  bad_encoding = "the text is damaged (bad encoding).",
+  bad_compression = "the text is damaged (bad compression).",
+  bad_payload = "the text is damaged or not a Nrage export.",
+}
+
+function UI.ShowTransfer(mode)
+  if not ns.active or not ns.character then
+    return
+  end
+  ReleaseTransfer()
+
+  local AceGUI = LibStub("AceGUI-3.0")
+  local frame = AceGUI:Create("Frame")
+  transferFrame = frame
+  frame:SetTitle(mode == "export" and "Nrage export" or "Nrage import")
+  frame:SetWidth(520)
+  frame:SetHeight(360)
+  frame:SetLayout("Fill")
+  frame:SetCallback("OnClose", ReleaseTransfer)
+
+  local box = AceGUI:Create("MultiLineEditBox")
+  box:SetFullWidth(true)
+  box:SetFullHeight(true)
+  frame:AddChild(box)
+
+  if mode == "export" then
+    local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
+    box:SetLabel("Select all and copy (Ctrl+C):")
+    box:DisableButton(true)
+    box:SetText(text or ("Export failed: " .. tostring(reason)))
+    if box.editBox then
+      box.editBox:HighlightText()
+    end
+    return
+  end
+
+  box:SetLabel("Paste an export here, then press Import:")
+  box:SetButtonText("Import")
+  box:SetCallback("OnEnterPressed", function(_, _, text)
+    local ctx = {
+      events = ns.db.global.events,
+      tombstones = ns.db.global.sync.tombstones,
+      now = ns.Platform.ServerTime,
+    }
+    local role = ns.PermissionService.OwnRole(ns.Platform)
+    local summary, reason = ns.Transfer.Import(TransferLibs(), text, ctx, role)
+    if summary then
+      print("Nrage Assistant: " .. ns.Transfer.Describe(summary) .. ". Imported data stays on this client only.")
+    else
+      print("Nrage Assistant: import failed: " .. (IMPORT_ERRORS[reason] or tostring(reason)))
+    end
+  end)
+end
+
 function UI.Toggle()
   if not ns.active or not ns.character then
     return
