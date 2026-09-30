@@ -7,6 +7,8 @@
 
 # Interface number measured on the Forever beta client (build 16001) with /dump select(4, GetBuildInfo()).
 
+embeds.xml
+
 Core\Constants.lua
 Core\Platform.lua
 Core\AccessGuard.lua
