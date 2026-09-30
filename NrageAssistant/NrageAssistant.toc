@@ -1,0 +1,11 @@
+## Interface: 120105
+## Title: Nrage Assistant
+## Notes: Guild coordination and raid readiness for Nrage.
+## Author: Fragudev
+## Version: @project-version@
+## SavedVariables: NrageAssistantDB
+
+# Interface number assumes Mainline 12.1.5; confirm the Forever value with /dump select(4, GetBuildInfo())
+
+Core\Constants.lua
+Core\Init.lua
