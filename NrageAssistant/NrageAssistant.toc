@@ -31,5 +31,6 @@ Sync\EventSync.lua
 Sync\Comm.lua
 UI\ViewModel.lua
 UI\Main.lua
+Commands\RaidCommands.lua
 Commands\Slash.lua
 Core\Init.lua

@@ -87,6 +87,9 @@ function ViewModel.HelpLines()
     "/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)",
     "/nrage consent       what you agree to share (consent <key> on|off)",
     "/nrage publish       preview, then 'publish confirm' to share your profile",
+    "/nrage event         raid events (event new <title> | rename | status | delete)",
+    "/nrage attendance    attendance for an event (attendance <n> <Name-Realm> <state>)",
+    "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
     "/nrage sync          sync state, queue and peers",
   }
 end
