@@ -76,15 +76,6 @@ local function ReadyCommand(rest)
   end
 end
 
-local PUBLISH_ERRORS = {
-  no_consent = "profile consent is off. Use /nrage consent profile on.",
-  missing_data = "class or level is unknown, nothing to share yet.",
-  cooldown = "you published a moment ago, wait a little.",
-  full = "the send queue is full, try again shortly.",
-  too_large = "the profile is too large to send.",
-  encode_failed = "the profile could not be encoded.",
-}
-
 local function ConsentCommand(rest)
   if not ns.active or not ns.character then
     say("consent is unavailable while the addon is disabled.")
@@ -120,7 +111,7 @@ local function PublishCommand(rest)
   if rest == "confirm" then
     ns.ProfileService.Refresh(ns.Platform, character.profile)
     local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
-    say(ok and "profile published to the guild." or ("not published: " .. (PUBLISH_ERRORS[reason] or reason)))
+    say(ok and "profile published to the guild." or ("not published: " .. ns.ViewModel.PublishError(reason)))
     return
   end
 
@@ -142,7 +133,18 @@ local function SyncCommand()
   end
 end
 
+local function HelpCommand()
+  say("commands:")
+  for _, line in ipairs(ns.ViewModel.HelpLines()) do
+    print("  " .. line)
+  end
+end
+
 local COMMANDS = {
+  help = HelpCommand,
+  version = function()
+    say(("version %s"):format(ns.GetVersion()))
+  end,
   profile = ProfileCommand,
   ready = ReadyCommand,
   sync = SyncCommand,
@@ -166,7 +168,13 @@ SlashCmdList.NRAGE = function(msg)
   local handler = COMMANDS[command]
   if handler then
     handler(rest)
-    return
+  elseif command == "" then
+    if ns.active then
+      ns.UI.Toggle()
+    else
+      say(("version %s (addon disabled, see the notice shown at login)"):format(ns.GetVersion()))
+    end
+  else
+    say(("unknown command '%s'. Type /nrage help."):format(command))
   end
-  say(("version %s"):format(ns.GetVersion()))
 end

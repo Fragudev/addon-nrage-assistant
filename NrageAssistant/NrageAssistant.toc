@@ -23,5 +23,7 @@ Sync\Protocol.lua
 Sync\Inbox.lua
 Sync\OutboundQueue.lua
 Sync\Comm.lua
+UI\ViewModel.lua
+UI\Main.lua
 Commands\Slash.lua
 Core\Init.lua
