@@ -1,0 +1,19 @@
+NrageAssistant/UI/Main.lua
+  s_3fd4a5fb5b130a::t_18d249f52adb14 189-197,282,286,293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed0fc1f5b777e21bbbb82ab8881d052b98748baf",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
