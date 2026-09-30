@@ -1,7 +1,11 @@
 local function load_view_model()
   local ns = {}
-  assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
-  assert(loadfile("NrageAssistant/UI/ViewModel.lua"))("NrageAssistant", ns)
+  for _, path in ipairs({
+    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
+    "UI/ViewModel",
+  }) do
+    assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+  end
   return ns.ViewModel, ns.Constants
 end
 
@@ -90,7 +94,7 @@ describe("ViewModel misc", function()
   it("offers a tab for each view", function()
     local values = {}
     for _, tab in ipairs(ViewModel.TABS) do values[tab.value] = true end
-    assert.are.same({ home = true, profile = true, ready = true, roster = true }, values)
+    assert.are.same({ home = true, profile = true, ready = true, raid = true, roster = true }, values)
   end)
 
   it("documents every user command in the help", function()
@@ -101,5 +105,64 @@ describe("ViewModel misc", function()
     }) do
       assert.is_truthy(text:find("/nrage " .. command, 1, true), command)
     end
+  end)
+end)
+
+describe("ViewModel.Raid", function()
+  local function event(overrides)
+    local e = {
+      eventId = "ev-1", title = "Molten Core", status = "open", startAt = 5000,
+      attendance = {}, assignments = {},
+    }
+    for k, v in pairs(overrides or {}) do e[k] = v end
+    return e
+  end
+  local format = function(timestamp) return "date:" .. timestamp end
+
+  it("explains an empty list", function()
+    assert.is_truthy(ViewModel.Raid({}, format)[1]:find("No events yet", 1, true))
+  end)
+
+  it("numbers events like /nrage event and shows status and date", function()
+    local lines = ViewModel.Raid({
+      later = event({ eventId = "later", title = "Later", startAt = 9000 }),
+      sooner = event({ eventId = "sooner", title = "Sooner", startAt = 1000, status = "planned" }),
+    }, format)
+    assert.are.equal("1. Sooner [planned] - date:1000", lines[1])
+    assert.are.equal("    Attendance: none recorded", lines[2])
+    assert.are.equal("2. Later [open] - date:9000", lines[4])
+  end)
+
+  it("summarises attendance by state and lists assignments in order", function()
+    local e = event()
+    e.attendance = {
+      ["A-Realm"] = { state = "present" }, ["B-Realm"] = { state = "present" }, ["C-Realm"] = { state = "late" },
+    }
+    e.assignments = {
+      a1 = { encounter = "Ragnaros", characterKey = "Zed-Realm", task = "Healer" },
+      a2 = { encounter = "Garr", characterKey = "Bob-Realm" },
+      a3 = { encounter = "Ragnaros", characterKey = "Ann-Realm" },
+    }
+    local lines = ViewModel.Raid({ ["ev-1"] = e }, format)
+    assert.are.equal("    Attendance: 1 late, 2 present", lines[2])
+    assert.are.equal("    Garr: Bob-Realm", lines[3])
+    assert.are.equal("    Ragnaros: Ann-Realm", lines[4])
+    assert.are.equal("    Ragnaros: Zed-Realm - Healer", lines[5])
+  end)
+
+  it("leaves out the date of an undated event", function()
+    local lines = ViewModel.Raid({ ["ev-1"] = event({ startAt = false }) }, format)
+    assert.are.equal("1. Molten Core [open]", lines[1])
+  end)
+
+  it("escapes everything that came from the guild", function()
+    local e = event({ title = "|cffff0000Evil" })
+    e.attendance["|Hx|h"] = { state = "|cff00ff00late" }
+    e.assignments.a1 = { encounter = "|cffffffffBoss", characterKey = "|Hplayer:x|h", task = "|rTank" }
+    local text = table.concat(ViewModel.Raid({ ["ev-1"] = e }, format), "\n")
+    assert.is_nil(text:find("[^|]|[cHr]"))
+    assert.is_truthy(text:find("||cffff0000Evil", 1, true))
+    assert.is_truthy(text:find("||cff00ff00late", 1, true))
+    assert.is_truthy(text:find("||Hplayer:x||h", 1, true))
   end)
 end)

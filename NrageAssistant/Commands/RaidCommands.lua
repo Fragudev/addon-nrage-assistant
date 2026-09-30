@@ -66,6 +66,7 @@ function RaidCommands:Resolve(token)
 end
 
 local EVENT_STATUS_HELP = "status must be planned, open, closed or cancelled."
+local EVENT_DATE_HELP = "give the start as YYYY-MM-DD HH:MM in your local time, e.g. 2026-10-03 20:30."
 
 function RaidCommands:ListEvents()
   local list = ns.EventService.List({ events = self.events })
@@ -97,7 +98,7 @@ function RaidCommands:Event(rest)
     return lines
   end
 
-  if sub == "rename" or sub == "status" or sub == "delete" then
+  if sub == "rename" or sub == "status" or sub == "delete" or sub == "start" then
     local token, value = args:match("^(%S*)%s*(.-)$")
     local event, problem = self:Resolve(token)
     if not event then
@@ -112,7 +113,18 @@ function RaidCommands:Event(rest)
       return { ("deleted '%s'."):format(event.title), sentNote(self.comm:SendDeleteEvent(event.eventId)) }
     end
 
-    local fields = sub == "rename" and { title = value } or { status = value }
+    local fields
+    if sub == "rename" then
+      fields = { title = value }
+    elseif sub == "status" then
+      fields = { status = value }
+    else
+      local startAt = self.platform.ParseDate(value)
+      if not startAt then
+        return { EVENT_DATE_HELP }
+      end
+      fields = { startAt = startAt }
+    end
     local updated, reason = ns.EventService.Update(ctx, event.eventId, fields)
     if not updated then
       if reason == "invalid:status" then
@@ -123,7 +135,10 @@ function RaidCommands:Event(rest)
     return { ("updated '%s' [%s]."):format(updated.title, updated.status), sentNote(self.comm:SendEvent(updated)) }
   end
 
-  return { "usage: /nrage event [list] | new <title> | rename <n> <title> | status <n> <status> | delete <n>" }
+  return {
+    "usage: /nrage event [list] | new <title> | rename <n> <title> | status <n> <status>"
+      .. " | start <n> <YYYY-MM-DD HH:MM> | delete <n>",
+  }
 end
 
 local function listAttendance(event)
