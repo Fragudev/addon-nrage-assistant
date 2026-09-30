@@ -36,6 +36,66 @@ function Platform.IsChatMessagingLockedDown()
   return false
 end
 
+function Platform.GetPlayerName()
+  local name = UnitName("player")
+  return name
+end
+
+-- "Name-Realm", the same shape the guild roster uses (confirmed in phase 0: realm is
+-- the normalized realm name).
+function Platform.GetIdentityKey()
+  return ("%s-%s"):format(tostring(Platform.GetPlayerName()), tostring(Platform.GetRealmName()))
+end
+
+function Platform.GetGUID()
+  return UnitGUID("player")
+end
+
+-- Returns the class file token (e.g. "WARRIOR"), which does not depend on the client locale.
+function Platform.GetClass()
+  local _, token = UnitClass("player")
+  return token
+end
+
+function Platform.GetLevel()
+  return UnitLevel("player")
+end
+
+-- Equipped item level, or nil when the API is missing or returns something unusable.
+function Platform.GetAverageItemLevel()
+  if not GetAverageItemLevel then
+    return nil
+  end
+  local _, equipped = GetAverageItemLevel()
+  if type(equipped) ~= "number" then
+    return nil
+  end
+  return math.floor(equipped)
+end
+
+-- List of { name, skill, max }; empty when the client has no profession API.
+function Platform.GetProfessions()
+  local result = {}
+  if not (GetProfessions and GetProfessionInfo) then
+    return result
+  end
+  -- Up to five slots (two primary, archaeology, fishing, cooking); empty slots are nil.
+  local indexes = { GetProfessions() }
+  for slot = 1, 5 do
+    if indexes[slot] then
+      local name, _, skill, maxSkill = GetProfessionInfo(indexes[slot])
+      if name then
+        result[#result + 1] = { name = name, skill = skill, max = maxSkill }
+      end
+    end
+  end
+  return result
+end
+
+function Platform.ServerTime()
+  return GetServerTime()
+end
+
 function Platform.Now()
   return GetTime()
 end

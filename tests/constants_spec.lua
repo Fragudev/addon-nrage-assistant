@@ -10,20 +10,24 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("starts at schema version 1", function()
-    assert.are.equal(1, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 2", function()
+    assert.are.equal(2, ns.Constants.SCHEMA_VERSION)
   end)
 end)
 
-describe("Init", function()
-  it("loads and registers the /nrage slash command", function()
-    local ns = {}
-    assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Core/Platform.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Core/AccessGuard.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Core/LockdownGuard.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Core/LockdownProbe.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Core/Init.lua"))("NrageAssistant", ns)
+describe("Addon load", function()
+  it("loads every file listed in the TOC and registers the /nrage slash command", function()
+    dofile("tests/support/addon.lua")({})
     assert.is_function(SlashCmdList.NRAGE)
+  end)
+
+  it("prints the version for a bare /nrage", function()
+    dofile("tests/support/addon.lua")({})
+    local printed
+    local original = _G.print
+    _G.print = function(text) printed = text end
+    SlashCmdList.NRAGE("")
+    _G.print = original
+    assert.is_truthy(printed:find("version dev", 1, true))
   end)
 end)
