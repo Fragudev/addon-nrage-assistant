@@ -90,6 +90,8 @@ function ViewModel.HelpLines()
     "/nrage event         raid events (event new <title> | rename | status | delete)",
     "/nrage attendance    attendance for an event (attendance <n> <Name-Realm> <state>)",
     "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
+    "/nrage export        copy all raid events, attendance and assignments as text",
+    "/nrage import        paste an export to merge it into your data (RL/admin only)",
     "/nrage sync          sync state, queue and peers",
   }
 end

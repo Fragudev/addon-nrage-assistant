@@ -17,9 +17,10 @@ function Validate.Text(value, maxLength)
     and not value:find("%c")
 end
 
--- Identifiers made of letters, digits, "-", "_" and ":".
+-- Identifiers made of letters, digits, "-" and "_". No ":" so that composite keys such as
+-- "A:<eventId>:<assignmentId>" can always be split back unambiguously.
 function Validate.Id(value)
-  return Validate.Text(value, 40) and value:find("^[%w%-_:]+$") ~= nil
+  return Validate.Text(value, 40) and value:find("^[%w%-_]+$") ~= nil
 end
 
 ns.Validate = Validate
