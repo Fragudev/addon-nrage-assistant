@@ -7,8 +7,8 @@ local function load_addon()
 
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/EventModel", "Sync/Codec", "Sync/Protocol",
-    "Sync/Inbox", "Sync/OutboundQueue", "Sync/Comm",
+    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
+    "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue", "Sync/EventSync", "Sync/Comm",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -25,6 +25,9 @@ local function build_env()
     sent = {},
     scheduled = {},
     roster = {},
+    events = {},
+    tombstones = {},
+    roles = {},
   }
 
   env.platform = {
@@ -49,6 +52,9 @@ local function build_env()
     inbox = ns.Inbox.New(),
     queue = env.queue,
     roster = env.roster,
+    events = env.events,
+    tombstones = env.tombstones,
+    roleOf = function(sender) return env.roles[sender] end,
     version = "0.1.0",
     now = function() return env.clock end,
     schedule = function(delay, fn) env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn } end,
@@ -246,5 +252,78 @@ describe("Comm status", function()
     assert.is_truthy(text:find("peers seen: 2", 1, true))
     assert.is_truthy(text:find("A-Realm - addon 0.1.0", 1, true))
     assert.is_truthy(text:find("Z-Realm - incompatible protocol version", 1, true))
+  end)
+end)
+
+describe("Comm raid operations", function()
+  local env
+
+  before_each(function()
+    env = build_env()
+    env.roles["Lead-Realm"] = "rl"
+    env.roles["Raider-Realm"] = "member"
+  end)
+
+  local function event_text(id)
+    return env.wire("EVENT_UPSERT", { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Molten Core" }, id)
+  end
+
+  it("applies an event sent by someone whose roster rank allows it", function()
+    assert.is_true(env.comm:HandleMessage(event_text("m-1"), "Lead-Realm", "GUILD"))
+    assert.are.equal("Molten Core", env.events["ev-1"].title)
+    assert.are.equal("Lead-Realm", env.events["ev-1"].updatedBy)
+  end)
+
+  it("refuses a member and a sender the roster does not know", function()
+    local ok, reason = env.comm:HandleMessage(event_text("m-1"), "Raider-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    ok, reason = env.comm:HandleMessage(event_text("m-2"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.is_nil(next(env.events))
+  end)
+
+  it("does not apply the same message twice", function()
+    local text = event_text("m-1")
+    assert.is_true(env.comm:HandleMessage(text, "Lead-Realm", "GUILD"))
+    assert.are.equal("duplicate", select(2, env.comm:HandleMessage(text, "Lead-Realm", "GUILD")))
+  end)
+
+  it("sends local changes as valid, keyed messages that a receiver accepts", function()
+    local event = { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Molten Core", status = "planned" }
+    assert.is_true(env.comm:SendEvent(event))
+    assert.is_true(env.comm:SendAttendance("ev-1", "A-Realm", { state = "present", rev = 1, updatedAt = 10 }))
+    assert.is_true(env.comm:SendAssignment("ev-1", {
+      assignmentId = "as-1", rev = 1, updatedAt = 10, encounter = "Ragnaros", characterKey = "A-Realm",
+    }))
+    assert.are.equal(3, #env.sent)
+
+    local receiver = build_env()
+    receiver.roles["Sender-Realm"] = "rl"
+    for _, text in ipairs(env.sent) do
+      assert.is_true(receiver.comm:HandleMessage(text, "Sender-Realm", "GUILD"))
+    end
+    assert.are.equal("present", receiver.events["ev-1"].attendance["A-Realm"].state)
+    assert.are.equal("Ragnaros", receiver.events["ev-1"].assignments["as-1"].encounter)
+  end)
+
+  it("replaces a queued edit of the same record during a lockdown", function()
+    env.locked = true
+    env.comm:SendAttendance("ev-1", "A-Realm", { state = "present", rev = 1, updatedAt = 10 })
+    env.comm:SendAttendance("ev-1", "A-Realm", { state = "late", rev = 2, updatedAt = 11 })
+    env.comm:SendAttendance("ev-1", "B-Realm", { state = "present", rev = 1, updatedAt = 10 })
+    assert.are.equal(2, env.queue:Pending())
+  end)
+
+  it("sends a delete only when a tombstone exists", function()
+    assert.are.equal("no_tombstone", select(2, env.comm:SendDeleteEvent("ev-1")))
+    assert.are.equal("no_tombstone", select(2, env.comm:SendDeleteAssignment("ev-1", "as-1")))
+
+    env.tombstones["E:ev-1"] = { at = 10, rev = 3 }
+    env.tombstones["A:ev-1:as-1"] = { at = 10, rev = 2 }
+    assert.is_true(env.comm:SendDeleteEvent("ev-1"))
+    assert.is_true(env.comm:SendDeleteAssignment("ev-1", "as-1"))
+    assert.are.equal(2, #env.sent)
   end)
 end)

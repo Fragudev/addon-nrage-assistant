@@ -25,7 +25,8 @@ ns.Constants = {
 
   -- Inbound guards: per-sender rate limit and a bounded cache of message ids already seen.
   INBOX_SEEN_LIMIT = 200,
-  INBOX_MAX_PER_WINDOW = 10,
+  -- Sized for raid operations: an RL recording attendance for a whole raid sends one message per row.
+  INBOX_MAX_PER_WINDOW = 60,
   INBOX_WINDOW_SECONDS = 60,
   INBOX_MAX_SENDERS = 200,
 
@@ -71,7 +72,7 @@ ns.Constants = {
   QUEUE_FLUSH_SECONDS = 1,
 
   -- Outbound queue: bounded, expiring, and jittered when it drains after a lockdown.
-  QUEUE_MAX_ITEMS = 20,
+  QUEUE_MAX_ITEMS = 100,
   QUEUE_TTL_SECONDS = 120,
   QUEUE_MAX_JITTER_SECONDS = 5,
 
