@@ -119,6 +119,11 @@ function Platform.GetProfessions()
   return result
 end
 
+-- "2026-10-01 20:30" in the client's local time.
+function Platform.FormatDate(timestamp)
+  return date("%Y-%m-%d %H:%M", timestamp)
+end
+
 function Platform.ServerTime()
   return GetServerTime()
 end

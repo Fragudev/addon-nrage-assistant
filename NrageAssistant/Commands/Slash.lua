@@ -172,8 +172,30 @@ local function HelpCommand()
   end
 end
 
+-- Builds the raid command handler for `method` (Event, Attendance or Assign).
+local function RaidCommand(method)
+  return function(rest)
+    if not ns.active or not ns.comm then
+      say("raid commands are unavailable while the addon is disabled.")
+      return
+    end
+    local raid = ns.RaidCommands.New({
+      events = ns.db.global.events,
+      tombstones = ns.db.global.sync.tombstones,
+      platform = ns.Platform,
+      comm = ns.comm,
+    })
+    for _, line in ipairs(raid[method](raid, rest)) do
+      print(line)
+    end
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  event = RaidCommand("Event"),
+  attendance = RaidCommand("Attendance"),
+  assign = RaidCommand("Assign"),
   version = function()
     say(("version %s"):format(ns.GetVersion()))
   end,

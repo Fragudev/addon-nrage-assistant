@@ -35,6 +35,11 @@ local function Activate()
   ns.active = true
   ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+  ns.EventService.Purge({
+    events = ns.db.global.events,
+    tombstones = ns.db.global.sync.tombstones,
+    now = ns.Platform.ServerTime,
+  })
   ns.Comm.Start()
   ns.guildRoster = ns.GuildRoster.New({
     platform = ns.Platform,
