@@ -48,7 +48,9 @@ ns.Constants = {
   -- BETA ONLY, remove before release (issue #25). Characters that get every permission, as if they
   -- were the guild master. Compared by name, ignoring case and spaces, and only for guild members.
   BETA_ADMIN_ENABLED = true,
-  BETA_ADMIN_NAMES = { "Yonemon" },
+  -- "Yonemon Gg" is the full name (Forever names can have several words). "Yonemon" is what UnitName
+  -- gives, used until the guild roster has told the addon the full name.
+  BETA_ADMIN_NAMES = { "Yonemon Gg", "Yonemon" },
 
   -- Guild roster cache: bounded, rebuilt in chunks so a big guild never stalls the UI.
   GUILD_ROSTER_MAX = 1000,

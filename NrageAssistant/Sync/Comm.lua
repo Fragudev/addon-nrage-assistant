@@ -24,6 +24,7 @@ function Comm.New(deps)
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
+    recentSenders = {},
     lastSyncRequestAt = nil,
     lastSnapshot = nil,
     version = deps.version,
@@ -141,6 +142,18 @@ function Comm:HandleProfile(sender, payload)
   return true
 end
 
+local MAX_RECENT_SENDERS = 5
+
+-- Remembers the last few senders exactly as the client delivered them, and how they were read, so
+-- `/nrage debug senders` can show whether their names match the guild roster.
+function Comm:RecordSender(raw, normalized)
+  local recent = self.recentSenders
+  recent[#recent + 1] = { raw = raw, name = normalized, at = self.now() }
+  if #recent > MAX_RECENT_SENDERS then
+    table.remove(recent, 1)
+  end
+end
+
 -- Full receive pipeline. Returns true, or false plus the reason the message was dropped.
 function Comm:HandleMessage(text, sender, channel)
   if channel ~= "GUILD" and channel ~= "WHISPER" then
@@ -149,6 +162,10 @@ function Comm:HandleMessage(text, sender, channel)
   if type(sender) ~= "string" or sender == "" then
     return false, "bad_sender"
   end
+  -- The client may deliver "Name-Realm" where the guild roster has "Name": compare without the realm.
+  local rawSender = sender
+  sender = self.platform.NormalizeName(sender)
+  self:RecordSender(rawSender, sender)
   if sender == self.platform.GetIdentityKey() then
     return false, "own_message"
   end

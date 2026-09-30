@@ -125,8 +125,8 @@ local function behaviourChecks(addon)
     end
     if not roster:Lookup(addon.Platform.GetIdentityKey()) then
       return result("guild roster", "warn",
-        ("%d members, but the own key was not found: sender and roster name formats may differ"):format(
-          roster:Count()))
+        ("%d members, but the own name '%s' was not found (matched by GUID: %s): name formats may differ"):format(
+          roster:Count(), tostring(addon.Platform.GetIdentityKey()), tostring(roster.ownName)))
     end
     return result("guild roster", "ok", ("%d members, own key found"):format(roster:Count()))
   end

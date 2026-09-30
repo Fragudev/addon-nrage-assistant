@@ -38,13 +38,13 @@ function Platform.GetNumGuildMembers()
   return total or 0
 end
 
--- { name, rankName, rankIndex, level, class } for roster row `index`, or nil.
+-- { name, rankName, rankIndex, level, class, guid } for roster row `index`, or nil.
 function Platform.GetGuildRosterEntry(index)
-  local name, rankName, rankIndex, level, _, _, _, _, _, _, class = GetGuildRosterInfo(index)
+  local name, rankName, rankIndex, level, _, _, _, _, _, _, class, _, _, _, _, _, guid = GetGuildRosterInfo(index)
   if not name then
     return nil
   end
-  return { name = name, rankName = rankName, rankIndex = rankIndex, level = level, class = class }
+  return { name = name, rankName = rankName, rankIndex = rankIndex, level = level, class = class, guid = guid }
 end
 
 function Platform.GetFaction()
@@ -68,10 +68,41 @@ function Platform.GetPlayerName()
   return name
 end
 
--- "Name-Realm", the same shape the guild roster uses (confirmed in phase 0: realm is
--- the normalized realm name).
-function Platform.GetIdentityKey()
+-- "Name-Realm" built from UnitName. On Forever this is NOT the name the guild roster uses: character
+-- names can have several words ("Yonemon Gg") and UnitName gives only the first one. Kept as the key of
+-- the saved data of this character, which must not change; use GetIdentityKey for anything shared.
+function Platform.GetLegacyIdentityKey()
   return ("%s-%s"):format(tostring(Platform.GetPlayerName()), tostring(Platform.GetRealmName()))
+end
+
+local canonicalName
+
+-- Sets the full name of this character as the guild roster gives it (found by GUID once the roster has
+-- loaded). Pass nil to go back to the UnitName-based key.
+function Platform.SetCanonicalName(name)
+  canonicalName = name
+end
+
+-- The name other members and the guild roster know this character by: the roster's full name without a
+-- realm suffix, as soon as it is known; until then the UnitName-based key.
+function Platform.GetIdentityKey()
+  return canonicalName or Platform.GetLegacyIdentityKey()
+end
+
+-- Drops a "-<this realm>" suffix, so a name received as "Name-Realm" and one from the roster ("Name")
+-- compare equal. Names from another realm keep their suffix. Not a string: returned unchanged.
+function Platform.NormalizeName(name)
+  if type(name) ~= "string" then
+    return name
+  end
+  local realm = Platform.GetRealmName()
+  if type(realm) == "string" and realm ~= "" then
+    local suffix = "-" .. realm
+    if #name > #suffix and name:sub(-#suffix) == suffix then
+      return name:sub(1, #name - #suffix)
+    end
+  end
+  return name
 end
 
 function Platform.GetGUID()

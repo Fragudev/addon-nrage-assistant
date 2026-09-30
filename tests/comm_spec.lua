@@ -34,6 +34,7 @@ local function build_env()
 
   env.platform = {
     GetIdentityKey = function() return "Me-Realm" end,
+    NormalizeName = function(name) return name end,
     ServerTime = function() return 5000 end,
   }
   env.codec = ns.Codec.New({
@@ -698,5 +699,62 @@ describe("Comm loot council", function()
     assert.are.equal("Highest need", loot["s-1"].award.reason)
     assert.are.equal("open", loot["s-2"].status)
     assert.is_nil(next(loot["s-1"].candidates))
+  end)
+end)
+
+describe("Comm sender names", function()
+  local env
+
+  before_each(function()
+    env = build_env()
+    -- The client delivers "Name-Realm" where the guild roster writes "Name".
+    env.platform.NormalizeName = function(name) return (name:gsub("%-ClassicBetaPvP$", "")) end
+    env.platform.GetIdentityKey = function() return "Yonemon Gg" end
+    env.roles["Black Coffee"] = "council"
+  end)
+
+  local function session_text()
+    return env.wire("LOOT_SESSION", {
+      eventId = "ev-1", sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 1, itemName = "X", status = "open",
+    }, "m-1")
+  end
+
+  it("reads a sender delivered with the realm as the roster's name, and applies their rank", function()
+    env.events["ev-1"] = {
+      eventId = "ev-1", title = "Raid", status = "open", rev = 1, updatedAt = 1,
+      attendance = {}, assignments = {}, loot = {},
+    }
+    assert.is_true(env.comm:HandleMessage(session_text(), "Black Coffee-ClassicBetaPvP", "GUILD"))
+    assert.are.equal("Black Coffee", env.events["ev-1"].loot["s-1"].updatedBy)
+  end)
+
+  it("recognises its own message whatever way the client writes the name", function()
+    local hello = env.wire("HELLO", { version = "0.1.0" })
+    assert.are.equal("own_message", select(2, env.comm:HandleMessage(hello, "Yonemon Gg", "GUILD")))
+    assert.are.equal("own_message", select(2, env.comm:HandleMessage(hello, "Yonemon Gg-ClassicBetaPvP", "GUILD")))
+  end)
+
+  it("remembers the last senders as delivered, and how they were read, for the debug command", function()
+    local hello = env.wire("HELLO", { version = "0.1.0" })
+    env.comm:HandleMessage(hello, "Black Coffee-ClassicBetaPvP", "GUILD")
+    local recent = env.comm.recentSenders
+    assert.are.equal(1, #recent)
+    assert.are.equal("Black Coffee-ClassicBetaPvP", recent[1].raw)
+    assert.are.equal("Black Coffee", recent[1].name)
+  end)
+
+  it("keeps only the five most recent senders", function()
+    for i = 1, 8 do
+      env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }, "h-" .. i), "Member " .. i, "GUILD")
+    end
+    local recent = env.comm.recentSenders
+    assert.are.equal(5, #recent)
+    assert.are.equal("Member 4", recent[1].raw)
+    assert.are.equal("Member 8", recent[5].raw)
+  end)
+
+  it("does not record anything for a missing sender", function()
+    env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }), nil, "GUILD")
+    assert.are.equal(0, #env.comm.recentSenders)
   end)
 end)

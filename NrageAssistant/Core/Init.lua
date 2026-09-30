@@ -33,7 +33,8 @@ end
 
 local function Activate()
   ns.active = true
-  ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetIdentityKey())
+  -- The saved data of this character keeps the key it always had; the shared name is resolved later.
+  ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetLegacyIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   ns.EventService.Purge({
     events = ns.db.global.events,
@@ -45,6 +46,8 @@ local function Activate()
     platform = ns.Platform,
     schedule = C_Timer.After,
     now = ns.Platform.Now,
+    ownGuid = ns.Platform.GetGUID,
+    onOwnName = ns.Platform.SetCanonicalName,
   })
   ns.guildRoster:Request()
   ns.guildRoster:Rebuild()

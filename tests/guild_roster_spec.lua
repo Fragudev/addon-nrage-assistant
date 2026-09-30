@@ -141,3 +141,62 @@ describe("GuildRoster.OnUpdate", function()
     assert.are.equal(1, env.requested)
   end)
 end)
+
+describe("GuildRoster own name", function()
+  local function with_guids(members, options)
+    local env = build(members, options)
+    env.ownName = nil
+    env.roster.ownGuid = function() return env.guid end
+    env.roster.onOwnName = function(name) env.ownName = name end
+    return env
+  end
+
+  local function person(name, guid)
+    local entry = member(name)
+    entry.guid = guid
+    return entry
+  end
+
+  it("finds this character's full name in the roster by GUID", function()
+    local env = with_guids({ person("Black Coffee", "G-1"), person("Yonemon Gg", "G-2") })
+    env.guid = "G-2"
+    env.roster:Rebuild()
+    assert.are.equal("Yonemon Gg", env.ownName)
+    assert.are.equal("Yonemon Gg", env.roster.ownName)
+  end)
+
+  it("keeps the GUID in each entry", function()
+    local env = with_guids({ person("Black Coffee", "G-1") })
+    env.guid = "G-1"
+    env.roster:Rebuild()
+    assert.are.equal("G-1", env.roster:Lookup("Black Coffee").guid)
+  end)
+
+  it("does nothing when the GUID is not in the roster or not known", function()
+    local env = with_guids({ person("Black Coffee", "G-1") })
+    env.guid = "G-9"
+    env.roster:Rebuild()
+    assert.is_nil(env.ownName)
+
+    env.guid = nil
+    env.roster:Rebuild()
+    assert.is_nil(env.ownName)
+  end)
+
+  it("looks again on every rebuild, so a renamed character is picked up", function()
+    local env = with_guids({ person("Old Name", "G-1") }, { minInterval = 0 })
+    env.guid = "G-1"
+    env.roster:Rebuild()
+    assert.are.equal("Old Name", env.ownName)
+
+    env.members = { person("New Name", "G-1") }
+    env.roster:Rebuild()
+    assert.are.equal("New Name", env.ownName)
+  end)
+
+  it("works without the optional dependencies", function()
+    local env = build({ person("Black Coffee", "G-1") })
+    env.roster:Rebuild()
+    assert.are.equal(1, env.roster:Count())
+  end)
+end)
