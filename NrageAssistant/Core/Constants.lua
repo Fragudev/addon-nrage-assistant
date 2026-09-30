@@ -16,6 +16,13 @@ ns.Constants = {
   MANUAL_FIELDS = { role = true, main = true, notes = true },
   MAX_FIELD_LENGTH = 200,
 
+  -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
+  PROTOCOL_MAJOR = 1,
+  PROTOCOL_MINOR = 0,
+  -- Bounds applied before anything is decoded or deserialized from the wire.
+  MAX_ENCODED_BYTES = 4096,
+  MAX_DECOMPRESSED_BYTES = 32768,
+
   -- Starting checklist. It only holds items that need no guild-specific numbers: level, item level
   -- and profession rules ({ check = "level" | "ilvl", min = N } / { check = "profession", ... })
   -- are supported by ReadinessService but wait for the guild to decide their thresholds.

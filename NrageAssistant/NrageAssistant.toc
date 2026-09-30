@@ -17,5 +17,7 @@ Core\LockdownProbe.lua
 Core\Store.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
+Sync\Codec.lua
+Sync\Protocol.lua
 Commands\Slash.lua
 Core\Init.lua
