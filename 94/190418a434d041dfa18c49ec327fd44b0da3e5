@@ -1,0 +1,19 @@
+NrageAssistant/Commands/RaidCommands.lua
+  s_58126f9867149c::t_7c318a4961e568 32,93,110,121,129,153,159,184,204,217,232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94190418a434d041dfa18c49ec327fd44b0da3e5",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
