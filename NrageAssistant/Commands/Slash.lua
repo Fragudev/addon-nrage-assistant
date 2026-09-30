@@ -133,6 +133,38 @@ local function SyncCommand()
   end
 end
 
+local function RoleCommand()
+  if not ns.active then
+    say("roles are unavailable while the addon is disabled.")
+    return
+  end
+  local rank = ns.Platform.GetOwnGuildRank()
+  local role = ns.PermissionService.OwnRole(ns.Platform)
+  say(("guild rank: %s -> addon role: %s"):format(tostring(rank), tostring(role)))
+  for _, action in ipairs({ "manage_events", "record_attendance", "manage_assignments", "moderate" }) do
+    print(("  %s: %s"):format(action, ns.PermissionService.Can(role, action) and "allowed" or "not allowed"))
+  end
+end
+
+local function PrintRoster()
+  local roster = ns.guildRoster
+  if not roster then
+    say("guild roster not started (addon disabled).")
+    return
+  end
+  local identityKey = ns.Platform.GetIdentityKey()
+  say(("guild roster: %d members, ready=%s"):format(roster:Count(), tostring(roster:IsReady())))
+  print(("  own key '%s': %s"):format(identityKey, roster:Lookup(identityKey) and "found" or "NOT found"))
+  local shown = 0
+  for name, entry in pairs(roster.entries) do
+    print(("  e.g. '%s' rank '%s'"):format(name, tostring(entry.rankName)))
+    shown = shown + 1
+    if shown >= 3 then
+      break
+    end
+  end
+end
+
 local function HelpCommand()
   say("commands:")
   for _, line in ipairs(ns.ViewModel.HelpLines()) do
@@ -145,6 +177,7 @@ local COMMANDS = {
   version = function()
     say(("version %s"):format(ns.GetVersion()))
   end,
+  role = RoleCommand,
   profile = ProfileCommand,
   ready = ReadyCommand,
   sync = SyncCommand,
@@ -156,8 +189,10 @@ local COMMANDS = {
       PrintIdentity()
     elseif sub == "lockdown" then
       ns.Probe.Handle(action)
+    elseif sub == "roster" then
+      PrintRoster()
     else
-      say("usage: /nrage debug identity | lockdown <action>")
+      say("usage: /nrage debug identity | roster | lockdown <action>")
     end
   end,
 }

@@ -36,6 +36,13 @@ local function Activate()
   ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   ns.Comm.Start()
+  ns.guildRoster = ns.GuildRoster.New({
+    platform = ns.Platform,
+    schedule = C_Timer.After,
+    now = ns.Platform.Now,
+  })
+  ns.guildRoster:Request()
+  ns.guildRoster:Rebuild()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end
 
@@ -66,11 +73,16 @@ local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_GUILD_UPDATE")
+frame:RegisterEvent("GUILD_ROSTER_UPDATE")
 frame:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" then
     if arg1 == addonName then
       InitDatabase()
       frame:UnregisterEvent("ADDON_LOADED")
+    end
+  elseif event == "GUILD_ROSTER_UPDATE" then
+    if ns.active and ns.guildRoster then
+      ns.guildRoster:OnUpdate()
     end
   else
     EvaluateAccess()
