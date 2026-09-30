@@ -15,4 +15,22 @@ ns.Constants = {
   -- Free-text profile fields a player can declare by hand (source = "declared").
   MANUAL_FIELDS = { role = true, main = true, notes = true },
   MAX_FIELD_LENGTH = 200,
+
+  -- Starting checklist. It only holds items that need no guild-specific numbers: level, item level
+  -- and profession rules ({ check = "level" | "ilvl", min = N } / { check = "profession", ... })
+  -- are supported by ReadinessService but wait for the guild to decide their thresholds.
+  DEFAULT_RULES = {
+    {
+      id = "role", label = "Role declared", category = "role",
+      evidenceMode = "manual", check = "field", field = "role",
+    },
+    {
+      id = "consumables", label = "Consumables ready", category = "consumables",
+      evidenceMode = "manual", check = "confirm",
+    },
+    {
+      id = "enchants", label = "Enchants done", category = "enchants",
+      evidenceMode = "manual", check = "confirm",
+    },
+  },
 }
