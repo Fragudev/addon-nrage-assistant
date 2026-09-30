@@ -2,10 +2,10 @@ local function load_service()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/PermissionService.lua"))("NrageAssistant", ns)
-  return ns.PermissionService
+  return ns.PermissionService, ns.Constants
 end
 
-local Service = load_service()
+local Service, ConstantsTable = load_service()
 
 local function roster_with(entries)
   return {
@@ -127,7 +127,7 @@ describe("PermissionService council and loot", function()
 end)
 
 describe("PermissionService beta admin exception", function()
-  local Constants = ns.Constants
+  local Constants = ConstantsTable
 
   local function roster_of(entries)
     return { Lookup = function(_, name) return entries[name] end }
