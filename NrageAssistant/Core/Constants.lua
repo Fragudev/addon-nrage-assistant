@@ -45,6 +45,11 @@ ns.Constants = {
     alter = "member",
   },
 
+  -- BETA ONLY, remove before release (issue #25). Characters that get every permission, as if they
+  -- were the guild master. Compared by name, ignoring case and spaces, and only for guild members.
+  BETA_ADMIN_ENABLED = true,
+  BETA_ADMIN_NAMES = { "Yonemon Gg" },
+
   -- Guild roster cache: bounded, rebuilt in chunks so a big guild never stalls the UI.
   GUILD_ROSTER_MAX = 1000,
   GUILD_ROSTER_CHUNK = 100,
