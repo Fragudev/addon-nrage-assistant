@@ -35,6 +35,7 @@ Type `/nrage` to open the window and `/nrage help` for the commands. The full gu
 | `/nrage loot` | loot council |
 | `/nrage report` | attendance and loot reports |
 | `/nrage export`, `import` | move raid data as text |
+| `/nrage minimap` | show, hide or reset the minimap button |
 | `/nrage sync`, `role` | sync state, your role |
 | `/nrage debug selftest`, `debug info` | diagnostics |
 
@@ -55,6 +56,9 @@ NrageAssistant/          Addon files (the only folder shipped in release zips)
   UI/                    Window (AceGUI) and its view model
   Commands/              Slash commands
   Libs/                  Vendored libraries, see Libs/README.md
+  Media/                 Game textures (the guild logo)
+assets/                  Source artwork (not shipped), see assets/README.md
+tools/                   Development helpers (image conversion)
 tests/                   busted specs and client API stubs
 docs/                    Documentation
 .github/workflows/       CI and release automation

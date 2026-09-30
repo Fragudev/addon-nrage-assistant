@@ -25,7 +25,7 @@ describe("Store.Load", function()
     assert.are.equal(raw, db)
     assert.are.equal("me", db.keep)
     assert.is_nil(db.schemaVersion)
-    assert.are.equal(3, db.global.schemaVersion)
+    assert.are.equal(4, db.global.schemaVersion)
   end)
 
   it("is idempotent", function()
@@ -33,7 +33,7 @@ describe("Store.Load", function()
     db.global.roster["A-B"] = { level = 60 }
     local again = Store.Load(db)
     assert.are.equal(60, again.global.roster["A-B"].level)
-    assert.are.equal(3, again.global.schemaVersion)
+    assert.are.equal(4, again.global.schemaVersion)
   end)
 
   it("refuses data from a newer schema and leaves it untouched", function()
@@ -47,14 +47,14 @@ describe("Store.Load", function()
 
   it("recovers from corrupted values instead of raising", function()
     local db = Store.Load({ schemaVersion = "banana", global = "oops", chars = 5 })
-    assert.are.equal(3, db.global.schemaVersion)
+    assert.are.equal(4, db.global.schemaVersion)
     assert.is_table(db.global.roster)
     assert.is_table(db.chars)
   end)
 
   it("treats a non-table saved variable as empty", function()
     local db = Store.Load("garbage")
-    assert.are.equal(3, db.global.schemaVersion)
+    assert.are.equal(4, db.global.schemaVersion)
   end)
 end)
 
@@ -85,7 +85,7 @@ describe("Store migration to schema 3", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(3, db.global.schemaVersion)
+    assert.are.equal(4, db.global.schemaVersion)
     assert.are.same({}, db.global.templates)
     assert.are.equal(60, db.global.roster["A-B"].level)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -100,5 +100,32 @@ describe("Store migration to schema 3", function()
 
   it("creates the templates table for a fresh database", function()
     assert.are.same({}, Store.Load(nil).global.templates)
+  end)
+end)
+
+describe("Store migration to schema 4", function()
+  local Store = load_store()
+
+  it("adds the settings table with the minimap section to a v3 database and keeps everything else", function()
+    local raw = {
+      global = { schemaVersion = 3, templates = { Boss = { slots = {} } }, events = { e = { title = "Raid" } } },
+      chars = { ["Me-Realm"] = { profile = { level = 60 } } },
+    }
+    local db = Store.Load(raw)
+    assert.are.equal(raw, db)
+    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.same({ minimap = {} }, db.global.settings)
+    assert.is_table(db.global.templates.Boss)
+    assert.are.equal("Raid", db.global.events.e.title)
+    assert.are.equal(60, db.chars["Me-Realm"].profile.level)
+  end)
+
+  it("does not touch settings that already exist", function()
+    local db = Store.Load({ global = { schemaVersion = 3, settings = { minimap = { angle = 90, hide = true } } } })
+    assert.are.same({ angle = 90, hide = true }, db.global.settings.minimap)
+  end)
+
+  it("creates the settings for a fresh database", function()
+    assert.are.same({ minimap = {} }, Store.Load(nil).global.settings)
   end)
 end)

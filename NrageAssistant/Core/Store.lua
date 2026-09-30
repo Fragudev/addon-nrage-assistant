@@ -1,7 +1,8 @@
 local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
---   db.global = { schemaVersion, roster, events, loot, templates, sync = { seen, tombstones } }
+--   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap },
+--                 sync = { seen, tombstones } }
 --   db.chars[identityKey] = { profile = {}, readiness = {} }
 local Store = {}
 
@@ -30,6 +31,10 @@ local MIGRATIONS = {
   -- v3: reusable assignment templates.
   [3] = function(db)
     ensureTable(ensureTable(db, "global"), "templates")
+  end,
+  -- v4: account-wide settings, starting with the minimap button (see MinimapButton.Settings).
+  [4] = function(db)
+    ensureTable(ensureTable(ensureTable(db, "global"), "settings"), "minimap")
   end,
 }
 
