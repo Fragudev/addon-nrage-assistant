@@ -36,4 +36,23 @@ function Platform.IsChatMessagingLockedDown()
   return false
 end
 
+function Platform.Now()
+  return GetTime()
+end
+
+function Platform.WallClock()
+  return date("%H:%M:%S")
+end
+
+function Platform.RegisterPrefix(prefix)
+  if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+    return C_ChatInfo.RegisterAddonMessagePrefix(prefix)
+  end
+  return false
+end
+
+function Platform.SendGuildMessage(prefix, text)
+  return C_ChatInfo.SendAddonMessage(prefix, text, "GUILD")
+end
+
 ns.Platform = Platform
