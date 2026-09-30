@@ -48,7 +48,10 @@ function Transfer.BuildItems(events, tombstones)
       local owner, assignmentId = key:match("^A:([^:]+):([^:]+)$")
       if owner then
         add("DELETE", {
-          kind = "assignment", eventId = owner, assignmentId = assignmentId, rev = tombstones[key].rev,
+          kind = "assignment",
+          eventId = owner,
+          assignmentId = assignmentId,
+          rev = tombstones[key].rev,
         })
       end
     end

@@ -11,15 +11,23 @@ describe("OutboundQueue", function()
 
   before_each(function()
     guard = { locked = false }
-    function guard:CanSend() return not self.locked end
+    function guard:CanSend()
+      return not self.locked
+    end
     clock = 0
     sent = {}
     jitter = 0
     queue = OutboundQueue.New({
       guard = guard,
-      now = function() return clock end,
-      send = function(text) sent[#sent + 1] = text end,
-      jitter = function() return jitter end,
+      now = function()
+        return clock
+      end,
+      send = function(text)
+        sent[#sent + 1] = text
+      end,
+      jitter = function()
+        return jitter
+      end,
       maxItems = 3,
       ttl = 100,
       maxJitter = 5,
@@ -105,7 +113,9 @@ describe("OutboundQueue", function()
 
   it("frees room by expiring old messages before checking the limit", function()
     guard.locked = true
-    for i = 1, 3 do queue:Enqueue("m" .. i) end
+    for i = 1, 3 do
+      queue:Enqueue("m" .. i)
+    end
     clock = 200
     assert.is_true(queue:Enqueue("fresh"))
     assert.are.equal(1, queue:Pending())
@@ -113,7 +123,9 @@ describe("OutboundQueue", function()
 
   it("keeps draining when one send raises", function()
     queue.send = function(text)
-      if text == "bad" then error("boom") end
+      if text == "bad" then
+        error("boom")
+      end
       sent[#sent + 1] = text
     end
     queue:Enqueue("bad")
@@ -135,10 +147,20 @@ describe("OutboundQueue whisper targets", function()
   it("passes the target to send and keeps guild messages targetless", function()
     local calls = {}
     local queue = OutboundQueue.New({
-      guard = { CanSend = function() return true end },
-      now = function() return 0 end,
-      send = function(text, target) calls[#calls + 1] = { text = text, target = target } end,
-      jitter = function() return 0 end,
+      guard = {
+        CanSend = function()
+          return true
+        end,
+      },
+      now = function()
+        return 0
+      end,
+      send = function(text, target)
+        calls[#calls + 1] = { text = text, target = target }
+      end,
+      jitter = function()
+        return 0
+      end,
     })
     queue:Enqueue("to-guild", "g")
     queue:Enqueue("to-someone", "w", "Ann-Realm")

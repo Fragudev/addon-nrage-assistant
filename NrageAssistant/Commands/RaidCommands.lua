@@ -25,7 +25,9 @@ function RaidCommands:Context()
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
     now = platform.ServerTime,
-    newId = function() return self.comm:NextId() end,
+    newId = function()
+      return self.comm:NextId()
+    end,
   }
 end
 
@@ -234,7 +236,8 @@ function RaidCommands:Assign(rest)
       return { 'usage: /nrage assign <n> add <name> <encounter>   (put a name with spaces in "quotes")' }
     end
     local assignment, reason = ns.EventService.AddAssignment(ctx, event.eventId, {
-      characterKey = characterKey, encounter = encounter,
+      characterKey = characterKey,
+      encounter = encounter,
     })
     if not assignment then
       return { fail(ctx, reason) }

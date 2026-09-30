@@ -78,7 +78,10 @@ describe("Store migration to schema 3", function()
   it("adds the templates table to a v2 database and keeps everything else", function()
     local raw = {
       global = {
-        schemaVersion = 2, roster = { ["A-B"] = { level = 60 } }, events = { e = { title = "Raid" } }, loot = {},
+        schemaVersion = 2,
+        roster = { ["A-B"] = { level = 60 } },
+        events = { e = { title = "Raid" } },
+        loot = {},
         sync = { seen = {}, tombstones = { t = { at = 1, rev = 2 } } },
       },
       chars = { ["Me-Realm"] = { profile = { level = 60 } } },

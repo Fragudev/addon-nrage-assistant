@@ -1,8 +1,14 @@
 local function load_view_model()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Domain/LootModel", "Domain/LootService", "UI/ViewModel",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Domain/LootModel",
+    "Domain/LootService",
+    "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -23,20 +29,28 @@ end)
 
 describe("ViewModel.Home", function()
   it("shows version, readiness and sync state", function()
-    local text = table.concat(ViewModel.Home({
-      version = "0.1.0",
-      readinessText = "1/3 met, 2 unknown",
-      syncLines = { "sync paused: encounter in progress", "queued messages: 1" },
-    }), "\n")
+    local text = table.concat(
+      ViewModel.Home({
+        version = "0.1.0",
+        readinessText = "1/3 met, 2 unknown",
+        syncLines = { "sync paused: encounter in progress", "queued messages: 1" },
+      }),
+      "\n"
+    )
     assert.is_truthy(text:find("Nrage Assistant 0.1.0", 1, true))
     assert.is_truthy(text:find("Your readiness: 1/3 met, 2 unknown", 1, true))
     assert.is_truthy(text:find("  sync paused: encounter in progress", 1, true))
   end)
 
   it("escapes sync lines, which can contain sender names", function()
-    local text = table.concat(ViewModel.Home({
-      version = "dev", readinessText = "0/0 met", syncLines = { "  |cffff0000Evil-Realm - addon 1" },
-    }), "\n")
+    local text = table.concat(
+      ViewModel.Home({
+        version = "dev",
+        readinessText = "0/0 met",
+        syncLines = { "  |cffff0000Evil-Realm - addon 1" },
+      }),
+      "\n"
+    )
     assert.is_nil(text:find("[^|]|c"))
     assert.is_truthy(text:find("||cffff0000Evil-Realm", 1, true))
   end)
@@ -77,7 +91,10 @@ describe("ViewModel.Roster", function()
   it("escapes received text", function()
     local lines = ViewModel.Roster({
       ["|cffff0000Bad-Realm"] = {
-        class = "MAGE", level = 1, fields = { role = "|Hitem:1|h" }, receivedAt = now,
+        class = "MAGE",
+        level = 1,
+        fields = { role = "|Hitem:1|h" },
+        receivedAt = now,
       },
     }, now)
     assert.is_truthy(lines[2]:find("||cffff0000Bad-Realm", 1, true))
@@ -93,15 +110,33 @@ describe("ViewModel misc", function()
 
   it("offers a tab for each view", function()
     local values = {}
-    for _, tab in ipairs(ViewModel.TABS) do values[tab.value] = true end
+    for _, tab in ipairs(ViewModel.TABS) do
+      values[tab.value] = true
+    end
     assert.are.same({ home = true, profile = true, ready = true, raid = true, loot = true, roster = true }, values)
   end)
 
   it("documents every user command in the help", function()
     local text = table.concat(ViewModel.HelpLines(), "\n")
     for _, command in ipairs({
-      "role", "profile", "ready", "consent", "publish", "event", "attendance", "assign", "loot", "report",
-      "template", "minimap", "export", "import", "debug", "sync", "help", "version",
+      "role",
+      "profile",
+      "ready",
+      "consent",
+      "publish",
+      "event",
+      "attendance",
+      "assign",
+      "loot",
+      "report",
+      "template",
+      "minimap",
+      "export",
+      "import",
+      "debug",
+      "sync",
+      "help",
+      "version",
     }) do
       assert.is_truthy(text:find("/nrage " .. command, 1, true), command)
     end
@@ -111,13 +146,21 @@ end)
 describe("ViewModel.Raid", function()
   local function event(overrides)
     local e = {
-      eventId = "ev-1", title = "Molten Core", status = "open", startAt = 5000,
-      attendance = {}, assignments = {},
+      eventId = "ev-1",
+      title = "Molten Core",
+      status = "open",
+      startAt = 5000,
+      attendance = {},
+      assignments = {},
     }
-    for k, v in pairs(overrides or {}) do e[k] = v end
+    for k, v in pairs(overrides or {}) do
+      e[k] = v
+    end
     return e
   end
-  local format = function(timestamp) return "date:" .. timestamp end
+  local format = function(timestamp)
+    return "date:" .. timestamp
+  end
 
   it("explains an empty list", function()
     assert.is_truthy(ViewModel.Raid({}, format)[1]:find("No events yet", 1, true))
@@ -136,7 +179,9 @@ describe("ViewModel.Raid", function()
   it("summarises attendance by state and lists assignments in order", function()
     local e = event()
     e.attendance = {
-      ["A-Realm"] = { state = "present" }, ["B-Realm"] = { state = "present" }, ["C-Realm"] = { state = "late" },
+      ["A-Realm"] = { state = "present" },
+      ["B-Realm"] = { state = "present" },
+      ["C-Realm"] = { state = "late" },
     }
     e.assignments = {
       a1 = { encounter = "Ragnaros", characterKey = "Zed-Realm", task = "Healer" },
@@ -170,7 +215,13 @@ end)
 describe("ViewModel.Loot", function()
   local function event(id, title, loot)
     return {
-      eventId = id, title = title, status = "open", startAt = 1, attendance = {}, assignments = {}, loot = loot or {},
+      eventId = id,
+      title = title,
+      status = "open",
+      startAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = loot or {},
     }
   end
 
@@ -184,7 +235,9 @@ describe("ViewModel.Loot", function()
     local lines = ViewModel.Loot({
       ["ev-1"] = event("ev-1", "Molten Core", {
         s1 = {
-          sessionId = "s1", itemName = "Thunderfury", status = "open",
+          sessionId = "s1",
+          itemName = "Thunderfury",
+          status = "open",
           candidates = { ["Ann-Realm"] = {}, ["Bob-Realm"] = {} },
           votes = { ["Boss-Realm"] = { target = "Ann-Realm" }, ["Two-Realm"] = { target = "Ann-Realm" } },
         },
@@ -200,7 +253,11 @@ describe("ViewModel.Loot", function()
     local lines = ViewModel.Loot({
       ["ev-1"] = event("ev-1", "Molten Core", {
         s1 = {
-          sessionId = "s1", itemName = "Alpha", status = "closed", candidates = {}, votes = {},
+          sessionId = "s1",
+          itemName = "Alpha",
+          status = "closed",
+          candidates = {},
+          votes = {},
           award = { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm" },
         },
         s2 = { sessionId = "s2", itemName = "Beta", status = "closed", candidates = {}, votes = {} },
@@ -227,7 +284,11 @@ describe("ViewModel.Loot", function()
     local lines = ViewModel.Loot({
       ["ev-1"] = event("ev-1", "|cffff0000Evil", {
         s1 = {
-          sessionId = "s1", itemName = "|Hitem:1|h[Bad]|h", status = "closed", candidates = {}, votes = {},
+          sessionId = "s1",
+          itemName = "|Hitem:1|h[Bad]|h",
+          status = "closed",
+          candidates = {},
+          votes = {},
           award = { characterKey = "|cff00ff00Ann", reason = "|rwhy" },
         },
       }),

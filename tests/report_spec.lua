@@ -1,8 +1,15 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Domain/LootModel", "Domain/LootService", "Domain/ReportService", "Commands/ReportCommands",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Domain/LootModel",
+    "Domain/LootService",
+    "Domain/ReportService",
+    "Commands/ReportCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -14,14 +21,21 @@ local Report = ns.ReportService
 
 local function event(id, status, startAt, attendance, loot)
   return {
-    eventId = id, title = "Raid " .. id, status = status, startAt = startAt,
-    attendance = attendance or {}, assignments = {}, loot = loot or {},
+    eventId = id,
+    title = "Raid " .. id,
+    status = status,
+    startAt = startAt,
+    attendance = attendance or {},
+    assignments = {},
+    loot = loot or {},
   }
 end
 
 local function records(states)
   local result = {}
-  for key, state in pairs(states) do result[key] = { state = state } end
+  for key, state in pairs(states) do
+    result[key] = { state = state }
+  end
   return result
 end
 
@@ -36,7 +50,9 @@ describe("ReportService.Attendance", function()
     assert.are.equal(2, #rows)
 
     local by = {}
-    for _, row in ipairs(rows) do by[row.characterKey] = row end
+    for _, row in ipairs(rows) do
+      by[row.characterKey] = row
+    end
     assert.are.equal(2, by["Ann-Realm"].attended)
     assert.are.equal(3, by["Ann-Realm"].outcomes)
     assert.are.near(2 / 3, by["Ann-Realm"].rate, 0.0001)
@@ -78,12 +94,21 @@ describe("ReportService.Attendance", function()
 
   it("sorts by rate, then by name", function()
     local rows = Report.Attendance({
-      a = event("a", "closed", 1, records({
-        ["Bob-Realm"] = "present", ["Ann-Realm"] = "present", ["Cid-Realm"] = "absent",
-      })),
+      a = event(
+        "a",
+        "closed",
+        1,
+        records({
+          ["Bob-Realm"] = "present",
+          ["Ann-Realm"] = "present",
+          ["Cid-Realm"] = "absent",
+        })
+      ),
     })
     assert.are.same({ "Ann-Realm", "Bob-Realm", "Cid-Realm" }, {
-      rows[1].characterKey, rows[2].characterKey, rows[3].characterKey,
+      rows[1].characterKey,
+      rows[2].characterKey,
+      rows[3].characterKey,
     })
   end)
 end)
@@ -116,8 +141,13 @@ end)
 describe("ReportService loot", function()
   local function session(id, itemName, status, award)
     return {
-      sessionId = id, itemName = itemName, status = status, candidates = {}, votes = {},
-      award = award, updatedAt = tonumber(id:match("%d+")),
+      sessionId = id,
+      itemName = itemName,
+      status = status,
+      candidates = {},
+      votes = {},
+      award = award,
+      updatedAt = tonumber(id:match("%d+")),
     }
   end
   local function awarded(target, by)
@@ -171,7 +201,9 @@ describe("ReportCommands", function()
       },
     })
   end
-  local function text(lines) return table.concat(lines, "\n") end
+  local function text(lines)
+    return table.concat(lines, "\n")
+  end
 
   it("reports attendance over every event, or over a single one by number", function()
     local commands = build()

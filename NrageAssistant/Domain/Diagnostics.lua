@@ -124,9 +124,15 @@ local function behaviourChecks(addon)
       return result("guild roster", "warn", "not loaded yet")
     end
     if not roster:Lookup(addon.Platform.GetIdentityKey()) then
-      return result("guild roster", "warn",
+      return result(
+        "guild roster",
+        "warn",
         ("%d members, but the own name '%s' was not found (matched by GUID: %s): name formats may differ"):format(
-          roster:Count(), tostring(addon.Platform.GetIdentityKey()), tostring(roster.ownName)))
+          roster:Count(),
+          tostring(addon.Platform.GetIdentityKey()),
+          tostring(roster.ownName)
+        )
+      )
     end
     return result("guild roster", "ok", ("%d members, own key found"):format(roster:Count()))
   end
@@ -137,8 +143,11 @@ local function behaviourChecks(addon)
       return result("saved data", "error", "no database loaded")
     end
     if db.global.schemaVersion ~= addon.Constants.SCHEMA_VERSION then
-      return result("saved data", "error", ("schema %s, expected %s"):format(
-        tostring(db.global.schemaVersion), addon.Constants.SCHEMA_VERSION))
+      return result(
+        "saved data",
+        "error",
+        ("schema %s, expected %s"):format(tostring(db.global.schemaVersion), addon.Constants.SCHEMA_VERSION)
+      )
     end
     return result("saved data", "ok", ("schema %d"):format(db.global.schemaVersion))
   end
@@ -174,7 +183,11 @@ end
 function Diagnostics.DescribeSelfTest(results, summary)
   local lines = {
     ("self test: %d ok, %d warning(s), %d missing, %d error(s)"):format(
-      summary.ok, summary.warn, summary.missing, summary.error),
+      summary.ok,
+      summary.warn,
+      summary.missing,
+      summary.error
+    ),
   }
   for _, entry in ipairs(results) do
     if entry.status ~= "ok" then
@@ -222,15 +235,25 @@ function Diagnostics.Info(addon)
     lines[#lines + 1] = text
   end
 
-  add(("version: %s, schema: %s, active: %s"):format(
-    addon.GetVersion(), tostring(addon.db and addon.db.global.schemaVersion), tostring(addon.active == true)))
+  add(
+    ("version: %s, schema: %s, active: %s"):format(
+      addon.GetVersion(),
+      tostring(addon.db and addon.db.global.schemaVersion),
+      tostring(addon.active == true)
+    )
+  )
   add(("build: %s"):format(tostring(addon.Platform.GetBuildNumber())))
 
   if addon.db then
     local global = addon.db.global
-    add(("data: %d event(s), %d received profile(s), %d tombstone(s), %d character(s)"):format(
-      countKeys(global.events), countKeys(global.roster), countKeys(global.sync.tombstones),
-      countKeys(addon.db.chars)))
+    add(
+      ("data: %d event(s), %d received profile(s), %d tombstone(s), %d character(s)"):format(
+        countKeys(global.events),
+        countKeys(global.roster),
+        countKeys(global.sync.tombstones),
+        countKeys(addon.db.chars)
+      )
+    )
     local entries, truncated = countEntries(addon.db, SIZE_BUDGET)
     add(("saved data size: about %d%s entries"):format(entries, truncated and "+" or ""))
   end

@@ -31,7 +31,9 @@ function TemplateCommands:Context()
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
     now = platform.ServerTime,
-    newId = function() return self.comm:NextId() end,
+    newId = function()
+      return self.comm:NextId()
+    end,
   }
 end
 
@@ -54,7 +56,8 @@ local ERRORS = {
 local function error_line(ctx, reason)
   if reason == "forbidden" then
     return ("not allowed: your guild rank gives the role '%s', which cannot manage assignments."):format(
-      tostring(ctx.role))
+      tostring(ctx.role)
+    )
   end
   return ERRORS[reason] or tostring(reason)
 end

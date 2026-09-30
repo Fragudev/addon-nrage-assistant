@@ -10,15 +10,25 @@ local GuildRoster = load_roster()
 local function build(members, options)
   local env = { clock = 0, members = members, scheduled = {}, requested = 0 }
   env.platform = {
-    GetNumGuildMembers = function() return #env.members end,
-    GetGuildRosterEntry = function(index) return env.members[index] end,
-    RequestGuildRoster = function() env.requested = env.requested + 1 end,
+    GetNumGuildMembers = function()
+      return #env.members
+    end,
+    GetGuildRosterEntry = function(index)
+      return env.members[index]
+    end,
+    RequestGuildRoster = function()
+      env.requested = env.requested + 1
+    end,
   }
   options = options or {}
   env.roster = GuildRoster.New({
     platform = env.platform,
-    now = function() return env.clock end,
-    schedule = function(delay, fn) env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn } end,
+    now = function()
+      return env.clock
+    end,
+    schedule = function(delay, fn)
+      env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn }
+    end,
     chunk = options.chunk,
     max = options.max,
     minInterval = options.minInterval,
@@ -146,8 +156,12 @@ describe("GuildRoster own name", function()
   local function with_guids(members, options)
     local env = build(members, options)
     env.ownName = nil
-    env.roster.ownGuid = function() return env.guid end
-    env.roster.onOwnName = function(name) env.ownName = name end
+    env.roster.ownGuid = function()
+      return env.guid
+    end
+    env.roster.onOwnName = function(name)
+      env.ownName = name
+    end
     return env
   end
 

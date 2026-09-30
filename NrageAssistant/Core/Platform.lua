@@ -171,8 +171,11 @@ function Platform.ParseDate(text)
     return nil
   end
   local timestamp = time({
-    year = tonumber(year), month = tonumber(month), day = tonumber(day),
-    hour = tonumber(hour), min = tonumber(minute),
+    year = tonumber(year),
+    month = tonumber(month),
+    day = tonumber(day),
+    hour = tonumber(hour),
+    min = tonumber(minute),
   })
   if not timestamp then
     return nil

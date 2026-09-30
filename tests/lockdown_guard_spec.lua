@@ -6,12 +6,16 @@ end
 
 local function fake_platform()
   local p = { locked = false, clock = 0 }
-  p.IsChatMessagingLockedDown = function() return p.locked end
+  p.IsChatMessagingLockedDown = function()
+    return p.locked
+  end
   p.Now = function()
     p.clock = p.clock + 1
     return p.clock
   end
-  p.WallClock = function() return "12:00:00" end
+  p.WallClock = function()
+    return "12:00:00"
+  end
   return p
 end
 

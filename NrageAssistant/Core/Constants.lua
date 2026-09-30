@@ -126,16 +126,26 @@ ns.Constants = {
   -- are supported by ReadinessService but wait for the guild to decide their thresholds.
   DEFAULT_RULES = {
     {
-      id = "role", label = "Role declared", category = "role",
-      evidenceMode = "manual", check = "field", field = "role",
+      id = "role",
+      label = "Role declared",
+      category = "role",
+      evidenceMode = "manual",
+      check = "field",
+      field = "role",
     },
     {
-      id = "consumables", label = "Consumables ready", category = "consumables",
-      evidenceMode = "manual", check = "confirm",
+      id = "consumables",
+      label = "Consumables ready",
+      category = "consumables",
+      evidenceMode = "manual",
+      check = "confirm",
     },
     {
-      id = "enchants", label = "Enchants done", category = "enchants",
-      evidenceMode = "manual", check = "confirm",
+      id = "enchants",
+      label = "Enchants done",
+      category = "enchants",
+      evidenceMode = "manual",
+      check = "confirm",
     },
   },
 }

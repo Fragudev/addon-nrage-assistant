@@ -32,7 +32,9 @@ end
 
 -- CHAT_MSG_ADDON arguments may be secret values during lockdown; never let that raise.
 local function OnAddonMessage(prefix, text, channel, sender)
-  local ok, isOurs = pcall(function() return prefix == ns.Constants.ADDON_PREFIX end)
+  local ok, isOurs = pcall(function()
+    return prefix == ns.Constants.ADDON_PREFIX
+  end)
   if not ok then
     guard:Record("recv", "unreadable message (secret values)")
   elseif isOurs then
@@ -65,7 +67,9 @@ local function Start()
     frame:RegisterEvent(event)
   end
   frame:SetScript("OnEvent", OnEvent)
-  ticker = C_Timer.NewTicker(POLL_SECONDS, function() guard:Poll() end)
+  ticker = C_Timer.NewTicker(POLL_SECONDS, function()
+    guard:Poll()
+  end)
   guard:Record("probe", "started")
   say("probe started.")
 end
@@ -105,8 +109,15 @@ local function PrintLog()
   local first = log[1] and log[1].t or 0
   say(("log (%d entries):"):format(#log))
   for _, entry in ipairs(log) do
-    print(("  %s +%.2fs [%s] %s (locked=%s)"):format(
-      entry.wall, entry.t - first, entry.kind, entry.detail, tostring(entry.locked)))
+    print(
+      ("  %s +%.2fs [%s] %s (locked=%s)"):format(
+        entry.wall,
+        entry.t - first,
+        entry.kind,
+        entry.detail,
+        tostring(entry.locked)
+      )
+    )
   end
 end
 
@@ -116,7 +127,9 @@ local ACTIONS = {
   send = Send,
   log = PrintLog,
   clear = function()
-    if guard then guard:Clear() end
+    if guard then
+      guard:Clear()
+    end
     say("log cleared.")
   end,
   status = function()

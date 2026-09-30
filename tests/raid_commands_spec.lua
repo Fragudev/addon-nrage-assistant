@@ -1,8 +1,13 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Core/Args", "Domain/PermissionService", "Domain/EventModel",
-    "Domain/EventService", "Commands/RaidCommands",
+    "Core/Constants",
+    "Core/Validate",
+    "Core/Args",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Commands/RaidCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -15,10 +20,18 @@ local ns = load_modules()
 local function build(rank)
   local env = { events = {}, tombstones = {}, sent = {}, sendResult = { true }, counter = 0 }
   env.platform = {
-    GetOwnGuildRank = function() return rank end,
-    GetIdentityKey = function() return "Leader-Realm" end,
-    ServerTime = function() return 1000 end,
-    FormatDate = function(timestamp) return "date:" .. timestamp end,
+    GetOwnGuildRank = function()
+      return rank
+    end,
+    GetIdentityKey = function()
+      return "Leader-Realm"
+    end,
+    ServerTime = function()
+      return 1000
+    end,
+    FormatDate = function(timestamp)
+      return "date:" .. timestamp
+    end,
     ParseDate = function(text)
       local day = text:match("^2026%-10%-(%d%d) 20:30$")
       return day and (1000 + tonumber(day)) or nil
@@ -36,12 +49,19 @@ local function build(rank)
     end
   end
   for _, kind in ipairs({
-    "SendEvent", "SendAttendance", "SendAssignment", "SendDeleteEvent", "SendDeleteAssignment",
+    "SendEvent",
+    "SendAttendance",
+    "SendAssignment",
+    "SendDeleteEvent",
+    "SendDeleteAssignment",
   }) do
     env.comm[kind] = record(kind)
   end
   env.raid = ns.RaidCommands.New({
-    events = env.events, tombstones = env.tombstones, platform = env.platform, comm = env.comm,
+    events = env.events,
+    tombstones = env.tombstones,
+    platform = env.platform,
+    comm = env.comm,
   })
   return env
 end

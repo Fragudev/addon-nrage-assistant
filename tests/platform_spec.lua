@@ -22,8 +22,17 @@ describe("Platform.ParseDate", function()
 
   it("refuses text that is not in the expected format", function()
     for _, text in ipairs({
-      "", "tomorrow", "2026-10-03", "20:30", "2026/10/03 20:30", "2026-10-3 20:30", "2026-10-03T20:30",
-      "2026-10-03 8:30", "2026-10-03 20:30:00", "  2026-10-03 20:30", "2026-10-03 20:30 ",
+      "",
+      "tomorrow",
+      "2026-10-03",
+      "20:30",
+      "2026/10/03 20:30",
+      "2026-10-3 20:30",
+      "2026-10-03T20:30",
+      "2026-10-03 8:30",
+      "2026-10-03 20:30:00",
+      "  2026-10-03 20:30",
+      "2026-10-03 20:30 ",
     }) do
       assert.is_nil(Platform.ParseDate(text), text)
     end
@@ -33,8 +42,13 @@ describe("Platform.ParseDate", function()
 
   it("refuses dates that do not exist instead of rolling them over", function()
     for _, text in ipairs({
-      "2026-02-31 10:00", "2026-13-01 10:00", "2026-00-10 10:00", "2026-10-00 10:00",
-      "2026-10-03 24:00", "2026-10-03 10:60", "2026-04-31 12:00",
+      "2026-02-31 10:00",
+      "2026-13-01 10:00",
+      "2026-00-10 10:00",
+      "2026-10-00 10:00",
+      "2026-10-03 24:00",
+      "2026-10-03 10:60",
+      "2026-04-31 12:00",
     }) do
       assert.is_nil(Platform.ParseDate(text), text)
     end
@@ -49,14 +63,20 @@ local function with_globals(values, fn)
     _G[name] = value
   end
   local ok, err = pcall(fn)
-  for name in pairs(values) do _G[name] = saved[name] end
+  for name in pairs(values) do
+    _G[name] = saved[name]
+  end
   assert(ok, err)
 end
 
 describe("Platform.NormalizeName", function()
   local function normalize(name)
     local result
-    with_globals({ GetNormalizedRealmName = function() return "ClassicBetaPvP" end }, function()
+    with_globals({
+      GetNormalizedRealmName = function()
+        return "ClassicBetaPvP"
+      end,
+    }, function()
       result = load_platform().NormalizeName(name)
     end)
     return result
@@ -81,7 +101,11 @@ describe("Platform.NormalizeName", function()
 
   it("does nothing when the realm is unknown", function()
     local result
-    with_globals({ GetNormalizedRealmName = function() return nil end }, function()
+    with_globals({
+      GetNormalizedRealmName = function()
+        return nil
+      end,
+    }, function()
       result = load_platform().NormalizeName("Name-Realm")
     end)
     assert.are.equal("Name-Realm", result)
@@ -91,8 +115,12 @@ end)
 describe("Platform identity key", function()
   local function client()
     return {
-      UnitName = function() return "Yonemon" end,
-      GetNormalizedRealmName = function() return "ClassicBetaPvP" end,
+      UnitName = function()
+        return "Yonemon"
+      end,
+      GetNormalizedRealmName = function()
+        return "ClassicBetaPvP"
+      end,
     }
   end
 
@@ -119,18 +147,48 @@ end)
 
 describe("Platform.GetGuildRosterEntry", function()
   it("returns the GUID, the seventeenth value of the roster row", function()
-    local row = { "Yonemon Gg", "Soldado", 3, 60, "Warrior", "Zone", "", "", true, 0, "WARRIOR",
-      0, 0, false, false, 0, "Player-1-ABC" }
-    with_globals({ GetGuildRosterInfo = function() return unpack(row) end }, function()
+    local row = {
+      "Yonemon Gg",
+      "Soldado",
+      3,
+      60,
+      "Warrior",
+      "Zone",
+      "",
+      "",
+      true,
+      0,
+      "WARRIOR",
+      0,
+      0,
+      false,
+      false,
+      0,
+      "Player-1-ABC",
+    }
+    with_globals({
+      GetGuildRosterInfo = function()
+        return unpack(row)
+      end,
+    }, function()
       local entry = load_platform().GetGuildRosterEntry(1)
       assert.are.same({
-        name = "Yonemon Gg", rankName = "Soldado", rankIndex = 3, level = 60, class = "WARRIOR", guid = "Player-1-ABC",
+        name = "Yonemon Gg",
+        rankName = "Soldado",
+        rankIndex = 3,
+        level = 60,
+        class = "WARRIOR",
+        guid = "Player-1-ABC",
       }, entry)
     end)
   end)
 
   it("returns nothing for an empty row", function()
-    with_globals({ GetGuildRosterInfo = function() return nil end }, function()
+    with_globals({
+      GetGuildRosterInfo = function()
+        return nil
+      end,
+    }, function()
       assert.is_nil(load_platform().GetGuildRosterEntry(1))
     end)
   end)

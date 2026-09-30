@@ -175,8 +175,13 @@ local function validateLootSession(payload)
     return nil
   end
   return {
-    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
-    itemId = item.itemId, itemName = item.itemName, status = payload.status,
+    eventId = payload.eventId,
+    sessionId = payload.sessionId,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+    itemId = item.itemId,
+    itemName = item.itemName,
+    status = payload.status,
   }
 end
 
@@ -189,8 +194,14 @@ local function validateLootAward(payload)
     return nil
   end
   return {
-    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
-    itemId = item.itemId, itemName = item.itemName, characterKey = payload.characterKey, reason = payload.reason,
+    eventId = payload.eventId,
+    sessionId = payload.sessionId,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+    itemId = item.itemId,
+    itemName = item.itemName,
+    characterKey = payload.characterKey,
+    reason = payload.reason,
   }
 end
 
@@ -203,8 +214,13 @@ local function validateLootCandidate(payload)
     return nil
   end
   return {
-    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
-    spec = candidate.spec, need = candidate.need, upgrade = candidate.upgrade,
+    eventId = payload.eventId,
+    sessionId = payload.sessionId,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+    spec = candidate.spec,
+    need = candidate.need,
+    upgrade = candidate.upgrade,
   }
 end
 
@@ -216,7 +232,10 @@ local function validateLootVote(payload)
     return nil
   end
   return {
-    eventId = payload.eventId, sessionId = payload.sessionId, rev = payload.rev, updatedAt = payload.updatedAt,
+    eventId = payload.eventId,
+    sessionId = payload.sessionId,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
     target = payload.target,
   }
 end

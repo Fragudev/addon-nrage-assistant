@@ -1,7 +1,11 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -20,7 +24,9 @@ local function build_ctx(role)
     clock = 1000,
   }
   local counter = 0
-  ctx.now = function() return ctx.clock end
+  ctx.now = function()
+    return ctx.clock
+  end
   ctx.newId = function()
     counter = counter + 1
     return "id-" .. counter
@@ -55,12 +61,28 @@ describe("EventModel", function()
     assert.are.equal(2, clean.group)
     assert.are.equal("invalid:encounter", select(2, Model.ValidateAssignment({ characterKey = "A-Realm" })))
     assert.are.equal("invalid:characterKey", select(2, Model.ValidateAssignment({ encounter = "X" })))
-    assert.are.equal("invalid:group", select(2, Model.ValidateAssignment({
-      encounter = "X", characterKey = "A-Realm", group = 9,
-    })))
-    assert.are.equal("invalid:note", select(2, Model.ValidateAssignment({
-      encounter = "X", characterKey = "A-Realm", note = ("n"):rep(101),
-    })))
+    assert.are.equal(
+      "invalid:group",
+      select(
+        2,
+        Model.ValidateAssignment({
+          encounter = "X",
+          characterKey = "A-Realm",
+          group = 9,
+        })
+      )
+    )
+    assert.are.equal(
+      "invalid:note",
+      select(
+        2,
+        Model.ValidateAssignment({
+          encounter = "X",
+          characterKey = "A-Realm",
+          note = ("n"):rep(101),
+        })
+      )
+    )
   end)
 
   it("knows the attendance states from the plan", function()
@@ -108,7 +130,9 @@ describe("EventService.Create", function()
 
   it("stops at the event limit", function()
     local ctx = build_ctx("rl")
-    for i = 1, Constants.EVENT_MAX do ctx.events["e" .. i] = { title = "E" } end
+    for i = 1, Constants.EVENT_MAX do
+      ctx.events["e" .. i] = { title = "E" }
+    end
     assert.are.equal("limit", select(2, Service.Create(ctx, { title = "One more" })))
   end)
 end)
@@ -166,7 +190,9 @@ describe("EventService.Update and Delete", function()
     assert.is_nil(ctx.tombstones["old1"])
     assert.is_truthy(ctx.tombstones["E:" .. event.eventId])
     local count = 0
-    for _ in pairs(ctx.tombstones) do count = count + 1 end
+    for _ in pairs(ctx.tombstones) do
+      count = count + 1
+    end
     assert.are.equal(Constants.TOMBSTONE_MAX, count)
   end)
 end)
@@ -222,7 +248,10 @@ describe("EventService assignments", function()
 
   it("adds and removes an assignment, leaving a tombstone on removal", function()
     local assignment = assert(Service.AddAssignment(ctx, event.eventId, {
-      encounter = "Ragnaros", characterKey = "A-Realm", group = 1, task = "Main tank",
+      encounter = "Ragnaros",
+      characterKey = "A-Realm",
+      group = 1,
+      task = "Main tank",
     }))
     assert.are.equal("Main tank", event.assignments[assignment.assignmentId].task)
     assert.are.equal(1, assignment.rev)
@@ -266,7 +295,9 @@ describe("EventService.List and Purge", function()
     Service.Create(ctx, { title = "Beta", startAt = 100 })
     Service.Create(ctx, { title = "Alpha", startAt = 100 })
     local titles = {}
-    for _, event in ipairs(Service.List(ctx)) do titles[#titles + 1] = event.title end
+    for _, event in ipairs(Service.List(ctx)) do
+      titles[#titles + 1] = event.title
+    end
     assert.are.same({ "Alpha", "Beta", "Later", "Undated" }, titles)
   end)
 

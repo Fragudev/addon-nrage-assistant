@@ -25,7 +25,9 @@ describe("Addon load", function()
     dofile("tests/support/addon.lua")({})
     local printed = {}
     local original = _G.print
-    _G.print = function(text) printed[#printed + 1] = text end
+    _G.print = function(text)
+      printed[#printed + 1] = text
+    end
     local ok, err = pcall(SlashCmdList.NRAGE, command)
     _G.print = original
     assert(ok, err)
@@ -54,8 +56,20 @@ describe("Addon load", function()
 
   it("refuses data commands while the addon is disabled instead of raising", function()
     local commands = {
-      "profile", "ready", "sync", "consent", "publish", "event", "attendance", "assign", "export", "import",
-      "loot", "report", "template", "minimap",
+      "profile",
+      "ready",
+      "sync",
+      "consent",
+      "publish",
+      "event",
+      "attendance",
+      "assign",
+      "export",
+      "import",
+      "loot",
+      "report",
+      "template",
+      "minimap",
     }
     for _, command in ipairs(commands) do
       assert.is_truthy(run(command):find("unavailable while the addon is disabled", 1, true), command)

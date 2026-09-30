@@ -31,7 +31,9 @@ describe("Codec", function()
   it("refuses to encode a message that is too large", function()
     local noise = {}
     math.randomseed(42)
-    for i = 1, 6000 do noise[i] = string.char(math.random(0, 255)) end
+    for i = 1, 6000 do
+      noise[i] = string.char(math.random(0, 255))
+    end
     local text, reason = codec:Encode({ blob = table.concat(noise) })
     assert.is_nil(text)
     assert.are.equal("too_large", reason)
@@ -83,7 +85,9 @@ describe("Codec size overrides", function()
   local function noisy_message()
     local noise = {}
     math.randomseed(11)
-    for i = 1, 6000 do noise[i] = string.char(math.random(0, 255)) end
+    for i = 1, 6000 do
+      noise[i] = string.char(math.random(0, 255))
+    end
     return { blob = table.concat(noise) }
   end
 

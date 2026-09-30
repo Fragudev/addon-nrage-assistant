@@ -9,7 +9,9 @@ local Service, ConstantsTable = load_service()
 
 local function roster_with(entries)
   return {
-    Lookup = function(_, name) return entries[name] end,
+    Lookup = function(_, name)
+      return entries[name]
+    end,
   }
 end
 
@@ -89,8 +91,12 @@ end)
 describe("PermissionService.OwnRole", function()
   it("derives the own role from the own rank", function()
     local platform = {
-      GetOwnGuildRank = function() return "RL" end,
-      GetIdentityKey = function() return "Someone-Realm" end,
+      GetOwnGuildRank = function()
+        return "RL"
+      end,
+      GetIdentityKey = function()
+        return "Someone-Realm"
+      end,
     }
     assert.are.equal("rl", Service.OwnRole(platform))
   end)
@@ -130,20 +136,34 @@ describe("PermissionService beta admin exception", function()
   local Constants = ConstantsTable
 
   local function roster_of(entries)
-    return { Lookup = function(_, name) return entries[name] end }
+    return {
+      Lookup = function(_, name)
+        return entries[name]
+      end,
+    }
   end
 
   local function platform_of(rank, identityKey)
     return {
-      GetOwnGuildRank = function() return rank end,
-      GetIdentityKey = function() return identityKey end,
+      GetOwnGuildRank = function()
+        return rank
+      end,
+      GetIdentityKey = function()
+        return identityKey
+      end,
     }
   end
 
   it("recognises the listed name, ignoring case, spaces and the realm suffix", function()
     for _, key in ipairs({
-      "Yonemon Gg", "yonemon gg", "YONEMON GG-ClassicBetaPvP", "Yonemon Gg-Realm", -- the full name
-      "Yonemon-Realm", "yonemon", "YONEMON-ClassicBetaPvP", "Yonemon", -- what UnitName gives
+      "Yonemon Gg",
+      "yonemon gg",
+      "YONEMON GG-ClassicBetaPvP",
+      "Yonemon Gg-Realm", -- the full name
+      "Yonemon-Realm",
+      "yonemon",
+      "YONEMON-ClassicBetaPvP",
+      "Yonemon", -- what UnitName gives
     }) do
       assert.is_true(Service.IsBetaAdmin(key), key)
     end
@@ -151,7 +171,14 @@ describe("PermissionService beta admin exception", function()
 
   it("does not recognise anyone else", function()
     for _, key in ipairs({
-      "Yonemon Gh", "Yonemon G", "Gg-Realm", "Someone-Realm", "Yonemo-Realm", "Other Yonemon Gg", "", "-Realm",
+      "Yonemon Gh",
+      "Yonemon G",
+      "Gg-Realm",
+      "Someone-Realm",
+      "Yonemo-Realm",
+      "Other Yonemon Gg",
+      "",
+      "-Realm",
     }) do
       assert.is_false(Service.IsBetaAdmin(key), key)
     end
