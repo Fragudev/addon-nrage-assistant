@@ -1,0 +1,41 @@
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_e6f8f9042ebc07 32,34
+NrageAssistant/Sync/Comm.lua
+  s_58126f9867149c::t_bbcc7e7287a6ff 334-356
+NrageAssistant/Sync/EventSync.lua
+  s_58126f9867149c::t_cc56e015caa96a 19-21,190-195
+NrageAssistant/Sync/LootSync.lua
+  s_58126f9867149c::t_8aad3c73a64087 1-256
+NrageAssistant/Sync/Protocol.lua
+  s_58126f9867149c::t_444d663402bfec 167-223,241-244
+NrageAssistant/Sync/SyncRules.lua
+  s_58126f9867149c::t_73c09bbdf22b9a 1-52
+NrageAssistant/Sync/Transfer.lua
+  s_58126f9867149c::t_3b11b95976fe30 37-40
+tests/comm_spec.lua
+  s_58126f9867149c::t_5af5ef46fe3034 11-12,587-702
+tests/event_sync_spec.lua
+  s_58126f9867149c::t_535209f3085aab 5
+tests/loot_sync_spec.lua
+  s_58126f9867149c::t_7c12e5a626fbb5 1-450
+tests/transfer_spec.lua
+  s_58126f9867149c::t_9c69ec7672175e 10-11,295-358
+tests/protocol_spec.lua
+  s_58126f9867149c::t_e461024365c13d 6,296-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f899b73f5af0ac22837c62be073ced75a5b4622",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
