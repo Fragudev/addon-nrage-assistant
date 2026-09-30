@@ -72,8 +72,13 @@ end)
 
 SLASH_NRAGE1 = "/nrage"
 SlashCmdList.NRAGE = function(msg)
-  if msg == "debug identity" then
+  local command, subcommand, action = msg:match("^(%S*)%s*(%S*)%s*(%S*)")
+  if command == "debug" and subcommand == "identity" then
     PrintIdentity()
+    return
+  end
+  if command == "debug" and subcommand == "lockdown" then
+    ns.Probe.Handle(action)
     return
   end
   print(("%s version %s"):format(PREFIX, GetVersion()))
