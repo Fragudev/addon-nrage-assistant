@@ -1,0 +1,23 @@
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_b47cd4733197b5 51
+NrageAssistant/Domain/PermissionService.lua
+  s_58126f9867149c::t_641a9495e8ca54 32
+tests/permission_service_spec.lua
+  s_58126f9867149c::t_1e5a1a1c680972 144,150,159-160,168,171,173-174,178,182,184-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d88d80d777fb8b1b8dc49175c8786e10ca5fd856",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
