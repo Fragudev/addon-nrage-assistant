@@ -19,5 +19,7 @@ Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
+Sync\Inbox.lua
+Sync\OutboundQueue.lua
 Commands\Slash.lua
 Core\Init.lua
