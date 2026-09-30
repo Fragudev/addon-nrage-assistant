@@ -8,9 +8,9 @@ end
 local Service = load_service()
 
 local function roster_with(entries)
-  local roster = {}
-  function roster:Lookup(name) return entries[name] end
-  return roster
+  return {
+    Lookup = function(_, name) return entries[name] end,
+  }
 end
 
 describe("PermissionService.RoleForRank", function()
