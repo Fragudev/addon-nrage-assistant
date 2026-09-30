@@ -1,11 +1,10 @@
 local _, ns = ...
 
--- Gate: the addon only activates for Nrage members on the Alliance side.
--- Ruleset (PvP) is not checked yet; the identifier is still to be measured in phase 0.
+-- Gate: the addon only activates for Nrage members on the Alliance side of the PvP ruleset.
 local AccessGuard = {}
 
 -- Returns true, or false plus a reason code:
--- "not_in_guild" | "wrong_guild" | "wrong_faction"
+-- "not_in_guild" | "wrong_guild" | "wrong_faction" | "wrong_ruleset"
 function AccessGuard.Evaluate(platform, constants)
   if not platform.IsInGuild() then
     return false, "not_in_guild"
@@ -21,6 +20,11 @@ function AccessGuard.Evaluate(platform, constants)
 
   if platform.GetFaction() ~= constants.FACTION then
     return false, "wrong_faction"
+  end
+
+  local realm = platform.GetRealmName()
+  if not realm or not realm:find(constants.RULESET_REALM_MARKER, 1, true) then
+    return false, "wrong_ruleset"
   end
 
   return true

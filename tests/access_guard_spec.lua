@@ -10,6 +10,7 @@ local function fake_platform(overrides)
     GetGuildClubId = function() return 123 end,
     GetGuildName = function() return "Nrage" end,
     GetFaction = function() return "Alliance" end,
+    GetRealmName = function() return "ClassicBetaPvP" end,
   }
   for k, v in pairs(overrides or {}) do p[k] = v end
   return p
@@ -17,8 +18,8 @@ end
 
 describe("AccessGuard.Evaluate", function()
   local guard = load_guard()
-  local by_name = { GUILD_NAME = "Nrage", FACTION = "Alliance" }
-  local by_id = { GUILD_NAME = "Nrage", GUILD_CLUB_ID = 123, FACTION = "Alliance" }
+  local by_name = { GUILD_NAME = "Nrage", FACTION = "Alliance", RULESET_REALM_MARKER = "PvP" }
+  local by_id = { GUILD_NAME = "Nrage", GUILD_CLUB_ID = 123, FACTION = "Alliance", RULESET_REALM_MARKER = "PvP" }
 
   it("allows a Nrage Alliance member (name fallback)", function()
     assert.is_true(guard.Evaluate(fake_platform(), by_name))
@@ -44,6 +45,19 @@ describe("AccessGuard.Evaluate", function()
     local ok, reason = guard.Evaluate(fake_platform({ GetGuildClubId = function() return 999 end }), by_id)
     assert.is_false(ok)
     assert.are.equal("wrong_guild", reason)
+  end)
+
+  it("rejects a non-PvP ruleset", function()
+    local platform = fake_platform({ GetRealmName = function() return "ClassicBetaNormal" end })
+    local ok, reason = guard.Evaluate(platform, by_name)
+    assert.is_false(ok)
+    assert.are.equal("wrong_ruleset", reason)
+  end)
+
+  it("rejects a missing realm name", function()
+    local ok, reason = guard.Evaluate(fake_platform({ GetRealmName = function() return nil end }), by_name)
+    assert.is_false(ok)
+    assert.are.equal("wrong_ruleset", reason)
   end)
 
   it("rejects the wrong faction", function()
