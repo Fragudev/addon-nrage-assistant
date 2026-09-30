@@ -32,6 +32,7 @@ read_globals = {
   "GetServerTime",
   "IsInGuild",
   "LibStub",
+  "time",
   "UnitClass",
   "UnitFactionGroup",
   "UnitGUID",

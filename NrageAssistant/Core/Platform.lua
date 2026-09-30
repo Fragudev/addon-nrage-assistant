@@ -124,6 +124,30 @@ function Platform.FormatDate(timestamp)
   return date("%Y-%m-%d %H:%M", timestamp)
 end
 
+-- "2026-10-01 20:30" (local time) -> timestamp, or nil when the text is not a real date and time.
+-- A date that would roll over (2026-02-31) is refused instead of silently becoming March.
+function Platform.ParseDate(text)
+  if type(text) ~= "string" then
+    return nil
+  end
+  local year, month, day, hour, minute = text:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)%s+(%d%d):(%d%d)$")
+  if not year then
+    return nil
+  end
+  local timestamp = time({
+    year = tonumber(year), month = tonumber(month), day = tonumber(day),
+    hour = tonumber(hour), min = tonumber(minute),
+  })
+  if not timestamp then
+    return nil
+  end
+  local expected = ("%s-%s-%s %s:%s"):format(year, month, day, hour, minute)
+  if date("%Y-%m-%d %H:%M", timestamp) ~= expected then
+    return nil
+  end
+  return timestamp
+end
+
 function Platform.ServerTime()
   return GetServerTime()
 end

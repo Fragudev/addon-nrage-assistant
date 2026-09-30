@@ -16,3 +16,7 @@ _G.CreateFrame = function()
 end
 
 _G.SlashCmdList = {}
+
+-- The client's `time` and `date` are the standard library ones.
+_G.time = os.time
+_G.date = os.date

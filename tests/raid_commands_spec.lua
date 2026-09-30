@@ -19,6 +19,10 @@ local function build(rank)
     GetIdentityKey = function() return "Leader-Realm" end,
     ServerTime = function() return 1000 end,
     FormatDate = function(timestamp) return "date:" .. timestamp end,
+    ParseDate = function(text)
+      local day = text:match("^2026%-10%-(%d%d) 20:30$")
+      return day and (1000 + tonumber(day)) or nil
+    end,
   }
   env.comm = {}
   function env.comm.NextId()
@@ -217,5 +221,36 @@ describe("RaidCommands assignments", function()
     member.events["ev-1"] = { eventId = "ev-1", title = "Raid", status = "planned", attendance = {}, assignments = {} }
     assert.is_truthy(text(member.raid:Assign("1 add Ann-Realm Garr")):find("not allowed", 1, true))
     assert.is_nil(next(member.events["ev-1"].assignments))
+  end)
+end)
+
+describe("RaidCommands event start time", function()
+  it("sets the start from a local date and sends the update", function()
+    local env = build("RL")
+    env.raid:Event("new Raid")
+    env.sent = {}
+    assert.is_truthy(text(env.raid:Event("start 1 2026-10-03 20:30")):find("updated 'Raid'", 1, true))
+    assert.are.equal(1003, ns.EventService.List({ events = env.events })[1].startAt)
+    assert.are.equal("SendEvent", env.sent[1].kind)
+  end)
+
+  it("explains the format and changes nothing when the date is not valid", function()
+    local env = build("RL")
+    env.raid:Event("new Raid")
+    env.sent = {}
+    local lines = text(env.raid:Event("start 1 tomorrow evening"))
+    assert.is_truthy(lines:find("YYYY-MM-DD HH:MM", 1, true))
+    assert.is_nil(ns.EventService.List({ events = env.events })[1].startAt)
+    assert.are.equal(0, #env.sent)
+  end)
+
+  it("reports a missing event and refuses a member", function()
+    local env = build("RL")
+    assert.is_truthy(text(env.raid:Event("start 3 2026-10-03 20:30")):find("no event number 3", 1, true))
+
+    local member = build("member")
+    member.events["ev-1"] = { eventId = "ev-1", title = "Raid", status = "planned", attendance = {}, assignments = {} }
+    assert.is_truthy(text(member.raid:Event("start 1 2026-10-03 20:30")):find("not allowed", 1, true))
+    assert.are.equal(0, #member.sent)
   end)
 end)

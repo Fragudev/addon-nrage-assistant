@@ -70,10 +70,64 @@ function ViewModel.PublishError(reason)
   return PUBLISH_ERRORS[reason] or tostring(reason)
 end
 
+-- Events with their attendance summary and assignments, in the order of /nrage event.
+-- `formatDate(timestamp)` renders start times. Everything shown is escaped.
+function ViewModel.Raid(events, formatDate)
+  local list = ns.EventService.List({ events = events })
+  if #list == 0 then
+    return { "No events yet. A raid leader creates them with /nrage event new <title>." }
+  end
+
+  local lines = {}
+  for index, event in ipairs(list) do
+    local when = event.startAt and (" - " .. formatDate(event.startAt)) or ""
+    lines[#lines + 1] = ("%d. %s [%s]%s"):format(
+      index, ViewModel.Escape(event.title), ViewModel.Escape(event.status), when)
+
+    local counts, states = {}, {}
+    for _, record in pairs(event.attendance) do
+      if not counts[record.state] then
+        states[#states + 1] = record.state
+        counts[record.state] = 0
+      end
+      counts[record.state] = counts[record.state] + 1
+    end
+    table.sort(states)
+    if #states == 0 then
+      lines[#lines + 1] = "    Attendance: none recorded"
+    else
+      local parts = {}
+      for _, state in ipairs(states) do
+        parts[#parts + 1] = ("%d %s"):format(counts[state], ViewModel.Escape(state))
+      end
+      lines[#lines + 1] = "    Attendance: " .. table.concat(parts, ", ")
+    end
+
+    local assignments = {}
+    for _, assignment in pairs(event.assignments) do
+      assignments[#assignments + 1] = assignment
+    end
+    table.sort(assignments, function(a, b)
+      if a.encounter ~= b.encounter then
+        return a.encounter < b.encounter
+      end
+      return a.characterKey < b.characterKey
+    end)
+    for _, assignment in ipairs(assignments) do
+      local task = assignment.task and (" - " .. ViewModel.Escape(assignment.task)) or ""
+      lines[#lines + 1] = ("    %s: %s%s"):format(
+        ViewModel.Escape(assignment.encounter), ViewModel.Escape(assignment.characterKey), task)
+    end
+    lines[#lines + 1] = ""
+  end
+  return lines
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },
   { value = "ready", text = "Readiness" },
+  { value = "raid", text = "Raid" },
   { value = "roster", text = "Roster" },
 }
 
@@ -87,7 +141,7 @@ function ViewModel.HelpLines()
     "/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)",
     "/nrage consent       what you agree to share (consent <key> on|off)",
     "/nrage publish       preview, then 'publish confirm' to share your profile",
-    "/nrage event         raid events (event new <title> | rename | status | delete)",
+    "/nrage event         raid events (event new <title> | rename | status | start | delete)",
     "/nrage attendance    attendance for an event (attendance <n> <Name-Realm> <state>)",
     "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
     "/nrage export        copy all raid events, attendance and assignments as text",

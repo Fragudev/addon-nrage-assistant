@@ -110,10 +110,16 @@ local function DrawRoster(container)
   AddLines(container, ns.ViewModel.Roster(ns.db.global.roster, ns.Platform.ServerTime()))
 end
 
+local function DrawRaid(container)
+  AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
+  AddLines(container, { "Manage events with /nrage event, /nrage attendance and /nrage assign." })
+end
+
 local DRAWERS = {
   home = DrawHome,
   profile = DrawProfile,
   ready = DrawReady,
+  raid = DrawRaid,
   roster = DrawRoster,
 }
 
@@ -121,7 +127,7 @@ local function OnTabSelected(container, _, group)
   currentTab = group
   container:ReleaseChildren()
 
-  if group ~= "home" and group ~= "roster" then
+  if group == "profile" or group == "ready" then
     ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   end
 
