@@ -29,6 +29,9 @@ ns.Constants = {
   INBOX_WINDOW_SECONDS = 60,
   INBOX_MAX_SENDERS = 200,
 
+  -- Minimum time between two publications of the own profile.
+  PUBLISH_COOLDOWN_SECONDS = 30,
+
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,
   PEERS_MAX_ENTRIES = 200,
