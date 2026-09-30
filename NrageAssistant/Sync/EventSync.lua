@@ -170,7 +170,7 @@ local function applyAssignUpsert(ctx, payload, sender, role)
   return true
 end
 
-local function applyDelete(ctx, payload, sender, role)
+local function applyDelete(ctx, payload, _, role)
   local isEvent = payload.kind == "event"
   local denied = authorize(role, isEvent and "manage_events" or "manage_assignments")
   if denied then
