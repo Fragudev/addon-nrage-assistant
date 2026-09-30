@@ -7,6 +7,7 @@ local NOTICES = {
   not_in_guild = "disabled: you are not in a guild.",
   wrong_guild = "disabled: this addon is only for the Nrage guild.",
   wrong_faction = "disabled: this addon is only for the Alliance.",
+  wrong_ruleset = "disabled: this addon is only for the PvP ruleset.",
 }
 
 local function GetVersion()
