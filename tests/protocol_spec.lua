@@ -1,6 +1,7 @@
 local function load_protocol()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
 end

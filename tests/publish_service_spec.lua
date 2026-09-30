@@ -1,6 +1,6 @@
 local function load_modules()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Sync/Protocol", "Domain/PublishService" }) do
+  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Sync/Protocol", "Domain/PublishService" }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns

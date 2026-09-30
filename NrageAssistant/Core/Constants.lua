@@ -48,6 +48,14 @@ ns.Constants = {
   GUILD_ROSTER_CHUNK = 100,
   GUILD_ROSTER_MIN_INTERVAL_SECONDS = 10,
 
+  -- Raid events, attendance and assignments (bounded so shared data cannot grow without limit).
+  EVENT_MAX = 100,
+  EVENT_ATTENDANCE_MAX = 60,
+  EVENT_ASSIGNMENTS_MAX = 50,
+  EVENT_RETENTION_SECONDS = 90 * 24 * 3600,
+  TOMBSTONE_MAX = 500,
+  TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,
   -- A received profile older than this is shown as stale, never as current.
