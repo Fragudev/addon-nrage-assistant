@@ -27,6 +27,7 @@ Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
 Sync\OutboundQueue.lua
+Sync\EventSync.lua
 Sync\Comm.lua
 UI\ViewModel.lua
 UI\Main.lua

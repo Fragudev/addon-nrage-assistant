@@ -7,8 +7,9 @@ local _, ns = ...
 local Comm = {}
 Comm.__index = Comm
 
--- deps: platform, codec, inbox, queue, roster (table), version (string),
---       now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
+-- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
+--       roleOf(sender) -> role or nil, version (string), now() -> seconds,
+--       schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
   return setmetatable({
     platform = deps.platform,
@@ -16,6 +17,9 @@ function Comm.New(deps)
     inbox = deps.inbox,
     queue = deps.queue,
     roster = deps.roster,
+    events = deps.events,
+    tombstones = deps.tombstones,
+    roleOf = deps.roleOf,
     version = deps.version,
     now = deps.now,
     schedule = deps.schedule,
@@ -167,7 +171,52 @@ function Comm:HandleMessage(text, sender, channel)
   if message.t == "HELLO" then
     return self:HandleHello(sender, message.p)
   end
+  if ns.EventSync.IsRaidMessage(message.t) then
+    return self:HandleRaid(sender, message)
+  end
   return self:HandleProfile(sender, message.p)
+end
+
+-- Raid operations: the sender's role is read from the local guild roster, never from the message.
+function Comm:HandleRaid(sender, message)
+  local ctx = {
+    events = self.events,
+    tombstones = self.tombstones,
+    now = self.platform.ServerTime,
+  }
+  return ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
+end
+
+-- Local change -> wire. Each message is keyed so a newer edit of the same record replaces a
+-- queued older one instead of both being sent.
+function Comm:SendEvent(event)
+  return self:Send("EVENT_UPSERT", ns.EventSync.EventPayload(event), "EV:" .. event.eventId)
+end
+
+function Comm:SendAttendance(eventId, characterKey, record)
+  local payload = ns.EventSync.AttendancePayload(eventId, characterKey, record)
+  return self:Send("ATTENDANCE_UPSERT", payload, ("AT:%s:%s"):format(eventId, characterKey))
+end
+
+function Comm:SendAssignment(eventId, assignment)
+  local payload = ns.EventSync.AssignPayload(eventId, assignment)
+  return self:Send("ASSIGN_UPSERT", payload, ("AS:%s:%s"):format(eventId, assignment.assignmentId))
+end
+
+function Comm:SendDeleteEvent(eventId)
+  local payload = ns.EventSync.DeleteEventPayload(self.tombstones, eventId)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("DELETE", payload, "DEL:" .. eventId)
+end
+
+function Comm:SendDeleteAssignment(eventId, assignmentId)
+  local payload = ns.EventSync.DeleteAssignmentPayload(self.tombstones, eventId, assignmentId)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("DELETE", payload, ("DEL:%s:%s"):format(eventId, assignmentId))
 end
 
 -- Lines for `/nrage sync`.
@@ -224,6 +273,15 @@ function Comm.Start()
     inbox = ns.Inbox.New(),
     queue = queue,
     roster = ns.db.global.roster,
+    events = ns.db.global.events,
+    tombstones = ns.db.global.sync.tombstones,
+    -- Looked up lazily: the guild roster is created right after Comm starts.
+    roleOf = function(sender)
+      if not ns.guildRoster then
+        return nil
+      end
+      return ns.PermissionService.RoleOf(ns.guildRoster, sender)
+    end,
     version = ns.GetVersion(),
     now = platform.Now,
     schedule = C_Timer.After,

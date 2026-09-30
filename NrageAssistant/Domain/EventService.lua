@@ -45,6 +45,9 @@ local function addTombstone(ctx, key, rev)
   tombstones[key] = { at = ctx.now(), rev = rev }
 end
 
+-- Also used when applying a received DELETE, so both paths share the same bounded list.
+EventService.AddTombstone = addTombstone
+
 function EventService.Create(ctx, fields)
   if not Can(ctx.role, "manage_events") then
     return nil, "forbidden"
