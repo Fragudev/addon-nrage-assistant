@@ -123,11 +123,46 @@ function ViewModel.Raid(events, formatDate)
   return lines
 end
 
+-- Loot council sessions per event: what is open, what was awarded and why. Only aggregate vote
+-- counts are shown here (never who voted for whom), and everything from the guild is escaped.
+function ViewModel.Loot(events)
+  local lines = {}
+  for _, event in ipairs(ns.EventService.List({ events = events })) do
+    local sessions = ns.LootService.Sessions(event)
+    if #sessions > 0 then
+      lines[#lines + 1] = ViewModel.Escape(event.title)
+      for _, session in ipairs(sessions) do
+        local outcome
+        if session.award then
+          outcome = ("awarded to %s - %s"):format(
+            ViewModel.Escape(session.award.characterKey), ViewModel.Escape(session.award.reason))
+        elseif session.status == "closed" then
+          outcome = "closed, not awarded"
+        else
+          local candidates, votes = 0, 0
+          for _ in pairs(session.candidates) do candidates = candidates + 1 end
+          for _ in pairs(session.votes) do votes = votes + 1 end
+          outcome = ("%d candidate(s), %d vote(s) cast"):format(candidates, votes)
+        end
+        lines[#lines + 1] = ("  %s [%s] - %s"):format(
+          ViewModel.Escape(session.itemName), ViewModel.Escape(session.status), outcome)
+      end
+      lines[#lines + 1] = ""
+    end
+  end
+  if #lines == 0 then
+    lines[1] = "No loot sessions yet. The council opens one after an encounter with /nrage loot <event> open <item>."
+  end
+  lines[#lines + 1] = "Addon messages are not private: anyone with the addon can read votes."
+  return lines
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },
   { value = "ready", text = "Readiness" },
   { value = "raid", text = "Raid" },
+  { value = "loot", text = "Loot" },
   { value = "roster", text = "Roster" },
 }
 
@@ -144,6 +179,7 @@ function ViewModel.HelpLines()
     "/nrage event         raid events (event new <title> | rename | status | start | delete)",
     "/nrage attendance    attendance for an event (attendance <n> <Name-Realm> <state>)",
     "/nrage assign        assignments for an event (assign <n> add <Name-Realm> <encounter>)",
+    "/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)",
     "/nrage export        copy all raid events, attendance and assignments as text",
     "/nrage import        paste an export to merge it into your data (RL/admin only)",
     "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",

@@ -216,8 +216,24 @@ local function RaidCommand(method)
   end
 end
 
+local function LootCommand(rest)
+  if not ns.active or not ns.comm then
+    say("loot commands are unavailable while the addon is disabled.")
+    return
+  end
+  local loot = ns.LootCommands.New({
+    events = ns.db.global.events,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  for _, line in ipairs(loot:Loot(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  loot = LootCommand,
   export = TransferCommand("export"),
   import = TransferCommand("import"),
   event = RaidCommand("Event"),

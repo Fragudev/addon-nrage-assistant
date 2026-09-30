@@ -115,11 +115,17 @@ local function DrawRaid(container)
   AddLines(container, { "Manage events with /nrage event, /nrage attendance and /nrage assign." })
 end
 
+local function DrawLoot(container)
+  AddLines(container, ns.ViewModel.Loot(ns.db.global.events))
+  AddLines(container, { "Manage sessions with /nrage loot." })
+end
+
 local DRAWERS = {
   home = DrawHome,
   profile = DrawProfile,
   ready = DrawReady,
   raid = DrawRaid,
+  loot = DrawLoot,
   roster = DrawRoster,
 }
 
