@@ -1,0 +1,39 @@
+.gitignore
+  s_950dc6064a94a5::t_858fa89731606e 4-6
+.luacov
+  s_950dc6064a94a5::t_07aceb2b32c7e9 1-6
+.styluaignore
+  s_950dc6064a94a5::t_fe93333a15759e 1
+stylua.toml
+  s_950dc6064a94a5::t_c415d8ba7a866e 1-6
+tools/check_coverage.sh
+  s_950dc6064a94a5::t_c0258005cb42c1 1-24
+tools/package.sh
+  s_950dc6064a94a5::t_d3613b6e06cc36 1-46
+.github/dependabot.yml
+  s_950dc6064a94a5::t_8fa6433d5a3327 1-8
+.github/workflows/ci.yml
+  s_950dc6064a94a5::t_07740989fedc5b 7,12-18,34-35,41-73
+.github/workflows/pr-title.yml
+  s_950dc6064a94a5::t_1bbaf1e59c6420 1-17
+.github/workflows/release.yml
+  s_950dc6064a94a5::t_569adb1f22f130 9,12-14,16,18-19,25
+README.md
+  s_950dc6064a94a5::t_ba690c0f3d6af8 61,69,73-75,78,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa883f3c67587d66c513f211f18283473f8c7c6a",
+  "prompts": {},
+  "sessions": {
+    "s_950dc6064a94a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc5f5c2a-5ea2-495f-80fc-75c82693a7d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
