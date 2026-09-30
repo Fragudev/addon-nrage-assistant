@@ -29,6 +29,18 @@ ns.Constants = {
   INBOX_WINDOW_SECONDS = 60,
   INBOX_MAX_SENDERS = 200,
 
+  -- Received data kept in memory or SavedVariables.
+  ROSTER_MAX_ENTRIES = 500,
+  PEERS_MAX_ENTRIES = 200,
+
+  -- HELLO: sent shortly after login, and once more (jittered, rate limited) when a new peer shows up.
+  HELLO_LOGIN_DELAY_MIN = 2,
+  HELLO_LOGIN_DELAY_MAX = 10,
+  HELLO_REPLY_DELAY_MIN = 1,
+  HELLO_REPLY_DELAY_MAX = 8,
+  HELLO_REPLY_COOLDOWN_SECONDS = 30,
+  QUEUE_FLUSH_SECONDS = 1,
+
   -- Outbound queue: bounded, expiring, and jittered when it drains after a lockdown.
   QUEUE_MAX_ITEMS = 20,
   QUEUE_TTL_SECONDS = 120,

@@ -21,5 +21,6 @@ Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
 Sync\OutboundQueue.lua
+Sync\Comm.lua
 Commands\Slash.lua
 Core\Init.lua
