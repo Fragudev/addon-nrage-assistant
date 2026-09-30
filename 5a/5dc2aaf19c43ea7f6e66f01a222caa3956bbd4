@@ -1,0 +1,21 @@
+LICENSE
+  s_dcf33a8274b337::t_6b56231b6094bf 1-2,4,6-9,11-24,33-35
+README.md
+  s_dcf33a8274b337::t_d24b00c449cac9 1-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a5dc2aaf19c43ea7f6e66f01a222caa3956bbd4",
+  "prompts": {},
+  "sessions": {
+    "s_dcf33a8274b337": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7da1c00f-f523-444b-9b42-ec66e2e65fdc",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
