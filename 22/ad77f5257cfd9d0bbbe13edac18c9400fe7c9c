@@ -1,0 +1,41 @@
+.luacheckrc
+  s_58126f9867149c::t_5009bc9ccb4e93 20,24-26,28,30-32
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_fefd30225568ad 1-72
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_53dfc43ef69188 5,14-17
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_4e785fd39b976e 11-12,15,24-38,46-49,52
+NrageAssistant/Core/Platform.lua
+  s_58126f9867149c::t_49c072488e0941 39-98
+NrageAssistant/Core/Store.lua
+  s_58126f9867149c::t_7bd28814c9fe5d 1-66
+NrageAssistant/Domain/ProfileService.lua
+  s_58126f9867149c::t_408b053d228bc0 1-111
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_f25b363473b311 15-17
+tests/constants_spec.lua
+  s_58126f9867149c::t_c38d74200a8b11 13-14,18-20,23-32
+tests/profile_service_spec.lua
+  s_58126f9867149c::t_2622d8626d7e4c 1-119
+tests/store_spec.lua
+  s_58126f9867149c::t_6a3bb7c1ee75ce 1-71
+tests/support/addon.lua
+  s_58126f9867149c::t_ba1252b0bb3e5c 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22ad77f5257cfd9d0bbbe13edac18c9400fe7c9c",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
