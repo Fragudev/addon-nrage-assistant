@@ -322,3 +322,64 @@ describe("RaidCommands character names with spaces", function()
     assert.are.equal(0, #env.sent)
   end)
 end)
+
+-- The window calls these instead of parsing text; they must behave exactly like the commands.
+describe("RaidCommands structured operations", function()
+  local env
+
+  local function first_event()
+    return ns.EventService.List({ events = env.events })[1]
+  end
+
+  before_each(function()
+    env = build("RL")
+    env.raid:CreateEvent("Raid night")
+    env.sent = {}
+  end)
+
+  it("creates, renames, sets status and start time, and sends each change", function()
+    local event = first_event()
+    assert.is_truthy(text(env.raid:RenameEvent(event, "Renamed")):find("updated 'Renamed'", 1, true))
+    assert.is_truthy(text(env.raid:SetEventStatus(event, "open")):find("[open]", 1, true))
+    env.raid:SetEventStart(event, "2026-10-03 20:30")
+    assert.are.equal(1003, event.startAt)
+    assert.are.equal(3, #env.sent)
+    assert.are.equal("SendEvent", env.sent[3].kind)
+  end)
+
+  it("rejects a bad status or start time without sending", function()
+    local event = first_event()
+    assert.is_truthy(text(env.raid:SetEventStatus(event, "boom")):find("status must be", 1, true))
+    assert.is_truthy(text(env.raid:SetEventStart(event, "tomorrow")):find("YYYY-MM-DD HH:MM", 1, true))
+    assert.are.equal(0, #env.sent)
+  end)
+
+  it("records attendance and adds and removes an assignment", function()
+    local event = first_event()
+    env.raid:SetAttendance(event, "Yonemon Gg", "present")
+    assert.are.equal("present", event.attendance["Yonemon Gg"].state)
+
+    env.raid:AddAssignment(event, "Yonemon Gg", "Ragnaros")
+    local assignment = ns.RaidCommands.SortedAssignments(event)[1]
+    assert.are.equal("Yonemon Gg", assignment.characterKey)
+    assert.is_truthy(text(env.raid:RemoveAssignment(event, assignment)):find("removed Yonemon Gg", 1, true))
+    assert.is_nil(next(event.assignments))
+    assert.are.same({ "SendAttendance", "SendAssignment", "SendDeleteAssignment" }, {
+      env.sent[1].kind,
+      env.sent[2].kind,
+      env.sent[3].kind,
+    })
+  end)
+
+  it("keeps the role checks: a member changes nothing", function()
+    local member = build("member")
+    local event = { eventId = "ev-1", title = "Raid", status = "planned", attendance = {}, assignments = {} }
+    member.events["ev-1"] = event
+    assert.is_truthy(text(member.raid:CreateEvent("Nope")):find("not allowed", 1, true))
+    assert.is_truthy(text(member.raid:SetAttendance(event, "Ann-Realm", "present")):find("not allowed", 1, true))
+    assert.is_truthy(text(member.raid:AddAssignment(event, "Ann-Realm", "Garr")):find("not allowed", 1, true))
+    assert.is_nil(next(event.attendance))
+    assert.is_nil(next(event.assignments))
+    assert.are.equal(0, #member.sent)
+  end)
+end)

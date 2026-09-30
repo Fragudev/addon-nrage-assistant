@@ -126,9 +126,242 @@ local function DrawRoster(container)
   AddLines(container, ns.ViewModel.Roster(ns.db.global.roster, ns.Platform.ServerTime()))
 end
 
+-- Raid tab. Reading is open to everyone; each group of controls only appears for a role that may use it
+-- (ViewModel.RaidActions), and every control calls the same RaidCommands / TemplateCommands methods as
+-- the slash commands, so the checks and the messages sent to the guild are the same.
+local selectedEventId
+local attendanceFilter = ""
+local raidMessage
+local ATTENDANCE_ROWS_MAX = 40
+
+local function RaidServices()
+  local raid = ns.RaidCommands.New({
+    events = ns.db.global.events,
+    tombstones = ns.db.global.sync.tombstones,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  local templates = ns.TemplateCommands.New({
+    events = ns.db.global.events,
+    templates = ns.db.global.templates,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  return raid, templates
+end
+
+-- Shows what an action reported and redraws the tab with the new state.
+local function Report(lines)
+  local parts = {}
+  for _, line in ipairs(lines) do
+    parts[#parts + 1] = line
+  end
+  raidMessage = table.concat(parts, " ")
+  Redraw()
+end
+
+local function AddDropdown(container, label, list, order, value, width, onChange)
+  local dropdown = LibStub("AceGUI-3.0"):Create("Dropdown")
+  dropdown:SetLabel(label)
+  dropdown:SetList(list, order)
+  if value then
+    dropdown:SetValue(value)
+  end
+  dropdown:SetRelativeWidth(width)
+  dropdown:SetCallback("OnValueChanged", function(_, _, key)
+    onChange(key)
+  end)
+  container:AddChild(dropdown)
+end
+
+-- A text box that acts when Enter or Okay is pressed.
+local function AddTextInput(container, label, text, width, onSubmit)
+  local box = LibStub("AceGUI-3.0"):Create("EditBox")
+  box:SetLabel(label)
+  box:SetText(text or "")
+  box:SetRelativeWidth(width)
+  box:SetCallback("OnEnterPressed", function(_, _, value)
+    onSubmit(value)
+  end)
+  container:AddChild(box)
+end
+
+local function AddButton(container, text, width, onClick)
+  local button = LibStub("AceGUI-3.0"):Create("Button")
+  button:SetText(text)
+  button:SetRelativeWidth(width)
+  button:SetCallback("OnClick", onClick)
+  container:AddChild(button)
+end
+
+local function DrawEventEditor(container, raid, event)
+  AddHeading(container, "Edit event")
+  AddTextInput(container, "Title (Enter to rename)", event.title, 1, function(value)
+    Report(raid:RenameEvent(event, value))
+  end)
+
+  local statuses = {}
+  for _, status in ipairs(ns.ViewModel.EVENT_STATUSES) do
+    statuses[status] = status
+  end
+  AddDropdown(container, "Status", statuses, ns.ViewModel.EVENT_STATUSES, event.status, 0.4, function(key)
+    Report(raid:SetEventStatus(event, key))
+  end)
+  local start = event.startAt and ns.Platform.FormatDate(event.startAt) or ""
+  AddTextInput(container, "Start, local time (YYYY-MM-DD HH:MM)", start, 0.6, function(value)
+    Report(raid:SetEventStart(event, value))
+  end)
+end
+
+local function DrawAttendance(container, raid, event, members)
+  AddHeading(container, "Attendance")
+  AddTextInput(container, "Find a member", attendanceFilter, 1, function(value)
+    attendanceFilter = value
+    Redraw()
+  end)
+
+  local states = {}
+  for _, state in ipairs(ns.ViewModel.ATTENDANCE_STATES) do
+    states[state] = state
+  end
+  local rows, matched = ns.ViewModel.AttendanceRows(event, members, attendanceFilter, ATTENDANCE_ROWS_MAX)
+  for _, row in ipairs(rows) do
+    AddDropdown(
+      container,
+      ns.ViewModel.Escape(row.name),
+      states,
+      ns.ViewModel.ATTENDANCE_STATES,
+      row.state,
+      0.5,
+      function(key)
+        Report(raid:SetAttendance(event, row.name, key))
+      end
+    )
+  end
+  if matched == 0 then
+    AddLines(container, { "No member matches. The guild roster may still be loading." })
+  elseif matched > #rows then
+    AddLines(
+      container,
+      { ("Showing %d of %d members: type part of a name above to narrow the list."):format(#rows, matched) }
+    )
+  end
+end
+
+local function DrawAssignments(container, raid, event, members)
+  AddHeading(container, "Assignments")
+  local assignments = ns.RaidCommands.SortedAssignments(event)
+  if #assignments == 0 then
+    AddLines(container, { "No assignments yet." })
+  end
+  for _, assignment in ipairs(assignments) do
+    local task = assignment.task and (" - " .. assignment.task) or ""
+    local label = ns.ViewModel.Escape(("%s: %s%s"):format(assignment.encounter, assignment.characterKey, task))
+    local text = LibStub("AceGUI-3.0"):Create("Label")
+    text:SetText(label)
+    text:SetRelativeWidth(0.75)
+    container:AddChild(text)
+    AddButton(container, "Remove", 0.25, function()
+      Report(raid:RemoveAssignment(event, assignment))
+    end)
+  end
+
+  local list = {}
+  for _, name in ipairs(members) do
+    list[name] = ns.ViewModel.Escape(name)
+  end
+  local newMember, newEncounter
+  AddDropdown(container, "Member", list, members, nil, 0.45, function(key)
+    newMember = key
+  end)
+  AddTextInput(container, "Encounter", "", 0.3, function(value)
+    newEncounter = value
+  end)
+  AddButton(container, "Add", 0.25, function()
+    if not newMember then
+      raidMessage = "Pick a member first."
+      Redraw()
+      return
+    end
+    Report(raid:AddAssignment(event, newMember, newEncounter or ""))
+  end)
+end
+
+local function DrawTemplates(container, templates, event)
+  AddHeading(container, "Templates")
+  local names = ns.TemplateService.List(ns.db.global.templates)
+  local list = {}
+  for _, name in ipairs(names) do
+    list[name] = ns.ViewModel.Escape(name)
+  end
+
+  local chosen
+  if #names > 0 then
+    AddDropdown(container, "Saved templates", list, names, nil, 0.6, function(key)
+      chosen = key
+    end)
+    AddButton(container, "Apply to this event", 0.4, function()
+      if not chosen then
+        raidMessage = "Pick a template first."
+        Redraw()
+        return
+      end
+      Report(templates:ApplyToEvent(event, chosen))
+    end)
+  else
+    AddLines(container, { "No templates saved yet." })
+  end
+  AddTextInput(container, "Save this event's assignments as (Enter to save)", "", 1, function(value)
+    Report(templates:SaveEvent(event, value))
+  end)
+end
+
 local function DrawRaid(container)
-  AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
-  AddLines(container, { "Manage events with /nrage event, /nrage attendance and /nrage assign." })
+  -- Without a sync transport nothing could be sent, so the tab stays read-only.
+  local actions = ns.ViewModel.RaidActions(ns.comm and ns.PermissionService.OwnRole(ns.Platform) or nil)
+  local raid, templates = RaidServices()
+
+  if raidMessage then
+    AddLines(container, { ns.ViewModel.Escape(raidMessage), "" })
+  end
+
+  if actions.events then
+    AddTextInput(container, "New event title (Enter to create)", "", 1, function(value)
+      Report(raid:CreateEvent(value))
+    end)
+  end
+
+  local list, order = ns.ViewModel.EventChoices(ns.db.global.events)
+  if #order == 0 then
+    AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
+    return
+  end
+  if not list[selectedEventId] then
+    selectedEventId = order[1]
+  end
+  AddDropdown(container, "Event", list, order, selectedEventId, 1, function(key)
+    selectedEventId = key
+    Redraw()
+  end)
+
+  local event = ns.db.global.events[selectedEventId]
+  if actions.events then
+    DrawEventEditor(container, raid, event)
+  end
+
+  local members = ns.guildRoster and ns.guildRoster:Names() or {}
+  if actions.attendance then
+    DrawAttendance(container, raid, event, members)
+  end
+  if actions.assignments then
+    DrawAssignments(container, raid, event, members)
+    DrawTemplates(container, templates, event)
+  end
+
+  if not (actions.events or actions.attendance or actions.assignments) then
+    AddHeading(container, "Events")
+    AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
+  end
 end
 
 local function DrawLoot(container)

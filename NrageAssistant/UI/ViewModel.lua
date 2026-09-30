@@ -173,6 +173,63 @@ function ViewModel.Loot(events)
   return lines
 end
 
+ViewModel.EVENT_STATUSES = { "planned", "open", "closed", "cancelled" }
+ViewModel.ATTENDANCE_STATES = { "invited", "confirmed", "present", "late", "leftEarly", "absent", "excused", "unknown" }
+
+-- What the Raid tab offers a role. These are the same checks the commands make (EventService repeats
+-- them on every change), so a hidden control is never the only thing standing between a member and a change.
+function ViewModel.RaidActions(role)
+  local can = ns.PermissionService.Can
+  return {
+    events = can(role, "manage_events"),
+    attendance = can(role, "record_attendance"),
+    assignments = can(role, "manage_assignments"),
+  }
+end
+
+-- Dropdown entries for the events, in the order of /nrage event: list[eventId] = label, plus the ids in order.
+function ViewModel.EventChoices(events)
+  local list, order = {}, {}
+  for index, event in ipairs(ns.EventService.List({ events = events })) do
+    list[event.eventId] = ("%d. %s [%s]"):format(index, ViewModel.Escape(event.title), ViewModel.Escape(event.status))
+    order[#order + 1] = event.eventId
+  end
+  return list, order
+end
+
+-- One row per member for the attendance grid: everyone in the guild roster plus anyone already recorded
+-- for the event, sorted, narrowed by `filter` (case-insensitive part of a name) and cut at `limit` rows.
+-- `state` is nil for someone with no record. Returns the rows and how many matched before the cut.
+function ViewModel.AttendanceRows(event, memberNames, filter, limit)
+  local seen, names = {}, {}
+  local function add(name)
+    if not seen[name] then
+      seen[name] = true
+      names[#names + 1] = name
+    end
+  end
+  for _, name in ipairs(memberNames) do
+    add(name)
+  end
+  for name in pairs(event.attendance) do
+    add(name)
+  end
+  table.sort(names)
+
+  local needle = (filter or ""):lower()
+  local rows, matched = {}, 0
+  for _, name in ipairs(names) do
+    if needle == "" or name:lower():find(needle, 1, true) then
+      matched = matched + 1
+      if matched <= limit then
+        local record = event.attendance[name]
+        rows[#rows + 1] = { name = name, state = record and record.state or nil }
+      end
+    end
+  end
+  return rows, matched
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },

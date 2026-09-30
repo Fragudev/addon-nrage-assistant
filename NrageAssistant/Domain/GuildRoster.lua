@@ -38,6 +38,16 @@ function GuildRoster:Lookup(name)
   return self.entries[name]
 end
 
+-- Every known member name, sorted: what the window offers when a member has to be picked.
+function GuildRoster:Names()
+  local names = {}
+  for name in pairs(self.entries) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  return names
+end
+
 function GuildRoster:Count()
   return self.count
 end

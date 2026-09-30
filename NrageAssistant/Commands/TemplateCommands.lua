@@ -87,12 +87,7 @@ function TemplateCommands:Show(name)
   return lines
 end
 
-function TemplateCommands:Save(args)
-  local token, name = args:match("^(%S*)%s*(.-)$")
-  local event, problem = self:ResolveEvent(token)
-  if not event then
-    return { problem }
-  end
+function TemplateCommands:SaveEvent(event, name)
   local ctx = self:Context()
   local template, reason = ns.TemplateService.Save(self.templates, event, name, ctx.now(), ctx.actor)
   if not template then
@@ -101,12 +96,7 @@ function TemplateCommands:Save(args)
   return { ("saved '%s' with %d slot(s)."):format(template.name, #template.slots) }
 end
 
-function TemplateCommands:Apply(args)
-  local token, name = args:match("^(%S*)%s*(.-)$")
-  local event, problem = self:ResolveEvent(token)
-  if not event then
-    return { problem }
-  end
+function TemplateCommands:ApplyToEvent(event, name)
   local ctx = self:Context()
   local created, skipped = ns.TemplateService.Apply(ctx, self.templates, name, event.eventId)
   if not created then
@@ -124,6 +114,24 @@ function TemplateCommands:Apply(args)
     lines[#lines + 1] = ("saved here, but %d assignment(s) could not be sent to the guild."):format(unsent)
   end
   return lines
+end
+
+function TemplateCommands:Save(args)
+  local token, name = args:match("^(%S*)%s*(.-)$")
+  local event, problem = self:ResolveEvent(token)
+  if not event then
+    return { problem }
+  end
+  return self:SaveEvent(event, name)
+end
+
+function TemplateCommands:Apply(args)
+  local token, name = args:match("^(%S*)%s*(.-)$")
+  local event, problem = self:ResolveEvent(token)
+  if not event then
+    return { problem }
+  end
+  return self:ApplyToEvent(event, name)
 end
 
 function TemplateCommands:Template(rest)
