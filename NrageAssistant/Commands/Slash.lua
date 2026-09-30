@@ -46,12 +46,6 @@ local function ProfileCommand(rest)
   end
 end
 
-local READY_SET_ERRORS = {
-  unknown_rule = "unknown item.",
-  not_manual = "that item is measured automatically and cannot be set by hand.",
-  invalid_status = "status must be met, missing, waived or unknown.",
-}
-
 local function ReadyCommand(rest)
   if not ns.active or not ns.character then
     say("readiness is unavailable while the addon is disabled.")
@@ -64,7 +58,7 @@ local function ReadyCommand(rest)
   if sub == "set" then
     local ok, reason = ns.ReadinessService.SetManual(ns.Platform, rules, readiness, ruleId, status)
     if not ok then
-      say(READY_SET_ERRORS[reason])
+      say(ns.ViewModel.READY_SET_ERRORS[reason])
       return
     end
   end

@@ -311,6 +311,31 @@ function ViewModel.CandidateChoices(session)
   return list, order
 end
 
+-- What a player may set by hand on a readiness item (ReadinessService.SetManual accepts the same four).
+ViewModel.READY_STATUSES = { "met", "missing", "waived", "unknown" }
+
+ViewModel.READY_SET_ERRORS = {
+  unknown_rule = "unknown item.",
+  not_manual = "that item is measured automatically and cannot be set by hand.",
+  invalid_status = "status must be met, missing, waived or unknown.",
+}
+
+-- The items the player confirms by hand, with their current status: { ruleId, label, status } in rule order.
+-- `results` is what ReadinessService.Evaluate returned for the same `rules`.
+function ViewModel.ManualItems(rules, results)
+  local items = {}
+  for index, rule in ipairs(rules) do
+    if rule.check == "confirm" and results[index] then
+      items[#items + 1] = {
+        ruleId = rule.id,
+        label = ViewModel.Escape(rule.label),
+        status = results[index].status,
+      }
+    end
+  end
+  return items
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },

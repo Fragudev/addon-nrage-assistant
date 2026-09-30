@@ -114,14 +114,6 @@ local function DrawProfile(container)
   end
 end
 
-local function DrawReady(container)
-  local character = ns.character
-  local results, summary =
-    ns.ReadinessService.Evaluate(ns.Constants.DEFAULT_RULES, character.profile, character.readiness)
-  AddLines(container, EscapeAll(ns.ReadinessService.Describe(results, summary)))
-  AddLines(container, { "", "Confirm manual items with /nrage ready set <item> <met|missing|waived|unknown>." })
-end
-
 local function DrawRoster(container)
   AddLines(container, ns.ViewModel.Roster(ns.db.global.roster, ns.Platform.ServerTime()))
 end
@@ -201,6 +193,34 @@ local function AddButton(container, text, width, onClick)
   button:SetRelativeWidth(width)
   button:SetCallback("OnClick", onClick)
   container:AddChild(button)
+end
+
+-- Readiness tab: the checklist, with a dropdown for every item confirmed by hand.
+local function DrawReady(container)
+  local character = ns.character
+  local rules = ns.Constants.DEFAULT_RULES
+  local results, summary = ns.ReadinessService.Evaluate(rules, character.profile, character.readiness)
+
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
+  end
+  AddLines(container, EscapeAll(ns.ReadinessService.Describe(results, summary)))
+
+  local items = ns.ViewModel.ManualItems(rules, results)
+  if #items > 0 then
+    AddHeading(container, "Confirm by hand")
+  end
+  local statuses = {}
+  for _, status in ipairs(ns.ViewModel.READY_STATUSES) do
+    statuses[status] = status
+  end
+  for _, item in ipairs(items) do
+    AddDropdown(container, item.label, statuses, ns.ViewModel.READY_STATUSES, item.status, 0.5, function(key)
+      local ok, reason = ns.ReadinessService.SetManual(ns.Platform, rules, character.readiness, item.ruleId, key)
+      actionMessage = not ok and ns.ViewModel.READY_SET_ERRORS[reason] or nil
+      Redraw()
+    end)
+  end
 end
 
 local function DrawEventEditor(container, raid, event)

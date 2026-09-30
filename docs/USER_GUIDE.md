@@ -68,7 +68,8 @@ See [PRIVACY.md](PRIVACY.md).
 `/nrage ready` shows a checklist with the result of each item and a score that always shows its denominator,
 for example `1/3 met, 2 unknown`. An item nobody has confirmed is `unknown`, and unknown is never counted as met.
 
-Manual items are confirmed with `/nrage ready set <item> <met|missing|waived|unknown>`. A `waived` item leaves the
+Manual items are confirmed from a dropdown on the **Readiness** tab (the score updates at once), or with
+`/nrage ready set <item> <met|missing|waived|unknown>`. A `waived` item leaves the
 score but stays visible. The guild has not chosen the level, item level and profession thresholds yet, so today
 the list only holds the items that need no numbers.
 

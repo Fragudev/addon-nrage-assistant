@@ -459,3 +459,52 @@ describe("ViewModel loot tab helpers", function()
     assert.are.equal("Ann-Realm (Fury, main)", list["Ann-Realm"])
   end)
 end)
+
+describe("ViewModel readiness tab helpers", function()
+  local rules = {
+    { id = "role", label = "Role declared", check = "field" },
+    { id = "consumables", label = "Consumables |cffff0000ready", check = "confirm" },
+    { id = "enchants", label = "Enchants done", check = "confirm" },
+  }
+  local results = {
+    { status = "met" },
+    { status = "unknown" },
+    { status = "waived" },
+  }
+
+  it("lists only the items confirmed by hand, with their current status", function()
+    local items = ViewModel.ManualItems(rules, results)
+    assert.are.equal(2, #items)
+    assert.are.equal("consumables", items[1].ruleId)
+    assert.are.equal("unknown", items[1].status)
+    assert.are.equal("enchants", items[2].ruleId)
+    assert.are.equal("waived", items[2].status)
+  end)
+
+  it("escapes the labels", function()
+    assert.are.equal("Consumables ||cffff0000ready", ViewModel.ManualItems(rules, results)[1].label)
+  end)
+
+  it("offers exactly the statuses SetManual accepts", function()
+    local ns = {}
+    for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/ReadinessService" }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    end
+    local platform = {
+      ServerTime = function()
+        return 1
+      end,
+    }
+    local manual = { { id = "x", check = "confirm" } }
+    for _, status in ipairs(ViewModel.READY_STATUSES) do
+      assert.is_true(ns.ReadinessService.SetManual(platform, manual, {}, "x", status))
+    end
+    assert.are.equal("invalid_status", select(2, ns.ReadinessService.SetManual(platform, manual, {}, "x", "partial")))
+  end)
+
+  it("explains every way setting an item can fail", function()
+    for _, reason in ipairs({ "unknown_rule", "not_manual", "invalid_status" }) do
+      assert.is_string(ViewModel.READY_SET_ERRORS[reason])
+    end
+  end)
+end)
