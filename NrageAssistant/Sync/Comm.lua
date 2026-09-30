@@ -399,7 +399,10 @@ function Comm:Status()
   if self.lastSnapshot then
     local snapshot = self.lastSnapshot
     lines[#lines + 1] = ("last snapshot: %d of %d record(s) applied, from %s"):format(
-      snapshot.applied, snapshot.total, snapshot.from)
+      snapshot.applied,
+      snapshot.total,
+      snapshot.from
+    )
   end
 
   local names = {}

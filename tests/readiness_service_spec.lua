@@ -5,7 +5,11 @@ local function load_service()
   return ns.ReadinessService, ns.Constants
 end
 
-local platform = { ServerTime = function() return 1000 end }
+local platform = {
+  ServerTime = function()
+    return 1000
+  end,
+}
 
 describe("ReadinessService.EvaluateRule", function()
   local Service = load_service()

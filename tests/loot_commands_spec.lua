@@ -1,8 +1,15 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Core/Args", "Domain/PermissionService", "Domain/EventModel",
-    "Domain/EventService", "Domain/LootModel", "Domain/LootService", "Commands/LootCommands",
+    "Core/Constants",
+    "Core/Validate",
+    "Core/Args",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Domain/LootModel",
+    "Domain/LootService",
+    "Commands/LootCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -20,14 +27,29 @@ local function build(rank, options)
   options = options or {}
   local env = { events = {}, sent = {}, sendResult = { true }, counter = 0, locked = false }
   env.events["ev-1"] = {
-    eventId = "ev-1", title = "Molten Core", status = "open", startAt = 1000, rev = 1, updatedAt = 1,
-    attendance = {}, assignments = {}, loot = {},
+    eventId = "ev-1",
+    title = "Molten Core",
+    status = "open",
+    startAt = 1000,
+    rev = 1,
+    updatedAt = 1,
+    attendance = {},
+    assignments = {},
+    loot = {},
   }
   env.platform = {
-    GetOwnGuildRank = function() return rank end,
-    GetIdentityKey = function() return options.identity or "Boss-Realm" end,
-    ServerTime = function() return 1000 end,
-    IsChatMessagingLockedDown = function() return env.locked end,
+    GetOwnGuildRank = function()
+      return rank
+    end,
+    GetIdentityKey = function()
+      return options.identity or "Boss-Realm"
+    end,
+    ServerTime = function()
+      return 1000
+    end,
+    IsChatMessagingLockedDown = function()
+      return env.locked
+    end,
   }
   env.comm = {}
   function env.comm.NextId()
@@ -189,7 +211,13 @@ describe("LootCommands session flow", function()
   it("a member can apply but cannot vote, award or close", function()
     local member = build("member", { identity = "Ann-Realm" })
     member.events["ev-1"].loot["s1"] = {
-      sessionId = "s1", itemId = 1, itemName = "Item", status = "open", candidates = {}, votes = {}, rev = 1,
+      sessionId = "s1",
+      itemId = 1,
+      itemName = "Item",
+      status = "open",
+      candidates = {},
+      votes = {},
+      rev = 1,
     }
     assert.is_truthy(text(member.loot:Loot("1 1 apply Fury main")):find("you are a candidate", 1, true))
     for _, command in ipairs({ "1 1 vote Ann-Realm", "1 1 award Ann-Realm why", "1 1 close" }) do

@@ -8,8 +8,14 @@ local V = ns.Validate
 
 EventModel.EVENT_STATUSES = { planned = true, open = true, closed = true, cancelled = true }
 EventModel.ATTENDANCE_STATES = {
-  invited = true, confirmed = true, present = true, late = true,
-  leftEarly = true, absent = true, excused = true, unknown = true,
+  invited = true,
+  confirmed = true,
+  present = true,
+  late = true,
+  leftEarly = true,
+  absent = true,
+  excused = true,
+  unknown = true,
 }
 
 local MAX_TITLE = 60

@@ -7,9 +7,22 @@ local function load_addon()
 
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Domain/LootModel", "Domain/LootService", "Sync/Codec", "Sync/Protocol", "Sync/Inbox", "Sync/OutboundQueue",
-    "Sync/SyncRules", "Sync/EventSync", "Sync/LootSync", "Sync/Transfer", "Sync/Comm",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Domain/LootModel",
+    "Domain/LootService",
+    "Sync/Codec",
+    "Sync/Protocol",
+    "Sync/Inbox",
+    "Sync/OutboundQueue",
+    "Sync/SyncRules",
+    "Sync/EventSync",
+    "Sync/LootSync",
+    "Sync/Transfer",
+    "Sync/Comm",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -33,24 +46,36 @@ local function build_env()
   }
 
   env.platform = {
-    GetIdentityKey = function() return "Me-Realm" end,
-    NormalizeName = function(name) return name end,
-    ServerTime = function() return 5000 end,
+    GetIdentityKey = function()
+      return "Me-Realm"
+    end,
+    NormalizeName = function(name)
+      return name
+    end,
+    ServerTime = function()
+      return 5000
+    end,
   }
   env.codec = ns.Codec.New({
     serialize = _G.LibStub("LibSerialize"),
     deflate = _G.LibStub("LibDeflate"),
   })
   env.guard = {}
-  function env.guard.CanSend() return not env.locked end
+  function env.guard.CanSend()
+    return not env.locked
+  end
   env.queue = ns.OutboundQueue.New({
     guard = env.guard,
-    now = function() return env.clock end,
+    now = function()
+      return env.clock
+    end,
     send = function(text, target)
       env.sent[#env.sent + 1] = text
       env.targets[#env.sent] = target
     end,
-    jitter = function() return 0 end,
+    jitter = function()
+      return 0
+    end,
   })
   env.comm = ns.Comm.New({
     platform = env.platform,
@@ -60,12 +85,22 @@ local function build_env()
     roster = env.roster,
     events = env.events,
     tombstones = env.tombstones,
-    roleOf = function(sender) return env.roles[sender] end,
-    ownRole = function() return env.ownRole end,
+    roleOf = function(sender)
+      return env.roles[sender]
+    end,
+    ownRole = function()
+      return env.ownRole
+    end,
     version = "0.1.0",
-    now = function() return env.clock end,
-    schedule = function(delay, fn) env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn } end,
-    random = function(low) return low end,
+    now = function()
+      return env.clock
+    end,
+    schedule = function(delay, fn)
+      env.scheduled[#env.scheduled + 1] = { delay = delay, fn = fn }
+    end,
+    random = function(low)
+      return low
+    end,
   })
 
   function env.wire(messageType, payload, id)
@@ -76,7 +111,9 @@ end
 
 local function profile(rev, overrides)
   local p = { rev = rev, class = "WARRIOR", level = 60, ilvl = 200 }
-  for k, v in pairs(overrides or {}) do p[k] = v end
+  for k, v in pairs(overrides or {}) do
+    p[k] = v
+  end
   return p
 end
 
@@ -312,7 +349,11 @@ describe("Comm raid operations", function()
     assert.is_true(env.comm:SendEvent(event))
     assert.is_true(env.comm:SendAttendance("ev-1", "A-Realm", { state = "present", rev = 1, updatedAt = 10 }))
     assert.is_true(env.comm:SendAssignment("ev-1", {
-      assignmentId = "as-1", rev = 1, updatedAt = 10, encounter = "Ragnaros", characterKey = "A-Realm",
+      assignmentId = "as-1",
+      rev = 1,
+      updatedAt = 10,
+      encounter = "Ragnaros",
+      characterKey = "A-Realm",
     }))
     assert.are.equal(3, #env.sent)
 
@@ -351,13 +392,23 @@ describe("Comm snapshot for late joiners", function()
   -- Fills `env` with one full event plus a deletion, as a leader would have it.
   local function seed(env)
     env.events["ev-1"] = {
-      eventId = "ev-1", title = "Molten Core", status = "open", startAt = 5000, rev = 3, updatedAt = 100,
-      updatedBy = "Lead-Realm", source = "declared",
+      eventId = "ev-1",
+      title = "Molten Core",
+      status = "open",
+      startAt = 5000,
+      rev = 3,
+      updatedAt = 100,
+      updatedBy = "Lead-Realm",
+      source = "declared",
       attendance = { ["Ann-Realm"] = { state = "present", rev = 1, updatedAt = 100 } },
       assignments = {
         ["as-1"] = {
-          assignmentId = "as-1", encounter = "Ragnaros", characterKey = "Ann-Realm", group = 1,
-          rev = 1, updatedAt = 100,
+          assignmentId = "as-1",
+          encounter = "Ragnaros",
+          characterKey = "Ann-Realm",
+          group = 1,
+          rev = 1,
+          updatedAt = 100,
         },
       },
     }
@@ -430,7 +481,9 @@ describe("Comm snapshot for late joiners", function()
 
   it("stops serving new requesters when its tracker is full of recent ones", function()
     local max = ns.Constants.SYNC_SERVED_MAX_ENTRIES
-    for i = 1, max do leader.comm.served["R" .. i .. "-Realm"] = 0 end
+    for i = 1, max do
+      leader.comm.served["R" .. i .. "-Realm"] = 0
+    end
     leader.comm.servedCount = max
 
     local ok, reason = leader.comm:HandleSyncRequest("Late-Realm")
@@ -468,11 +521,19 @@ describe("Comm snapshot for late joiners", function()
     leader.comm.events, leader.comm.tombstones = leader.events, leader.tombstones
     for i = 1, 20 do
       local noise = {}
-      for j = 1, 60 do noise[j] = string.char(math.random(97, 122)) end
+      for j = 1, 60 do
+        noise[j] = string.char(math.random(97, 122))
+      end
       local id = "ev-" .. i
       leader.events[id] = {
-        eventId = id, title = table.concat(noise), status = "planned", startAt = 1000 * i, rev = 1,
-        updatedAt = 10, attendance = {}, assignments = {},
+        eventId = id,
+        title = table.concat(noise),
+        status = "planned",
+        startAt = 1000 * i,
+        rev = 1,
+        updatedAt = 10,
+        attendance = {},
+        assignments = {},
       }
     end
 
@@ -483,7 +544,9 @@ describe("Comm snapshot for late joiners", function()
     joiner.roles["Lead-Realm"] = "rl"
     assert.is_true(joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
     local received = 0
-    for _ in pairs(joiner.events) do received = received + 1 end
+    for _ in pairs(joiner.events) do
+      received = received + 1
+    end
     assert.is_true(received >= 1 and received < 20, received)
     assert.is_truthy(joiner.events["ev-20"])
   end)
@@ -579,7 +642,9 @@ describe("Comm whisper guards", function()
   end)
 
   it("does not let a snapshot bypass authority or the event limit", function()
-    for i = 1, ns.Constants.EVENT_MAX do env.events["e" .. i] = { rev = 1, updatedAt = 1 } end
+    for i = 1, ns.Constants.EVENT_MAX do
+      env.events["e" .. i] = { rev = 1, updatedAt = 1 }
+    end
     assert.is_true(env.comm:HandleMessage(snapshot_text("s-1", { event_item("new") }), "Lead-Realm", "WHISPER"))
     assert.is_nil(env.events["new"])
     assert.are.equal(0, env.comm.lastSnapshot.applied)
@@ -591,17 +656,30 @@ describe("Comm loot council", function()
 
   local function event()
     return {
-      eventId = "ev-1", title = "Molten Core", status = "open", rev = 1, updatedAt = 1,
-      attendance = {}, assignments = {}, loot = {},
+      eventId = "ev-1",
+      title = "Molten Core",
+      status = "open",
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = {},
     }
   end
 
   local function session_text(id, overrides)
     local payload = {
-      eventId = "ev-1", sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 19019, itemName = "Thunderfury",
+      eventId = "ev-1",
+      sessionId = "s-1",
+      rev = 1,
+      updatedAt = 10,
+      itemId = 19019,
+      itemName = "Thunderfury",
       status = "open",
     }
-    for k, v in pairs(overrides or {}) do payload[k] = v end
+    for k, v in pairs(overrides or {}) do
+      payload[k] = v
+    end
     return env.wire("LOOT_SESSION", payload, id)
   end
 
@@ -627,12 +705,22 @@ describe("Comm loot council", function()
 
   it("sends local loot changes as keyed messages that another client accepts", function()
     local session = {
-      sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 19019, itemName = "Thunderfury", status = "open",
+      sessionId = "s-1",
+      rev = 1,
+      updatedAt = 10,
+      itemId = 19019,
+      itemName = "Thunderfury",
+      status = "open",
     }
     local candidate = { spec = "Fury", need = "main", rev = 1, updatedAt = 11 }
     local vote = { target = "Ann-Realm", rev = 1, updatedAt = 12 }
     local awarded = {
-      sessionId = "s-1", rev = 2, updatedAt = 13, itemId = 19019, itemName = "Thunderfury", status = "closed",
+      sessionId = "s-1",
+      rev = 2,
+      updatedAt = 13,
+      itemId = 19019,
+      itemName = "Thunderfury",
+      status = "closed",
       award = { characterKey = "Ann-Realm", reason = "Highest need" },
     }
 
@@ -680,14 +768,25 @@ describe("Comm loot council", function()
     leader.events["ev-1"] = event()
     leader.events["ev-1"].loot = {
       ["s-1"] = {
-        sessionId = "s-1", itemId = 19019, itemName = "Thunderfury", status = "closed", rev = 2, updatedAt = 20,
+        sessionId = "s-1",
+        itemId = 19019,
+        itemName = "Thunderfury",
+        status = "closed",
+        rev = 2,
+        updatedAt = 20,
         candidates = { ["Ann-Realm"] = { spec = "Fury", need = "main", rev = 1, updatedAt = 10 } },
         votes = { ["Boss-Realm"] = { target = "Ann-Realm", rev = 1, updatedAt = 11 } },
         award = { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm", at = 20 },
       },
       ["s-2"] = {
-        sessionId = "s-2", itemId = 2, itemName = "Other", status = "open", rev = 1, updatedAt = 30,
-        candidates = {}, votes = {},
+        sessionId = "s-2",
+        itemId = 2,
+        itemName = "Other",
+        status = "open",
+        rev = 1,
+        updatedAt = 30,
+        candidates = {},
+        votes = {},
       },
     }
     assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
@@ -708,21 +807,37 @@ describe("Comm sender names", function()
   before_each(function()
     env = build_env()
     -- The client delivers "Name-Realm" where the guild roster writes "Name".
-    env.platform.NormalizeName = function(name) return (name:gsub("%-ClassicBetaPvP$", "")) end
-    env.platform.GetIdentityKey = function() return "Yonemon Gg" end
+    env.platform.NormalizeName = function(name)
+      return (name:gsub("%-ClassicBetaPvP$", ""))
+    end
+    env.platform.GetIdentityKey = function()
+      return "Yonemon Gg"
+    end
     env.roles["Black Coffee"] = "council"
   end)
 
   local function session_text()
     return env.wire("LOOT_SESSION", {
-      eventId = "ev-1", sessionId = "s-1", rev = 1, updatedAt = 10, itemId = 1, itemName = "X", status = "open",
+      eventId = "ev-1",
+      sessionId = "s-1",
+      rev = 1,
+      updatedAt = 10,
+      itemId = 1,
+      itemName = "X",
+      status = "open",
     }, "m-1")
   end
 
   it("reads a sender delivered with the realm as the roster's name, and applies their rank", function()
     env.events["ev-1"] = {
-      eventId = "ev-1", title = "Raid", status = "open", rev = 1, updatedAt = 1,
-      attendance = {}, assignments = {}, loot = {},
+      eventId = "ev-1",
+      title = "Raid",
+      status = "open",
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = {},
     }
     assert.is_true(env.comm:HandleMessage(session_text(), "Black Coffee-ClassicBetaPvP", "GUILD"))
     assert.are.equal("Black Coffee", env.events["ev-1"].loot["s-1"].updatedBy)

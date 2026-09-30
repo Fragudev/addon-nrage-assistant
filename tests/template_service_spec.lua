@@ -1,7 +1,11 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
     "Domain/TemplateService",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -15,7 +19,9 @@ local Service, EventService, Constants = ns.TemplateService, ns.EventService, ns
 local function build_ctx(role)
   local ctx = { events = {}, tombstones = {}, role = role or "rl", actor = "Leader-Realm", clock = 1000 }
   local counter = 0
-  ctx.now = function() return ctx.clock end
+  ctx.now = function()
+    return ctx.clock
+  end
   ctx.newId = function()
     counter = counter + 1
     return "id" .. counter
@@ -27,11 +33,17 @@ end
 local function event_with_assignments(ctx, title)
   local event = assert(EventService.Create(ctx, { title = title or "Raid" }))
   assert(EventService.AddAssignment(ctx, event.eventId, {
-    encounter = "Ragnaros", characterKey = "Zed-Realm", group = 2, task = "Healer", note = "watch fire",
+    encounter = "Ragnaros",
+    characterKey = "Zed-Realm",
+    group = 2,
+    task = "Healer",
+    note = "watch fire",
   }))
   assert(EventService.AddAssignment(ctx, event.eventId, { encounter = "Garr", characterKey = "Bob-Realm" }))
   assert(EventService.AddAssignment(ctx, event.eventId, {
-    encounter = "Ragnaros", characterKey = "Ann-Realm", task = "Main tank",
+    encounter = "Ragnaros",
+    characterKey = "Ann-Realm",
+    task = "Main tank",
   }))
   return event
 end
@@ -51,7 +63,8 @@ describe("TemplateService.Save", function()
     assert.are.equal("Ann-Realm", template.slots[2].characterKey)
     assert.are.same(
       { encounter = "Ragnaros", characterKey = "Zed-Realm", group = 2, task = "Healer", note = "watch fire" },
-      template.slots[3])
+      template.slots[3]
+    )
   end)
 
   it("replaces a template with the same name", function()
@@ -77,7 +90,9 @@ describe("TemplateService.Save", function()
     assert.are.equal("empty", select(2, Service.Save(templates, empty, "Nothing", 1, "A")))
     assert.is_nil(next(templates))
 
-    for i = 1, Constants.TEMPLATES_MAX do templates["T" .. i] = { slots = {} } end
+    for i = 1, Constants.TEMPLATES_MAX do
+      templates["T" .. i] = { slots = {} }
+    end
     assert.are.equal("limit", select(2, Service.Save(templates, event, "One more", 1, "A")))
     assert.is_truthy(Service.Save(templates, event, "T1", 1, "A"))
   end)
@@ -124,7 +139,9 @@ describe("TemplateService.Apply", function()
     Service.Apply(ctx, templates, "Boss", target.eventId)
     local found
     for _, assignment in pairs(target.assignments) do
-      if assignment.characterKey == "Zed-Realm" then found = assignment end
+      if assignment.characterKey == "Zed-Realm" then
+        found = assignment
+      end
     end
     assert.are.equal("Ragnaros", found.encounter)
     assert.are.equal(2, found.group)
@@ -166,7 +183,9 @@ describe("TemplateService.Apply", function()
     Service.Apply(ctx, templates, "Boss", target.eventId)
     assert.are.equal(3, #templates.Boss.slots)
     local count = 0
-    for _ in pairs(source.assignments) do count = count + 1 end
+    for _ in pairs(source.assignments) do
+      count = count + 1
+    end
     assert.are.equal(3, count)
   end)
 end)
@@ -174,7 +193,9 @@ end)
 describe("TemplateService.Describe", function()
   it("summarises what was added and why the rest was skipped", function()
     assert.are.equal("added 2 assignment(s)", Service.Describe({ {}, {} }, {}))
-    assert.are.equal("added 1 assignment(s) (skipped - duplicate: 2, limit: 1)",
-      Service.Describe({ {} }, { limit = 1, duplicate = 2 }))
+    assert.are.equal(
+      "added 1 assignment(s) (skipped - duplicate: 2, limit: 1)",
+      Service.Describe({ {} }, { limit = 1, duplicate = 2 })
+    )
   end)
 end)

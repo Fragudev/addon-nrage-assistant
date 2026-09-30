@@ -1,7 +1,11 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/EventModel", "Sync/Protocol", "Domain/PublishService",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/EventModel",
+    "Sync/Protocol",
+    "Domain/PublishService",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -38,7 +42,11 @@ local function character(consent)
   return { profile = profile(), consent = consent or {}, publish = {} }
 end
 
-local platform = { ServerTime = function() return 1000000 end }
+local platform = {
+  ServerTime = function()
+    return 1000000
+  end,
+}
 
 describe("PublishService.SetConsent", function()
   it("turns a consent key on and off", function()
@@ -170,7 +178,9 @@ describe("PublishService.Publish", function()
 
   it("does not consume a revision when the send fails", function()
     local comm, char = fake_comm(), character({ profile = true })
-    function comm.Send() return false, "full" end
+    function comm.Send()
+      return false, "full"
+    end
     local ok, reason = Service.Publish(comm, char, platform)
     assert.is_false(ok)
     assert.are.equal("full", reason)

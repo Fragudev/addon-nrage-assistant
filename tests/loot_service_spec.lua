@@ -1,7 +1,11 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/LootModel", "Domain/LootService",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/LootModel",
+    "Domain/LootService",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -15,7 +19,12 @@ local function build_ctx(role, actor)
   local ctx = {
     events = {
       ["ev-1"] = {
-        eventId = "ev-1", title = "Molten Core", status = "open", attendance = {}, assignments = {}, loot = {},
+        eventId = "ev-1",
+        title = "Molten Core",
+        status = "open",
+        attendance = {},
+        assignments = {},
+        loot = {},
       },
     },
     role = role or "council",
@@ -24,19 +33,25 @@ local function build_ctx(role, actor)
     locked = false,
   }
   local counter = 0
-  ctx.now = function() return ctx.clock end
+  ctx.now = function()
+    return ctx.clock
+  end
   ctx.newId = function()
     counter = counter + 1
     return "s" .. counter
   end
-  ctx.isLockedDown = function() return ctx.locked end
+  ctx.isLockedDown = function()
+    return ctx.locked
+  end
   return ctx
 end
 
 -- Another person acting on the same data.
 local function as(ctx, role, actor)
   local other = {}
-  for key, value in pairs(ctx) do other[key] = value end
+  for key, value in pairs(ctx) do
+    other[key] = value
+  end
   other.role, other.actor = role, actor
   return other
 end
@@ -67,9 +82,17 @@ describe("LootModel", function()
     assert.are.equal("Better weapon", declared.upgrade)
     assert.are.equal("invalid:spec", select(2, Model.ValidateCandidate({ need = "main" })))
     assert.are.equal("invalid:need", select(2, Model.ValidateCandidate({ spec = "Fury", need = "greed" })))
-    assert.are.equal("invalid:upgrade", select(2, Model.ValidateCandidate({
-      spec = "Fury", need = "main", upgrade = "|Hitem:1|h",
-    })))
+    assert.are.equal(
+      "invalid:upgrade",
+      select(
+        2,
+        Model.ValidateCandidate({
+          spec = "Fury",
+          need = "main",
+          upgrade = "|Hitem:1|h",
+        })
+      )
+    )
   end)
 
   it("accepts only plain text as a reason", function()
@@ -149,7 +172,9 @@ describe("LootService.OpenSession", function()
 
   it("stops at the session limit", function()
     local ctx = build_ctx()
-    for i = 1, Constants.LOOT_SESSIONS_MAX do ctx.events["ev-1"].loot["x" .. i] = { status = "closed" } end
+    for i = 1, Constants.LOOT_SESSIONS_MAX do
+      ctx.events["ev-1"].loot["x" .. i] = { status = "closed" }
+    end
     assert.are.equal("limit", select(2, Service.OpenSession(ctx, "ev-1", ITEM)))
   end)
 
@@ -171,7 +196,10 @@ describe("LootService.Register", function()
   it("registers the actor, and only the actor, as a candidate", function()
     local member = as(council, "member", "Ann-Realm")
     local candidate = assert(Service.Register(member, "ev-1", session.sessionId, {
-      spec = "Fury", need = "main", upgrade = "Replaces my 60 axe", extra = "ignored",
+      spec = "Fury",
+      need = "main",
+      upgrade = "Replaces my 60 axe",
+      extra = "ignored",
     }))
     assert.are.equal("Fury", candidate.spec)
     assert.are.equal("main", candidate.need)
@@ -193,9 +221,16 @@ describe("LootService.Register", function()
   it("rejects invalid declarations and unusable sessions", function()
     local member = as(council, "member", "Ann-Realm")
     assert.are.equal("invalid:spec", select(2, Service.Register(member, "ev-1", session.sessionId, { need = "main" })))
-    assert.are.equal("invalid:need", select(2, Service.Register(member, "ev-1", session.sessionId, {
-      spec = "Fury", need = "greed",
-    })))
+    assert.are.equal(
+      "invalid:need",
+      select(
+        2,
+        Service.Register(member, "ev-1", session.sessionId, {
+          spec = "Fury",
+          need = "greed",
+        })
+      )
+    )
     assert.are.equal("not_found", select(2, Service.Register(member, "ev-1", "nope", CANDIDATE)))
     assert.are.equal("not_found", select(2, Service.Register(member, "nope", session.sessionId, CANDIDATE)))
     assert.is_nil(next(session.candidates))
@@ -249,7 +284,9 @@ describe("LootService.Vote", function()
   end)
 
   it("stops at the vote limit but still lets a voter change theirs", function()
-    for i = 1, Constants.LOOT_VOTES_MAX do session.votes["V" .. i .. "-Realm"] = { target = "Ann-Realm", rev = 1 } end
+    for i = 1, Constants.LOOT_VOTES_MAX do
+      session.votes["V" .. i .. "-Realm"] = { target = "Ann-Realm", rev = 1 }
+    end
     assert.are.equal("limit", select(2, Service.Vote(council, "ev-1", session.sessionId, "Ann-Realm")))
     local existing = as(council, "council", "V1-Realm")
     assert.is_truthy(Service.Vote(existing, "ev-1", session.sessionId, "Bob-Realm"))
@@ -271,7 +308,8 @@ describe("LootService.Award and Close", function()
     assert.are.equal("closed", awarded.status)
     assert.are.same(
       { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm", at = 2000 },
-      awarded.award)
+      awarded.award
+    )
     assert.is_true(awarded.rev > 1)
   end)
 
@@ -301,12 +339,17 @@ end)
 describe("LootService.Tally", function()
   local function session_with(votes, status)
     local session = { status = status or "open", votes = {} }
-    for voter, target in pairs(votes) do session.votes[voter] = { target = target } end
+    for voter, target in pairs(votes) do
+      session.votes[voter] = { target = target }
+    end
     return session
   end
 
   local votes = {
-    ["C1-Realm"] = "Bob-Realm", ["C2-Realm"] = "Ann-Realm", ["C3-Realm"] = "Bob-Realm", ["C4-Realm"] = "Cid-Realm",
+    ["C1-Realm"] = "Bob-Realm",
+    ["C2-Realm"] = "Ann-Realm",
+    ["C3-Realm"] = "Bob-Realm",
+    ["C4-Realm"] = "Cid-Realm",
   }
 
   it("counts votes, most first, ties by name, with voters while the policy is open", function()

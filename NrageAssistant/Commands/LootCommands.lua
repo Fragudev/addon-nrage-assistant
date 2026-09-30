@@ -35,7 +35,9 @@ function LootCommands:Context()
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
     now = platform.ServerTime,
-    newId = function() return self.comm:NextId() end,
+    newId = function()
+      return self.comm:NextId()
+    end,
     isLockedDown = platform.IsChatMessagingLockedDown,
   }
 end
@@ -149,7 +151,10 @@ local function detail(session)
   lines[#lines + 1] = "  " .. voteSummary(session)
   if session.award then
     lines[#lines + 1] = ("  awarded to %s by %s: %s"):format(
-      session.award.characterKey, session.award.awardedBy, session.award.reason)
+      session.award.characterKey,
+      session.award.awardedBy,
+      session.award.reason
+    )
   end
   lines[#lines + 1] = "  Addon messages are not private: anyone with the addon can read votes."
   return lines
@@ -185,7 +190,9 @@ function LootCommands:Session(event, session, verb, args)
       return { "usage: /nrage loot <event> <n> apply <spec> <main|off|other> [upgrade]" }
     end
     local candidate, reason = ns.LootService.Register(ctx, eventId, sessionId, {
-      spec = spec, need = need, upgrade = upgrade ~= "" and upgrade or nil,
+      spec = spec,
+      need = need,
+      upgrade = upgrade ~= "" and upgrade or nil,
     })
     if not candidate then
       return { fail(ctx, reason) }
@@ -251,7 +258,11 @@ function LootCommands:Acta(token)
   for _, entry in ipairs(acta) do
     if entry.awardedTo then
       lines[#lines + 1] = ("  %s -> %s (by %s): %s"):format(
-        entry.itemName, entry.awardedTo, entry.awardedBy, entry.reason)
+        entry.itemName,
+        entry.awardedTo,
+        entry.awardedBy,
+        entry.reason
+      )
     else
       lines[#lines + 1] = ("  %s -> not awarded"):format(entry.itemName)
     end

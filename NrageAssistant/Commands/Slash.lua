@@ -135,8 +135,10 @@ local function SyncCommand(rest)
   end
   if rest == "request" then
     local ok, reason = ns.comm:RequestSync()
-    say(ok and "asked the guild for the latest raid data; leaders answer by whisper."
-      or ("not requested: " .. (SYNC_REQUEST_ERRORS[reason] or tostring(reason))))
+    say(
+      ok and "asked the guild for the latest raid data; leaders answer by whisper."
+        or ("not requested: " .. (SYNC_REQUEST_ERRORS[reason] or tostring(reason)))
+    )
     return
   end
   for _, line in ipairs(ns.comm:Status()) do
@@ -170,8 +172,12 @@ local function PrintRoster()
   local identityKey = ns.Platform.GetIdentityKey()
   say(("guild roster: %d members, ready=%s"):format(roster:Count(), tostring(roster:IsReady())))
   print(("  own key '%s': %s"):format(identityKey, roster:Lookup(identityKey) and "found" or "NOT found"))
-  print(("  UnitName gives '%s'; found in the roster by GUID as '%s'"):format(
-    tostring(ns.Platform.GetPlayerName()), tostring(roster.ownName)))
+  print(
+    ("  UnitName gives '%s'; found in the roster by GUID as '%s'"):format(
+      tostring(ns.Platform.GetPlayerName()),
+      tostring(roster.ownName)
+    )
+  )
   local shown = 0
   for name, entry in pairs(roster.entries) do
     print(("  e.g. '%s' rank '%s'"):format(name, tostring(entry.rankName)))
@@ -196,8 +202,13 @@ local function PrintSenders()
   say(("last %d sender(s), raw -> read as -> roster:"):format(#recent))
   for _, entry in ipairs(recent) do
     local known = ns.guildRoster and ns.guildRoster:Lookup(entry.name)
-    print(("  '%s' -> '%s' -> %s"):format(entry.raw, entry.name,
-      known and ("found, rank '" .. tostring(known.rankName) .. "'") or "NOT found"))
+    print(
+      ("  '%s' -> '%s' -> %s"):format(
+        entry.raw,
+        entry.name,
+        known and ("found, rank '" .. tostring(known.rankName) .. "'") or "NOT found"
+      )
+    )
   end
 end
 

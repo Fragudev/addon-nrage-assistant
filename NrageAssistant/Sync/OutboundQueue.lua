@@ -14,7 +14,9 @@ function OutboundQueue.New(options)
     guard = options.guard,
     send = options.send,
     now = options.now,
-    jitter = options.jitter or function(maxSeconds) return math.random() * maxSeconds end,
+    jitter = options.jitter or function(maxSeconds)
+      return math.random() * maxSeconds
+    end,
     maxItems = options.maxItems or constants.QUEUE_MAX_ITEMS,
     ttl = options.ttl or constants.QUEUE_TTL_SECONDS,
     maxJitter = options.maxJitter or constants.QUEUE_MAX_JITTER_SECONDS,

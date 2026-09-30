@@ -7,17 +7,31 @@ end
 
 local function fake_platform(overrides)
   local p = {
-    ServerTime = function() return 1000 end,
-    GetIdentityKey = function() return "Nrager-ClassicBetaPvP" end,
-    GetGUID = function() return "Player-1-ABC" end,
-    GetClass = function() return "WARRIOR" end,
-    GetLevel = function() return 60 end,
-    GetAverageItemLevel = function() return 200 end,
+    ServerTime = function()
+      return 1000
+    end,
+    GetIdentityKey = function()
+      return "Nrager-ClassicBetaPvP"
+    end,
+    GetGUID = function()
+      return "Player-1-ABC"
+    end,
+    GetClass = function()
+      return "WARRIOR"
+    end,
+    GetLevel = function()
+      return 60
+    end,
+    GetAverageItemLevel = function()
+      return 200
+    end,
     GetProfessions = function()
       return { { name = "Mining", skill = 300, max = 300 } }
     end,
   }
-  for k, v in pairs(overrides or {}) do p[k] = v end
+  for k, v in pairs(overrides or {}) do
+    p[k] = v
+  end
   return p
 end
 
@@ -37,10 +51,17 @@ describe("ProfileService.Refresh", function()
 
   it("keeps a value unknown when the API cannot provide it", function()
     local profile = {}
-    ProfileService.Refresh(fake_platform({
-      GetAverageItemLevel = function() return nil end,
-      GetProfessions = function() return {} end,
-    }), profile)
+    ProfileService.Refresh(
+      fake_platform({
+        GetAverageItemLevel = function()
+          return nil
+        end,
+        GetProfessions = function()
+          return {}
+        end,
+      }),
+      profile
+    )
     assert.is_nil(profile.ilvl)
     assert.is_nil(profile.provenance.ilvl)
     assert.is_nil(profile.professions)
@@ -50,7 +71,14 @@ describe("ProfileService.Refresh", function()
   it("drops a stale observed value once the API stops providing it", function()
     local profile = {}
     ProfileService.Refresh(fake_platform(), profile)
-    ProfileService.Refresh(fake_platform({ GetAverageItemLevel = function() return nil end }), profile)
+    ProfileService.Refresh(
+      fake_platform({
+        GetAverageItemLevel = function()
+          return nil
+        end,
+      }),
+      profile
+    )
     assert.is_nil(profile.ilvl)
     assert.is_nil(profile.provenance.ilvl)
   end)

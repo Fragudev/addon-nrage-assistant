@@ -1,8 +1,16 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/LootModel",
-    "Domain/LootService", "Sync/Protocol", "Sync/SyncRules", "Sync/EventSync", "Sync/LootSync",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/LootModel",
+    "Domain/LootService",
+    "Sync/Protocol",
+    "Sync/SyncRules",
+    "Sync/EventSync",
+    "Sync/LootSync",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -10,8 +18,8 @@ local function load_modules()
 end
 
 local ns = load_modules()
-local EventSync, LootSync, LootService, Protocol, Constants = ns.EventSync, ns.LootSync, ns.LootService, ns.Protocol,
-  ns.Constants
+local EventSync, LootSync, LootService, Protocol, Constants =
+  ns.EventSync, ns.LootSync, ns.LootService, ns.Protocol, ns.Constants
 
 local ITEM = { itemId = 19019, itemName = "Thunderfury" }
 local CANDIDATE = { spec = "Fury", need = "main" }
@@ -21,22 +29,40 @@ local function client(name)
   local c = { name = name, clock = 10000, counter = 0 }
   c.events = {
     ["ev-1"] = {
-      eventId = "ev-1", title = "Raid", status = "open", rev = 1, updatedAt = 1,
-      attendance = {}, assignments = {}, loot = {},
+      eventId = "ev-1",
+      title = "Raid",
+      status = "open",
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = {},
     },
   }
   function c.apply_ctx()
-    return { events = c.events, tombstones = {}, now = function() return c.clock end }
+    return {
+      events = c.events,
+      tombstones = {},
+      now = function()
+        return c.clock
+      end,
+    }
   end
   function c.local_ctx(role, actor)
     return {
-      events = c.events, role = role, actor = actor or name,
-      now = function() return c.clock end,
+      events = c.events,
+      role = role,
+      actor = actor or name,
+      now = function()
+        return c.clock
+      end,
       newId = function()
         c.counter = c.counter + 1
         return name .. "-" .. c.counter
       end,
-      isLockedDown = function() return false end,
+      isLockedDown = function()
+        return false
+      end,
     }
   end
   return c
@@ -126,7 +152,13 @@ describe("LootSync LOOT_SESSION", function()
   it("clamps a timestamp dated far in the future", function()
     local receiver = client("Receiver")
     local payload = {
-      eventId = "ev-1", sessionId = "s-1", rev = 1, updatedAt = 4000000000, itemId = 1, itemName = "X", status = "open",
+      eventId = "ev-1",
+      sessionId = "s-1",
+      rev = 1,
+      updatedAt = 4000000000,
+      itemId = 1,
+      itemName = "X",
+      status = "open",
     }
     assert.is_true(deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "council"))
     assert.are.equal(receiver.clock + 300, session_of(receiver, "s-1").updatedAt)
@@ -143,7 +175,9 @@ describe("LootSync LOOT_CANDIDATE", function()
 
   it("registers the sender, and only the sender, whatever the payload says", function()
     local candidate = assert(LootService.Register(origin.local_ctx("member", "Ann-Realm"), "ev-1", session.sessionId, {
-      spec = "Fury", need = "main", upgrade = "Replaces my axe",
+      spec = "Fury",
+      need = "main",
+      upgrade = "Replaces my axe",
     }))
     local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
     payload.characterKey, payload.candidate = "Fake-Realm", "Fake-Realm"
@@ -188,12 +222,20 @@ describe("LootSync LOOT_CANDIDATE", function()
 
   it("keeps the newest declaration of a candidate", function()
     local ctx = origin.local_ctx("member", "Ann-Realm")
-    local first = LootSync.CandidatePayload("ev-1", session.sessionId,
-      LootService.Register(ctx, "ev-1", session.sessionId, CANDIDATE))
+    local first = LootSync.CandidatePayload(
+      "ev-1",
+      session.sessionId,
+      LootService.Register(ctx, "ev-1", session.sessionId, CANDIDATE)
+    )
     local first_copy = {}
-    for k, v in pairs(first) do first_copy[k] = v end
-    local second = LootSync.CandidatePayload("ev-1", session.sessionId,
-      LootService.Register(ctx, "ev-1", session.sessionId, { spec = "Arms", need = "off" }))
+    for k, v in pairs(first) do
+      first_copy[k] = v
+    end
+    local second = LootSync.CandidatePayload(
+      "ev-1",
+      session.sessionId,
+      LootService.Register(ctx, "ev-1", session.sessionId, { spec = "Arms", need = "off" })
+    )
 
     assert.is_true(deliver(receiver, "LOOT_CANDIDATE", second, "Ann-Realm", "member"))
     assert.are.equal("stale", select(2, deliver(receiver, "LOOT_CANDIDATE", first_copy, "Ann-Realm", "member")))
@@ -266,7 +308,9 @@ describe("LootSync LOOT_VOTE", function()
   it("keeps a voter's newest choice", function()
     local first = vote("Boss-Realm", "Ann-Realm")
     local first_copy = {}
-    for k, v in pairs(first) do first_copy[k] = v end
+    for k, v in pairs(first) do
+      first_copy[k] = v
+    end
     local second = vote("Boss-Realm", "Bob-Realm")
 
     assert.is_true(deliver(receiver, "LOOT_VOTE", second, "Boss-Realm", "council"))
@@ -276,7 +320,9 @@ describe("LootSync LOOT_VOTE", function()
 
   it("stops at the vote limit but still lets a voter change theirs", function()
     local votes = session_of(receiver, session.sessionId).votes
-    for i = 1, Constants.LOOT_VOTES_MAX do votes["V" .. i .. "-Realm"] = { target = "Ann-Realm", rev = 1 } end
+    for i = 1, Constants.LOOT_VOTES_MAX do
+      votes["V" .. i .. "-Realm"] = { target = "Ann-Realm", rev = 1 }
+    end
 
     local payload = vote("Boss-Realm", "Ann-Realm")
     assert.are.equal("limit", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council")))
@@ -344,7 +390,12 @@ describe("LootSync LOOT_AWARD", function()
     local late = LootService.Register(origin.local_ctx("member", "Late-Realm"), "ev-1", "x", CANDIDATE)
     assert.is_nil(late)
     local candidate = {
-      eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 10, spec = "Fury", need = "main",
+      eventId = "ev-1",
+      sessionId = session.sessionId,
+      rev = 1,
+      updatedAt = 10,
+      spec = "Fury",
+      need = "main",
     }
     assert.are.equal("closed", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Late-Realm", "member")))
   end)
@@ -363,14 +414,23 @@ describe("LootSync LOOT_AWARD", function()
     local a, b = client("A"), client("B")
     for _, c in ipairs({ a, b }) do
       c.events["ev-1"].loot[session.sessionId] = {
-        sessionId = session.sessionId, itemId = 19019, itemName = "Thunderfury", status = "open",
-        candidates = {}, votes = {}, rev = 1, updatedAt = 10, updatedBy = "Boss-Realm",
+        sessionId = session.sessionId,
+        itemId = 19019,
+        itemName = "Thunderfury",
+        status = "open",
+        candidates = {},
+        votes = {},
+        rev = 1,
+        updatedAt = 10,
+        updatedBy = "Boss-Realm",
       }
     end
     local base = { eventId = "ev-1", sessionId = session.sessionId, rev = 2, itemId = 19019, itemName = "Thunderfury" }
     local function payload(updatedAt, target, reason)
       local p = {}
-      for k, v in pairs(base) do p[k] = v end
+      for k, v in pairs(base) do
+        p[k] = v
+      end
       p.updatedAt, p.characterKey, p.reason = updatedAt, target, reason
       return p
     end
@@ -390,7 +450,9 @@ describe("LootSync LOOT_AWARD", function()
 
   it("stops at the session limit", function()
     local fresh = client("Fresh")
-    for i = 1, Constants.LOOT_SESSIONS_MAX do fresh.events["ev-1"].loot["x" .. i] = { status = "closed", rev = 1 } end
+    for i = 1, Constants.LOOT_SESSIONS_MAX do
+      fresh.events["ev-1"].loot["x" .. i] = { status = "closed", rev = 1 }
+    end
     local ok, reason = deliver(fresh, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "council")
     assert.is_false(ok)
     assert.are.equal("limit", reason)
@@ -403,7 +465,9 @@ describe("LootSync payloads and items", function()
     local council = origin.local_ctx("council", "Boss-Realm")
     local session = assert(LootService.OpenSession(council, "ev-1", ITEM))
     local candidate = assert(LootService.Register(origin.local_ctx("member", "Ann-Realm"), "ev-1", session.sessionId, {
-      spec = "Fury", need = "main", upgrade = "Better weapon",
+      spec = "Fury",
+      need = "main",
+      upgrade = "Better weapon",
     }))
     local vote = assert(LootService.Vote(council, "ev-1", session.sessionId, "Ann-Realm"))
     local awarded = assert(LootService.Award(council, "ev-1", session.sessionId, "Ann-Realm", "Highest need"))

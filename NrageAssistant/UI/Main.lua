@@ -116,8 +116,8 @@ end
 
 local function DrawReady(container)
   local character = ns.character
-  local results, summary = ns.ReadinessService.Evaluate(ns.Constants.DEFAULT_RULES, character.profile,
-    character.readiness)
+  local results, summary =
+    ns.ReadinessService.Evaluate(ns.Constants.DEFAULT_RULES, character.profile, character.readiness)
   AddLines(container, EscapeAll(ns.ReadinessService.Describe(results, summary)))
   AddLines(container, { "", "Confirm manual items with /nrage ready set <item> <met|missing|waived|unknown>." })
 end

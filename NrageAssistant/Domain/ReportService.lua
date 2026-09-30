@@ -142,7 +142,11 @@ function ReportService.DescribeLoot(rows, totals)
   end
   local lines = {
     ("Loot: %d session(s), %d awarded, %d closed without an award, %d still open."):format(
-      totals.sessions, totals.awarded, totals.notAwarded, totals.open),
+      totals.sessions,
+      totals.awarded,
+      totals.notAwarded,
+      totals.open
+    ),
   }
   for _, row in ipairs(rows) do
     lines[#lines + 1] = ("  %s: %d - %s"):format(row.characterKey, row.awards, table.concat(row.items, ", "))

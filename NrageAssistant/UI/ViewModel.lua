@@ -82,7 +82,11 @@ function ViewModel.Raid(events, formatDate)
   for index, event in ipairs(list) do
     local when = event.startAt and (" - " .. formatDate(event.startAt)) or ""
     lines[#lines + 1] = ("%d. %s [%s]%s"):format(
-      index, ViewModel.Escape(event.title), ViewModel.Escape(event.status), when)
+      index,
+      ViewModel.Escape(event.title),
+      ViewModel.Escape(event.status),
+      when
+    )
 
     local counts, states = {}, {}
     for _, record in pairs(event.attendance) do
@@ -116,7 +120,10 @@ function ViewModel.Raid(events, formatDate)
     for _, assignment in ipairs(assignments) do
       local task = assignment.task and (" - " .. ViewModel.Escape(assignment.task)) or ""
       lines[#lines + 1] = ("    %s: %s%s"):format(
-        ViewModel.Escape(assignment.encounter), ViewModel.Escape(assignment.characterKey), task)
+        ViewModel.Escape(assignment.encounter),
+        ViewModel.Escape(assignment.characterKey),
+        task
+      )
     end
     lines[#lines + 1] = ""
   end
@@ -135,17 +142,26 @@ function ViewModel.Loot(events)
         local outcome
         if session.award then
           outcome = ("awarded to %s - %s"):format(
-            ViewModel.Escape(session.award.characterKey), ViewModel.Escape(session.award.reason))
+            ViewModel.Escape(session.award.characterKey),
+            ViewModel.Escape(session.award.reason)
+          )
         elseif session.status == "closed" then
           outcome = "closed, not awarded"
         else
           local candidates, votes = 0, 0
-          for _ in pairs(session.candidates) do candidates = candidates + 1 end
-          for _ in pairs(session.votes) do votes = votes + 1 end
+          for _ in pairs(session.candidates) do
+            candidates = candidates + 1
+          end
+          for _ in pairs(session.votes) do
+            votes = votes + 1
+          end
           outcome = ("%d candidate(s), %d vote(s) cast"):format(candidates, votes)
         end
         lines[#lines + 1] = ("  %s [%s] - %s"):format(
-          ViewModel.Escape(session.itemName), ViewModel.Escape(session.status), outcome)
+          ViewModel.Escape(session.itemName),
+          ViewModel.Escape(session.status),
+          outcome
+        )
       end
       lines[#lines + 1] = ""
     end

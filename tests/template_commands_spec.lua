@@ -1,8 +1,13 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel", "Domain/EventService",
-    "Domain/TemplateService", "Commands/TemplateCommands",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Domain/TemplateService",
+    "Commands/TemplateCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -18,9 +23,15 @@ end
 local function build(rank)
   local env = { events = {}, templates = {}, sent = {}, sendResult = true, counter = 0 }
   env.platform = {
-    GetOwnGuildRank = function() return rank end,
-    GetIdentityKey = function() return "Leader-Realm" end,
-    ServerTime = function() return 1000 end,
+    GetOwnGuildRank = function()
+      return rank
+    end,
+    GetIdentityKey = function()
+      return "Leader-Realm"
+    end,
+    ServerTime = function()
+      return 1000
+    end,
   }
   env.comm = {}
   function env.comm.NextId()
@@ -32,7 +43,10 @@ local function build(rank)
     return env.sendResult
   end
   env.commands = ns.TemplateCommands.New({
-    events = env.events, templates = env.templates, platform = env.platform, comm = env.comm,
+    events = env.events,
+    templates = env.templates,
+    platform = env.platform,
+    comm = env.comm,
   })
   return env
 end
@@ -41,8 +55,15 @@ end
 local function with_events(env)
   local function add(id, title, startAt, assignments)
     env.events[id] = {
-      eventId = id, title = title, status = "open", startAt = startAt, rev = 1, updatedAt = 1,
-      attendance = {}, assignments = assignments or {}, loot = {},
+      eventId = id,
+      title = title,
+      status = "open",
+      startAt = startAt,
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = assignments or {},
+      loot = {},
     }
   end
   add("ev-1", "This week", 1000, {

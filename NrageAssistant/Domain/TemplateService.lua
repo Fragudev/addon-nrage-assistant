@@ -102,8 +102,11 @@ function TemplateService.Apply(ctx, templates, name, eventId)
       skip("duplicate")
     else
       local assignment, reason = ns.EventService.AddAssignment(ctx, eventId, {
-        encounter = slot.encounter, characterKey = slot.characterKey,
-        group = slot.group, task = slot.task, note = slot.note,
+        encounter = slot.encounter,
+        characterKey = slot.characterKey,
+        group = slot.group,
+        task = slot.task,
+        note = slot.note,
       })
       if assignment then
         created[#created + 1] = assignment

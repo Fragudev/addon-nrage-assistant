@@ -1,8 +1,14 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel",
-    "Domain/EventService", "Sync/Protocol", "Sync/SyncRules", "Sync/EventSync",
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/EventModel",
+    "Domain/EventService",
+    "Sync/Protocol",
+    "Sync/SyncRules",
+    "Sync/EventSync",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -16,12 +22,23 @@ local EventSync, EventService, Protocol, Constants = ns.EventSync, ns.EventServi
 local function client(name)
   local c = { name = name, events = {}, tombstones = {}, clock = 10000, counter = 0 }
   function c.apply_ctx()
-    return { events = c.events, tombstones = c.tombstones, now = function() return c.clock end }
+    return {
+      events = c.events,
+      tombstones = c.tombstones,
+      now = function()
+        return c.clock
+      end,
+    }
   end
   function c.local_ctx(role)
     return {
-      events = c.events, tombstones = c.tombstones, role = role or "rl", actor = name,
-      now = function() return c.clock end,
+      events = c.events,
+      tombstones = c.tombstones,
+      role = role or "rl",
+      actor = name,
+      now = function()
+        return c.clock
+      end,
       newId = function()
         c.counter = c.counter + 1
         return name .. "-" .. c.counter
@@ -143,7 +160,9 @@ describe("EventSync EVENT_UPSERT", function()
 
   it("stops at the event limit", function()
     local member = client("Member-Realm")
-    for i = 1, Constants.EVENT_MAX do member.events["e" .. i] = { rev = 1, updatedAt = 1 } end
+    for i = 1, Constants.EVENT_MAX do
+      member.events["e" .. i] = { rev = 1, updatedAt = 1 }
+    end
     local extra = { eventId = "new", rev = 1, updatedAt = 1, title = "X" }
     local ok, reason = deliver(member, "EVENT_UPSERT", extra, "A-Realm", "rl")
     assert.is_false(ok)
@@ -213,7 +232,10 @@ describe("EventSync assignments and deletes", function()
 
   local function assignment()
     return assert(EventService.AddAssignment(rl.local_ctx(), event.eventId, {
-      encounter = "Ragnaros", characterKey = "A-Realm", group = 1, task = "Main tank",
+      encounter = "Ragnaros",
+      characterKey = "A-Realm",
+      group = 1,
+      task = "Main tank",
     }))
   end
 
@@ -320,7 +342,9 @@ describe("EventSync payload builders", function()
     local event = new_event(rl)
     local record = EventService.SetAttendance(rl.local_ctx(), event.eventId, "A-Realm", "late")
     local created = EventService.AddAssignment(rl.local_ctx(), event.eventId, {
-      encounter = "Ragnaros", characterKey = "A-Realm", note = "n",
+      encounter = "Ragnaros",
+      characterKey = "A-Realm",
+      note = "n",
     })
     EventService.RemoveAssignment(rl.local_ctx(), event.eventId, created.assignmentId)
 

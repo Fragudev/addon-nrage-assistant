@@ -58,7 +58,7 @@ NrageAssistant/          Addon files (the only folder shipped in release zips)
   Libs/                  Vendored libraries, see Libs/README.md
   Media/                 Game textures (the guild logo)
 assets/                  Source artwork (not shipped), see assets/README.md
-tools/                   Development helpers (image conversion)
+tools/                   Development helpers (image conversion, packaging, coverage gate)
 tests/                   busted specs and client API stubs
 docs/                    Documentation
 .github/workflows/       CI and release automation
@@ -66,18 +66,20 @@ docs/                    Documentation
 
 ## Development
 
-Lua 5.1 with [luacheck](https://github.com/lunarmodules/luacheck) and [busted](https://lunarmodules.github.io/busted/).
+Lua 5.1 with [luacheck](https://github.com/lunarmodules/luacheck), [busted](https://lunarmodules.github.io/busted/), [luacov](https://lunarmodules.github.io/luacov/) and [StyLua](https://github.com/JohnnyMorganz/StyLua).
 
 ```bash
 luacheck NrageAssistant tests
-busted
+busted --coverage && luacov && tools/check_coverage.sh 80
+stylua --check NrageAssistant tests
+tools/package.sh dev
 ```
 
-CI runs both on every pull request. Domain logic is tested outside the game against fakes of the client API, which all goes through `NrageAssistant/Core/Platform.lua`. Work happens on `feature/*` branches with one pull request each.
+Every pull request runs lint, the tests with a minimum of 80% line coverage, a StyLua format check and a package build that verifies every file referenced by the TOC, `embeds.xml` and the icon is in the zip. Pull request titles must follow [Conventional Commits](https://www.conventionalcommits.org/). Dependabot keeps the workflow actions up to date. Domain logic is tested outside the game against fakes of the client API, which all goes through `NrageAssistant/Core/Platform.lua`. Work happens on `feature/*` branches with one pull request each.
 
 ## Releasing
 
-Push a tag starting with `v`; the **Release** workflow stamps the version into the TOC, zips `NrageAssistant/` and publishes a GitHub release.
+Push a tag starting with `v`; the **Release** workflow runs the full CI first and, only if it passes, stamps the version into the TOC, zips `NrageAssistant/` and publishes a GitHub release.
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0

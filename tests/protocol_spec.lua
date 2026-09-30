@@ -19,13 +19,17 @@ local function profile(overrides)
     professions = { { name = "Mining", skill = 300, max = 300 } },
     fields = { role = "tank" },
   }
-  for k, v in pairs(overrides or {}) do p[k] = v end
+  for k, v in pairs(overrides or {}) do
+    p[k] = v
+  end
   return p
 end
 
 local function message(payload, overrides)
   local m = Protocol.Build("PROFILE", payload or profile(), "abc-123")
-  for k, v in pairs(overrides or {}) do m[k] = v end
+  for k, v in pairs(overrides or {}) do
+    m[k] = v
+  end
   return m
 end
 
@@ -125,10 +129,17 @@ describe("Protocol.Validate PROFILE", function()
 
   it("rejects values outside their domain", function()
     local bad = {
-      { rev = -1 }, { rev = 1.5 }, { rev = "3" },
-      { class = "warrior" }, { class = "" }, { class = "WAR|RIOR" },
-      { level = 0 }, { level = 1000 }, { level = "60" },
-      { ilvl = -1 }, { ilvl = 2001 },
+      { rev = -1 },
+      { rev = 1.5 },
+      { rev = "3" },
+      { class = "warrior" },
+      { class = "" },
+      { class = "WAR|RIOR" },
+      { level = 0 },
+      { level = 1000 },
+      { level = "60" },
+      { ilvl = -1 },
+      { ilvl = 2001 },
       { professions = "mining" },
       { professions = { { name = "", skill = 1 } } },
       { professions = { { name = "Mining", skill = 1001 } } },
@@ -146,7 +157,9 @@ describe("Protocol.Validate PROFILE", function()
 
   it("rejects too many professions", function()
     local list = {}
-    for i = 1, 9 do list[i] = { name = "P" .. i, skill = 1 } end
+    for i = 1, 9 do
+      list[i] = { name = "P" .. i, skill = 1 }
+    end
     local _, reason = Protocol.Validate(message(profile({ professions = list })))
     assert.are.equal("bad_payload", reason)
   end)
@@ -158,7 +171,9 @@ end
 
 local function event_payload(overrides)
   local p = { eventId = "ev-1", rev = 2, updatedAt = 1000, title = "Molten Core", instance = "MC", startAt = 5000 }
-  for k, v in pairs(overrides or {}) do p[k] = v end
+  for k, v in pairs(overrides or {}) do
+    p[k] = v
+  end
   return p
 end
 
@@ -166,25 +181,41 @@ describe("Protocol.Validate EVENT_UPSERT", function()
   it("keeps the valid fields and drops unknown ones", function()
     local clean = Protocol.Validate(raid_message("EVENT_UPSERT", event_payload({ status = "open", junk = "x" })))
     assert.are.same({
-      eventId = "ev-1", rev = 2, updatedAt = 1000, title = "Molten Core", instance = "MC", startAt = 5000,
+      eventId = "ev-1",
+      rev = 2,
+      updatedAt = 1000,
+      title = "Molten Core",
+      instance = "MC",
+      startAt = 5000,
       status = "open",
     }, clean.p)
   end)
 
   it("accepts an event with only the required fields", function()
     local clean = Protocol.Validate(raid_message("EVENT_UPSERT", {
-      eventId = "ev-1", rev = 1, updatedAt = 0, title = "Raid",
+      eventId = "ev-1",
+      rev = 1,
+      updatedAt = 0,
+      title = "Raid",
     }))
     assert.is_truthy(clean)
   end)
 
   it("rejects invalid ids, revisions, timestamps and fields", function()
     local bad = {
-      { eventId = "has space" }, { eventId = 7 }, { eventId = "a|b" },
-      { rev = 0 }, { rev = 1.5 }, { rev = "2" },
-      { updatedAt = -1 }, { updatedAt = 5000000000 },
-      { title = "" }, { title = "|cffff0000Red" }, { title = ("t"):rep(61) },
-      { status = "boom" }, { startAt = -5 },
+      { eventId = "has space" },
+      { eventId = 7 },
+      { eventId = "a|b" },
+      { rev = 0 },
+      { rev = 1.5 },
+      { rev = "2" },
+      { updatedAt = -1 },
+      { updatedAt = 5000000000 },
+      { title = "" },
+      { title = "|cffff0000Red" },
+      { title = ("t"):rep(61) },
+      { status = "boom" },
+      { startAt = -5 },
     }
     for _, overrides in ipairs(bad) do
       local clean, reason = Protocol.Validate(raid_message("EVENT_UPSERT", event_payload(overrides)))
@@ -197,7 +228,9 @@ end)
 describe("Protocol.Validate ATTENDANCE_UPSERT", function()
   local function payload(overrides)
     local p = { eventId = "ev-1", characterKey = "Nrager-Realm", state = "present", rev = 1, updatedAt = 10 }
-    for k, v in pairs(overrides or {}) do p[k] = v end
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
     return p
   end
 
@@ -209,8 +242,13 @@ describe("Protocol.Validate ATTENDANCE_UPSERT", function()
 
   it("rejects an unknown state, a bad key and missing revision data", function()
     for _, overrides in ipairs({
-      { state = "disconnected" }, { state = 5 }, { characterKey = "" }, { characterKey = "A|B" },
-      { rev = 0 }, { updatedAt = "now" }, { eventId = "no way" },
+      { state = "disconnected" },
+      { state = 5 },
+      { characterKey = "" },
+      { characterKey = "A|B" },
+      { rev = 0 },
+      { updatedAt = "now" },
+      { eventId = "no way" },
     }) do
       local _, reason = Protocol.Validate(raid_message("ATTENDANCE_UPSERT", payload(overrides)))
       assert.are.equal("bad_payload", reason)
@@ -221,10 +259,19 @@ end)
 describe("Protocol.Validate ASSIGN_UPSERT", function()
   local function payload(overrides)
     local p = {
-      eventId = "ev-1", assignmentId = "as-1", rev = 1, updatedAt = 10,
-      encounter = "Ragnaros", characterKey = "Nrager-Realm", group = 2, task = "Main tank", note = "watch out",
+      eventId = "ev-1",
+      assignmentId = "as-1",
+      rev = 1,
+      updatedAt = 10,
+      encounter = "Ragnaros",
+      characterKey = "Nrager-Realm",
+      group = 2,
+      task = "Main tank",
+      note = "watch out",
     }
-    for k, v in pairs(overrides or {}) do p[k] = v end
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
     return p
   end
 
@@ -235,8 +282,14 @@ describe("Protocol.Validate ASSIGN_UPSERT", function()
 
   it("rejects values outside their domain", function()
     for _, overrides in ipairs({
-      { assignmentId = "bad id" }, { encounter = "" }, { characterKey = "|x" }, { group = 9 }, { group = 0 },
-      { task = ("t"):rep(61) }, { note = ("n"):rep(101) }, { rev = 0 },
+      { assignmentId = "bad id" },
+      { encounter = "" },
+      { characterKey = "|x" },
+      { group = 9 },
+      { group = 0 },
+      { task = ("t"):rep(61) },
+      { note = ("n"):rep(101) },
+      { rev = 0 },
     }) do
       local _, reason = Protocol.Validate(raid_message("ASSIGN_UPSERT", payload(overrides)))
       assert.are.equal("bad_payload", reason)
@@ -252,7 +305,10 @@ describe("Protocol.Validate DELETE", function()
 
   it("requires an assignment id when deleting an assignment", function()
     local ok = Protocol.Validate(raid_message("DELETE", {
-      kind = "assignment", eventId = "ev-1", assignmentId = "as-1", rev = 2,
+      kind = "assignment",
+      eventId = "ev-1",
+      assignmentId = "as-1",
+      rev = 2,
     }))
     assert.are.equal("as-1", ok.p.assignmentId)
 
@@ -289,7 +345,9 @@ describe("Protocol.Validate SYNC_REQ and SYNC_DATA", function()
     assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", { items = "no" }))))
     assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", {}))))
     local items = {}
-    for i = 1, Constants.IMPORT_MAX_ITEMS + 1 do items[i] = { t = "DELETE", p = {} } end
+    for i = 1, Constants.IMPORT_MAX_ITEMS + 1 do
+      items[i] = { t = "DELETE", p = {} }
+    end
     assert.are.equal("bad_payload", select(2, Protocol.Validate(raid_message("SYNC_DATA", { items = items }))))
   end)
 end)
@@ -297,7 +355,9 @@ end)
 describe("Protocol.Validate loot messages", function()
   local function base(overrides)
     local p = { eventId = "ev-1", sessionId = "s-1", rev = 2, updatedAt = 100 }
-    for k, v in pairs(overrides or {}) do p[k] = v end
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
     return p
   end
 
@@ -308,32 +368,59 @@ describe("Protocol.Validate loot messages", function()
   end
 
   it("accepts a LOOT_SESSION and drops unknown fields", function()
-    local clean = Protocol.Validate(raid_message("LOOT_SESSION", base({
-      itemId = 19019, itemName = "Thunderfury", status = "open", junk = "x",
-    })))
+    local clean = Protocol.Validate(raid_message(
+      "LOOT_SESSION",
+      base({
+        itemId = 19019,
+        itemName = "Thunderfury",
+        status = "open",
+        junk = "x",
+      })
+    ))
     assert.are.same({
-      eventId = "ev-1", sessionId = "s-1", rev = 2, updatedAt = 100,
-      itemId = 19019, itemName = "Thunderfury", status = "open",
+      eventId = "ev-1",
+      sessionId = "s-1",
+      rev = 2,
+      updatedAt = 100,
+      itemId = 19019,
+      itemName = "Thunderfury",
+      status = "open",
     }, clean.p)
   end)
 
   it("rejects an invalid LOOT_SESSION", function()
     local good = { itemId = 1, itemName = "X", status = "open" }
     for _, overrides in ipairs({
-      { eventId = "bad id" }, { sessionId = "a:b" }, { rev = 0 }, { updatedAt = -1 },
-      { itemId = 0 }, { itemId = "1" }, { itemName = "|cffff0000X" }, { itemName = "" },
-      { status = "won" }, { status = 5 },
+      { eventId = "bad id" },
+      { sessionId = "a:b" },
+      { rev = 0 },
+      { updatedAt = -1 },
+      { itemId = 0 },
+      { itemId = "1" },
+      { itemName = "|cffff0000X" },
+      { itemName = "" },
+      { status = "won" },
+      { status = 5 },
     }) do
       local payload = base(good)
-      for k, v in pairs(overrides) do payload[k] = v end
+      for k, v in pairs(overrides) do
+        payload[k] = v
+      end
       invalid("LOOT_SESSION", payload)
     end
   end)
 
   it("accepts a LOOT_AWARD, which carries the item, and never the awarder", function()
-    local clean = Protocol.Validate(raid_message("LOOT_AWARD", base({
-      itemId = 1, itemName = "X", characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Fake-Realm",
-    })))
+    local clean = Protocol.Validate(raid_message(
+      "LOOT_AWARD",
+      base({
+        itemId = 1,
+        itemName = "X",
+        characterKey = "Ann-Realm",
+        reason = "Highest need",
+        awardedBy = "Fake-Realm",
+      })
+    ))
     assert.are.equal("Ann-Realm", clean.p.characterKey)
     assert.are.equal("Highest need", clean.p.reason)
     assert.is_nil(clean.p.awardedBy)
@@ -342,19 +429,32 @@ describe("Protocol.Validate loot messages", function()
   it("rejects an invalid LOOT_AWARD", function()
     local good = { itemId = 1, itemName = "X", characterKey = "Ann-Realm", reason = "why" }
     for _, overrides in ipairs({
-      { characterKey = "" }, { characterKey = "A|B" }, { reason = "" }, { reason = "|cffff0000x" },
-      { reason = ("r"):rep(101) }, { itemId = 0 }, { rev = 0 },
+      { characterKey = "" },
+      { characterKey = "A|B" },
+      { reason = "" },
+      { reason = "|cffff0000x" },
+      { reason = ("r"):rep(101) },
+      { itemId = 0 },
+      { rev = 0 },
     }) do
       local payload = base(good)
-      for k, v in pairs(overrides) do payload[k] = v end
+      for k, v in pairs(overrides) do
+        payload[k] = v
+      end
       invalid("LOOT_AWARD", payload)
     end
   end)
 
   it("accepts a LOOT_CANDIDATE without a candidate key", function()
-    local clean = Protocol.Validate(raid_message("LOOT_CANDIDATE", base({
-      spec = "Fury", need = "main", upgrade = "Better axe", candidate = "Fake-Realm",
-    })))
+    local clean = Protocol.Validate(raid_message(
+      "LOOT_CANDIDATE",
+      base({
+        spec = "Fury",
+        need = "main",
+        upgrade = "Better axe",
+        candidate = "Fake-Realm",
+      })
+    ))
     assert.are.equal("Fury", clean.p.spec)
     assert.are.equal("main", clean.p.need)
     assert.are.equal("Better axe", clean.p.upgrade)
@@ -363,10 +463,15 @@ describe("Protocol.Validate loot messages", function()
 
   it("rejects an invalid LOOT_CANDIDATE", function()
     for _, overrides in ipairs({
-      { spec = "" }, { need = "greed" }, { need = 5 }, { upgrade = "|Hitem:1|h" },
+      { spec = "" },
+      { need = "greed" },
+      { need = 5 },
+      { upgrade = "|Hitem:1|h" },
     }) do
       local payload = base({ spec = "Fury", need = "main" })
-      for k, v in pairs(overrides) do payload[k] = v end
+      for k, v in pairs(overrides) do
+        payload[k] = v
+      end
       invalid("LOOT_CANDIDATE", payload)
     end
     invalid("LOOT_CANDIDATE", base({ need = "main" }))
