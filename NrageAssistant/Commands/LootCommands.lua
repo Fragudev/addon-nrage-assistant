@@ -87,6 +87,8 @@ local function parseItem(text)
   return { itemId = tonumber(id), itemName = name }
 end
 
+LootCommands.ParseItem = parseItem
+
 function LootCommands:ResolveEvent(token)
   local index = tonumber(token)
   local list = ns.EventService.List({ events = self.events })
@@ -160,12 +162,10 @@ local function detail(session)
   return lines
 end
 
-function LootCommands:Open(event, args)
+-- The structured operations below are what the window calls; the text commands parse their words and call
+-- the same methods, so both paths apply the same role checks and send the same messages.
+function LootCommands:OpenItem(event, item)
   local ctx = self:Context()
-  local item = parseItem(args)
-  if not item then
-    return { "give an item link (shift-click the item), or an item id and a name: open 19019 Thunderfury." }
-  end
   local session, reason = ns.LootService.OpenSession(ctx, event.eventId, item)
   if not session then
     return { fail(ctx, reason) }
@@ -176,10 +176,63 @@ function LootCommands:Open(event, args)
   }
 end
 
-function LootCommands:Session(event, session, verb, args)
-  local ctx = self:Context()
-  local eventId, sessionId = event.eventId, session.sessionId
+function LootCommands:Open(event, args)
+  local item = parseItem(args)
+  if not item then
+    return { "give an item link (shift-click the item), or an item id and a name: open 19019 Thunderfury." }
+  end
+  return self:OpenItem(event, item)
+end
 
+function LootCommands:Apply(event, session, fields)
+  local ctx = self:Context()
+  local candidate, reason = ns.LootService.Register(ctx, event.eventId, session.sessionId, fields)
+  if not candidate then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("you are a candidate for %s (%s, %s)."):format(session.itemName, candidate.spec, candidate.need),
+    sentNote(self.comm:SendLootCandidate(event.eventId, session.sessionId, candidate)),
+  }
+end
+
+function LootCommands:VoteFor(event, session, target)
+  local ctx = self:Context()
+  local vote, reason = ns.LootService.Vote(ctx, event.eventId, session.sessionId, target)
+  if not vote then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("voted for %s."):format(vote.target),
+    sentNote(self.comm:SendLootVote(event.eventId, session.sessionId, vote)),
+  }
+end
+
+function LootCommands:AwardTo(event, session, target, why)
+  local ctx = self:Context()
+  local awarded, reason = ns.LootService.Award(ctx, event.eventId, session.sessionId, target, why)
+  if not awarded then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("%s awarded to %s."):format(awarded.itemName, target),
+    sentNote(self.comm:SendLootAward(event.eventId, awarded)),
+  }
+end
+
+function LootCommands:CloseSession(event, session)
+  local ctx = self:Context()
+  local closed, reason = ns.LootService.Close(ctx, event.eventId, session.sessionId)
+  if not closed then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("closed the session for %s without awarding it."):format(closed.itemName),
+    sentNote(self.comm:SendLootSession(event.eventId, closed)),
+  }
+end
+
+function LootCommands:Session(event, session, verb, args)
   if verb == "" then
     return detail(session)
   end
@@ -189,30 +242,12 @@ function LootCommands:Session(event, session, verb, args)
     if not spec then
       return { "usage: /nrage loot <event> <n> apply <spec> <main|off|other> [upgrade]" }
     end
-    local candidate, reason = ns.LootService.Register(ctx, eventId, sessionId, {
-      spec = spec,
-      need = need,
-      upgrade = upgrade ~= "" and upgrade or nil,
-    })
-    if not candidate then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("you are a candidate for %s (%s, %s)."):format(session.itemName, candidate.spec, candidate.need),
-      sentNote(self.comm:SendLootCandidate(eventId, sessionId, candidate)),
-    }
+    return self:Apply(event, session, { spec = spec, need = need, upgrade = upgrade ~= "" and upgrade or nil })
   end
 
   if verb == "vote" then
     -- Everything after "vote" is the name, so spaces need no quotes here (they are accepted anyway).
-    local vote, reason = ns.LootService.Vote(ctx, eventId, sessionId, ns.Args.Unquote(args))
-    if not vote then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("voted for %s."):format(vote.target),
-      sentNote(self.comm:SendLootVote(eventId, sessionId, vote)),
-    }
+    return self:VoteFor(event, session, ns.Args.Unquote(args))
   end
 
   if verb == "award" then
@@ -221,25 +256,11 @@ function LootCommands:Session(event, session, verb, args)
     if not target or why == "" then
       return { 'usage: /nrage loot <event> <n> award <name> <reason>   (put a name with spaces in "quotes")' }
     end
-    local awarded, reason = ns.LootService.Award(ctx, eventId, sessionId, target, why)
-    if not awarded then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("%s awarded to %s."):format(awarded.itemName, target),
-      sentNote(self.comm:SendLootAward(eventId, awarded)),
-    }
+    return self:AwardTo(event, session, target, why)
   end
 
   if verb == "close" then
-    local closed, reason = ns.LootService.Close(ctx, eventId, sessionId)
-    if not closed then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("closed the session for %s without awarding it."):format(closed.itemName),
-      sentNote(self.comm:SendLootSession(eventId, closed)),
-    }
+    return self:CloseSession(event, session)
   end
 
   return USAGE

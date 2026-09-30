@@ -368,3 +368,94 @@ describe("ViewModel raid tab helpers", function()
     end)
   end)
 end)
+
+describe("ViewModel loot tab helpers", function()
+  it("offers apply to everyone and council actions only to the council and admins", function()
+    local member = ViewModel.LootActions("member")
+    assert.is_true(member.apply)
+    assert.is_false(member.open or member.vote or member.award)
+    local rl = ViewModel.LootActions("rl")
+    assert.is_false(rl.open or rl.vote or rl.award)
+    for _, role in ipairs({ "council", "admin" }) do
+      local actions = ViewModel.LootActions(role)
+      assert.is_true(actions.open and actions.apply and actions.vote and actions.award)
+    end
+    assert.is_false(ViewModel.LootActions(nil).apply)
+  end)
+
+  it("offers every need the model accepts, and only those", function()
+    local ns = {}
+    for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/LootModel" }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    end
+    local offered = {}
+    for _, need in ipairs(ViewModel.LOOT_NEEDS) do
+      offered[need] = true
+    end
+    assert.are.same(ns.LootModel.NEEDS, offered)
+  end)
+
+  local function session(overrides)
+    local s = {
+      sessionId = "s1",
+      itemName = "Thunderfury",
+      status = "open",
+      candidates = {
+        ["Ann-Realm"] = { spec = "Fury", need = "main", upgrade = "+12" },
+        ["Bob-Realm"] = { spec = "Prot", need = "off" },
+      },
+      votes = { ["Zed-Realm"] = { target = "Ann-Realm" } },
+    }
+    for k, v in pairs(overrides or {}) do
+      s[k] = v
+    end
+    return s
+  end
+
+  it("shows the candidates, and vote counts only as far as the visibility policy allows", function()
+    local saved = Constants.VOTE_VISIBILITY
+    Constants.VOTE_VISIBILITY = "secret"
+    local hidden = table.concat(ViewModel.LootSession(session()), "\n")
+    Constants.VOTE_VISIBILITY = "open"
+    local open = table.concat(ViewModel.LootSession(session()), "\n")
+    Constants.VOTE_VISIBILITY = saved
+
+    assert.is_truthy(hidden:find("Ann-Realm: Fury, main - +12", 1, true))
+    assert.is_truthy(hidden:find("Bob-Realm: Prot, off", 1, true))
+    assert.is_truthy(hidden:find("1 vote(s) cast (hidden until the session closes)", 1, true))
+    assert.is_nil(hidden:find("votes: Ann-Realm", 1, true))
+    assert.is_truthy(open:find("votes: Ann-Realm 1", 1, true))
+  end)
+
+  it("shows the tally and the decision once closed", function()
+    local text = table.concat(
+      ViewModel.LootSession(session({
+        status = "closed",
+        award = { characterKey = "Ann-Realm", awardedBy = "Leader-Realm", reason = "highest need" },
+      })),
+      "\n"
+    )
+    assert.is_truthy(text:find("votes: Ann-Realm 1", 1, true))
+    assert.is_truthy(text:find("awarded to Ann-Realm by Leader-Realm: highest need", 1, true))
+    assert.is_truthy(
+      table.concat(ViewModel.LootSession(session({ status = "closed" })), "\n"):find("closed, not awarded", 1, true)
+    )
+  end)
+
+  it("escapes everything that came from the guild", function()
+    local text = table.concat(
+      ViewModel.LootSession(session({
+        itemName = "|cffff0000Evil",
+        candidates = { ["|cff00ff00Ann"] = { spec = "|rSpec", need = "main" } },
+      })),
+      "\n"
+    )
+    assert.is_nil(text:find("[^|]|[cHr]"))
+  end)
+
+  it("lists candidates sorted for the dropdowns", function()
+    local list, order = ViewModel.CandidateChoices(session())
+    assert.are.same({ "Ann-Realm", "Bob-Realm" }, order)
+    assert.are.equal("Ann-Realm (Fury, main)", list["Ann-Realm"])
+  end)
+end)
