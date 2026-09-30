@@ -1,0 +1,33 @@
+.luacheckrc
+  s_58126f9867149c::t_57e2f8d84004cc 16,18-19
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_b6e7ba9a1dcbe5 75-76,80-83
+NrageAssistant/Core/LockdownGuard.lua
+  s_58126f9867149c::t_e8576dcd722ba0 1-67
+NrageAssistant/Core/LockdownProbe.lua
+  s_58126f9867149c::t_b59f7bd4a85dd3 1-137
+NrageAssistant/Core/Platform.lua
+  s_58126f9867149c::t_560300b9b772b0 39-57
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_fb0b2b04b58a56 13-14
+tests/constants_spec.lua
+  s_58126f9867149c::t_9d7b1dcd71c579 24-25
+tests/lockdown_guard_spec.lua
+  s_58126f9867149c::t_9973af67d8786d 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1d8a8129a0b1b7922ca385089ec8cc7c22bb285",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
