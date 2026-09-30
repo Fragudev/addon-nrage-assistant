@@ -1,0 +1,43 @@
+tests/comm_spec.lua
+  s_58126f9867149c::t_5c14034bba607a 37,704-760
+tests/guild_roster_spec.lua
+  s_58126f9867149c::t_05226fbf9d62ed 144-202
+tests/platform_spec.lua
+  s_58126f9867149c::t_345b99d4252b18 43-137
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_1251695f4cb7e2 173-174,185-203,309-310,321
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_679831868f794d 51-53
+NrageAssistant/Core/Init.lua
+  s_58126f9867149c::t_cd86a533ea34eb 36-37,49-50
+NrageAssistant/Core/Platform.lua
+  s_58126f9867149c::t_9364c89e53088f 41,43,47,71-74,78-107
+NrageAssistant/Domain/Diagnostics.lua
+  s_58126f9867149c::t_cf2d11ed51e109 128-129
+NrageAssistant/Domain/GuildRoster.lua
+  s_58126f9867149c::t_1cfdd248d06e6a 19-21,49-67,73,109
+NrageAssistant/Sync/Comm.lua
+  s_58126f9867149c::t_232c7ef7bc35a4 27,145-156,165-168
+docs/API_NOTES.md
+  s_58126f9867149c::t_d6ed1da327a1b2 16-28,33-35
+tests/diagnostics_spec.lua
+  s_58126f9867149c::t_11a8475efbe150 157-158
+tests/permission_service_spec.lua
+  s_58126f9867149c::t_15fb9b4c35018c 144-147,153-155,182-190,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1cc5d845f0b335b8dd1b3f252e25affa378531a4",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
