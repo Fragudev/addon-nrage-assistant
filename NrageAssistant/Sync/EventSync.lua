@@ -78,7 +78,7 @@ local function applyEventUpsert(ctx, payload, sender, role)
     if countKeys(ctx.events) >= ns.Constants.EVENT_MAX then
       return false, "limit"
     end
-    event = { eventId = payload.eventId, attendance = {}, assignments = {} }
+    event = { eventId = payload.eventId, attendance = {}, assignments = {}, loot = {} }
     ctx.events[payload.eventId] = event
   end
 

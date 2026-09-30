@@ -69,6 +69,7 @@ function EventService.Create(ctx, fields)
     source = "declared",
     attendance = {},
     assignments = {},
+    loot = {},
   }
   stamp(ctx, event)
   ctx.events[event.eventId] = event
