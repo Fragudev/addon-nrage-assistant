@@ -119,6 +119,11 @@ function Platform.GetProfessions()
   return result
 end
 
+-- The client's interface number (build 16001 on the Forever beta).
+function Platform.GetBuildNumber()
+  return select(4, GetBuildInfo())
+end
+
 -- "2026-10-01 20:30" in the client's local time.
 function Platform.FormatDate(timestamp)
   return date("%Y-%m-%d %H:%M", timestamp)

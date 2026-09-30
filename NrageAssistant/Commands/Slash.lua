@@ -268,8 +268,17 @@ local COMMANDS = {
       ns.Probe.Handle(action)
     elseif sub == "roster" then
       PrintRoster()
+    elseif sub == "selftest" then
+      local results, summary = ns.Diagnostics.SelfTest(_G, ns)
+      for _, line in ipairs(ns.Diagnostics.DescribeSelfTest(results, summary)) do
+        print(line)
+      end
+    elseif sub == "info" then
+      for _, line in ipairs(ns.Diagnostics.Info(ns)) do
+        print(line)
+      end
     else
-      say("usage: /nrage debug identity | roster | lockdown <action>")
+      say("usage: /nrage debug identity | roster | selftest | info | lockdown <action>")
     end
   end,
 }

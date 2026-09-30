@@ -26,6 +26,7 @@ Domain\EventService.lua
 Domain\LootModel.lua
 Domain\LootService.lua
 Domain\ReportService.lua
+Domain\Diagnostics.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
