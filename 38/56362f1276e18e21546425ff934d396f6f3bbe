@@ -1,0 +1,31 @@
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_275d2b40042a97 79-134,149-150
+NrageAssistant/Core/Constants.lua
+  s_58126f9867149c::t_669828fdacab5d 32-34
+NrageAssistant/Core/Store.lua
+  s_58126f9867149c::t_9cd616cdf0269c 63-64
+NrageAssistant/Domain/PublishService.lua
+  s_58126f9867149c::t_78179dc61056c7 1-151
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_0d89093f1502c5 20
+tests/publish_service_spec.lua
+  s_58126f9867149c::t_005b95608c3c5d 1-178
+tests/store_spec.lua
+  s_58126f9867149c::t_93270dc02bbe62 69-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3856362f1276e18e21546425ff934d396f6f3bbe",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
