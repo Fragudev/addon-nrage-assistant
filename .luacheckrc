@@ -1,4 +1,7 @@
 std = "lua51"
+
+-- Third-party code, vendored unmodified.
+exclude_files = { "NrageAssistant/Libs/**" }
 max_line_length = 120
 
 -- Addon entry files receive (addonName, ns) via varargs and write SavedVariables.
