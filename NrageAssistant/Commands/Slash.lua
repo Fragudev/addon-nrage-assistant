@@ -231,8 +231,20 @@ local function LootCommand(rest)
   end
 end
 
+local function ReportCommand(rest)
+  if not ns.active or not ns.db then
+    say("reports are unavailable while the addon is disabled.")
+    return
+  end
+  local reports = ns.ReportCommands.New({ events = ns.db.global.events })
+  for _, line in ipairs(reports:Report(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  report = ReportCommand,
   loot = LootCommand,
   export = TransferCommand("export"),
   import = TransferCommand("import"),

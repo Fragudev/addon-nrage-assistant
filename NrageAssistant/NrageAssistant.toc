@@ -25,6 +25,7 @@ Domain\EventModel.lua
 Domain\EventService.lua
 Domain\LootModel.lua
 Domain\LootService.lua
+Domain\ReportService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -38,5 +39,6 @@ UI\ViewModel.lua
 UI\Main.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
+Commands\ReportCommands.lua
 Commands\Slash.lua
 Core\Init.lua
