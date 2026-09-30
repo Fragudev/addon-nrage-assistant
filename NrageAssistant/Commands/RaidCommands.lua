@@ -29,7 +29,7 @@ function RaidCommands:Context()
   }
 end
 
-function RaidCommands:Fail(ctx, reason)
+local function fail(ctx, reason)
   if reason == "forbidden" then
     return ("not allowed: your guild rank gives the role '%s', which cannot do this."):format(tostring(ctx.role))
   end
@@ -90,7 +90,7 @@ function RaidCommands:Event(rest)
   if sub == "new" then
     local event, reason = ns.EventService.Create(ctx, { title = args })
     if not event then
-      return { self:Fail(ctx, reason) }
+      return { fail(ctx, reason) }
     end
     local lines = { ("created event '%s'."):format(event.title) }
     lines[#lines + 1] = sentNote(self.comm:SendEvent(event))
@@ -107,7 +107,7 @@ function RaidCommands:Event(rest)
     if sub == "delete" then
       local ok, reason = ns.EventService.Delete(ctx, event.eventId)
       if not ok then
-        return { self:Fail(ctx, reason) }
+        return { fail(ctx, reason) }
       end
       return { ("deleted '%s'."):format(event.title), sentNote(self.comm:SendDeleteEvent(event.eventId)) }
     end
@@ -118,7 +118,7 @@ function RaidCommands:Event(rest)
       if reason == "invalid:status" then
         return { EVENT_STATUS_HELP }
       end
-      return { self:Fail(ctx, reason) }
+      return { fail(ctx, reason) }
     end
     return { ("updated '%s' [%s]."):format(updated.title, updated.status), sentNote(self.comm:SendEvent(updated)) }
   end
@@ -126,7 +126,7 @@ function RaidCommands:Event(rest)
   return { "usage: /nrage event [list] | new <title> | rename <n> <title> | status <n> <status> | delete <n>" }
 end
 
-function RaidCommands:ListAttendance(event)
+local function listAttendance(event)
   local keys = {}
   for key in pairs(event.attendance) do
     keys[#keys + 1] = key
@@ -150,13 +150,13 @@ function RaidCommands:Attendance(rest)
     return { problem, "usage: /nrage attendance <n> [<Name-Realm> <state>]" }
   end
   if characterKey == "" then
-    return self:ListAttendance(event)
+    return listAttendance(event)
   end
 
   local ctx = self:Context()
   local record, reason = ns.EventService.SetAttendance(ctx, event.eventId, characterKey, state)
   if not record then
-    return { self:Fail(ctx, reason) }
+    return { fail(ctx, reason) }
   end
   return {
     ("%s: %s."):format(characterKey, record.state),
@@ -181,7 +181,7 @@ local function sortedAssignments(event)
   return list
 end
 
-function RaidCommands:ListAssignments(event)
+local function listAssignments(event)
   local list = sortedAssignments(event)
   if #list == 0 then
     return { ("No assignments for '%s' yet."):format(event.title) }
@@ -201,7 +201,7 @@ function RaidCommands:Assign(rest)
     return { problem, "usage: /nrage assign <n> [add <Name-Realm> <encounter> | remove <k>]" }
   end
   if sub == "" or sub == "list" then
-    return self:ListAssignments(event)
+    return listAssignments(event)
   end
 
   local ctx = self:Context()
@@ -214,7 +214,7 @@ function RaidCommands:Assign(rest)
       characterKey = characterKey, encounter = encounter,
     })
     if not assignment then
-      return { self:Fail(ctx, reason) }
+      return { fail(ctx, reason) }
     end
     return {
       ("assigned %s to %s."):format(characterKey, encounter),
@@ -229,7 +229,7 @@ function RaidCommands:Assign(rest)
     end
     local ok, reason = ns.EventService.RemoveAssignment(ctx, event.eventId, target.assignmentId)
     if not ok then
-      return { self:Fail(ctx, reason) }
+      return { fail(ctx, reason) }
     end
     return {
       ("removed %s from %s."):format(target.characterKey, target.encounter),
