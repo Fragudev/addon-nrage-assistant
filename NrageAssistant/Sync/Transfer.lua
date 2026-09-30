@@ -104,18 +104,32 @@ function Transfer.Decode(libs, text)
   return value.items
 end
 
--- Applies pasted text. `ctx` = { events, tombstones, now } as for EventSync; `role` is the importer's
--- own role: importing needs the same right as creating events.
--- Returns { total, applied, skipped = { [reason] = count } }, or nil plus a Decode reason or "forbidden".
-function Transfer.Import(libs, text, ctx, role)
-  if not ns.PermissionService.Can(role, "manage_events") then
-    return nil, "forbidden"
+-- The most recent `maxEvents` events (by start time, else last edit), each with its attendance and
+-- assignments, plus every tombstone. Used for the snapshot answered to a late joiner.
+function Transfer.BuildSnapshot(events, tombstones, maxEvents)
+  local list = {}
+  for _, event in pairs(events) do
+    list[#list + 1] = event
   end
-  local items, reason = Transfer.Decode(libs, text)
-  if not items then
-    return nil, reason
-  end
+  table.sort(list, function(a, b)
+    local left, right = a.startAt or a.updatedAt or 0, b.startAt or b.updatedAt or 0
+    if left ~= right then
+      return left > right
+    end
+    return a.eventId < b.eventId
+  end)
 
+  local recent = {}
+  for index = 1, math.min(maxEvents, #list) do
+    recent[list[index].eventId] = list[index]
+  end
+  return Transfer.BuildItems(recent, tombstones)
+end
+
+-- Applies a list of { t, p } items as if `sender` had sent each one: every item goes through the
+-- protocol validation, the role check for `role` and the conflict rules. `ctx` = { events, tombstones,
+-- now } as for EventSync. Returns { total, applied, skipped = { [reason] = count } }.
+function Transfer.ApplyItems(items, ctx, sender, role)
   local summary = { total = #items, applied = 0, skipped = {} }
   local function skip(why)
     summary.skipped[why] = (summary.skipped[why] or 0) + 1
@@ -129,7 +143,7 @@ function Transfer.Import(libs, text, ctx, role)
       if not message then
         skip(invalid)
       else
-        local ok, why = ns.EventSync.Apply(ctx, message, "import", role)
+        local ok, why = ns.EventSync.Apply(ctx, message, sender, role)
         if ok then
           summary.applied = summary.applied + 1
         else
@@ -139,6 +153,19 @@ function Transfer.Import(libs, text, ctx, role)
     end
   end
   return summary
+end
+
+-- Applies pasted text. `role` is the importer's own role: importing needs the same right as
+-- creating events. Returns the ApplyItems summary, or nil plus a Decode reason or "forbidden".
+function Transfer.Import(libs, text, ctx, role)
+  if not ns.PermissionService.Can(role, "manage_events") then
+    return nil, "forbidden"
+  end
+  local items, reason = Transfer.Decode(libs, text)
+  if not items then
+    return nil, reason
+  end
+  return Transfer.ApplyItems(items, ctx, "import", role)
 end
 
 -- One line describing an import summary.

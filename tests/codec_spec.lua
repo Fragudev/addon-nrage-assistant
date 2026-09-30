@@ -76,3 +76,42 @@ describe("Codec", function()
     assert.are.equal("too_large", reason)
   end)
 end)
+
+describe("Codec size overrides", function()
+  local codec, Constants = load_codec()
+
+  local function noisy_message()
+    local noise = {}
+    math.randomseed(11)
+    for i = 1, 6000 do noise[i] = string.char(math.random(0, 255)) end
+    return { blob = table.concat(noise) }
+  end
+
+  it("allows a larger message when given a larger encode limit", function()
+    local message = noisy_message()
+    assert.are.equal("too_large", select(2, codec:Encode(message)))
+    local text = assert(codec:Encode(message, Constants.SYNC_MAX_ENCODED_BYTES))
+    assert.is_true(#text > Constants.MAX_ENCODED_BYTES)
+  end)
+
+  it("decodes a larger message only when given larger decode limits", function()
+    local message = noisy_message()
+    local text = assert(codec:Encode(message, Constants.SYNC_MAX_ENCODED_BYTES))
+
+    local value, reason = codec:Decode(text)
+    assert.is_nil(value)
+    assert.are.equal("too_large", reason)
+
+    local decoded = codec:Decode(text, {
+      encoded = Constants.SYNC_MAX_ENCODED_BYTES,
+      decompressed = Constants.SYNC_MAX_DECOMPRESSED_BYTES,
+    })
+    assert.are.equal(message.blob, decoded.blob)
+  end)
+
+  it("still enforces the override limits", function()
+    local text = assert(codec:Encode({ hello = "world" }))
+    assert.are.equal("too_large", select(2, codec:Decode(text, { encoded = 5 })))
+    assert.are.equal("too_large", select(2, codec:Decode(text, { decompressed = 1 })))
+  end)
+end)

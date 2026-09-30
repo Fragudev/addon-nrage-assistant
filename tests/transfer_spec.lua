@@ -240,3 +240,54 @@ describe("Transfer.Describe", function()
     assert.are.equal("imported 2 of 2 record(s)", Transfer.Describe({ total = 2, applied = 2, skipped = {} }))
   end)
 end)
+
+describe("Transfer.BuildSnapshot and ApplyItems", function()
+  local function event_at(startAt, id)
+    return {
+      eventId = id, title = "E" .. id, status = "planned", startAt = startAt, rev = 1, updatedAt = 10,
+      attendance = {}, assignments = {},
+    }
+  end
+
+  it("takes the most recent events, each with its records, and every tombstone", function()
+    local events = { a = event_at(100, "a"), b = event_at(300, "b"), c = event_at(200, "c") }
+    events.b.attendance["Ann-Realm"] = { state = "present", rev = 1, updatedAt = 10 }
+    local tombstones = { ["E:gone"] = { at = 1, rev = 2 } }
+
+    local items = Transfer.BuildSnapshot(events, tombstones, 2)
+    local seen = {}
+    for _, item in ipairs(items) do
+      seen[#seen + 1] = item.t .. ":" .. (item.p.eventId or "")
+    end
+    table.sort(seen)
+    assert.are.same({
+      "ATTENDANCE_UPSERT:b", "DELETE:gone", "EVENT_UPSERT:b", "EVENT_UPSERT:c",
+    }, seen)
+  end)
+
+  it("falls back to the last edit for undated events and is stable on ties", function()
+    local first, second = event_at(nil, "x"), event_at(nil, "y")
+    first.updatedAt, second.updatedAt = 50, 90
+    local items = Transfer.BuildSnapshot({ x = first, y = second }, {}, 1)
+    assert.are.equal(1, #items)
+    assert.are.equal("y", items[1].p.eventId)
+  end)
+
+  it("applies items as the given sender, under the given role", function()
+    local target = store()
+    local ctx = { events = target.events, tombstones = target.tombstones, now = target.ctx().now }
+    local items = {
+      { t = "EVENT_UPSERT", p = { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Shared" } },
+    }
+    local summary = Transfer.ApplyItems(items, ctx, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.applied)
+    assert.are.equal("Lead-Realm", target.events["ev-1"].updatedBy)
+
+    local denied = Transfer.ApplyItems(
+      { { t = "EVENT_UPSERT", p = { eventId = "ev-2", rev = 1, updatedAt = 10, title = "Nope" } } },
+      ctx, "Raider-Realm", "member")
+    assert.are.equal(0, denied.applied)
+    assert.are.equal(1, denied.skipped.forbidden)
+    assert.is_nil(target.events["ev-2"])
+  end)
+end)

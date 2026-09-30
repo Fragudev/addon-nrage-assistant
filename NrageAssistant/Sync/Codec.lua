@@ -19,8 +19,9 @@ function Codec.Default()
   })
 end
 
--- Returns the wire string, or nil plus "too_large" | "encode_failed".
-function Codec:Encode(message)
+-- Returns the wire string, or nil plus "too_large" or "encode_failed".
+-- `maxBytes` overrides the default size limit (used for snapshots).
+function Codec:Encode(message, maxBytes)
   local ok, encoded = pcall(function()
     local serialized = self.serialize:Serialize(message)
     local compressed = self.deflate:CompressDeflate(serialized)
@@ -29,20 +30,25 @@ function Codec:Encode(message)
   if not ok or type(encoded) ~= "string" then
     return nil, "encode_failed"
   end
-  if #encoded > ns.Constants.MAX_ENCODED_BYTES then
+  if #encoded > (maxBytes or ns.Constants.MAX_ENCODED_BYTES) then
     return nil, "too_large"
   end
   return encoded
 end
 
 -- Returns the decoded table, or nil plus
--- "not_string" | "too_large" | "bad_encoding" | "bad_compression" | "bad_payload".
-function Codec:Decode(text)
+-- "not_string", "too_large", "bad_encoding", "bad_compression" or "bad_payload".
+-- `limits` = { encoded, decompressed } overrides the default size limits (used for snapshots).
+function Codec:Decode(text, limits)
   local constants = ns.Constants
+  limits = limits or {}
+  local maxEncoded = limits.encoded or constants.MAX_ENCODED_BYTES
+  local maxDecompressed = limits.decompressed or constants.MAX_DECOMPRESSED_BYTES
+
   if type(text) ~= "string" then
     return nil, "not_string"
   end
-  if #text > constants.MAX_ENCODED_BYTES then
+  if #text > maxEncoded then
     return nil, "too_large"
   end
 
@@ -56,7 +62,7 @@ function Codec:Decode(text)
   if not ok or type(decompressed) ~= "string" then
     return nil, "bad_compression"
   end
-  if #decompressed > constants.MAX_DECOMPRESSED_BYTES then
+  if #decompressed > maxDecompressed then
     return nil, "too_large"
   end
 

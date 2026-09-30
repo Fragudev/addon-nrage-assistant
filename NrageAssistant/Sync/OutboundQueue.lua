@@ -3,7 +3,7 @@ local _, ns = ...
 -- Every outgoing message goes through here. While the chat messaging lockdown is active the
 -- message waits (bounded, with a TTL); once it ends the queue drains with random jitter so a
 -- whole raid does not transmit in the same instant.
---   guard: needs :CanSend()          send: function(text) -> transmits
+--   guard: needs :CanSend()          send: function(text, target) -> transmits (guild when no target)
 --   now:   function() -> seconds     jitter: function(maxSeconds) -> seconds
 local OutboundQueue = {}
 OutboundQueue.__index = OutboundQueue
@@ -42,8 +42,9 @@ function OutboundQueue:DropExpired(now)
 end
 
 -- `key` (optional) replaces an older queued message with the same key, so a newer PROFILE
--- supersedes a stale one instead of both being sent. Returns true, or false plus "full".
-function OutboundQueue:Enqueue(text, key)
+-- supersedes a stale one instead of both being sent. `target` (optional) is a whisper recipient.
+-- Returns true, or false plus "full".
+function OutboundQueue:Enqueue(text, key, target)
   local now = self.now()
   self:DropExpired(now)
 
@@ -64,6 +65,7 @@ function OutboundQueue:Enqueue(text, key)
   self.items[#self.items + 1] = {
     text = text,
     key = key,
+    target = target,
     queuedAt = now,
     -- Sent right away when nothing blocks it; otherwise the jitter is drawn once the lockdown ends.
     readyAt = free and now or nil,
@@ -87,7 +89,7 @@ function OutboundQueue:Flush()
       item.readyAt = now + self.jitter(self.maxJitter)
     end
     if item.readyAt <= now then
-      local ok = pcall(self.send, item.text)
+      local ok = pcall(self.send, item.text, item.target)
       if ok then
         sent = sent + 1
       end
