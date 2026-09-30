@@ -584,3 +584,16 @@ describe("ViewModel minimap helpers", function()
     assert.are.equal("not requested: weird", ViewModel.SyncRequestResult(false, "weird"))
   end)
 end)
+
+describe("ViewModel.SelfTestFailures", function()
+  it("says what failed, escaped, and where to see the rest", function()
+    local lines = ViewModel.SelfTestFailures({
+      { name = "C_Club.GetGuildClubId", status = "missing", detail = "not available on this client" },
+      { name = "|cffff0000x", status = "error", detail = "boom" },
+    })
+    assert.are.equal("Self test: 2 check(s) failed", lines[1])
+    assert.are.equal("  [missing] C_Club.GetGuildClubId - not available on this client", lines[2])
+    assert.is_truthy(lines[3]:find("||cffff0000x", 1, true))
+    assert.are.equal("Type /nrage debug selftest for the full result.", lines[4])
+  end)
+end)

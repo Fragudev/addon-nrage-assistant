@@ -55,7 +55,7 @@ function MinimapButton.Command(db, action)
     or "minimap button shown. Drag it to move it around the minimap."
 end
 
-local button
+local button, warning
 
 local function place()
   if not button then
@@ -96,6 +96,11 @@ local function showTooltip(self)
       }))
     do
       GameTooltip:AddLine(line, 1, 1, 1)
+    end
+  end
+  if ns.selfTestFailures and #ns.selfTestFailures > 0 then
+    for _, line in ipairs(ns.ViewModel.SelfTestFailures(ns.selfTestFailures)) do
+      GameTooltip:AddLine(line, 1, 0.4, 0.3)
     end
   end
   GameTooltip:AddLine("Left click: open the window", 0.6, 0.6, 0.6)
@@ -207,6 +212,13 @@ function MinimapButton.Create()
   icon:SetTexture(ns.Constants.LOGO_TEXTURE)
   icon:SetPoint("CENTER", background, "CENTER", 0, 0)
 
+  -- A warning mark on the ring's corner while the silent self test reports a failure.
+  warning = button:CreateTexture(nil, "OVERLAY", nil, 7)
+  warning:SetSize(14, 14)
+  warning:SetTexture("Interface\\DialogFrame\\DialogAlertIcon")
+  warning:SetPoint("BOTTOMRIGHT", 2, -2)
+  warning:Hide()
+
   local ring = button:CreateTexture(nil, "OVERLAY")
   ring:SetSize(53, 53)
   ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
@@ -240,6 +252,11 @@ function MinimapButton.Refresh()
     return
   end
   place()
+  if ns.selfTestFailures and #ns.selfTestFailures > 0 then
+    warning:Show()
+  else
+    warning:Hide()
+  end
   if ns.active and not MinimapButton.Settings(ns.db).hide then
     button:Show()
   else

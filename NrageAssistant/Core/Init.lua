@@ -31,6 +31,18 @@ local function InitDatabase()
   end
 end
 
+-- Runs the self test once, a few seconds after login, and prints nothing. A failure only shows on the minimap
+-- button (warning mark and tooltip); /nrage debug selftest still prints the full result.
+local SELFTEST_DELAY_SECONDS = 10
+
+local function ScheduleSelfTest()
+  C_Timer.After(SELFTEST_DELAY_SECONDS, function()
+    local results = ns.Diagnostics.SelfTest(_G, ns)
+    ns.selfTestFailures = ns.Diagnostics.Failures(results)
+    ns.MinimapButton.Refresh()
+  end)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -52,6 +64,7 @@ local function Activate()
   })
   ns.guildRoster:Request()
   ns.guildRoster:Rebuild()
+  ScheduleSelfTest()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end
 

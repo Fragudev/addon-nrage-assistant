@@ -398,6 +398,17 @@ function ViewModel.SyncRequestResult(ok, reason)
   return "not requested: " .. (ViewModel.SYNC_REQUEST_ERRORS[reason] or tostring(reason))
 end
 
+-- Lines for the minimap tooltip when the silent self test found failures (Diagnostics.Failures).
+function ViewModel.SelfTestFailures(failures)
+  local lines = { ("Self test: %d check(s) failed"):format(#failures) }
+  for _, entry in ipairs(failures) do
+    local detail = entry.detail and (" - " .. ViewModel.Escape(entry.detail)) or ""
+    lines[#lines + 1] = ("  [%s] %s%s"):format(ViewModel.Escape(entry.status), ViewModel.Escape(entry.name), detail)
+  end
+  lines[#lines + 1] = "Type /nrage debug selftest for the full result."
+  return lines
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },

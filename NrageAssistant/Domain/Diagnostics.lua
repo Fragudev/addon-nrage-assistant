@@ -179,6 +179,18 @@ function Diagnostics.SelfTest(env, addon)
   return results, summary
 end
 
+-- The checks that failed outright (missing or erroring). Warnings are left out on purpose: at login they
+-- are usually just data that has not arrived yet (the guild roster), and flagging those would cry wolf.
+function Diagnostics.Failures(results)
+  local failures = {}
+  for _, entry in ipairs(results) do
+    if entry.status == "missing" or entry.status == "error" then
+      failures[#failures + 1] = entry
+    end
+  end
+  return failures
+end
+
 -- Everything that is not simply "ok" is listed; the total says how many were fine.
 function Diagnostics.DescribeSelfTest(results, summary)
   local lines = {
