@@ -65,7 +65,7 @@ describe("Protocol.Validate envelope", function()
   end)
 
   it("rejects unknown types", function()
-    local _, reason = Protocol.Validate(message(nil, { t = "LOOT_AWARD" }))
+    local _, reason = Protocol.Validate(message(nil, { t = "LOOT_TRADE" }))
     assert.are.equal("unknown_type", reason)
     _, reason = Protocol.Validate(message(nil, { t = {} }))
     assert.are.equal("unknown_type", reason)
