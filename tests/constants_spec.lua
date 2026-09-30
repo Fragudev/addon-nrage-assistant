@@ -54,7 +54,8 @@ describe("Addon load", function()
 
   it("refuses data commands while the addon is disabled instead of raising", function()
     local commands = {
-      "profile", "ready", "sync", "consent", "publish", "event", "attendance", "assign", "export", "import", "loot",
+      "profile", "ready", "sync", "consent", "publish", "event", "attendance", "assign", "export", "import",
+      "loot", "report",
     }
     for _, command in ipairs(commands) do
       assert.is_truthy(run(command):find("unavailable while the addon is disabled", 1, true), command)
