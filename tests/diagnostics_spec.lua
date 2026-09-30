@@ -355,3 +355,27 @@ describe("Diagnostics.Info", function()
     assert.is_nil(text:find("sync:", 1, true))
   end)
 end)
+
+describe("Diagnostics.Failures", function()
+  it("keeps only the checks that are missing or erroring, in order", function()
+    local failures = Diagnostics.Failures({
+      { name = "a", status = "ok" },
+      { name = "b", status = "missing", detail = "not available on this client" },
+      { name = "c", status = "warn", detail = "roster not ready" },
+      { name = "d", status = "error", detail = "boom" },
+    })
+    assert.are.equal(2, #failures)
+    assert.are.equal("b", failures[1].name)
+    assert.are.equal("d", failures[2].name)
+  end)
+
+  it("finds nothing when everything works, and flags a missing client function", function()
+    assert.are.same({}, Diagnostics.Failures((Diagnostics.SelfTest(full_env(), full_addon()))))
+
+    local env = full_env()
+    env.UnitGUID = nil
+    local failures = Diagnostics.Failures((Diagnostics.SelfTest(env, full_addon())))
+    assert.are.equal(1, #failures)
+    assert.are.equal("UnitGUID", failures[1].name)
+  end)
+end)

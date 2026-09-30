@@ -20,6 +20,8 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
 - **Left click** opens the window; **drag** it to move it around the minimap.
 - **Hover** shows the next event and its start time, your readiness score and how many messages wait in the sync
   queue. It reads only what the addon already holds, so it is safe during an encounter.
+- A small **warning mark** on the button means the silent self test, run a few seconds after login, found
+  something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
 - **Right click** opens a menu with a shortcut to each tab and a *Request a sync* entry.
 - `/nrage minimap hide` hides it, `/nrage minimap show` brings it back, and `/nrage minimap reset` puts it back in
   its default place. The position and whether it is hidden are saved for your whole account.
