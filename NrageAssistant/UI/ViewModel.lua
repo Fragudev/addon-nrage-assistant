@@ -178,7 +178,7 @@ function ViewModel.HelpLines()
     "/nrage publish       preview, then 'publish confirm' to share your profile",
     "/nrage event         raid events (event new <title> | rename | status | start | delete)",
     "/nrage attendance    attendance for an event (attendance <n> <name> <state>)",
-    "/nrage assign        assignments for an event (assign <n> add <name> <encounter>, "quotes" for names with spaces)",
+    '/nrage assign        assignments for an event (assign <n> add <name> <encounter>; "quotes" for names with spaces)',
     "/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)",
     "/nrage template      save an event's assignments as a template and apply it to another event",
     "/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)",
