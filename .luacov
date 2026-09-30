@@ -1,0 +1,6 @@
+return {
+  include = { "NrageAssistant/" },
+  exclude = { "NrageAssistant/Libs/" },
+  statsfile = "luacov.stats.out",
+  reportfile = "luacov.report.out",
+}

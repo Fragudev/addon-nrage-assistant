@@ -6,22 +6,23 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Stamp version into TOC
-        run: sed -i "s/@project-version@/${GITHUB_REF_NAME}/g" NrageAssistant/NrageAssistant.toc
-
       - name: Build zip
-        run: |
-          zip -r "NrageAssistant-${GITHUB_REF_NAME}.zip" NrageAssistant \
-            -x "*.DS_Store" "*/.git*"
+        run: tools/package.sh "${GITHUB_REF_NAME}"
 
       - name: Create GitHub release
         env:

@@ -4,9 +4,17 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  COVERAGE_MINIMUM: 80
 
 jobs:
   lint-and-test:
@@ -23,11 +31,43 @@ jobs:
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v4
 
-      - name: Install luacheck and busted
-        run: luarocks install luacheck && luarocks install busted
+      - name: Install luacheck, busted and luacov
+        run: luarocks install luacheck && luarocks install busted && luarocks install luacov
 
       - name: Lint
         run: luacheck NrageAssistant tests
 
       - name: Test
-        run: busted
+        run: busted --coverage
+
+      - name: Coverage
+        run: |
+          luacov
+          sed -n '/^Summary/,$p' luacov.report.out | sed '1,2d' | {
+            echo '```'
+            cat
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+          tools/check_coverage.sh "$COVERAGE_MINIMUM"
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check formatting
+        uses: JohnnyMorganz/stylua-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 2.5.2
+          args: --check NrageAssistant tests
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and verify the addon zip
+        run: tools/package.sh "ci-${GITHUB_SHA::7}"
