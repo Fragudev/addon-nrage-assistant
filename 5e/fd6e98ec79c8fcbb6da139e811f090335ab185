@@ -1,0 +1,25 @@
+NrageAssistant/Sync/Protocol.lua
+  s_58126f9867149c::t_591384c194beff 8,98-166,170-173
+tests/comm_spec.lua
+  s_58126f9867149c::t_17f0a2482f566b 10-11
+tests/protocol_spec.lua
+  s_58126f9867149c::t_e12c4cc5acd416 5,67,153-273
+tests/publish_service_spec.lua
+  s_58126f9867149c::t_f96562b29c6f16 3-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5efd6e98ec79c8fcbb6da139e811f090335ab185",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
