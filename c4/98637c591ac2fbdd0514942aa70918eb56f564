@@ -1,0 +1,37 @@
+NrageAssistant/Commands/RaidCommands.lua
+  s_3fd4a5fb5b130a::t_b2b2c5d2c21688 86-134,142,152-154,156,158,184-195,213,233-234,248-274,291,299
+NrageAssistant/Commands/TemplateCommands.lua
+  s_3fd4a5fb5b130a::t_a328cc92872d29 90,99,119-136
+NrageAssistant/Domain/GuildRoster.lua
+  s_3fd4a5fb5b130a::t_d6b149db8b0912 41-50
+NrageAssistant/UI/Main.lua
+  s_3fd4a5fb5b130a::t_026dca04229113 129-318,320-364
+NrageAssistant/UI/ViewModel.lua
+  s_3fd4a5fb5b130a::t_f8e5b58bf29a91 176-232
+docs/USER_GUIDE.md
+  s_3fd4a5fb5b130a::t_e3836b45f8c959 88-100
+tests/guild_roster_spec.lua
+  s_3fd4a5fb5b130a::t_0968abf691e8a0 217-225
+tests/raid_commands_spec.lua
+  s_3fd4a5fb5b130a::t_9ae7625e61ccc5 325-385
+tests/template_commands_spec.lua
+  s_3fd4a5fb5b130a::t_787ac0084ef738 163-183
+tests/view_model_spec.lua
+  s_3fd4a5fb5b130a::t_ac56f25a18a8a7 302-370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c498637c591ac2fbdd0514942aa70918eb56f564",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
