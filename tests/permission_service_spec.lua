@@ -92,3 +92,33 @@ describe("PermissionService.OwnRole", function()
     assert.are.equal("rl", Service.OwnRole(platform))
   end)
 end)
+
+describe("PermissionService council and loot", function()
+  it("maps the council rank to the council role", function()
+    assert.are.equal("council", Service.RoleForRank("Council"))
+  end)
+
+  it("lets the council and admins open sessions, vote and award", function()
+    for _, action in ipairs({ "loot_open", "loot_vote", "loot_award" }) do
+      assert.is_true(Service.Can("council", action), action)
+      assert.is_true(Service.Can("admin", action), action)
+      assert.is_false(Service.Can("rl", action), action)
+      assert.is_false(Service.Can("member", action), action)
+    end
+  end)
+
+  it("lets every role put themselves forward as a candidate", function()
+    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+      assert.is_true(Service.Can(role, "loot_apply"), role)
+    end
+    assert.is_false(Service.Can(nil, "loot_apply"))
+  end)
+
+  it("gives the council no event management rights", function()
+    for _, action in ipairs({ "manage_events", "record_attendance", "manage_assignments", "moderate" }) do
+      assert.is_false(Service.Can("council", action), action)
+    end
+    assert.is_true(Service.Can("council", "view"))
+    assert.is_true(Service.Can("council", "edit_own_profile"))
+  end)
+end)

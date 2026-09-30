@@ -23,6 +23,8 @@ Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\EventModel.lua
 Domain\EventService.lua
+Domain\LootModel.lua
+Domain\LootService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

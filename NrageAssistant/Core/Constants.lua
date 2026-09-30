@@ -33,11 +33,12 @@ ns.Constants = {
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
 
-  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "admin". Placeholder ranks until
-  -- Nrage defines its own; a rank that is not listed here is treated as "member".
+  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder
+  -- ranks until Nrage defines its own; a rank that is not listed here is treated as "member".
   RANK_ROLES = {
     gm = "admin",
     officer = "admin",
+    council = "council",
     rl = "rl",
     roster = "member",
     member = "member",
@@ -75,6 +76,15 @@ ns.Constants = {
   EVENT_RETENTION_SECONDS = 90 * 24 * 3600,
   TOMBSTONE_MAX = 500,
   TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+
+  -- Loot council sessions, per event (bounded like everything shared).
+  LOOT_SESSIONS_MAX = 40,
+  LOOT_CANDIDATES_MAX = 40,
+  LOOT_VOTES_MAX = 30,
+  -- "open": council members see who voted for whom while the session is open. Votes are always
+  -- revealed once the session is closed. Secret votes until close would need a different message
+  -- flow (votes sent only to the leader), so this is reserved for a later decision by the guild.
+  VOTE_VISIBILITY = "open",
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

@@ -84,6 +84,7 @@ describe("EventService.Create", function()
     assert.are.equal(1000, event.updatedAt)
     assert.are.equal("declared", event.source)
     assert.are.equal(event, ctx.events["id-1"])
+    assert.are.same({}, event.loot)
   end)
 
   it("refuses members and unknown roles", function()

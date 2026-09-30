@@ -56,6 +56,7 @@ describe("EventSync EVENT_UPSERT", function()
     assert.are.equal("received", stored.source)
     assert.are.equal("Leader-Realm", stored.updatedBy)
     assert.are.same({}, stored.attendance)
+    assert.are.same({}, stored.loot)
   end)
 
   it("takes the author from the sender, not from anything in the payload", function()

@@ -2,15 +2,20 @@ local _, ns = ...
 
 -- Who may do what (plan section 12). Roles come from the guild rank, read from the receiver's own
 -- guild roster: a message never gets to say what its sender is allowed to do.
--- Council/loot actions arrive with phase 3.
+-- Roles: member, rl (raid leader), council (loot council) and admin. A raid leader does not get
+-- loot rights by default (the plan marks that as optional); map a rank to "council" to grant them.
 local PermissionService = {}
 
 local ACTIONS = {
-  view = { member = true, rl = true, admin = true },
-  edit_own_profile = { member = true, rl = true, admin = true },
+  view = { member = true, rl = true, council = true, admin = true },
+  edit_own_profile = { member = true, rl = true, council = true, admin = true },
   manage_events = { rl = true, admin = true },
   record_attendance = { rl = true, admin = true },
   manage_assignments = { rl = true, admin = true },
+  loot_apply = { member = true, rl = true, council = true, admin = true },
+  loot_open = { council = true, admin = true },
+  loot_vote = { council = true, admin = true },
+  loot_award = { council = true, admin = true },
   moderate = { admin = true },
 }
 
