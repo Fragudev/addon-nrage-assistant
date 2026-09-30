@@ -29,7 +29,7 @@ function PermissionService.RoleForRank(rankName, mapping)
   return mapping[rankName:lower()] or "member"
 end
 
--- Lowercase, no spaces: "Yonemon Gg" and "yonemongg" are the same name. Character names cannot
+-- Lowercase, no spaces: "Some Name" and "somename" are the same name. Character names cannot
 -- contain spaces in the game, so this only makes the configured list forgiving.
 local function normalizeName(text)
   return (text:lower():gsub("%s+", ""))
