@@ -1,0 +1,33 @@
+NrageAssistant/Commands/ReportCommands.lua
+  s_58126f9867149c::t_90d71e6af29d40 1-46
+NrageAssistant/Commands/Slash.lua
+  s_58126f9867149c::t_bf4b49bc41043b 234-244,247
+NrageAssistant/Domain/ReportService.lua
+  s_58126f9867149c::t_a5b3003c95d94f 1-153
+NrageAssistant/NrageAssistant.toc
+  s_58126f9867149c::t_10db59c909fb14 28,42
+NrageAssistant/UI/ViewModel.lua
+  s_58126f9867149c::t_4eb5081725dc67 183
+tests/constants_spec.lua
+  s_58126f9867149c::t_3ce48ce2940bfb 57-58
+tests/report_spec.lua
+  s_58126f9867149c::t_687b767a09ad4d 1-198
+tests/view_model_spec.lua
+  s_58126f9867149c::t_9765a0c4c60b30 103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6006ab42bc043cb845ac81f8d425a10fbaa8a2db",
+  "prompts": {},
+  "sessions": {
+    "s_58126f9867149c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e2b0403-0d68-4ed2-8d66-0bd3fc886845",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
