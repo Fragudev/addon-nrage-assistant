@@ -17,6 +17,7 @@ Core\LockdownProbe.lua
 Core\Store.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
+Domain\PublishService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

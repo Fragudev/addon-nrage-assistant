@@ -76,6 +76,62 @@ local function ReadyCommand(rest)
   end
 end
 
+local PUBLISH_ERRORS = {
+  no_consent = "profile consent is off. Use /nrage consent profile on.",
+  missing_data = "class or level is unknown, nothing to share yet.",
+  cooldown = "you published a moment ago, wait a little.",
+  full = "the send queue is full, try again shortly.",
+  too_large = "the profile is too large to send.",
+  encode_failed = "the profile could not be encoded.",
+}
+
+local function ConsentCommand(rest)
+  if not ns.active or not ns.character then
+    say("consent is unavailable while the addon is disabled.")
+    return
+  end
+
+  local consent = ns.character.consent
+  local key, value = rest:match("^(%S*)%s*(%S*)")
+  if key ~= "" then
+    if value ~= "on" and value ~= "off" then
+      say("usage: /nrage consent <profile|gear|professions|notes> <on|off>")
+      return
+    end
+    if not ns.PublishService.SetConsent(consent, key, value == "on") then
+      say("unknown item. Allowed: profile, gear, professions, notes.")
+      return
+    end
+  end
+
+  say("sharing consent:")
+  for _, name in ipairs(ns.PublishService.CONSENT_KEYS) do
+    print(("  %s: %s"):format(name, consent[name] and "on" or "off"))
+  end
+end
+
+local function PublishCommand(rest)
+  if not ns.active or not ns.character or not ns.comm then
+    say("publishing is unavailable while the addon is disabled.")
+    return
+  end
+
+  local character = ns.character
+  if rest == "confirm" then
+    ns.ProfileService.Refresh(ns.Platform, character.profile)
+    local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
+    say(ok and "profile published to the guild." or ("not published: " .. (PUBLISH_ERRORS[reason] or reason)))
+    return
+  end
+
+  ns.ProfileService.Refresh(ns.Platform, character.profile)
+  for _, line in ipairs(ns.PublishService.Describe(character.profile, character.consent)) do
+    print(line)
+  end
+  say("Addon messages are not private: any guild member with the addon can read them.")
+  say("Type /nrage publish confirm to send.")
+end
+
 local function SyncCommand()
   if not ns.active or not ns.comm then
     say("sync is unavailable while the addon is disabled.")
@@ -90,6 +146,8 @@ local COMMANDS = {
   profile = ProfileCommand,
   ready = ReadyCommand,
   sync = SyncCommand,
+  consent = ConsentCommand,
+  publish = PublishCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     if sub == "identity" then

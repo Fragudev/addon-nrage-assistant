@@ -60,6 +60,8 @@ function Store.GetChar(db, identityKey)
   local char = ensureTable(db.chars, identityKey)
   ensureTable(char, "profile")
   ensureTable(char, "readiness")
+  ensureTable(char, "consent")
+  ensureTable(char, "publish")
   return char
 end
 
