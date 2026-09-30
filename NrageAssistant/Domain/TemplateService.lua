@@ -122,6 +122,44 @@ function TemplateService.Apply(ctx, templates, name, eventId)
   return created, skipped
 end
 
+local SUGGEST_MIN_LENGTH = 3
+
+local function lowered(text)
+  return type(text) == "string" and text:lower():match("^%s*(.-)%s*$") or ""
+end
+
+local function mentions(haystack, needle)
+  return #needle >= SUGGEST_MIN_LENGTH and haystack:find(needle, 1, true) ~= nil
+end
+
+-- Templates worth offering for an event: the template name appears in the event's title or instance, or the
+-- other way round (a template called "Molten Core" for an event "Molten Core night"). A template whose slots
+-- the event already has is left out. Nothing is applied here; the caller offers each name and applies only
+-- when the player clicks. Returns the names, sorted.
+function TemplateService.Suggest(templates, event)
+  local title, instance = lowered(event.title), lowered(event.instance)
+  local present = {}
+  for _, assignment in pairs(event.assignments or {}) do
+    present[slotKey(assignment)] = true
+  end
+
+  local names = {}
+  for name, template in pairs(templates) do
+    local key = lowered(name)
+    local related = mentions(title, key) or mentions(instance, key) or mentions(key, title) or mentions(key, instance)
+    if related then
+      for _, slot in ipairs(template.slots) do
+        if not present[slotKey(slot)] then
+          names[#names + 1] = name
+          break
+        end
+      end
+    end
+  end
+  table.sort(names)
+  return names
+end
+
 -- One line for the result of Apply.
 function TemplateService.Describe(created, skipped)
   local parts = {}

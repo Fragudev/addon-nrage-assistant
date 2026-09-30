@@ -133,6 +133,10 @@ turned into an absence.
 boss does not have to be planned again each week. Also `template list`, `template show <name>` and
 `template delete <name>`. Templates stay on your client and are not shared.
 
+In the **Raid** tab, a newly created event is opened at once, and any template whose name matches the event's
+title or instance (for example a template called *Molten Core* for an event *Molten Core night*) is offered as a
+button. Nothing is applied until you click it, and a template the event already has in full is not offered.
+
 ## Loot council
 
 Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
