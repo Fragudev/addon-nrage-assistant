@@ -23,6 +23,17 @@ ns.Constants = {
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
 
+  -- Inbound guards: per-sender rate limit and a bounded cache of message ids already seen.
+  INBOX_SEEN_LIMIT = 200,
+  INBOX_MAX_PER_WINDOW = 10,
+  INBOX_WINDOW_SECONDS = 60,
+  INBOX_MAX_SENDERS = 200,
+
+  -- Outbound queue: bounded, expiring, and jittered when it drains after a lockdown.
+  QUEUE_MAX_ITEMS = 20,
+  QUEUE_TTL_SECONDS = 120,
+  QUEUE_MAX_JITTER_SECONDS = 5,
+
   -- Starting checklist. It only holds items that need no guild-specific numbers: level, item level
   -- and profession rules ({ check = "level" | "ilvl", min = N } / { check = "profession", ... })
   -- are supported by ReadinessService but wait for the guild to decide their thresholds.
