@@ -85,7 +85,19 @@ Two commands need no quotes: `attendance` (the last word is the state, the name 
 
 ## Raid events
 
-Events are created by raid leaders and admins and are shared with the guild. They are numbered as in the list:
+Events are created by raid leaders and admins and are shared with the guild.
+
+### From the window
+
+The **Raid** tab does everything below without typing commands. Pick an event in the dropdown; raid leaders and
+admins can also create one, rename it, change its status and start time, set each member's attendance from a
+dropdown (members come from the guild roster; type part of a name in *Find a member* to narrow the list), add
+and remove assignments by picking a member, and save or apply a template. Controls your guild rank does not
+allow are not shown. Everyone else sees the event list as read-only text. The commands keep working the same way.
+
+### From the chat
+
+Events are numbered as in the list:
 
 | Command | What it does |
 |---|---|

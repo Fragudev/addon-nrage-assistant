@@ -299,3 +299,72 @@ describe("ViewModel.Loot", function()
     assert.is_truthy(text:find("||cff00ff00Ann", 1, true))
   end)
 end)
+
+describe("ViewModel raid tab helpers", function()
+  it("only offers what the role may do, like the commands", function()
+    assert.are.same({ events = false, attendance = false, assignments = false }, ViewModel.RaidActions("member"))
+    assert.are.same({ events = false, attendance = false, assignments = false }, ViewModel.RaidActions("council"))
+    assert.are.same({ events = false, attendance = false, assignments = false }, ViewModel.RaidActions(nil))
+    assert.are.same({ events = true, attendance = true, assignments = true }, ViewModel.RaidActions("rl"))
+    assert.are.same({ events = true, attendance = true, assignments = true }, ViewModel.RaidActions("admin"))
+  end)
+
+  it("offers every status and attendance state the model accepts, and only those", function()
+    local function set(list)
+      local out = {}
+      for _, value in ipairs(list) do
+        out[value] = true
+      end
+      return out
+    end
+    local ns = {}
+    for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/EventModel" }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    end
+    assert.are.same(ns.EventModel.EVENT_STATUSES, set(ViewModel.EVENT_STATUSES))
+    assert.are.same(ns.EventModel.ATTENDANCE_STATES, set(ViewModel.ATTENDANCE_STATES))
+  end)
+
+  it("lists events in command order, escaped", function()
+    local list, order = ViewModel.EventChoices({
+      b = { eventId = "b", title = "Later", status = "open", startAt = 20 },
+      a = { eventId = "a", title = "|cffff0000Sooner", status = "planned", startAt = 10 },
+    })
+    assert.are.same({ "a", "b" }, order)
+    assert.are.equal("1. ||cffff0000Sooner [planned]", list.a)
+    assert.are.equal("2. Later [open]", list.b)
+  end)
+
+  describe("AttendanceRows", function()
+    local event = {
+      attendance = { ["Zed-Realm"] = { state = "late" }, ["Gone-Realm"] = { state = "absent" } },
+    }
+    local members = { "Ann-Realm", "Zed-Realm", "Yonemon Gg-Realm" }
+
+    it("merges the roster with recorded members, sorted, with nil for no record", function()
+      local rows, matched = ViewModel.AttendanceRows(event, members, "", 10)
+      assert.are.equal(4, matched)
+      assert.are.same({ "Ann-Realm", "Gone-Realm", "Yonemon Gg-Realm", "Zed-Realm" }, {
+        rows[1].name,
+        rows[2].name,
+        rows[3].name,
+        rows[4].name,
+      })
+      assert.is_nil(rows[1].state)
+      assert.are.equal("absent", rows[2].state)
+      assert.are.equal("late", rows[4].state)
+    end)
+
+    it("filters by part of a name, ignoring case, including names with spaces", function()
+      local rows, matched = ViewModel.AttendanceRows(event, members, "yonemon g", 10)
+      assert.are.equal(1, matched)
+      assert.are.equal("Yonemon Gg-Realm", rows[1].name)
+    end)
+
+    it("cuts at the limit but still reports how many matched", function()
+      local rows, matched = ViewModel.AttendanceRows(event, members, "", 2)
+      assert.are.equal(2, #rows)
+      assert.are.equal(4, matched)
+    end)
+  end)
+end)

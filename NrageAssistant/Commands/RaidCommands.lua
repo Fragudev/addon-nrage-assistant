@@ -83,21 +83,63 @@ function RaidCommands:ListEvents()
   return lines
 end
 
+-- The structured operations below are what the window calls; the text commands parse their words and call
+-- the same methods, so both paths apply the same role checks and send the same messages.
+function RaidCommands:CreateEvent(title)
+  local ctx = self:Context()
+  local event, reason = ns.EventService.Create(ctx, { title = title })
+  if not event then
+    return { fail(ctx, reason) }
+  end
+  return { ("created event '%s'."):format(event.title), sentNote(self.comm:SendEvent(event)) }
+end
+
+function RaidCommands:DeleteEvent(event)
+  local ctx = self:Context()
+  local ok, reason = ns.EventService.Delete(ctx, event.eventId)
+  if not ok then
+    return { fail(ctx, reason) }
+  end
+  return { ("deleted '%s'."):format(event.title), sentNote(self.comm:SendDeleteEvent(event.eventId)) }
+end
+
+function RaidCommands:UpdateEvent(event, fields)
+  local ctx = self:Context()
+  local updated, reason = ns.EventService.Update(ctx, event.eventId, fields)
+  if not updated then
+    if reason == "invalid:status" then
+      return { EVENT_STATUS_HELP }
+    end
+    return { fail(ctx, reason) }
+  end
+  return { ("updated '%s' [%s]."):format(updated.title, updated.status), sentNote(self.comm:SendEvent(updated)) }
+end
+
+function RaidCommands:RenameEvent(event, title)
+  return self:UpdateEvent(event, { title = title })
+end
+
+function RaidCommands:SetEventStatus(event, status)
+  return self:UpdateEvent(event, { status = status })
+end
+
+-- `text` is "YYYY-MM-DD HH:MM" in local time.
+function RaidCommands:SetEventStart(event, text)
+  local startAt = self.platform.ParseDate(text)
+  if not startAt then
+    return { EVENT_DATE_HELP }
+  end
+  return self:UpdateEvent(event, { startAt = startAt })
+end
+
 function RaidCommands:Event(rest)
   local sub, args = rest:match("^(%S*)%s*(.-)$")
   if sub == "" or sub == "list" then
     return self:ListEvents()
   end
 
-  local ctx = self:Context()
   if sub == "new" then
-    local event, reason = ns.EventService.Create(ctx, { title = args })
-    if not event then
-      return { fail(ctx, reason) }
-    end
-    local lines = { ("created event '%s'."):format(event.title) }
-    lines[#lines + 1] = sentNote(self.comm:SendEvent(event))
-    return lines
+    return self:CreateEvent(args)
   end
 
   if sub == "rename" or sub == "status" or sub == "delete" or sub == "start" then
@@ -106,35 +148,14 @@ function RaidCommands:Event(rest)
     if not event then
       return { problem }
     end
-
     if sub == "delete" then
-      local ok, reason = ns.EventService.Delete(ctx, event.eventId)
-      if not ok then
-        return { fail(ctx, reason) }
-      end
-      return { ("deleted '%s'."):format(event.title), sentNote(self.comm:SendDeleteEvent(event.eventId)) }
-    end
-
-    local fields
-    if sub == "rename" then
-      fields = { title = value }
+      return self:DeleteEvent(event)
+    elseif sub == "rename" then
+      return self:RenameEvent(event, value)
     elseif sub == "status" then
-      fields = { status = value }
-    else
-      local startAt = self.platform.ParseDate(value)
-      if not startAt then
-        return { EVENT_DATE_HELP }
-      end
-      fields = { startAt = startAt }
+      return self:SetEventStatus(event, value)
     end
-    local updated, reason = ns.EventService.Update(ctx, event.eventId, fields)
-    if not updated then
-      if reason == "invalid:status" then
-        return { EVENT_STATUS_HELP }
-      end
-      return { fail(ctx, reason) }
-    end
-    return { ("updated '%s' [%s]."):format(updated.title, updated.status), sentNote(self.comm:SendEvent(updated)) }
+    return self:SetEventStart(event, value)
   end
 
   return {
@@ -160,6 +181,18 @@ local function listAttendance(event)
   return lines
 end
 
+function RaidCommands:SetAttendance(event, characterKey, state)
+  local ctx = self:Context()
+  local record, reason = ns.EventService.SetAttendance(ctx, event.eventId, characterKey, state)
+  if not record then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("%s: %s."):format(characterKey, record.state),
+    sentNote(self.comm:SendAttendance(event.eventId, characterKey, record)),
+  }
+end
+
 function RaidCommands:Attendance(rest)
   local token, remainder = rest:match("^(%S*)%s*(.-)$")
   local event, problem = self:Resolve(token)
@@ -177,15 +210,7 @@ function RaidCommands:Attendance(rest)
     return { "usage: /nrage attendance <n> [<name> <state>]" }
   end
 
-  local ctx = self:Context()
-  local record, reason = ns.EventService.SetAttendance(ctx, event.eventId, characterKey, state)
-  if not record then
-    return { fail(ctx, reason) }
-  end
-  return {
-    ("%s: %s."):format(characterKey, record.state),
-    sentNote(self.comm:SendAttendance(event.eventId, characterKey, record)),
-  }
+  return self:SetAttendance(event, characterKey, state)
 end
 
 local function sortedAssignments(event)
@@ -205,6 +230,8 @@ local function sortedAssignments(event)
   return list
 end
 
+RaidCommands.SortedAssignments = sortedAssignments
+
 local function listAssignments(event)
   local list = sortedAssignments(event)
   if #list == 0 then
@@ -218,6 +245,33 @@ local function listAssignments(event)
   return lines
 end
 
+function RaidCommands:AddAssignment(event, characterKey, encounter)
+  local ctx = self:Context()
+  local assignment, reason = ns.EventService.AddAssignment(ctx, event.eventId, {
+    characterKey = characterKey,
+    encounter = encounter,
+  })
+  if not assignment then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("assigned %s to %s."):format(characterKey, encounter),
+    sentNote(self.comm:SendAssignment(event.eventId, assignment)),
+  }
+end
+
+function RaidCommands:RemoveAssignment(event, assignment)
+  local ctx = self:Context()
+  local ok, reason = ns.EventService.RemoveAssignment(ctx, event.eventId, assignment.assignmentId)
+  if not ok then
+    return { fail(ctx, reason) }
+  end
+  return {
+    ("removed %s from %s."):format(assignment.characterKey, assignment.encounter),
+    sentNote(self.comm:SendDeleteAssignment(event.eventId, assignment.assignmentId)),
+  }
+end
+
 function RaidCommands:Assign(rest)
   local token, sub, args = rest:match("^(%S*)%s*(%S*)%s*(.-)$")
   local event, problem = self:Resolve(token)
@@ -228,24 +282,13 @@ function RaidCommands:Assign(rest)
     return listAssignments(event)
   end
 
-  local ctx = self:Context()
   if sub == "add" then
     -- A name with spaces goes in double quotes: assign 1 add "Yonemon Gg" Ragnaros
     local characterKey, encounter = ns.Args.TakeName(args)
     if not characterKey or encounter == "" then
       return { 'usage: /nrage assign <n> add <name> <encounter>   (put a name with spaces in "quotes")' }
     end
-    local assignment, reason = ns.EventService.AddAssignment(ctx, event.eventId, {
-      characterKey = characterKey,
-      encounter = encounter,
-    })
-    if not assignment then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("assigned %s to %s."):format(characterKey, encounter),
-      sentNote(self.comm:SendAssignment(event.eventId, assignment)),
-    }
+    return self:AddAssignment(event, characterKey, encounter)
   end
 
   if sub == "remove" then
@@ -253,14 +296,7 @@ function RaidCommands:Assign(rest)
     if not target then
       return { "give the assignment number from /nrage assign <n>." }
     end
-    local ok, reason = ns.EventService.RemoveAssignment(ctx, event.eventId, target.assignmentId)
-    if not ok then
-      return { fail(ctx, reason) }
-    end
-    return {
-      ("removed %s from %s."):format(target.characterKey, target.encounter),
-      sentNote(self.comm:SendDeleteAssignment(event.eventId, target.assignmentId)),
-    }
+    return self:RemoveAssignment(event, target)
   end
 
   return { "usage: /nrage assign <n> [list | add <name> <encounter> | remove <k>]" }
