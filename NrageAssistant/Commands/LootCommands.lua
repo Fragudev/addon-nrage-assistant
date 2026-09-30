@@ -14,8 +14,8 @@ local USAGE = {
   "       /nrage loot <event> open <item link>    open a session (council, after the encounter)",
   "       /nrage loot <event> <n>                 show a session",
   "       /nrage loot <event> <n> apply <spec> <main|off|other> [upgrade]",
-  "       /nrage loot <event> <n> vote <Name-Realm>",
-  "       /nrage loot <event> <n> award <Name-Realm> <reason>",
+  "       /nrage loot <event> <n> vote <name>",
+  "       /nrage loot <event> <n> award <name> <reason>",
   "       /nrage loot <event> <n> close           close without awarding",
   "       /nrage loot acta <event>                the minutes: what was decided and why",
 }
@@ -197,7 +197,8 @@ function LootCommands:Session(event, session, verb, args)
   end
 
   if verb == "vote" then
-    local vote, reason = ns.LootService.Vote(ctx, eventId, sessionId, args)
+    -- Everything after "vote" is the name, so spaces need no quotes here (they are accepted anyway).
+    local vote, reason = ns.LootService.Vote(ctx, eventId, sessionId, ns.Args.Unquote(args))
     if not vote then
       return { fail(ctx, reason) }
     end
@@ -208,9 +209,10 @@ function LootCommands:Session(event, session, verb, args)
   end
 
   if verb == "award" then
-    local target, why = args:match("^(%S+)%s+(.+)$")
-    if not target then
-      return { "usage: /nrage loot <event> <n> award <Name-Realm> <reason>" }
+    -- A name with spaces goes in double quotes: award "Yonemon Gg" highest need
+    local target, why = ns.Args.TakeName(args)
+    if not target or why == "" then
+      return { 'usage: /nrage loot <event> <n> award <name> <reason>   (put a name with spaces in "quotes")' }
     end
     local awarded, reason = ns.LootService.Award(ctx, eventId, sessionId, target, why)
     if not awarded then

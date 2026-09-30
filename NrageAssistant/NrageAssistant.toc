@@ -12,6 +12,7 @@ embeds.xml
 Core\Constants.lua
 Core\Platform.lua
 Core\Validate.lua
+Core\Args.lua
 Core\AccessGuard.lua
 Core\LockdownGuard.lua
 Core\LockdownProbe.lua

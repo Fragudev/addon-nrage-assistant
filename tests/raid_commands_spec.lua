@@ -1,7 +1,7 @@
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
-    "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/EventModel",
+    "Core/Constants", "Core/Validate", "Core/Args", "Domain/PermissionService", "Domain/EventModel",
     "Domain/EventService", "Commands/RaidCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -252,5 +252,53 @@ describe("RaidCommands event start time", function()
     member.events["ev-1"] = { eventId = "ev-1", title = "Raid", status = "planned", attendance = {}, assignments = {} }
     assert.is_truthy(text(member.raid:Event("start 1 2026-10-03 20:30")):find("not allowed", 1, true))
     assert.are.equal(0, #member.sent)
+  end)
+end)
+
+describe("RaidCommands character names with spaces", function()
+  local env
+
+  before_each(function()
+    env = build("Officer")
+    env.raid:Event("new Raid night")
+    env.sent = {}
+  end)
+
+  it("records attendance for a name with spaces: the state is the last word", function()
+    local lines = text(env.raid:Attendance("1 Yonemon Gg present"))
+    assert.is_truthy(lines:find("Yonemon Gg: present.", 1, true))
+    assert.are.equal("SendAttendance", env.sent[1].kind)
+    assert.are.equal("Yonemon Gg", env.sent[1].args[2])
+    assert.is_truthy(text(env.raid:Attendance("1")):find("  Yonemon Gg - present [declared]", 1, true))
+  end)
+
+  it("accepts the name in quotes, and still accepts a single-word name", function()
+    env.raid:Attendance('1 "Black Coffee" late')
+    env.raid:Attendance("1 Ann-Realm absent")
+    local listing = text(env.raid:Attendance("1"))
+    assert.is_truthy(listing:find("  Black Coffee - late [declared]", 1, true))
+    assert.is_truthy(listing:find("  Ann-Realm - absent [declared]", 1, true))
+  end)
+
+  it("asks for a state when only a name is given, and records nothing", function()
+    assert.is_truthy(text(env.raid:Attendance("1 Ann-Realm")):find("usage:", 1, true))
+    assert.is_truthy(text(env.raid:Attendance('1 "" present')):find("usage:", 1, true))
+    assert.are.equal(0, #env.sent)
+  end)
+
+  it("adds an assignment for a quoted name with spaces and a multi-word encounter", function()
+    local lines = text(env.raid:Assign('1 add "Yonemon Gg" Baron Geddon'))
+    assert.is_truthy(lines:find("assigned Yonemon Gg to Baron Geddon", 1, true))
+    assert.are.equal("Yonemon Gg", env.sent[1].args[2].characterKey)
+    assert.are.equal("Baron Geddon", env.sent[1].args[2].encounter)
+  end)
+
+  it("explains how to quote when the assignment is malformed", function()
+    for _, args in ipairs({ '1 add "Yonemon Gg"', '1 add "Yonemon Gg Ragnaros', "1 add" }) do
+      local lines = text(env.raid:Assign(args))
+      assert.is_truthy(lines:find("usage:", 1, true), args)
+      assert.is_truthy(lines:find("quotes", 1, true), args)
+    end
+    assert.are.equal(0, #env.sent)
   end)
 end)
