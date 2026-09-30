@@ -1,0 +1,105 @@
+NrageAssistant/Commands/LootCommands.lua
+  s_950dc6064a94a5::t_0d99533619c14a 38-40,154-157,193-195,261-265
+NrageAssistant/Commands/RaidCommands.lua
+  s_950dc6064a94a5::t_13c0d42097f5b3 28-30,239-240
+NrageAssistant/Commands/Slash.lua
+  s_950dc6064a94a5::t_cd3d725279c3c8 138-141,175-180,205-211
+NrageAssistant/Commands/TemplateCommands.lua
+  s_950dc6064a94a5::t_31e86ea3038916 34-36,59-60
+NrageAssistant/Core/Constants.lua
+  s_950dc6064a94a5::t_1ffd872e7a15c9 129-134,137-141,144-148
+NrageAssistant/Core/LockdownProbe.lua
+  s_950dc6064a94a5::t_6d383b3d7c8f15 35-37,70-72,112-120,130-132
+NrageAssistant/Core/Platform.lua
+  s_950dc6064a94a5::t_3b158c3dbd75e8 174-178
+NrageAssistant/Domain/Diagnostics.lua
+  s_950dc6064a94a5::t_a23f384c9f08b4 127-129,131-135,146-150,186-190,238-244,249-256
+NrageAssistant/Domain/EventModel.lua
+  s_950dc6064a94a5::t_c18393395ae512 11-18
+NrageAssistant/Domain/ReportService.lua
+  s_950dc6064a94a5::t_63373e95716cae 145-149
+NrageAssistant/Domain/TemplateService.lua
+  s_950dc6064a94a5::t_1e4289567553b5 105-109
+NrageAssistant/Sync/Comm.lua
+  s_950dc6064a94a5::t_3c6005cbc31fe8 402-405
+NrageAssistant/Sync/OutboundQueue.lua
+  s_950dc6064a94a5::t_2c6d8a28f9adf9 17-19
+NrageAssistant/Sync/Protocol.lua
+  s_950dc6064a94a5::t_d36e5d5b09dd35 178-184,197-204,217-223,235-238
+NrageAssistant/Sync/Transfer.lua
+  s_950dc6064a94a5::t_f3439ab10616c3 51-54
+NrageAssistant/UI/Main.lua
+  s_950dc6064a94a5::t_f4a5ea45b833ef 119-120
+NrageAssistant/UI/ViewModel.lua
+  s_950dc6064a94a5::t_da0e57593ef736 85-89,123-126,145-147,152-157,161-164
+tests/access_guard_spec.lua
+  s_950dc6064a94a5::t_3da6505c2582b2 9-23,25-27,45-52,58-65,71-78,84-88,95-102,108-115
+tests/codec_spec.lua
+  s_950dc6064a94a5::t_a817654b4cd003 34-36,88-90
+tests/comm_spec.lua
+  s_950dc6064a94a5::t_bd716690b337d9 10-25,49-57,64-66,69-71,76-78,88-93,95-103,114-116,352-356,395-402,406-411,484-486,524-526,529-536,547-549,645-647,659-666,672-677,680-682,708-713,718-723,771-776,782-789,810-815,821-827,833-840
+tests/constants_spec.lua
+  s_950dc6064a94a5::t_ded226f8f02ebd 28-30,59-72
+tests/diagnostics_spec.lua
+  s_950dc6064a94a5::t_0e9b2e547e8b44 12-30,33-40,46-48,60-62,65-67,71-73,86-91,95-99,101-109,117-119,134-139,157-159,171-176,199-203,205-209,214-216,219-223,231-248,254-261,269-271,301-303,314-334
+tests/event_service_spec.lua
+  s_950dc6064a94a5::t_ac6a7f55e24d79 4-8,27-29,64-85,133-135,193-195,251-254,298-300
+tests/event_sync_spec.lua
+  s_950dc6064a94a5::t_a8beb72810f249 4-11,25-31,35-41,163-165,235-238,345-347
+tests/guild_roster_spec.lua
+  s_950dc6064a94a5::t_b9d9a9db4378fd 13-21,26-31,159-164
+tests/lockdown_guard_spec.lua
+  s_950dc6064a94a5::t_6bd5b31943dd14 9-11,16-18
+tests/loot_commands_spec.lua
+  s_950dc6064a94a5::t_f6b332d1eb8d28 4-12,30-38,41-52,214-220
+tests/loot_service_spec.lua
+  s_950dc6064a94a5::t_17304395a84831 4-8,22-27,36-38,43-45,52-54,85-95,175-177,199-202,224-233,287-289,311-312,342-344,349-352
+tests/loot_sync_spec.lua
+  s_950dc6064a94a5::t_7ab947a5fee14b 4-13,21-22,32-39,43-49,53-58,63-65,155-161,178-180,225-229,231-238,311-313,323-325,393-398,417-425,431-433,453-455,468-470
+tests/minimap_button_spec.lua
+  s_950dc6064a94a5::t_36a962374eb86e 161-163
+tests/outbound_queue_spec.lua
+  s_950dc6064a94a5::t_7e0d18163e5b3f 14-16,22-30,116-118,126-128,150-163
+tests/permission_service_spec.lua
+  s_950dc6064a94a5::t_9e878757fb2761 12-14,94-99,139-143,148-153,159-166,174-181
+tests/platform_spec.lua
+  s_950dc6064a94a5::t_b505b99b303772 25-35,45-51,66-68,75-79,104-108,118-123,150-173,176-181,187-191
+tests/profile_service_spec.lua
+  s_950dc6064a94a5::t_dec1b5ebb36848 10-27,32-34,54-64,74-81
+tests/protocol_spec.lua
+  s_950dc6064a94a5::t_4bc16eebbacc5f 22-24,30-32,132-142,160-162,174-176,184-189,196-199,206-218,231-233,245-251,262-270,272-274,285-292,308-311,348-350,358-360,371-379,381-387,394-403,406-408,414-423,432-438,441-443,449-457,466-469,472-474
+tests/publish_service_spec.lua
+  s_950dc6064a94a5::t_15d2a786fb1026 4-8,45-49,181-183
+tests/raid_commands_spec.lua
+  s_950dc6064a94a5::t_780761b0d0f130 4-10,23-34,52-56,61-64
+tests/readiness_service_spec.lua
+  s_950dc6064a94a5::t_c3b880f588d76d 8-12
+tests/report_spec.lua
+  s_950dc6064a94a5::t_c489cb1f0ca361 4-12,24-30,36-38,53-55,97-106,109-111,144-150,204-206
+tests/store_spec.lua
+  s_950dc6064a94a5::t_a7d2f52e590877 81-84
+tests/template_commands_spec.lua
+  s_950dc6064a94a5::t_9ab144eae7a089 4-10,26-34,46-49,58-66
+tests/template_service_spec.lua
+  s_950dc6064a94a5::t_5f69051bff2f9c 4-8,22-24,36-40,44-46,66-67,93-95,142-144,186-188,196-199
+tests/transfer_spec.lua
+  s_950dc6064a94a5::t_19d20c5300ae6d 9-20,35-41,59-62,65-66,118-126,210-212,219-232,245-249,257-264,285-292,308-311,335-338,402-404
+tests/view_model_spec.lua
+  s_950dc6064a94a5::t_0c819b9e0f1b98 4-11,32-39,46-53,94-97,113-115,122-139,149-154,156-158,161-163,182-184,218-224,238-240,256-260,287-291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a1951e1eb541d7520be51c2c01f1561db052590",
+  "prompts": {},
+  "sessions": {
+    "s_950dc6064a94a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc5f5c2a-5ea2-495f-80fc-75c82693a7d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
