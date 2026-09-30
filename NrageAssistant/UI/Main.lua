@@ -186,6 +186,15 @@ local function AddTextInput(container, label, text, width, onSubmit)
   container:AddChild(box)
 end
 
+-- A text box read at the moment a button is clicked, so the text counts without pressing Enter first.
+local function AddField(container, label, width)
+  local box = LibStub("AceGUI-3.0"):Create("EditBox")
+  box:SetLabel(label)
+  box:SetRelativeWidth(width)
+  container:AddChild(box)
+  return box
+end
+
 local function AddButton(container, text, width, onClick)
   local button = LibStub("AceGUI-3.0"):Create("Button")
   button:SetText(text)
@@ -270,20 +279,18 @@ local function DrawAssignments(container, raid, event, members)
   for _, name in ipairs(members) do
     list[name] = ns.ViewModel.Escape(name)
   end
-  local newMember, newEncounter
+  local newMember
   AddDropdown(container, "Member", list, members, nil, 0.45, function(key)
     newMember = key
   end)
-  AddTextInput(container, "Encounter", "", 0.3, function(value)
-    newEncounter = value
-  end)
+  local encounter = AddField(container, "Encounter", 0.3)
   AddButton(container, "Add", 0.25, function()
     if not newMember then
       raidMessage = "Pick a member first."
       Redraw()
       return
     end
-    Report(raid:AddAssignment(event, newMember, newEncounter or ""))
+    Report(raid:AddAssignment(event, newMember, encounter:GetText()))
   end)
 end
 
