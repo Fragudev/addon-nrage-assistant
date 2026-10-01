@@ -91,3 +91,75 @@ describe("VotingFrame controller", function()
     assert.are.same({ { "s1", "s2" } }, env.opened)
   end)
 end)
+
+describe("VotingFrame controller redraw limit", function()
+  local function throttled(open)
+    local env = { clock = 10, updates = 0, timers = {}, open = open ~= false }
+    env.controller = Controller.New({
+      openSessionIds = function()
+        return {}
+      end,
+      canVote = function()
+        return true
+      end,
+      isLockedDown = function()
+        return false
+      end,
+      after = function(seconds, fn)
+        env.timers[#env.timers + 1] = { seconds = seconds, fn = fn }
+      end,
+      open = function() end,
+      update = function()
+        env.updates = env.updates + 1
+      end,
+      close = function() end,
+      isOpen = function()
+        return env.open
+      end,
+      now = function()
+        return env.clock
+      end,
+    })
+    return env
+  end
+
+  it("redraws at once the first time, then postpones a redraw that comes too soon", function()
+    local env = throttled()
+    env.controller:Refresh()
+    assert.are.equal(1, env.updates)
+
+    env.clock = 10.05
+    env.controller:Refresh()
+    env.controller:Refresh()
+    env.controller:Refresh()
+    assert.are.equal(1, env.updates)
+    assert.are.equal(1, #env.timers)
+    assert.is_true(env.timers[1].seconds > 0 and env.timers[1].seconds <= 0.2)
+  end)
+
+  it("draws the latest state once when the postponed redraw fires, and not before", function()
+    local env = throttled()
+    env.controller:Refresh()
+    env.clock = 10.05
+    env.controller:Refresh()
+    env.clock = 10.25
+    env.timers[1].fn()
+    assert.are.equal(2, env.updates)
+    assert.are.equal(1, #env.timers)
+  end)
+
+  it("redraws normally once enough time has passed", function()
+    local env = throttled()
+    env.controller:Refresh()
+    env.clock = 11
+    env.controller:Refresh()
+    assert.are.equal(2, env.updates)
+    assert.are.equal(0, #env.timers)
+  end)
+
+  it("does nothing for a window that is not open", function()
+    local env = throttled(false)
+    env.controller:Refresh()
+    assert.are.equal(0, env.updates)
+  end)
+end)

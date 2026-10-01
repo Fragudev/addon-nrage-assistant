@@ -819,3 +819,86 @@ describe("ViewModel raid tab layout helpers", function()
     assert.are.equal("    Garr: Ann-Realm - Tank", lines[3])
   end)
 end)
+
+describe("ViewModel voting table sort and filter", function()
+  local function session()
+    return {
+      sessionId = "s1",
+      itemName = "Item",
+      status = "open",
+      candidates = {
+        ["Zed-Realm"] = { spec = "Arms", need = "main" },
+        ["amy-Realm"] = { spec = "Prot", need = "off" },
+        ["Bob-Realm"] = { spec = "Fury", need = "other" },
+      },
+      votes = {
+        ["V1"] = { target = "Bob-Realm" },
+        ["V2"] = { target = "Bob-Realm" },
+        ["V3"] = { target = "Zed-Realm" },
+      },
+    }
+  end
+
+  local ranks = { ["Zed-Realm"] = "Officer", ["amy-Realm"] = "Raider", ["Bob-Realm"] = "Alt" }
+  local function rank_of(name)
+    return ranks[name]
+  end
+
+  local function names(options)
+    local saved = Constants.VOTE_VISIBILITY
+    Constants.VOTE_VISIBILITY = "open"
+    local rows = ViewModel.VotingRows(session(), "Me", rank_of, options)
+    Constants.VOTE_VISIBILITY = saved
+    local out = {}
+    for _, row in ipairs(rows) do
+      out[#out + 1] = row.name
+    end
+    return out
+  end
+
+  it("defaults to most votes first", function()
+    assert.are.same({ "Bob-Realm", "Zed-Realm", "amy-Realm" }, names())
+  end)
+
+  it("sorts by name ignoring case, either way", function()
+    assert.are.same({ "amy-Realm", "Bob-Realm", "Zed-Realm" }, names({ sort = { key = "name", descending = false } }))
+    assert.are.same({ "Zed-Realm", "Bob-Realm", "amy-Realm" }, names({ sort = { key = "name", descending = true } }))
+  end)
+
+  it("sorts by rank and by response (main, off, other)", function()
+    assert.are.same({ "Bob-Realm", "Zed-Realm", "amy-Realm" }, names({ sort = { key = "rank", descending = false } }))
+    assert.are.same(
+      { "Zed-Realm", "amy-Realm", "Bob-Realm" },
+      names({ sort = { key = "response", descending = false } })
+    )
+  end)
+
+  it("shows only one kind of response when asked", function()
+    assert.are.same({ "amy-Realm" }, names({ need = "off" }))
+    assert.are.same({ "Zed-Realm" }, names({ need = "main" }))
+  end)
+
+  it("sorts by name instead of by votes while the votes are hidden", function()
+    local saved = Constants.VOTE_VISIBILITY
+    Constants.VOTE_VISIBILITY = "secret"
+    local rows = ViewModel.VotingRows(session(), "Me", rank_of, { sort = { key = "votes", descending = true } })
+    Constants.VOTE_VISIBILITY = saved
+    assert.are.equal("amy-Realm", rows[1].name)
+  end)
+
+  it("flips the direction on the same column and starts a new one in its natural direction", function()
+    assert.are.same({ key = "name", descending = false }, ViewModel.NextSort(nil, "name"))
+    assert.are.same(
+      { key = "name", descending = true },
+      ViewModel.NextSort({ key = "name", descending = false }, "name")
+    )
+    assert.are.same(
+      { key = "votes", descending = true },
+      ViewModel.NextSort({ key = "name", descending = true }, "votes")
+    )
+    assert.are.same(
+      { key = "rank", descending = false },
+      ViewModel.NextSort({ key = "votes", descending = true }, "rank")
+    )
+  end)
+end)
