@@ -111,9 +111,14 @@ describe("PermissionService council and loot", function()
     for _, action in ipairs({ "loot_open", "loot_vote", "loot_award" }) do
       assert.is_true(Service.Can("council", action), action)
       assert.is_true(Service.Can("admin", action), action)
-      assert.is_false(Service.Can("rl", action), action)
       assert.is_false(Service.Can("member", action), action)
     end
+  end)
+
+  it("lets a raid leader vote and award but not open sessions", function()
+    assert.is_true(Service.Can("rl", "loot_vote"))
+    assert.is_true(Service.Can("rl", "loot_award"))
+    assert.is_false(Service.Can("rl", "loot_open"))
   end)
 
   it("lets every role put themselves forward as a candidate", function()
