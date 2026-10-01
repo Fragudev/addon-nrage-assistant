@@ -19,7 +19,8 @@ function Codec.Default()
   })
 end
 
--- Returns the wire string, or nil plus "too_large" or "encode_failed".
+-- Returns the wire string, or nil plus "too_large" or "encode_failed". For "encode_failed" a third value says
+-- what the library reported, so a failure on a client we cannot reproduce on can be diagnosed.
 -- `maxBytes` overrides the default size limit (used for snapshots).
 function Codec:Encode(message, maxBytes)
   local ok, encoded = pcall(function()
@@ -27,8 +28,11 @@ function Codec:Encode(message, maxBytes)
     local compressed = self.deflate:CompressDeflate(serialized)
     return self.deflate:EncodeForWoWAddonChannel(compressed)
   end)
-  if not ok or type(encoded) ~= "string" then
-    return nil, "encode_failed"
+  if not ok then
+    return nil, "encode_failed", tostring(encoded)
+  end
+  if type(encoded) ~= "string" then
+    return nil, "encode_failed", "the encoder returned " .. type(encoded)
   end
   if #encoded > (maxBytes or ns.Constants.MAX_ENCODED_BYTES) then
     return nil, "too_large"

@@ -53,9 +53,9 @@ end
 function Comm:Send(messageType, payload, key, options)
   options = options or {}
   local message = ns.Protocol.Build(messageType, payload, self:NextId())
-  local text, reason = self.codec:Encode(message, options.maxBytes)
+  local text, reason, detail = self.codec:Encode(message, options.maxBytes)
   if not text then
-    return false, reason
+    return false, reason, detail
   end
   local ok, queueReason = self.queue:Enqueue(text, key, options.target)
   if not ok then

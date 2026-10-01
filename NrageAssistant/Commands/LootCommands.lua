@@ -61,11 +61,12 @@ local function fail(ctx, reason)
 end
 
 -- Adds a note when the change was saved here but could not be queued for the guild.
-local function sentNote(ok, reason)
+local function sentNote(ok, reason, detail)
   if ok then
     return nil
   end
-  return ("saved here, but not sent to the guild (%s)."):format(tostring(reason))
+  local why = detail and ("%s: %s"):format(tostring(reason), detail) or tostring(reason)
+  return ("saved here, but not sent to the guild (%s)."):format(why)
 end
 
 -- Item id and plain-text name from a shift-clicked link, or from "<id> <name>".
