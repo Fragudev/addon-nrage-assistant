@@ -121,11 +121,10 @@ local function build(entries)
   end)
 
   for _, entry in ipairs(entries) do
-    local label = AceGUI:Create("Label")
-    label:SetText(("%s  (%s)"):format(ns.ViewModel.Escape(entry.itemName), ns.ViewModel.Escape(entry.eventTitle)))
-    label:SetFontObject(GameFontNormalLarge)
-    label:SetFullWidth(true)
-    frame:AddChild(label)
+    ns.UI.AddItemLabel(frame, {
+      itemId = entry.itemId,
+      text = ("%s  (%s)"):format(ns.ViewModel.Escape(entry.itemName), ns.ViewModel.Escape(entry.eventTitle)),
+    })
 
     local row = AceGUI:Create("SimpleGroup")
     row:SetLayout("Flow")

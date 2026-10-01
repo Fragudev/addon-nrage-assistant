@@ -22,6 +22,9 @@ local function new_widget(kind, registry)
     GetText = function(self)
       return self.props.text or ""
     end,
+    SetImage = function(self, image)
+      self.props.image = image
+    end,
     SetLabel = function(self, label)
       self.props.label = label
     end,
@@ -140,6 +143,27 @@ local function build(rank)
     end,
     IsChatMessagingLockedDown = function()
       return false
+    end,
+    GetItemIcon = function(itemId)
+      return "icon:" .. tostring(itemId)
+    end,
+  }
+  env.tooltip = { shown = false }
+  _G.GameTooltip = {
+    SetOwner = function(_, frame, anchor)
+      env.tooltip.owner, env.tooltip.anchor = frame, anchor
+    end,
+    SetHyperlink = function(_, link)
+      env.tooltip.link = link
+      if env.tooltip.refuse then
+        error("unknown item")
+      end
+    end,
+    Show = function()
+      env.tooltip.shown = true
+    end,
+    Hide = function()
+      env.tooltip.shown = false
     end,
   }
   ns.db = { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} } } }
@@ -457,7 +481,7 @@ describe("Window smoke test", function()
     assert.is_true(#council.widgets > before)
     local window = council.find(council.widgets[before + 1], "Frame") or council.widgets[before + 1]
     assert.are.equal("Frame", window.kind)
-    assert.is_truthy(council.find(window, "Button", "> Thunderfury"))
+    assert.is_truthy(council.find(window, "InteractiveLabel", "|cffffd100Thunderfury|r"))
 
     local member = build("Soldado")
     member.ns.db.global.events["ev-1"] = event()
@@ -513,11 +537,46 @@ describe("Window smoke test", function()
     assert.are.equal("closed", by_name.Sulfuras.status)
 
     -- Switch to Thunderfury, give a reason, and award it.
-    council.find(window(), "Button", "Thunderfury").callbacks.OnClick()
+    council.find(window(), "InteractiveLabel", "Thunderfury").callbacks.OnClick()
     council.find(window(), "EditBox", "Reason for the award (used by the Award buttons)").props.text = "highest need"
     council.find(window(), "Button", "Award").callbacks.OnClick()
     assert.are.equal("closed", by_name.Thunderfury.status)
     assert.are.equal("Leader-Realm", by_name.Thunderfury.award.characterKey)
+  end)
+
+  it("shows the loot items with their icon and tooltip instead of buttons", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    local event = ns.db.global.events["ev-1"]
+    ns.LootCommands
+      .New({ events = ns.db.global.events, platform = ns.Platform, comm = ns.comm, onChange = ns.UI.LootChanged })
+      :OpenItem(event, { itemId = 19019, itemName = "Thunderfury" })
+
+    council.widgets = {}
+    ns.VotingFrame.Show()
+    local scroll
+    for index = #council.widgets, 1, -1 do
+      if council.widgets[index].kind == "ScrollFrame" then
+        scroll = council.widgets[index]
+        break
+      end
+    end
+    assert.is_nil(council.find(scroll, "Button", "Thunderfury"))
+    local item = council.find(scroll, "InteractiveLabel", "|cffffd100Thunderfury|r")
+    assert.is_truthy(item)
+    assert.are.equal("icon:19019", item.props.image)
+
+    item.callbacks.OnEnter(item)
+    assert.are.equal("item:19019", council.tooltip.link)
+    assert.is_true(council.tooltip.shown)
+    item.callbacks.OnLeave()
+    assert.is_false(council.tooltip.shown)
+
+    council.tooltip.refuse = true
+    item.callbacks.OnEnter(item)
+    assert.is_false(council.tooltip.shown)
   end)
 
   it("confirms a manual readiness item and asks for the Home tab too", function()

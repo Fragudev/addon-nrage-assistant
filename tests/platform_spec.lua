@@ -193,3 +193,65 @@ describe("Platform.GetGuildRosterEntry", function()
     end)
   end)
 end)
+
+describe("Platform.GetItemIcon", function()
+  local saved = {}
+  local names = { "C_Item", "GetItemIcon", "GetItemInfoInstant" }
+
+  before_each(function()
+    for _, name in ipairs(names) do
+      saved[name] = _G[name]
+      _G[name] = nil
+    end
+  end)
+
+  after_each(function()
+    for _, name in ipairs(names) do
+      _G[name] = saved[name]
+    end
+  end)
+
+  it("asks the modern API first, then the older ones", function()
+    _G.C_Item = {
+      GetItemIconByID = function()
+        return "modern"
+      end,
+    }
+    _G.GetItemIcon = function()
+      return "old"
+    end
+    assert.are.equal("modern", Platform.GetItemIcon(19019))
+
+    _G.C_Item = nil
+    assert.are.equal("old", Platform.GetItemIcon(19019))
+
+    _G.GetItemIcon = nil
+    _G.GetItemInfoInstant = function(id)
+      return id, "Weapon", "Sword", "INVTYPE_WEAPON", "instant"
+    end
+    assert.are.equal("instant", Platform.GetItemIcon(19019))
+  end)
+
+  it("falls back to a question mark when no API knows the item, errors, or the id is not a number", function()
+    assert.are.equal(Platform.ITEM_FALLBACK_ICON, Platform.GetItemIcon(19019))
+    _G.GetItemIcon = function()
+      error("boom")
+    end
+    assert.are.equal(Platform.ITEM_FALLBACK_ICON, Platform.GetItemIcon(19019))
+    _G.GetItemIcon = function()
+      return "old"
+    end
+    assert.are.equal(Platform.ITEM_FALLBACK_ICON, Platform.GetItemIcon(nil))
+    assert.are.equal(Platform.ITEM_FALLBACK_ICON, Platform.GetItemIcon("19019"))
+  end)
+
+  it("skips an API that answers with nothing and tries the next", function()
+    _G.C_Item = {
+      GetItemIconByID = function() end,
+    }
+    _G.GetItemIcon = function()
+      return "old"
+    end
+    assert.are.equal("old", Platform.GetItemIcon(1))
+  end)
+end)

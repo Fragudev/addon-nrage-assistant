@@ -447,6 +447,7 @@ function ViewModel.PendingLoot(events, actor, dismissed)
           eventId = event.eventId,
           sessionId = session.sessionId,
           eventTitle = event.title,
+          itemId = session.itemId,
           itemName = session.itemName,
         }
       end
@@ -489,6 +490,7 @@ function ViewModel.VotingSessions(events, selectedId)
         list[#list + 1] = {
           eventId = event.eventId,
           sessionId = session.sessionId,
+          itemId = session.itemId,
           itemName = ViewModel.Escape(session.itemName),
           eventTitle = ViewModel.Escape(event.title),
           selected = session.sessionId == selectedId,
