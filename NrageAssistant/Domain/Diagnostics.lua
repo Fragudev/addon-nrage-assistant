@@ -110,10 +110,21 @@ local function behaviourChecks(addon)
     return ok and result("codec round trip", "ok") or result("codec round trip", "error", tostring(err))
   end
 
+  -- The identity is the guild roster's name for this character, which has no realm suffix ("Yonemon Gg"),
+  -- or "Name-Realm" until the roster has loaded. Either way it must be a real name: a missing UnitName or
+  -- realm shows up as a "nil" part.
   checks[#checks + 1] = function()
     local identityKey = addon.Platform.GetIdentityKey()
-    if type(identityKey) ~= "string" or not identityKey:find("^[^%-]+%-.+$") then
-      return result("identity key", "warn", ("unexpected format: %s"):format(tostring(identityKey)))
+    local usable = type(identityKey) == "string" and identityKey:match("%S") ~= nil
+    if usable then
+      for part in (identityKey .. "-"):gmatch("([^%-]*)%-") do
+        if part == "nil" then
+          usable = false
+        end
+      end
+    end
+    if not usable then
+      return result("identity key", "warn", ("unexpected value: %s"):format(tostring(identityKey)))
     end
     return result("identity key", "ok", identityKey)
   end

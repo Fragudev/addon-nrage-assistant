@@ -195,19 +195,26 @@ describe("Diagnostics behaviour checks", function()
     return Diagnostics.SelfTest(full_env(), addon)
   end
 
-  it("warns about an identity key that is not Name-Realm", function()
-    local results = run(function(addon)
-      addon.Platform.GetIdentityKey = function()
-        return "nil-nil"
-      end
-    end)
-    assert.are.equal("ok", find(results, "identity key").status)
-    results = run(function(addon)
-      addon.Platform.GetIdentityKey = function()
-        return "Nrager"
-      end
-    end)
-    assert.are.equal("warn", find(results, "identity key").status)
+  it("accepts the roster's name without a realm, with spaces, and Name-Realm", function()
+    for _, key in ipairs({ "Yonemon Gg", "Nrager", "Nrager-Realm", "Yonemon Gg-Realm" }) do
+      local results = run(function(addon)
+        addon.Platform.GetIdentityKey = function()
+          return key
+        end
+      end)
+      assert.are.equal("ok", find(results, "identity key").status, key)
+    end
+  end)
+
+  it("warns about an identity key built from missing values", function()
+    for _, key in ipairs({ "nil-nil", "Nrager-nil", "nil", "", "   ", 42 }) do
+      local results = run(function(addon)
+        addon.Platform.GetIdentityKey = function()
+          return key
+        end
+      end)
+      assert.are.equal("warn", find(results, "identity key").status, tostring(key))
+    end
   end)
 
   it("warns when the guild roster is not ready or does not know the own key", function()
