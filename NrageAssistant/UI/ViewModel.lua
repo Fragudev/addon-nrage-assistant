@@ -70,8 +70,59 @@ function ViewModel.PublishError(reason)
   return PUBLISH_ERRORS[reason] or tostring(reason)
 end
 
+-- One event as lines: title, status and start, the attendance counts and the assignments. `index` is its
+-- number in /nrage event. `formatDate(timestamp)` renders the start time. Everything shown is escaped.
+function ViewModel.RaidEventLines(event, index, formatDate)
+  local lines = {}
+  local when = event.startAt and (" - " .. formatDate(event.startAt)) or ""
+  lines[#lines + 1] = ("%d. %s [%s]%s"):format(
+    index,
+    ViewModel.Escape(event.title),
+    ViewModel.Escape(event.status),
+    when
+  )
+
+  local counts, states = {}, {}
+  for _, record in pairs(event.attendance) do
+    if not counts[record.state] then
+      states[#states + 1] = record.state
+      counts[record.state] = 0
+    end
+    counts[record.state] = counts[record.state] + 1
+  end
+  table.sort(states)
+  if #states == 0 then
+    lines[#lines + 1] = "    Attendance: none recorded"
+  else
+    local parts = {}
+    for _, state in ipairs(states) do
+      parts[#parts + 1] = ("%d %s"):format(counts[state], ViewModel.Escape(state))
+    end
+    lines[#lines + 1] = "    Attendance: " .. table.concat(parts, ", ")
+  end
+
+  local assignments = {}
+  for _, assignment in pairs(event.assignments) do
+    assignments[#assignments + 1] = assignment
+  end
+  table.sort(assignments, function(a, b)
+    if a.encounter ~= b.encounter then
+      return a.encounter < b.encounter
+    end
+    return a.characterKey < b.characterKey
+  end)
+  for _, assignment in ipairs(assignments) do
+    local task = assignment.task and (" - " .. ViewModel.Escape(assignment.task)) or ""
+    lines[#lines + 1] = ("    %s: %s%s"):format(
+      ViewModel.Escape(assignment.encounter),
+      ViewModel.Escape(assignment.characterKey),
+      task
+    )
+  end
+  return lines
+end
+
 -- Events with their attendance summary and assignments, in the order of /nrage event.
--- `formatDate(timestamp)` renders start times. Everything shown is escaped.
 function ViewModel.Raid(events, formatDate)
   local list = ns.EventService.List({ events = events })
   if #list == 0 then
@@ -80,54 +131,29 @@ function ViewModel.Raid(events, formatDate)
 
   local lines = {}
   for index, event in ipairs(list) do
-    local when = event.startAt and (" - " .. formatDate(event.startAt)) or ""
-    lines[#lines + 1] = ("%d. %s [%s]%s"):format(
-      index,
-      ViewModel.Escape(event.title),
-      ViewModel.Escape(event.status),
-      when
-    )
-
-    local counts, states = {}, {}
-    for _, record in pairs(event.attendance) do
-      if not counts[record.state] then
-        states[#states + 1] = record.state
-        counts[record.state] = 0
-      end
-      counts[record.state] = counts[record.state] + 1
-    end
-    table.sort(states)
-    if #states == 0 then
-      lines[#lines + 1] = "    Attendance: none recorded"
-    else
-      local parts = {}
-      for _, state in ipairs(states) do
-        parts[#parts + 1] = ("%d %s"):format(counts[state], ViewModel.Escape(state))
-      end
-      lines[#lines + 1] = "    Attendance: " .. table.concat(parts, ", ")
-    end
-
-    local assignments = {}
-    for _, assignment in pairs(event.assignments) do
-      assignments[#assignments + 1] = assignment
-    end
-    table.sort(assignments, function(a, b)
-      if a.encounter ~= b.encounter then
-        return a.encounter < b.encounter
-      end
-      return a.characterKey < b.characterKey
-    end)
-    for _, assignment in ipairs(assignments) do
-      local task = assignment.task and (" - " .. ViewModel.Escape(assignment.task)) or ""
-      lines[#lines + 1] = ("    %s: %s%s"):format(
-        ViewModel.Escape(assignment.encounter),
-        ViewModel.Escape(assignment.characterKey),
-        task
-      )
+    for _, line in ipairs(ViewModel.RaidEventLines(event, index, formatDate)) do
+      lines[#lines + 1] = line
     end
     lines[#lines + 1] = ""
   end
   return lines
+end
+
+-- The sub-tabs of the Raid tab for a role (ViewModel.RaidActions): everyone gets the summary, and each
+-- group of controls gets its own tab only when the role may use it.
+function ViewModel.RaidSubTabs(actions)
+  local tabs = { { value = "summary", text = "Summary" } }
+  if actions.events then
+    tabs[#tabs + 1] = { value = "details", text = "Details" }
+  end
+  if actions.attendance then
+    tabs[#tabs + 1] = { value = "attendance", text = "Attendance" }
+  end
+  if actions.assignments then
+    tabs[#tabs + 1] = { value = "assignments", text = "Assignments" }
+    tabs[#tabs + 1] = { value = "templates", text = "Templates" }
+  end
+  return tabs
 end
 
 -- Loot council sessions per event: what is open, what was awarded and why. Only aggregate vote

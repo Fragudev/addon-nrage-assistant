@@ -757,3 +757,40 @@ describe("ViewModel voting window helpers", function()
     end
   end)
 end)
+
+describe("ViewModel raid tab layout helpers", function()
+  it("gives every role the summary and each group of controls its own sub-tab", function()
+    local function values(actions)
+      local out = {}
+      for _, tab in ipairs(ViewModel.RaidSubTabs(actions)) do
+        out[#out + 1] = tab.value
+      end
+      return out
+    end
+    assert.are.same({ "summary" }, values({ events = false, attendance = false, assignments = false }))
+    assert.are.same(
+      { "summary", "details", "attendance", "assignments", "templates" },
+      values({ events = true, attendance = true, assignments = true })
+    )
+    assert.are.same({ "summary", "attendance" }, values({ events = false, attendance = true, assignments = false }))
+  end)
+
+  it("describes one event with its number, attendance counts and assignments, escaped", function()
+    local lines = ViewModel.RaidEventLines(
+      {
+        title = "|cffff0000Raid",
+        status = "open",
+        startAt = 7,
+        attendance = { a = { state = "present" }, b = { state = "present" }, c = { state = "late" } },
+        assignments = { x = { encounter = "Garr", characterKey = "Ann-Realm", task = "Tank" } },
+      },
+      3,
+      function(timestamp)
+        return "date:" .. timestamp
+      end
+    )
+    assert.are.equal("3. ||cffff0000Raid [open] - date:7", lines[1])
+    assert.are.equal("    Attendance: 1 late, 2 present", lines[2])
+    assert.are.equal("    Garr: Ann-Realm - Tank", lines[3])
+  end)
+end)

@@ -31,6 +31,9 @@ local function new_widget(kind, registry)
     SetList = function(self, list, order)
       self.props.list, self.props.order = list, order
     end,
+    SetTabs = function(self, tabs)
+      self.props.tabs = tabs
+    end,
     SelectTab = function(self, value)
       self.callbacks.OnGroupSelected(self, "OnGroupSelected", value)
     end,
@@ -193,6 +196,15 @@ local function build(rank)
     end)
     return scrolls[#scrolls]
   end
+  -- Opens the Raid tab on one of its sub-tabs (summary, details, attendance, assignments, templates).
+  function env.raid(subtab)
+    local scroll = env.open("raid")
+    local sub = env.find(scroll, "TabGroup")
+    if sub then
+      sub:SelectTab(subtab)
+    end
+    return scroll
+  end
   function env.close()
     -- Toggle closes an open window; OpenTab leaves one open.
     ns.UI.Toggle()
@@ -228,13 +240,14 @@ describe("Window smoke test", function()
       slots = { { encounter = "Garr", characterKey = "Ann-Realm" } },
     }
     local raid = env.open("raid")
-    env
-      .find(raid, "EditBox", "New event title (Enter to create)").callbacks
-      .OnEnterPressed(nil, nil, "Molten Core night")
+    env.find(raid, "EditBox", "New event (Enter to create)").callbacks.OnEnterPressed(nil, nil, "Molten Core night")
     assert.is_truthy(next(env.ns.db.global.events))
     assert.are.equal("SendEvent", env.sent[1])
 
+    -- The new event is opened on its summary; its matching template is offered under Templates.
     raid = env.open("raid")
+    assert.is_truthy(env.find(raid, "Button", "> 1. Molten Core night [planned]"))
+    raid = env.raid("templates")
     assert.is_truthy(env.find(raid, "Button", "Apply: Molten Core"))
     env.find(raid, "Button", "Apply: Molten Core").callbacks.OnClick()
     local event = env.ns.EventService.List({ events = env.ns.db.global.events })[1]
@@ -252,32 +265,32 @@ describe("Window smoke test", function()
         return "ev-1"
       end,
     }, { title = "Raid" })
-    local raid = env.open("raid")
 
+    local raid = env.raid("details")
     env.find(raid, "EditBox", "Title (Enter to rename)").callbacks.OnEnterPressed(nil, nil, "Renamed")
     assert.are.equal("Renamed", created.title)
 
-    raid = env.open("raid")
+    raid = env.raid("details")
     env.find(raid, "Dropdown", "Status").callbacks.OnValueChanged(nil, nil, "open")
     assert.are.equal("open", created.status)
 
-    raid = env.open("raid")
+    raid = env.raid("details")
     env
       .find(raid, "EditBox", "Start, local time (YYYY-MM-DD HH:MM)").callbacks
       .OnEnterPressed(nil, nil, "2026-10-03 20:30")
     assert.are.equal(2000, created.startAt)
 
-    raid = env.open("raid")
+    raid = env.raid("attendance")
     env.find(raid, "Dropdown", "Yonemon Gg").callbacks.OnValueChanged(nil, nil, "present")
     assert.are.equal("present", created.attendance["Yonemon Gg"].state)
 
-    raid = env.open("raid")
+    raid = env.raid("assignments")
     env.find(raid, "Dropdown", "Member").callbacks.OnValueChanged(nil, nil, "Ann-Realm")
     env.find(raid, "EditBox", "Encounter").props.text = "Ragnaros"
     env.find(raid, "Button", "Add").callbacks.OnClick()
     assert.is_truthy(next(created.assignments))
 
-    raid = env.open("raid")
+    raid = env.raid("assignments")
     env.find(raid, "Button", "Remove").callbacks.OnClick()
     assert.is_nil(next(created.assignments))
   end)
@@ -292,20 +305,20 @@ describe("Window smoke test", function()
         return "ev-1"
       end,
     }, { title = "Raid" })
-    local raid = env.open("raid")
+    local raid = env.raid("assignments")
     env.find(raid, "Button", "Add").callbacks.OnClick()
     assert.is_nil(next(env.ns.db.global.events["ev-1"].assignments))
 
     env.ns.db.global.events["ev-1"].assignments.a1 =
       { assignmentId = "a1", encounter = "Garr", characterKey = "Ann-Realm", rev = 1 }
-    raid = env.open("raid")
+    raid = env.raid("templates")
     env
       .find(raid, "EditBox", "Save this event's assignments as (Enter to save)").callbacks
       .OnEnterPressed(nil, nil, "Boss")
     assert.is_truthy(env.ns.db.global.templates.Boss)
   end)
 
-  it("shows a plain member the events as text, with no controls", function()
+  it("shows a plain member the events and a read-only summary, with no controls", function()
     local member = build("Soldado")
     member.ns.db.global.events["ev-1"] = {
       eventId = "ev-1",
@@ -317,8 +330,48 @@ describe("Window smoke test", function()
     }
     local raid = member.open("raid")
     assert.is_nil(member.find(raid, "EditBox"))
-    assert.is_nil(member.find(raid, "Button"))
+    local sub = member.find(raid, "TabGroup")
+    assert.are.same({ { value = "summary", text = "Summary" } }, sub.props.tabs)
     pcall(member.close)
+  end)
+
+  it("offers a raid leader every sub-tab, and remembers the one in use across redraws", function()
+    env.ns.EventService.Create({
+      events = env.ns.db.global.events,
+      role = "rl",
+      actor = "Leader-Realm",
+      now = env.ns.Platform.ServerTime,
+      newId = function()
+        return "ev-1"
+      end,
+    }, { title = "Raid" })
+    local raid = env.raid("attendance")
+    local sub = env.find(raid, "TabGroup")
+    assert.are.equal(5, #sub.props.tabs)
+
+    -- Redrawing the window (as every action does) comes back on the same sub-tab.
+    raid = env.open("raid")
+    assert.is_truthy(env.find(raid, "EditBox", "Find a member"))
+  end)
+
+  it("lists the events on the left and switches the selected one", function()
+    for _, id in ipairs({ "ev-1", "ev-2" }) do
+      env.ns.EventService.Create({
+        events = env.ns.db.global.events,
+        role = "rl",
+        actor = "Leader-Realm",
+        now = env.ns.Platform.ServerTime,
+        newId = function()
+          return id
+        end,
+      }, { title = "Event " .. id })
+    end
+    local raid = env.raid("summary")
+    local first = env.find(raid, "Button", "> 1. Event ev-1 [planned]")
+    assert.is_truthy(first)
+    env.find(raid, "Button", "2. Event ev-2 [planned]").callbacks.OnClick()
+    raid = env.raid("summary")
+    assert.is_truthy(env.find(raid, "Button", "> 2. Event ev-2 [planned]"))
   end)
 
   it("applies, votes, awards and closes from the Loot tab", function()
