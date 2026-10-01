@@ -335,36 +335,61 @@ describe("ViewModel raid tab helpers", function()
     assert.are.equal("2. Later [open]", list.b)
   end)
 
-  describe("AttendanceRows", function()
-    local event = {
-      attendance = { ["Zed-Realm"] = { state = "late" }, ["Gone-Realm"] = { state = "absent" } },
-    }
-    local members = { "Ann-Realm", "Zed-Realm", "Yonemon Gg-Realm" }
+  describe("AttendanceView", function()
+    local function event()
+      return {
+        attendance = { ["Zed-Realm"] = { state = "late" }, ["Gone-Realm"] = { state = "absent" } },
+      }
+    end
+    local members = { "Ann-Realm", "Zed-Realm", "Yonemon Gg", "Anya-Realm" }
 
-    it("merges the roster with recorded members, sorted, with nil for no record", function()
-      local rows, matched = ViewModel.AttendanceRows(event, members, "", 10)
-      assert.are.equal(4, matched)
-      assert.are.same({ "Ann-Realm", "Gone-Realm", "Yonemon Gg-Realm", "Zed-Realm" }, {
-        rows[1].name,
-        rows[2].name,
-        rows[3].name,
-        rows[4].name,
-      })
-      assert.is_nil(rows[1].state)
-      assert.are.equal("absent", rows[2].state)
-      assert.are.equal("late", rows[4].state)
+    it("lists only who is recorded, sorted, and nobody else without a filter", function()
+      local recorded, matches, matched = ViewModel.AttendanceView(event(), members, "", 8)
+      assert.are.equal(2, #recorded)
+      assert.are.equal("Gone-Realm", recorded[1].name)
+      assert.are.equal("absent", recorded[1].state)
+      assert.are.equal("Zed-Realm", recorded[2].name)
+      assert.are.same({}, matches)
+      assert.are.equal(0, matched)
     end)
 
-    it("filters by part of a name, ignoring case, including names with spaces", function()
-      local rows, matched = ViewModel.AttendanceRows(event, members, "yonemon g", 10)
-      assert.are.equal(1, matched)
-      assert.are.equal("Yonemon Gg-Realm", rows[1].name)
+    it("matches unrecorded members by part of a name, ignoring case, names with spaces included", function()
+      local _, matches = ViewModel.AttendanceView(event(), members, "yonemon g", 8)
+      assert.are.equal(1, #matches)
+      assert.are.equal("Yonemon Gg", matches[1].name)
+
+      _, matches = ViewModel.AttendanceView(event(), members, "AN", 8)
+      assert.are.same({ "Ann-Realm", "Anya-Realm" }, { matches[1].name, matches[2].name })
     end)
 
-    it("cuts at the limit but still reports how many matched", function()
-      local rows, matched = ViewModel.AttendanceRows(event, members, "", 2)
-      assert.are.equal(2, #rows)
-      assert.are.equal(4, matched)
+    it("does not offer someone already recorded", function()
+      local _, matches, matched = ViewModel.AttendanceView(event(), members, "zed", 8)
+      assert.are.same({}, matches)
+      assert.are.equal(0, matched)
+    end)
+
+    it("cuts the matches at the limit but says how many there were", function()
+      local _, matches, matched = ViewModel.AttendanceView(event(), members, "an", 1)
+      assert.are.equal(1, #matches)
+      assert.are.equal(2, matched)
+    end)
+
+    it("keeps a guild of hundreds from becoming hundreds of rows", function()
+      local many = {}
+      for index = 1, 300 do
+        many[index] = ("Member%03d-Realm"):format(index)
+      end
+      local recorded, matches, matched = ViewModel.AttendanceView(event(), many, "member", 8)
+      assert.are.equal(2, #recorded)
+      assert.are.equal(8, #matches)
+      assert.are.equal(300, matched)
+    end)
+
+    it("escapes the names", function()
+      local data = { attendance = { ["|cffff0000Evil"] = { state = "present" } } }
+      local recorded, matches = ViewModel.AttendanceView(data, { "|rOther" }, "other", 8)
+      assert.are.equal("||cffff0000Evil", recorded[1].label)
+      assert.are.equal("||rOther", matches[1].label)
     end)
   end)
 end)

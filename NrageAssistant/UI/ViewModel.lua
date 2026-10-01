@@ -223,37 +223,37 @@ function ViewModel.EventChoices(events)
   return list, order
 end
 
--- One row per member for the attendance grid: everyone in the guild roster plus anyone already recorded
--- for the event, sorted, narrowed by `filter` (case-insensitive part of a name) and cut at `limit` rows.
--- `state` is nil for someone with no record. Returns the rows and how many matched before the cut.
-function ViewModel.AttendanceRows(event, memberNames, filter, limit)
-  local seen, names = {}, {}
-  local function add(name)
-    if not seen[name] then
-      seen[name] = true
+-- The attendance tab: who is already recorded for the event (sorted, with their state), and, for a typed
+-- `filter` (case-insensitive part of a name), the members of `memberNames` not recorded yet that match, cut at
+-- `limit`. Nothing is listed for an empty filter, so a guild of hundreds never turns into hundreds of rows.
+-- Returns recorded = { { name, label, state } }, matches = { { name, label } } and how many matched before the cut.
+function ViewModel.AttendanceView(event, memberNames, filter, limit)
+  local recorded = {}
+  for name, record in pairs(event.attendance) do
+    recorded[#recorded + 1] = { name = name, label = ViewModel.Escape(name), state = record.state }
+  end
+  table.sort(recorded, function(a, b)
+    return a.name < b.name
+  end)
+
+  local matches, matched = {}, 0
+  local needle = (filter or ""):lower()
+  if needle ~= "" then
+    local names = {}
+    for _, name in ipairs(memberNames) do
       names[#names + 1] = name
     end
-  end
-  for _, name in ipairs(memberNames) do
-    add(name)
-  end
-  for name in pairs(event.attendance) do
-    add(name)
-  end
-  table.sort(names)
-
-  local needle = (filter or ""):lower()
-  local rows, matched = {}, 0
-  for _, name in ipairs(names) do
-    if needle == "" or name:lower():find(needle, 1, true) then
-      matched = matched + 1
-      if matched <= limit then
-        local record = event.attendance[name]
-        rows[#rows + 1] = { name = name, state = record and record.state or nil }
+    table.sort(names)
+    for _, name in ipairs(names) do
+      if not event.attendance[name] and name:lower():find(needle, 1, true) then
+        matched = matched + 1
+        if matched <= limit then
+          matches[#matches + 1] = { name = name, label = ViewModel.Escape(name) }
+        end
       end
     end
   end
-  return rows, matched
+  return recorded, matches, matched
 end
 
 -- What the Loot tab offers a role: the same checks as the commands (LootService repeats them on every change).

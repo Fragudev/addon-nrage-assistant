@@ -280,7 +280,18 @@ describe("Window smoke test", function()
       .OnEnterPressed(nil, nil, "2026-10-03 20:30")
     assert.are.equal(2000, created.startAt)
 
+    -- Attendance lists only who is recorded; somebody else is found by typing part of the name.
     raid = env.raid("attendance")
+    assert.is_nil(env.find(raid, "Dropdown", "Yonemon Gg"))
+    assert.is_nil(env.find(raid, "Button", "Yonemon Gg"))
+    env.find(raid, "EditBox", "Type part of a name and press Enter").callbacks.OnEnterPressed(nil, nil, "yonemon")
+    raid = env.raid("attendance")
+    env.find(raid, "Dropdown", "Record as").callbacks.OnValueChanged(nil, nil, "late")
+    env.find(raid, "Button", "Yonemon Gg").callbacks.OnClick()
+    assert.are.equal("late", created.attendance["Yonemon Gg"].state)
+
+    raid = env.raid("attendance")
+    assert.is_nil(env.find(raid, "Button", "Yonemon Gg"))
     env.find(raid, "Dropdown", "Yonemon Gg").callbacks.OnValueChanged(nil, nil, "present")
     assert.are.equal("present", created.attendance["Yonemon Gg"].state)
 
@@ -351,7 +362,7 @@ describe("Window smoke test", function()
 
     -- Redrawing the window (as every action does) comes back on the same sub-tab.
     raid = env.open("raid")
-    assert.is_truthy(env.find(raid, "EditBox", "Find a member"))
+    assert.is_truthy(env.find(raid, "EditBox", "Type part of a name and press Enter"))
   end)
 
   it("lists the events on the left and switches the selected one", function()
