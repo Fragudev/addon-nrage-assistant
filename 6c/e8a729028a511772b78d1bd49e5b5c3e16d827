@@ -1,0 +1,21 @@
+NrageAssistant/Domain/Diagnostics.lua
+  s_3fd4a5fb5b130a::t_4d5a4208f2e85a 113-115,118-127
+tests/diagnostics_spec.lua
+  s_3fd4a5fb5b130a::t_f352496f24a8e4 198-217
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6ce8a729028a511772b78d1bd49e5b5c3e16d827",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
