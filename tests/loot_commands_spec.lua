@@ -126,6 +126,15 @@ describe("LootCommands open", function()
   end)
 end)
 
+describe("LootCommands send failures", function()
+  it("shows what the encoder reported, so a failure can be diagnosed", function()
+    local env = build("Council")
+    env.sendResult = { false, "encode_failed", "cannot serialize a function" }
+    local lines = text(env.loot:Loot("1 open " .. LINK))
+    assert.is_truthy(lines:find("(encode_failed: cannot serialize a function)", 1, true))
+  end)
+end)
+
 describe("LootCommands session flow", function()
   local env
 

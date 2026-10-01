@@ -1,3 +1,5 @@
+local ns_codec
+
 -- Uses the real vendored libraries: the codec is only worth testing against them.
 local function load_codec()
   dofile("NrageAssistant/Libs/LibStub/LibStub.lua")
@@ -7,6 +9,7 @@ local function load_codec()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Codec.lua"))("NrageAssistant", ns)
+  ns_codec = ns.Codec
   local codec = ns.Codec.New({
     serialize = _G.LibStub("LibSerialize"),
     deflate = _G.LibStub("LibDeflate"),
@@ -37,6 +40,21 @@ describe("Codec", function()
     local text, reason = codec:Encode({ blob = table.concat(noise) })
     assert.is_nil(text)
     assert.are.equal("too_large", reason)
+  end)
+
+  it("says what the library reported when encoding fails", function()
+    local broken = ns_codec.New({
+      serialize = {
+        Serialize = function()
+          error("cannot serialize a function")
+        end,
+      },
+      deflate = _G.LibStub("LibDeflate"),
+    })
+    local text, reason, detail = broken:Encode({ t = "HELLO" })
+    assert.is_nil(text)
+    assert.are.equal("encode_failed", reason)
+    assert.is_truthy(detail:find("cannot serialize a function", 1, true))
   end)
 
   it("rejects input that is not a string", function()
