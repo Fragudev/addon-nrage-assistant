@@ -152,8 +152,10 @@ The Loot tab remains for choosing a different spec or adding an upgrade.
 
 GM, Officer and RL ranks also get the **Nrage Loot Council** voting window, which opens by itself when a session
 opens. It lists the candidates (name, rank, response, upgrade and votes) with *Vote* and *Award* buttons, a
-reason field for the award, *Close without awarding*, and a row of items (icon, name and the usual item tooltip on hover) to switch between them. Votes
-follow the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
+reason field for the award, *Close without awarding*, and a row of items (icon, name and the usual item tooltip
+on hover) to switch between them. Click a column title to sort by it (again to reverse), and use *Show* to see
+only main spec, off spec or other. *Award* asks you to click *Confirm* before it gives the item away. Votes follow
+the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
 *Open the voting window* button to bring it back. It does not show item level, slot or equipped gear yet.
 
 The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,

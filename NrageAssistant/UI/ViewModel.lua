@@ -527,10 +527,26 @@ function ViewModel.VotingStatus(session)
   return ("Voting is open: %d candidate(s), %d vote(s) cast"):format(candidates, votes)
 end
 
--- The table of the voting window: one row per candidate, most votes first (alphabetical while votes are
--- hidden). `votes` is nil while the visibility policy hides them. `mine` marks the candidate `actor` voted
--- for. `rankOf(name)` gives the guild rank name or nil. Text is escaped.
-function ViewModel.VotingRows(session, actor, rankOf)
+ViewModel.VOTING_SORTS = { "name", "rank", "response", "votes" }
+
+-- The sort after clicking the header `key`: the same column flips its direction, another column starts in its
+-- natural one (votes high to low, the rest A to Z). `current` = { key, descending } or nil.
+function ViewModel.NextSort(current, key)
+  if current and current.key == key then
+    return { key = key, descending = not current.descending }
+  end
+  return { key = key, descending = key == "votes" }
+end
+
+local NEED_ORDER = { main = 1, off = 2, other = 3 }
+
+-- The table of the voting window: one row per candidate. `votes` is nil while the visibility policy hides
+-- them. `mine` marks the candidate `actor` voted for. `rankOf(name)` gives the guild rank name or nil. Text is
+-- escaped. `options` (all optional): sort = { key = "name"|"rank"|"response"|"votes", descending = boolean }
+-- (default: most votes first), need = "main"|"off"|"other" to show only that response. Ties fall back to the
+-- name, and sorting by votes falls back to the name while they are hidden.
+function ViewModel.VotingRows(session, actor, rankOf, options)
+  options = options or {}
   local counts = {}
   local visible = ns.LootService.VotesVisible(session)
   for _, entry in ipairs(ns.LootService.Tally(session)) do
@@ -540,23 +556,47 @@ function ViewModel.VotingRows(session, actor, rankOf)
 
   local rows = {}
   for name, candidate in pairs(session.candidates) do
-    rows[#rows + 1] = {
-      name = name,
-      label = ViewModel.Escape(name),
-      rank = ViewModel.Escape(rankOf(name) or "?"),
-      need = candidate.need,
-      response = ("%s (%s)"):format(
-        ViewModel.Escape(ViewModel.LOOT_NEED_LABELS[candidate.need] or candidate.need),
-        ViewModel.Escape(candidate.spec)
-      ),
-      upgrade = candidate.upgrade and ViewModel.Escape(candidate.upgrade) or "",
-      votes = visible and (counts[name] or 0) or nil,
-      mine = myVote == name,
-    }
+    if not options.need or candidate.need == options.need then
+      local rank = rankOf(name)
+      rows[#rows + 1] = {
+        name = name,
+        label = ViewModel.Escape(name),
+        rank = ViewModel.Escape(rank or "?"),
+        need = candidate.need,
+        response = ("%s (%s)"):format(
+          ViewModel.Escape(ViewModel.LOOT_NEED_LABELS[candidate.need] or candidate.need),
+          ViewModel.Escape(candidate.spec)
+        ),
+        upgrade = candidate.upgrade and ViewModel.Escape(candidate.upgrade) or "",
+        votes = visible and (counts[name] or 0) or nil,
+        mine = myVote == name,
+        sortRank = (rank or ""):lower(),
+        sortResponse = ("%d %s"):format(NEED_ORDER[candidate.need] or 9, candidate.spec:lower()),
+      }
+    end
+  end
+
+  local sort = options.sort or { key = "votes", descending = true }
+  local key, descending = sort.key, sort.descending
+  if key == "votes" and not visible then
+    key, descending = "name", false
   end
   table.sort(rows, function(a, b)
-    if (a.votes or 0) ~= (b.votes or 0) then
-      return (a.votes or 0) > (b.votes or 0)
+    local left, right
+    if key == "votes" then
+      left, right = a.votes, b.votes
+    elseif key == "rank" then
+      left, right = a.sortRank, b.sortRank
+    elseif key == "response" then
+      left, right = a.sortResponse, b.sortResponse
+    else
+      left, right = a.name:lower(), b.name:lower()
+    end
+    if left ~= right then
+      if descending then
+        return left > right
+      end
+      return left < right
     end
     return a.name < b.name
   end)

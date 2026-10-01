@@ -57,6 +57,16 @@ local function walk(widget, visit)
   end
 end
 
+-- The candidate names in the order the voting table lists them (they are the labels ending in "-Realm").
+local function walk_labels(root, out)
+  walk(root, function(widget)
+    local text = widget.kind == "Label" and widget.props.text
+    if text and text:match("^%a+%-Realm$") then
+      out[#out + 1] = text
+    end
+  end)
+end
+
 local function find_all(root, predicate)
   local found = {}
   walk(root, function(widget)
@@ -539,9 +549,98 @@ describe("Window smoke test", function()
     -- Switch to Thunderfury, give a reason, and award it.
     council.find(window(), "InteractiveLabel", "Thunderfury").callbacks.OnClick()
     council.find(window(), "EditBox", "Reason for the award (used by the Award buttons)").props.text = "highest need"
+    -- The first click only asks to confirm; nothing is given away yet.
     council.find(window(), "Button", "Award").callbacks.OnClick()
+    assert.are.equal("open", by_name.Thunderfury.status)
+    assert.is_truthy(
+      council.find(window(), "Label", "Award Thunderfury to Leader-Realm? Click Confirm to give it away.")
+    )
+    council.find(window(), "Button", "Confirm").callbacks.OnClick()
     assert.are.equal("closed", by_name.Thunderfury.status)
     assert.are.equal("Leader-Realm", by_name.Thunderfury.award.characterKey)
+  end)
+
+  it("drops a pending award confirmation when something else is done", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    local event = ns.db.global.events["ev-1"]
+    local commands = ns.LootCommands.New({
+      events = ns.db.global.events,
+      platform = ns.Platform,
+      comm = ns.comm,
+      onChange = ns.UI.LootChanged,
+    })
+    commands:OpenItem(event, { itemId = 1, itemName = "Sulfuras" })
+    local session = ns.LootService.Sessions(event)[1]
+    commands:Apply(event, session, { spec = "Fury", need = "main" })
+    council.widgets = {}
+    ns.VotingFrame.Show()
+    local function window()
+      for index = #council.widgets, 1, -1 do
+        if council.widgets[index].kind == "ScrollFrame" then
+          return council.widgets[index]
+        end
+      end
+    end
+    council.find(window(), "Button", "Award").callbacks.OnClick()
+    assert.is_truthy(council.find(window(), "Button", "Confirm"))
+    council.find(window(), "Button", "Vote").callbacks.OnClick()
+    assert.is_nil(council.find(window(), "Button", "Confirm"))
+    assert.are.equal("open", session.status)
+  end)
+
+  it("sorts and filters the candidates from the voting window", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    local event = ns.db.global.events["ev-1"]
+    local commands = ns.LootCommands.New({
+      events = ns.db.global.events,
+      platform = ns.Platform,
+      comm = ns.comm,
+      onChange = ns.UI.LootChanged,
+    })
+    commands:OpenItem(event, { itemId = 1, itemName = "Sulfuras" })
+    local session = ns.LootService.Sessions(event)[1]
+    commands:Apply(event, session, { spec = "Fury", need = "main" })
+    for name, need in pairs({ ["Zed-Realm"] = "off", ["Amy-Realm"] = "other" }) do
+      ns.LootService.Register({
+        events = ns.db.global.events,
+        role = "member",
+        actor = name,
+        now = ns.Platform.ServerTime,
+        newId = function() end,
+      }, "ev-1", session.sessionId, { spec = "Spec", need = need })
+    end
+    council.widgets = {}
+    ns.VotingFrame.Show()
+    local function window()
+      for index = #council.widgets, 1, -1 do
+        if council.widgets[index].kind == "ScrollFrame" then
+          return council.widgets[index]
+        end
+      end
+    end
+    local function names()
+      local out = {}
+      walk_labels(window(), out)
+      return out
+    end
+
+    -- Click "Name": ascending, then again: descending.
+    council.find(window(), "InteractiveLabel", "|cffffd100Name|r").callbacks.OnClick()
+    assert.are.same({ "Amy-Realm", "Leader-Realm", "Zed-Realm" }, names())
+    council.find(window(), "InteractiveLabel", "|cffffd100Name ^|r").callbacks.OnClick()
+    assert.are.same({ "Zed-Realm", "Leader-Realm", "Amy-Realm" }, names())
+
+    -- Only one kind of answer.
+    council.find(window(), "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "off")
+    assert.are.same({ "Zed-Realm" }, names())
+    council.find(window(), "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "all")
+    assert.are.equal(3, #names())
   end)
 
   it("shows the loot items with their icon and tooltip instead of buttons", function()
