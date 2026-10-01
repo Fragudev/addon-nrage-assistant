@@ -1,0 +1,41 @@
+NrageAssistant/Commands/LootCommands.lua
+  s_3fd4a5fb5b130a::t_2a281d120252b1 6,28,32-37,181,202,215,228,241
+NrageAssistant/Commands/Slash.lua
+  s_3fd4a5fb5b130a::t_c40763ab05b890 245
+NrageAssistant/Core/Init.lua
+  s_3fd4a5fb5b130a::t_3f0b05d7dab768 67
+NrageAssistant/NrageAssistant.toc
+  s_3fd4a5fb5b130a::t_8faad39d8c21ff 44
+NrageAssistant/Sync/Comm.lua
+  s_3fd4a5fb5b130a::t_05bc3f35eb597a 24,333-337,473-477
+NrageAssistant/UI/LootPopup.lua
+  s_3fd4a5fb5b130a::t_112923eb3d2810 1-146
+NrageAssistant/UI/Main.lua
+  s_3fd4a5fb5b130a::t_ec23eda40837ac 505-510
+NrageAssistant/UI/ViewModel.lua
+  s_3fd4a5fb5b130a::t_ad3d9424ddc2f0 412-452
+docs/USER_GUIDE.md
+  s_3fd4a5fb5b130a::t_59558ee2b1932d 145-150,163-165
+tests/comm_spec.lua
+  s_3fd4a5fb5b130a::t_9fe153092686d7 876-924
+tests/loot_commands_spec.lua
+  s_3fd4a5fb5b130a::t_0665011c5ad8b5 366-403
+tests/view_model_spec.lua
+  s_3fd4a5fb5b130a::t_1208788a822684 604-649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "794fe5760b279f8d39ca150c5985a57bbcf8221f",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
