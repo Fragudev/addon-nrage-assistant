@@ -197,11 +197,17 @@ draw = function()
     sessions = ns.ViewModel.VotingSessions(events(), selectedId)
   end
 
+  -- The items to choose from: icon, name and tooltip, the selected one in gold.
   for _, entry in ipairs(sessions) do
-    addButton(scroll, (entry.selected and "> " or "") .. entry.itemName, 1 / math.min(#sessions, 4) - 0.01, function()
-      selectedId = entry.sessionId
-      draw()
-    end)
+    local text = entry.selected and ("|cffffd100%s|r"):format(entry.itemName) or entry.itemName
+    ns.UI.AddItemLabel(
+      scroll,
+      { itemId = entry.itemId, text = text, width = 1 / math.min(#sessions, 3) - 0.01 },
+      function()
+        selectedId = entry.sessionId
+        draw()
+      end
+    )
   end
 
   local event, session = findSession(selectedId)

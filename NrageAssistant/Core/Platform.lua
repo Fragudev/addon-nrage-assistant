@@ -150,6 +150,37 @@ function Platform.GetProfessions()
   return result
 end
 
+-- The icon texture of an item, from whichever API this client offers (they differ between clients and none is
+-- confirmed on Forever yet), or a question mark when the client does not know the item. An item that is not in
+-- the client's cache may have no icon until it is seen once.
+Platform.ITEM_FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+
+function Platform.GetItemIcon(itemId)
+  if type(itemId) ~= "number" then
+    return Platform.ITEM_FALLBACK_ICON
+  end
+  -- Only the APIs this client has, in order of preference (a nil in the middle would end an ipairs).
+  local lookups = {}
+  if C_Item and C_Item.GetItemIconByID then
+    lookups[#lookups + 1] = C_Item.GetItemIconByID
+  end
+  if GetItemIcon then
+    lookups[#lookups + 1] = GetItemIcon
+  end
+  if GetItemInfoInstant then
+    lookups[#lookups + 1] = function(id)
+      return select(5, GetItemInfoInstant(id))
+    end
+  end
+  for _, lookup in ipairs(lookups) do
+    local ok, icon = pcall(lookup, itemId)
+    if ok and icon then
+      return icon
+    end
+  end
+  return Platform.ITEM_FALLBACK_ICON
+end
+
 -- The client's interface number (build 16001 on the Forever beta).
 function Platform.GetBuildNumber()
   return select(4, GetBuildInfo())

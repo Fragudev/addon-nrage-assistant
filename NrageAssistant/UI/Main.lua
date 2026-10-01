@@ -43,6 +43,40 @@ local function AddHeading(container, text)
   container:AddChild(heading)
 end
 
+-- An item as the client shows it elsewhere: its icon, its name beside it, and its tooltip on hover. Used by the
+-- loot windows. `options` = { itemId, text, width (relative, or nil for the full width) }. Clicking calls
+-- `onClick` when given. Returns the widget.
+function UI.AddItemLabel(parent, options, onClick)
+  local label = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
+  label:SetText(options.text)
+  label:SetImage(ns.Platform.GetItemIcon(options.itemId))
+  label:SetImageSize(24, 24)
+  if options.width then
+    label:SetRelativeWidth(options.width)
+  else
+    label:SetFullWidth(true)
+  end
+  if onClick then
+    label:SetCallback("OnClick", onClick)
+  end
+  label:SetCallback("OnEnter", function(widget)
+    if type(options.itemId) == "number" then
+      GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+      -- The tooltip may refuse an item the client has not seen; the icon and name still show.
+      if pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. options.itemId) then
+        GameTooltip:Show()
+      else
+        GameTooltip:Hide()
+      end
+    end
+  end)
+  label:SetCallback("OnLeave", function()
+    GameTooltip:Hide()
+  end)
+  parent:AddChild(label)
+  return label
+end
+
 local function Redraw()
   if tabs then
     tabs:SelectTab(currentTab)
