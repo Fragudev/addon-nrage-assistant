@@ -81,6 +81,7 @@ local function load_window()
     "Commands/LootCommands",
     "Commands/TemplateCommands",
     "UI/Main",
+    "UI/VotingFrame",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -144,6 +145,9 @@ local function build(rank)
     Names = function()
       return { "Ann-Realm", "Yonemon Gg" }
     end,
+    Lookup = function(_, name)
+      return name == "Ann-Realm" and { rankName = "Raider" } or nil
+    end,
   }
   ns.comm = {
     NextId = function()
@@ -169,9 +173,16 @@ local function build(rank)
       return true
     end
   end
-  ns.UI.LootChanged = function()
+  table.insert(ns.UI.lootListeners, function()
     env.changes = env.changes + 1
-  end
+  end)
+  _G.C_Timer = {
+    After = function(_, fn)
+      env.timers = env.timers or {}
+      env.timers[#env.timers + 1] = fn
+    end,
+  }
+  ns.VotingFrame.Start()
 
   -- Opens the window on `tab` and returns the scroll frame the tab drew into.
   function env.open(tab)
@@ -362,6 +373,87 @@ describe("Window smoke test", function()
     assert.are.equal("closed", session.status)
     assert.is_true(council.changes >= 3)
     pcall(council.close)
+  end)
+
+  it("opens the voting window by itself for a voter when a session opens, and not for a member", function()
+    local function event()
+      return { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    end
+    local council = build("Council")
+    council.ns.db.global.events["ev-1"] = event()
+    local before = #council.widgets
+    council.ns.LootCommands
+      .New({
+        events = council.ns.db.global.events,
+        platform = council.ns.Platform,
+        comm = council.ns.comm,
+        onChange = council.ns.UI.LootChanged,
+      })
+      :OpenItem(council.ns.db.global.events["ev-1"], { itemId = 19019, itemName = "Thunderfury" })
+    assert.is_true(#council.widgets > before)
+    local window = council.find(council.widgets[before + 1], "Frame") or council.widgets[before + 1]
+    assert.are.equal("Frame", window.kind)
+    assert.is_truthy(council.find(window, "Button", "> Thunderfury"))
+
+    local member = build("Soldado")
+    member.ns.db.global.events["ev-1"] = event()
+    local widgets = #member.widgets
+    member.ns.LootCommands
+      .New({
+        events = member.ns.db.global.events,
+        platform = member.ns.Platform,
+        comm = member.ns.comm,
+        onChange = member.ns.UI.LootChanged,
+      })
+      :OpenItem(member.ns.db.global.events["ev-1"], { itemId = 1, itemName = "Item" })
+    assert.are.equal(widgets, #member.widgets)
+  end)
+
+  it("votes, awards and closes from the voting window", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    local event = ns.db.global.events["ev-1"]
+    local commands = ns.LootCommands.New({
+      events = ns.db.global.events,
+      platform = ns.Platform,
+      comm = ns.comm,
+      onChange = ns.UI.LootChanged,
+    })
+    commands:OpenItem(event, { itemId = 19019, itemName = "Thunderfury" })
+    commands:OpenItem(event, { itemId = 1, itemName = "Sulfuras" })
+    local by_name = {}
+    for _, session in ipairs(ns.LootService.Sessions(event)) do
+      by_name[session.itemName] = session
+    end
+    commands:Apply(event, by_name.Thunderfury, { spec = "Fury", need = "main", upgrade = "+12" })
+    commands:Apply(event, by_name.Sulfuras, { spec = "Fury", need = "off" })
+
+    council.widgets = {}
+    ns.VotingFrame.Show()
+    -- Each redraw puts a fresh scroll frame in the (reused) window: the last one is what is on screen.
+    local function window()
+      for index = #council.widgets, 1, -1 do
+        if council.widgets[index].kind == "ScrollFrame" then
+          return council.widgets[index]
+        end
+      end
+    end
+    assert.is_truthy(window())
+
+    -- The window opens on the first item (Sulfuras): vote for the only candidate, then close it unawarded.
+    council.find(window(), "Button", "Vote").callbacks.OnClick()
+    assert.is_truthy(next(by_name.Sulfuras.votes))
+    council.find(window(), "Button", "Close without awarding").callbacks.OnClick()
+    assert.are.equal("closed", by_name.Sulfuras.status)
+
+    -- Switch to Thunderfury, give a reason, and award it.
+    council.find(window(), "Button", "Thunderfury").callbacks.OnClick()
+    council.find(window(), "EditBox", "Reason for the award (used by the Award buttons)").props.text = "highest need"
+    council.find(window(), "Button", "Award").callbacks.OnClick()
+    assert.are.equal("closed", by_name.Thunderfury.status)
+    assert.are.equal("Leader-Realm", by_name.Thunderfury.award.characterKey)
   end)
 
   it("confirms a manual readiness item and asks for the Home tab too", function()

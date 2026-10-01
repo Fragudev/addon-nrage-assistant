@@ -647,3 +647,113 @@ describe("ViewModel loot popup helpers", function()
     assert.are.equal("unknown", ViewModel.DefaultSpec({}))
   end)
 end)
+
+describe("ViewModel voting window helpers", function()
+  local function session(id, name, status, overrides)
+    local s = { sessionId = id, itemName = name, status = status or "open", candidates = {}, votes = {} }
+    for k, v in pairs(overrides or {}) do
+      s[k] = v
+    end
+    return s
+  end
+
+  it("lists the open sessions plus the selected one even when closed, escaped and in order", function()
+    local events = {
+      a = {
+        eventId = "a",
+        title = "Molten Core",
+        loot = {
+          s1 = session("s1", "Thunderfury"),
+          s2 = session("s2", "|cffff0000Sulfuras"),
+          s3 = session("s3", "Done", "closed"),
+          s4 = session("s4", "Old", "closed"),
+        },
+      },
+    }
+    local list = ViewModel.VotingSessions(events, "s3")
+    assert.are.equal(3, #list)
+    assert.are.equal("s3", list[1].sessionId)
+    assert.is_true(list[1].selected)
+    assert.are.equal("s1", list[2].sessionId)
+    assert.is_false(list[2].selected)
+    assert.are.equal("||cffff0000Sulfuras", list[3].itemName)
+    assert.are.equal(2, #ViewModel.VotingSessions(events, nil))
+  end)
+
+  it("says where a session stands", function()
+    local open = session("s1", "Item", "open", {
+      candidates = { A = { spec = "x", need = "main" }, B = { spec = "y", need = "off" } },
+      votes = { C = { target = "A" } },
+    })
+    assert.are.equal("Voting is open: 2 candidate(s), 1 vote(s) cast", ViewModel.VotingStatus(open))
+    assert.are.equal("Closed without an award", ViewModel.VotingStatus(session("s2", "Item", "closed")))
+    local awarded = session("s3", "Item", "closed", {
+      award = { characterKey = "A", awardedBy = "Boss", reason = "|rneed" },
+    })
+    assert.are.equal("Awarded to A by Boss: ||rneed", ViewModel.VotingStatus(awarded))
+  end)
+
+  local function candidates_session()
+    return session("s1", "Item", "open", {
+      candidates = {
+        ["Ann-Realm"] = { spec = "Fury", need = "main", upgrade = "+12" },
+        ["Bob-Realm"] = { spec = "Prot", need = "off" },
+        ["Cy-Realm"] = { spec = "Mage", need = "other" },
+      },
+      votes = {
+        ["Me-Realm"] = { target = "Bob-Realm" },
+        ["Zed-Realm"] = { target = "Bob-Realm" },
+        ["Yan-Realm"] = { target = "Cy-Realm" },
+      },
+    })
+  end
+
+  local function rank_of(name)
+    return name == "Ann-Realm" and "Raider" or nil
+  end
+
+  it("builds one row per candidate, most votes first, with rank, response and my vote", function()
+    local saved = Constants.VOTE_VISIBILITY
+    Constants.VOTE_VISIBILITY = "open"
+    local rows = ViewModel.VotingRows(candidates_session(), "Me-Realm", rank_of)
+    Constants.VOTE_VISIBILITY = saved
+
+    assert.are.equal(3, #rows)
+    assert.are.equal("Bob-Realm", rows[1].name)
+    assert.are.equal(2, rows[1].votes)
+    assert.is_true(rows[1].mine)
+    assert.are.equal("Off spec (Prot)", rows[1].response)
+    assert.are.equal("Cy-Realm", rows[2].name)
+    assert.is_false(rows[2].mine)
+    assert.are.equal("Ann-Realm", rows[3].name)
+    assert.are.equal(0, rows[3].votes)
+    assert.are.equal("Raider", rows[3].rank)
+    assert.are.equal("?", rows[1].rank)
+    assert.are.equal("+12", rows[3].upgrade)
+    assert.are.equal("", rows[1].upgrade)
+  end)
+
+  it("hides the vote counts and sorts by name while the policy says so", function()
+    local saved = Constants.VOTE_VISIBILITY
+    Constants.VOTE_VISIBILITY = "secret"
+    local rows = ViewModel.VotingRows(candidates_session(), "Me-Realm", rank_of)
+    Constants.VOTE_VISIBILITY = saved
+
+    assert.are.equal("Ann-Realm", rows[1].name)
+    for _, row in ipairs(rows) do
+      assert.is_nil(row.votes)
+    end
+  end)
+
+  it("escapes what came from the guild", function()
+    local data = session("s1", "Item", "open", {
+      candidates = { ["|cffff0000Evil"] = { spec = "|rspec", need = "main", upgrade = "|Hx" } },
+    })
+    local row = ViewModel.VotingRows(data, "Me-Realm", function()
+      return "|cff00ff00Rank"
+    end)[1]
+    for _, text in ipairs({ row.label, row.rank, row.response, row.upgrade }) do
+      assert.is_nil(text:find("[^|]|[cHr]"), text)
+    end
+  end)
+end)

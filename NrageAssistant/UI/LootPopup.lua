@@ -174,4 +174,4 @@ function LootPopup.Start()
 end
 
 ns.LootPopup = LootPopup
-ns.UI.LootChanged = LootPopup.Refresh
+table.insert(ns.UI.lootListeners, LootPopup.Refresh)
