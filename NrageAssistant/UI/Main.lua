@@ -134,7 +134,7 @@ end
 local selectedEventId
 local attendanceFilter = ""
 local actionMessage
-local ATTENDANCE_ROWS_MAX = 40
+local ATTENDANCE_MATCHES_MAX = 8
 
 local function RaidServices()
   local raid = ns.RaidCommands.New({
@@ -251,37 +251,50 @@ local function DrawEventEditor(container, raid, event)
   end)
 end
 
-local function DrawAttendance(container, raid, event, members)
-  AddTextInput(container, "Find a member", attendanceFilter, 1, function(value)
-    attendanceFilter = value
-    Redraw()
-  end)
+local attendanceNewState = "present"
 
+-- Attendance: those already recorded with a state dropdown each, and a search to add somebody else, so a
+-- guild of hundreds never becomes hundreds of rows.
+local function DrawAttendance(container, raid, event, members)
   local states = {}
   for _, state in ipairs(ns.ViewModel.ATTENDANCE_STATES) do
     states[state] = state
   end
-  local rows, matched = ns.ViewModel.AttendanceRows(event, members, attendanceFilter, ATTENDANCE_ROWS_MAX)
-  for _, row in ipairs(rows) do
-    AddDropdown(
-      container,
-      ns.ViewModel.Escape(row.name),
-      states,
-      ns.ViewModel.ATTENDANCE_STATES,
-      row.state,
-      0.5,
-      function(key)
-        Report(raid:SetAttendance(event, row.name, key))
-      end
-    )
+  local recorded, matches, matched =
+    ns.ViewModel.AttendanceView(event, members, attendanceFilter, ATTENDANCE_MATCHES_MAX)
+
+  AddHeading(container, ("Recorded (%d)"):format(#recorded))
+  if #recorded == 0 then
+    AddLines(container, { "Nobody yet. Search for a member below to add them." })
+  end
+  for _, row in ipairs(recorded) do
+    AddDropdown(container, row.label, states, ns.ViewModel.ATTENDANCE_STATES, row.state, 0.5, function(key)
+      Report(raid:SetAttendance(event, row.name, key))
+    end)
+  end
+
+  AddHeading(container, "Add a member")
+  AddTextInput(container, "Type part of a name and press Enter", attendanceFilter, 0.6, function(value)
+    attendanceFilter = value
+    Redraw()
+  end)
+  AddDropdown(container, "Record as", states, ns.ViewModel.ATTENDANCE_STATES, attendanceNewState, 0.4, function(key)
+    attendanceNewState = key
+  end)
+  if attendanceFilter == "" then
+    return
   end
   if matched == 0 then
-    AddLines(container, { "No member matches. The guild roster may still be loading." })
-  elseif matched > #rows then
-    AddLines(
-      container,
-      { ("Showing %d of %d members: type part of a name above to narrow the list."):format(#rows, matched) }
-    )
+    AddLines(container, { "No unrecorded member matches. The guild roster may still be loading." })
+  end
+  for _, match in ipairs(matches) do
+    AddButton(container, match.label, 0.5, function()
+      attendanceFilter = ""
+      Report(raid:SetAttendance(event, match.name, attendanceNewState))
+    end)
+  end
+  if matched > #matches then
+    AddLines(container, { ("%d more match: type more of the name to narrow the list."):format(matched - #matches) })
   end
 end
 
