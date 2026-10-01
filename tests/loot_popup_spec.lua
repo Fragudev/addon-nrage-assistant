@@ -114,3 +114,96 @@ describe("LootPopup controller", function()
     assert.are.equal("s2", env.shown[2][1].sessionId)
   end)
 end)
+
+describe("LootPopup controller countdown", function()
+  local function counting(waiting, timeout)
+    local env = { waiting = waiting, clock = 100, shown = {}, hidden = 0, timers = {}, statuses = {} }
+    env.controller = Controller.New({
+      pending = function(dismissed)
+        local list = {}
+        for _, waiting_entry in ipairs(env.waiting) do
+          if not dismissed[waiting_entry.sessionId] then
+            list[#list + 1] = waiting_entry
+          end
+        end
+        return list
+      end,
+      isLockedDown = function()
+        return env.locked == true
+      end,
+      after = function(seconds, fn)
+        env.timers[#env.timers + 1] = { seconds = seconds, fn = fn }
+      end,
+      show = function(entries)
+        env.shown[#env.shown + 1] = entries
+      end,
+      hide = function()
+        env.hidden = env.hidden + 1
+      end,
+      now = function()
+        return env.clock
+      end,
+      timeout = timeout,
+      status = function(text)
+        env.statuses[#env.statuses + 1] = text
+      end,
+    })
+    function env.tick()
+      table.remove(env.timers, 1).fn()
+    end
+    return env
+  end
+
+  it("counts down once the popup is shown and says how long is left", function()
+    local env = counting({ entry("s1") }, 60)
+    env.controller:Refresh()
+    assert.are.equal(1, #env.timers)
+    assert.are.equal(1, env.timers[1].seconds)
+
+    env.clock = 110
+    env.tick()
+    assert.are.equal("Passing on the next item in 50 s unless you answer.", env.statuses[1])
+    assert.are.equal(1, #env.timers)
+  end)
+
+  it("passes on an item nobody answered, which closes the popup when none is left", function()
+    local env = counting({ entry("s1") }, 60)
+    env.controller:Refresh()
+    env.clock = 161
+    env.tick()
+    assert.are.equal(1, env.hidden)
+    assert.is_true(env.controller.dismissed.s1)
+  end)
+
+  it("times each item from when it was first shown, not from when the others were", function()
+    local env = counting({ entry("s1") }, 60)
+    env.controller:Refresh()
+    env.clock = 140
+    env.waiting[#env.waiting + 1] = entry("s2")
+    env.controller:Refresh()
+    env.clock = 165
+    env.tick()
+    assert.is_true(env.controller.dismissed.s1)
+    assert.is_nil(env.controller.dismissed.s2)
+    assert.are.equal("s2", env.shown[#env.shown][1].sessionId)
+  end)
+
+  it("does not count a lockdown, because nothing is shown then", function()
+    local env = counting({ entry("s1") }, 60)
+    env.locked = true
+    env.controller:Refresh()
+    env.clock = 500
+    env.locked = false
+    env.tick()
+    env.controller:Refresh()
+    env.clock = 530
+    env.tick()
+    assert.is_nil(env.controller.dismissed.s1)
+  end)
+
+  it("does nothing without a timeout", function()
+    local env = counting({ entry("s1") }, nil)
+    env.controller:Refresh()
+    assert.are.equal(0, #env.timers)
+  end)
+end)

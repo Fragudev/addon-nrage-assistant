@@ -255,3 +255,53 @@ describe("Platform.GetItemIcon", function()
     assert.are.equal("old", Platform.GetItemIcon(1))
   end)
 end)
+
+describe("Platform.GetItemDetails", function()
+  local saved = {}
+  local names = { "C_Item", "GetItemInfo", "INVTYPE_2HWEAPON" }
+
+  before_each(function()
+    for _, name in ipairs(names) do
+      saved[name] = _G[name]
+      _G[name] = nil
+    end
+  end)
+
+  after_each(function()
+    for _, name in ipairs(names) do
+      _G[name] = saved[name]
+    end
+  end)
+
+  it("reads the item level and slot from the client", function()
+    _G.INVTYPE_2HWEAPON = "Two-Hand"
+    _G.GetItemInfo = function()
+      return "Thunderfury", "link", 5, 213, 60, "Weapon", "Sword", 1, "INVTYPE_2HWEAPON"
+    end
+    assert.are.same({ level = 213, slot = "Two-Hand" }, Platform.GetItemDetails(19019))
+  end)
+
+  it("prefers C_Item.GetItemInfo when the client has it", function()
+    _G.C_Item = {
+      GetItemInfo = function()
+        return "Sword", "link", 4, 100, 1, "Weapon", "Sword", 1, ""
+      end,
+    }
+    _G.GetItemInfo = function()
+      error("should not be called")
+    end
+    assert.are.same({ level = 100 }, Platform.GetItemDetails(1))
+  end)
+
+  it("says nothing it does not know: an uncached item, a missing API, an error, a bad id", function()
+    assert.is_nil(Platform.GetItemDetails(19019))
+    _G.GetItemInfo = function() end
+    assert.is_nil(Platform.GetItemDetails(19019))
+    _G.GetItemInfo = function()
+      error("boom")
+    end
+    assert.is_nil(Platform.GetItemDetails(19019))
+    assert.is_nil(Platform.GetItemDetails(nil))
+    assert.is_nil(Platform.GetItemDetails("19019"))
+  end)
+end)

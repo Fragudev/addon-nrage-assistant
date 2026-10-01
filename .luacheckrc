@@ -19,6 +19,7 @@ read_globals = {
   "C_GuildInfo",
   "C_Item",
   "GetItemIcon",
+  "GetItemInfo",
   "GetItemInfoInstant",
   "GetGuildRosterInfo",
   "GetNumGuildMembers",

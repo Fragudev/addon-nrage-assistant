@@ -12,12 +12,20 @@ local WIDTH = 440
 
 -- The decisions, apart from the frame so they can be tested with fakes.
 --   deps: pending(dismissed) -> entries, isLockedDown() -> boolean, after(seconds, fn),
---         show(entries), hide()
+--         show(entries), hide(); optional, for the countdown: now() -> seconds, timeout (seconds, nil for none),
+--         status(text) to show the time left
 local Controller = {}
 Controller.__index = Controller
 
 function Controller.New(deps)
-  return setmetatable({ deps = deps, dismissed = {}, shownKey = nil, retryScheduled = false }, Controller)
+  return setmetatable({
+    deps = deps,
+    dismissed = {},
+    shownKey = nil,
+    retryScheduled = false,
+    firstShown = {},
+    ticking = false,
+  }, Controller)
 end
 
 -- Sessions the player answered, passed on or closed the popup over are not offered again.
@@ -61,6 +69,52 @@ function Controller:Refresh()
   end
   self.deps.show(entries)
   self.shownKey = key
+  self:StartCountdown(entries)
+end
+
+-- With a timeout, each item waits that long from the moment it was first shown (a lockdown does not count,
+-- nothing is shown then), and is passed on if nobody answered. Passing is local: nothing is sent.
+function Controller:StartCountdown(entries)
+  if not (self.deps.timeout and self.deps.now) then
+    return
+  end
+  local now = self.deps.now()
+  for _, entry in ipairs(entries) do
+    self.firstShown[entry.sessionId] = self.firstShown[entry.sessionId] or now
+  end
+  if not self.ticking then
+    self.ticking = true
+    self.deps.after(1, function()
+      self.ticking = false
+      self:Tick()
+    end)
+  end
+end
+
+function Controller:Tick()
+  local entries = self.deps.pending(self.dismissed)
+  if #entries == 0 then
+    return
+  end
+  local now = self.deps.now()
+  local expired, soonest = false, self.deps.timeout
+  for _, entry in ipairs(entries) do
+    local left = self.deps.timeout - (now - (self.firstShown[entry.sessionId] or now))
+    if left <= 0 then
+      self:Dismiss(entry.sessionId)
+      expired = true
+    elseif left < soonest then
+      soonest = left
+    end
+  end
+  if expired then
+    self:Refresh()
+    return
+  end
+  if self.deps.status then
+    self.deps.status(("Passing on the next item in %d s unless you answer."):format(math.ceil(soonest)))
+  end
+  self:StartCountdown(entries)
 end
 
 LootPopup.Controller = Controller
@@ -110,8 +164,11 @@ local function build(entries)
   frame = AceGUI:Create("Frame")
   frame:SetTitle("Nrage Loot")
   frame:SetStatusText("Nothing is sent until you click a button.")
+  local height = math.min(120 + #entries * ROW_HEIGHT, 520)
+  ns.UI.ApplyWindowStatus(frame, "popup", WIDTH, height)
+  -- Only the position is remembered: the height follows the number of items.
   frame:SetWidth(WIDTH)
-  frame:SetHeight(math.min(120 + #entries * ROW_HEIGHT, 520))
+  frame:SetHeight(height)
   frame:SetLayout("List")
   frame:SetCallback("OnClose", function()
     for _, entry in ipairs(pending(controller.dismissed)) do
@@ -164,6 +221,13 @@ function LootPopup.Start()
     after = C_Timer.After,
     show = build,
     hide = close,
+    now = ns.Platform.Now,
+    timeout = ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS,
+    status = function(text)
+      if frame then
+        frame:SetStatusText(text)
+      end
+    end,
   })
   for _, event in pairs(ns.db.global.events) do
     for _, session in ipairs(ns.LootService.Sessions(event)) do

@@ -181,6 +181,31 @@ function Platform.GetItemIcon(itemId)
   return Platform.ITEM_FALLBACK_ICON
 end
 
+-- What the client knows about an item: { level = item level, slot = "Two-Hand", ... } with only what it
+-- reports, or nil when it does not know the item (not cached yet) or has no such API. Nothing is guessed.
+function Platform.GetItemDetails(itemId)
+  if type(itemId) ~= "number" then
+    return nil
+  end
+  local lookup = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if not lookup then
+    return nil
+  end
+  local ok, _, _, _, level, _, _, _, _, equipLoc = pcall(lookup, itemId)
+  if not ok then
+    return nil
+  end
+  local details = {}
+  if type(level) == "number" and level > 0 then
+    details.level = level
+  end
+  if type(equipLoc) == "string" and equipLoc ~= "" then
+    local text = _G[equipLoc]
+    details.slot = type(text) == "string" and text or nil
+  end
+  return next(details) and details or nil
+end
+
 -- The client's interface number (build 16001 on the Forever beta).
 function Platform.GetBuildNumber()
   return select(4, GetBuildInfo())

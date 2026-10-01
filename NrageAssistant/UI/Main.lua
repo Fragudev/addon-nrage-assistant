@@ -77,6 +77,19 @@ function UI.AddItemLabel(parent, options, onClick)
   return label
 end
 
+-- Remembers where a window was left and how big: the saved numbers live in settings.windows[name] and AceGUI
+-- keeps them up to date as the window is moved or resized. `width`/`height` are the first-time size.
+function UI.ApplyWindowStatus(window, name, width, height)
+  local settings = type(ns.db.global.settings) == "table" and ns.db.global.settings or {}
+  ns.db.global.settings = settings
+  settings.windows = type(settings.windows) == "table" and settings.windows or {}
+  local status = type(settings.windows[name]) == "table" and settings.windows[name] or {}
+  settings.windows[name] = status
+  status.width = type(status.width) == "number" and status.width or width
+  status.height = type(status.height) == "number" and status.height or height
+  window:SetStatusTable(status)
+end
+
 local function Redraw()
   if tabs then
     tabs:SelectTab(currentTab)
@@ -750,8 +763,7 @@ function UI.Toggle()
   frame = AceGUI:Create("Frame")
   frame:SetTitle("Nrage Assistant")
   frame:SetStatusText(ns.GetVersion())
-  frame:SetWidth(720)
-  frame:SetHeight(480)
+  UI.ApplyWindowStatus(frame, "main", 720, 480)
   frame:SetLayout("Fill")
   frame:SetCallback("OnClose", function()
     Release()

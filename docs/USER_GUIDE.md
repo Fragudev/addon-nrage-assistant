@@ -148,6 +148,7 @@ When a session opens, everyone in the guild with the addon gets the **Nrage Loot
 buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared role (or your
 class) as the spec; nothing is sent before that. The popup never appears during an encounter lockdown (it waits),
 it does not pop up for sessions that were already open when you logged in, and closing it counts as passing.
+An item you do not answer is passed on after 60 seconds (only on your screen; nothing is sent).
 The Loot tab remains for choosing a different spec or adding an upgrade.
 
 GM, Officer and RL ranks also get the **Nrage Loot Council** voting window, which opens by itself when a session
@@ -156,7 +157,9 @@ reason field for the award, *Close without awarding*, and a row of items (icon, 
 on hover) to switch between them. Click a column title to sort by it (again to reverse), and use *Show* to see
 only main spec, off spec or other. *Award* asks you to click *Confirm* before it gives the item away. Votes follow
 the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
-*Open the voting window* button to bring it back. It does not show item level, slot or equipped gear yet.
+*Open the voting window* button to bring it back. Hovering a name lists what that person has already won. The
+item's level and slot show under its name when the client knows them. It does not show equipped gear yet.
+Windows remember where you leave them and how big they are.
 
 The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,
 votes and decision. Anyone can apply to an open session with a spec and the *Apply: main / off / other* buttons
