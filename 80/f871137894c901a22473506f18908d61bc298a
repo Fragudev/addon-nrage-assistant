@@ -1,0 +1,29 @@
+NrageAssistant/Domain/PermissionService.lua
+  s_3fd4a5fb5b130a::t_37b7f2e660e616 5-6,17-18
+tests/loot_service_spec.lua
+  s_3fd4a5fb5b130a::t_d6077de79800f9 124,131,142-153
+tests/loot_sync_spec.lua
+  s_3fd4a5fb5b130a::t_a08afa9a41bd7d 287,289,364
+tests/permission_service_spec.lua
+  s_3fd4a5fb5b130a::t_ff21b2391103c4 118-123
+tests/transfer_spec.lua
+  s_3fd4a5fb5b130a::t_9bc3233ebd026a 389-390,393,395
+tests/view_model_spec.lua
+  s_3fd4a5fb5b130a::t_c296b70f883764 373-386,388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80f871137894c901a22473506f18908d61bc298a",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
