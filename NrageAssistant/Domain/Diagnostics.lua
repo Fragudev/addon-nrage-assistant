@@ -105,7 +105,8 @@ local function behaviourChecks(addon)
       local codec = addon.Codec.Default()
       -- Zeros are on purpose: every real message carries one (the protocol minor), and a serializer that
       -- cannot handle zero on this client is exactly what broke sync before.
-      local message = { v = 1, m = 0, t = "HELLO", p = { version = "selftest", count = 0, negative = -0 } }
+      local zero = 0
+      local message = { v = 1, m = 0, t = "HELLO", p = { version = "selftest", count = 0, negative = -zero } }
       local text, reason, detail = codec:Encode(message)
       assert(text, tostring(reason) .. ": " .. tostring(detail))
       local decoded = assert(codec:Decode(text))

@@ -27,7 +27,10 @@ describe("Codec", function()
   end)
 
   it("round-trips zeros, which every real message carries (the protocol minor is 0)", function()
-    local message = { v = 1, m = 0, t = "HELLO", id = "a-1", p = { count = 0, negative = -0, small = 0.5 } }
+    -- Built at run time: Lua 5.1 compiles the literal -0 as a plain 0.
+    local zero = 0
+    local message = { v = 1, m = 0, t = "HELLO", id = "a-1", p = { count = 0, negative = -zero, small = 0.5 } }
+    assert.is_true(1 / message.p.negative < 0)
     local decoded = assert(codec:Decode(assert(codec:Encode(message))))
     assert.are.equal(0, decoded.m)
     assert.are.equal(0, decoded.p.count)
