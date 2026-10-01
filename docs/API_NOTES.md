@@ -64,3 +64,14 @@ and sending addon or chat messages is blocked, and some combat data and chat arr
 be inspected, compared or saved. The addon is therefore a coordination tool for outside combat: nothing is sent
 during the lockdown, and anything raising on a secret value is dropped. Re-read the restriction notes after every
 Forever or Mainline patch, because they may reach Forever in the following one.
+
+## Division by zero raises an error on the Forever client
+
+Found in game on the Forever client: `LibSerialize` failed to encode any message with `Division by zero`
+(`LibSerialize.lua:1562`, `1 / num < 0`, its test for negative zero). Every message carries a `0` (the protocol
+minor), so nothing was ever sent. Standard Lua gives `inf` for `1 / 0`; this client raises.
+
+Also, `LibStub` returns one instance per library name, and other addons (DBM ships `LibSerialize` too) load first,
+so asking for `LibSerialize` returned DBM's copy. The vendored copy is therefore patched and registered as
+`NrageAssistant-LibSerialize` (see `Libs/README.md`). Never divide by a value that can be zero in addon code
+either.

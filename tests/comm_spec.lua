@@ -57,7 +57,7 @@ local function build_env()
     end,
   }
   env.codec = ns.Codec.New({
-    serialize = _G.LibStub("LibSerialize"),
+    serialize = _G.LibStub("NrageAssistant-LibSerialize"),
     deflate = _G.LibStub("LibDeflate"),
   })
   env.guard = {}

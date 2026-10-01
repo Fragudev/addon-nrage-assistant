@@ -568,7 +568,9 @@ The type byte uses the following formats to implement the above:
 [Writer protocol]: #writer-protocol
 END_README --]]
 
-local MAJOR, MINOR = "LibSerialize", 6
+-- NRAGE PATCH (see ../README.md): a private name, so the copy another addon loads (DBM ships one) is never
+-- picked instead of this one, and no division by zero (the Forever client's Lua raises on it).
+local MAJOR, MINOR = "NrageAssistant-LibSerialize", 6
 local LibSerialize
 if LibStub then
     LibSerialize = LibStub:NewLibrary(MAJOR, MINOR)
@@ -1559,7 +1561,7 @@ LibSerializeInt._WriterTable = {
         -- deserializers. A literal "-0.0" is used rather than tostring(num),
         -- whose output for negative zero varies by runtime ("-0" vs "-0.0") and
         -- would not round-trip across runtimes.
-        if num == 0 and 1 / num < 0 then
+        if num == 0 and ("%g"):format(num):sub(1, 1) == "-" then
             local negativeZero = "-0.0"
             self:_WriteByte(readerIndexShift * self._ReaderIndex.NUM_FLOATSTR)
             self:_WriteByte(#negativeZero, 1)

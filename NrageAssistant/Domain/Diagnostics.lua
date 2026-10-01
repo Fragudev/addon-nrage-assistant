@@ -44,7 +44,7 @@ local EXISTS = {
   "C_AddOns.GetAddOnMetadata",
 }
 
-local LIBRARIES = { "AceComm-3.0", "AceGUI-3.0", "LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
+local LIBRARIES = { "AceComm-3.0", "AceGUI-3.0", "NrageAssistant-LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
 
 local function resolve(env, path)
   local value = env
@@ -103,9 +103,17 @@ local function behaviourChecks(addon)
   checks[#checks + 1] = function()
     local ok, err = pcall(function()
       local codec = addon.Codec.Default()
-      local text = assert(codec:Encode({ t = "HELLO", p = { version = "selftest" } }))
+      -- Zeros are on purpose: every real message carries one (the protocol minor), and a serializer that
+      -- cannot handle zero on this client is exactly what broke sync before.
+      local zero = 0
+      local message = { v = 1, m = 0, t = "HELLO", p = { version = "selftest", count = 0, negative = -zero } }
+      local text, reason, detail = codec:Encode(message)
+      assert(text, tostring(reason) .. ": " .. tostring(detail))
       local decoded = assert(codec:Decode(text))
-      assert(decoded.p.version == "selftest", "round trip changed the message")
+      assert(
+        decoded.p.version == "selftest" and decoded.m == 0 and decoded.p.count == 0,
+        "round trip changed the message"
+      )
     end)
     return ok and result("codec round trip", "ok") or result("codec round trip", "error", tostring(err))
   end
