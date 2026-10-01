@@ -142,6 +142,12 @@ button. Nothing is applied until you click it, and a template the event already 
 Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
 the addon refuses, because the session could not be announced.
 
+When a session opens, everyone in the guild with the addon gets the **Nrage Loot** popup with the item and the
+buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared role (or your
+class) as the spec; nothing is sent before that. The popup never appears during an encounter lockdown (it waits),
+it does not pop up for sessions that were already open when you logged in, and closing it counts as passing.
+The Loot tab remains for choosing a different spec or adding an upgrade.
+
 The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,
 votes and decision. Anyone can apply to an open session with a spec and the *Apply: main / off / other* buttons
 (the upgrade field is optional). Council and admins also get *Vote*, *Award* (with a reason) and *Close without
@@ -154,9 +160,9 @@ are not shown. The commands below keep working the same way.
 | `/nrage loot <event> open <item link>` | council, admin | open a session; shift-click the item, or give `<id> <name>` |
 | `/nrage loot <event> <n>` | anyone | show a session: candidates, votes, decision |
 | `/nrage loot <event> <n> apply <spec> <main\|off\|other> [upgrade]` | anyone | put yourself forward |
-| `/nrage loot <event> <n> vote <name>` | council, admin | vote for a candidate (you can change it) |
-| `/nrage loot <event> <n> award <name> <reason>` | council, admin | award the item and close the session |
-| `/nrage loot <event> <n> close` | council, admin | close without awarding |
+| `/nrage loot <event> <n> vote <name>` | raid leader, council, admin | vote for a candidate (you can change it) |
+| `/nrage loot <event> <n> award <name> <reason>` | raid leader, council, admin | award the item and close the session |
+| `/nrage loot <event> <n> close` | raid leader, council, admin | close without awarding |
 | `/nrage loot acta <event>` | anyone | the minutes: what was decided and why |
 
 Votes are visible to everyone while a session is open; whether they should be secret until it closes is still to

@@ -21,6 +21,7 @@ function Comm.New(deps)
     tombstones = deps.tombstones,
     roleOf = deps.roleOf,
     ownRole = deps.ownRole,
+    onLootChange = deps.onLootChange,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -329,7 +330,11 @@ function Comm:HandleRaid(sender, message)
     tombstones = self.tombstones,
     now = self.platform.ServerTime,
   }
-  return ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
+  local ok, reason = ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
+  if ok and self.onLootChange and message.t:sub(1, 5) == "LOOT_" then
+    self.onLootChange(message.t)
+  end
+  return ok, reason
 end
 
 -- Local change -> wire. Each message is keyed so a newer edit of the same record replaces a
@@ -464,6 +469,11 @@ function Comm.Start()
     end,
     ownRole = function()
       return ns.PermissionService.OwnRole(platform)
+    end,
+    onLootChange = function()
+      if ns.UI and ns.UI.LootChanged then
+        ns.UI.LootChanged()
+      end
     end,
     version = ns.GetVersion(),
     now = platform.Now,

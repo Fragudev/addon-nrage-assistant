@@ -873,3 +873,52 @@ describe("Comm sender names", function()
     assert.are.equal(0, #env.comm.recentSenders)
   end)
 end)
+
+describe("Comm loot change notification", function()
+  local env, changes
+
+  before_each(function()
+    env = build_env()
+    env.roles["Council-Realm"] = "council"
+    env.roles["Lead-Realm"] = "rl"
+    env.events["ev-1"] = {
+      eventId = "ev-1",
+      title = "Raid",
+      status = "open",
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = {},
+    }
+    changes = {}
+    env.comm.onLootChange = function(messageType)
+      changes[#changes + 1] = messageType
+    end
+  end)
+
+  local function session_text(id)
+    return env.wire("LOOT_SESSION", {
+      eventId = "ev-1",
+      sessionId = "s1",
+      rev = 1,
+      updatedAt = 10,
+      itemId = 19019,
+      itemName = "Thunderfury",
+      status = "open",
+    }, id)
+  end
+
+  it("tells the window when a loot session is applied", function()
+    assert.is_true(env.comm:HandleMessage(session_text("m-1"), "Council-Realm", "GUILD"))
+    assert.are.same({ "LOOT_SESSION" }, changes)
+    assert.is_truthy(env.events["ev-1"].loot.s1)
+  end)
+
+  it("says nothing when the message is refused, and nothing for other kinds of message", function()
+    assert.is_false(env.comm:HandleMessage(session_text("m-1"), "Lead-Realm", "GUILD"))
+    local event = env.wire("EVENT_UPSERT", { eventId = "ev-2", rev = 1, updatedAt = 10, title = "Other" }, "m-2")
+    assert.is_true(env.comm:HandleMessage(event, "Lead-Realm", "GUILD"))
+    assert.are.same({}, changes)
+  end)
+end)

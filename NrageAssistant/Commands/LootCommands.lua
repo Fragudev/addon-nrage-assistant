@@ -3,7 +3,7 @@ local _, ns = ...
 -- Text commands for the loot council. Each method takes the words after `/nrage loot` and returns the
 -- lines to print, so it is tested without a client. Every change goes through LootService first (which
 -- checks the role derived from the guild rank) and is then sent to the guild through Comm.
---   deps: events, platform, comm
+--   deps: events, platform, comm, onChange (optional: called after a change made here, so the window can react)
 --
 -- Addon messages are not confidential: the detail view says so wherever it shows votes.
 local LootCommands = {}
@@ -25,7 +25,14 @@ function LootCommands.New(deps)
     events = deps.events,
     platform = deps.platform,
     comm = deps.comm,
+    onChange = deps.onChange,
   }, LootCommands)
+end
+
+function LootCommands:Changed()
+  if self.onChange then
+    self.onChange()
+  end
 end
 
 function LootCommands:Context()
@@ -171,6 +178,7 @@ function LootCommands:OpenItem(event, item)
   if not session then
     return { fail(ctx, reason) }
   end
+  self:Changed()
   return {
     ("opened a session for %s."):format(session.itemName),
     sentNote(self.comm:SendLootSession(event.eventId, session)),
@@ -191,6 +199,7 @@ function LootCommands:Apply(event, session, fields)
   if not candidate then
     return { fail(ctx, reason) }
   end
+  self:Changed()
   return {
     ("you are a candidate for %s (%s, %s)."):format(session.itemName, candidate.spec, candidate.need),
     sentNote(self.comm:SendLootCandidate(event.eventId, session.sessionId, candidate)),
@@ -203,6 +212,7 @@ function LootCommands:VoteFor(event, session, target)
   if not vote then
     return { fail(ctx, reason) }
   end
+  self:Changed()
   return {
     ("voted for %s."):format(vote.target),
     sentNote(self.comm:SendLootVote(event.eventId, session.sessionId, vote)),
@@ -215,6 +225,7 @@ function LootCommands:AwardTo(event, session, target, why)
   if not awarded then
     return { fail(ctx, reason) }
   end
+  self:Changed()
   return {
     ("%s awarded to %s."):format(awarded.itemName, target),
     sentNote(self.comm:SendLootAward(event.eventId, awarded)),
@@ -227,6 +238,7 @@ function LootCommands:CloseSession(event, session)
   if not closed then
     return { fail(ctx, reason) }
   end
+  self:Changed()
   return {
     ("closed the session for %s without awarding it."):format(closed.itemName),
     sentNote(self.comm:SendLootSession(event.eventId, closed)),
