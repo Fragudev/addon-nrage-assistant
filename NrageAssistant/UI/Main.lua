@@ -4,6 +4,16 @@ local _, ns = ...
 -- so nothing here needs unit tests beyond loading cleanly. Client only.
 local UI = {}
 
+-- The loot screens that want to know when loot changes, here or on a received message. Each registers its
+-- refresh function; UI.LootChanged calls them all.
+UI.lootListeners = {}
+
+function UI.LootChanged()
+  for _, listener in ipairs(UI.lootListeners) do
+    listener()
+  end
+end
+
 local frame
 local tabs
 local currentTab = "home"
@@ -516,6 +526,12 @@ local function DrawLoot(container)
     selectedEventId = key
     Redraw()
   end)
+
+  if actions.vote then
+    AddButton(container, "Open the voting window", 0.4, function()
+      ns.VotingFrame.Show()
+    end)
+  end
 
   if actions.open then
     AddHeading(container, "Open a session")

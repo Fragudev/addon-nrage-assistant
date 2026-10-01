@@ -450,6 +450,91 @@ function ViewModel.DefaultSpec(profile)
   return "unknown"
 end
 
+ViewModel.LOOT_NEED_LABELS = { main = "Main spec", off = "Off spec", other = "Other" }
+
+-- The items the voting window can switch between: every open session, plus the selected one even if it has
+-- closed (so the decision stays visible). Entries are { eventId, sessionId, itemName, eventTitle, selected },
+-- text escaped, ordered by event title, item name, then id.
+function ViewModel.VotingSessions(events, selectedId)
+  local list = {}
+  for _, event in pairs(events) do
+    for _, session in ipairs(ns.LootService.Sessions(event)) do
+      if session.status == "open" or session.sessionId == selectedId then
+        list[#list + 1] = {
+          eventId = event.eventId,
+          sessionId = session.sessionId,
+          itemName = ViewModel.Escape(session.itemName),
+          eventTitle = ViewModel.Escape(event.title),
+          selected = session.sessionId == selectedId,
+          sort = event.title .. "\n" .. session.itemName .. "\n" .. session.sessionId,
+        }
+      end
+    end
+  end
+  table.sort(list, function(a, b)
+    return a.sort < b.sort
+  end)
+  return list
+end
+
+-- One line on where a session stands.
+function ViewModel.VotingStatus(session)
+  if session.award then
+    return ("Awarded to %s by %s: %s"):format(
+      ViewModel.Escape(session.award.characterKey),
+      ViewModel.Escape(session.award.awardedBy),
+      ViewModel.Escape(session.award.reason)
+    )
+  end
+  if session.status == "closed" then
+    return "Closed without an award"
+  end
+  local candidates, votes = 0, 0
+  for _ in pairs(session.candidates) do
+    candidates = candidates + 1
+  end
+  for _ in pairs(session.votes) do
+    votes = votes + 1
+  end
+  return ("Voting is open: %d candidate(s), %d vote(s) cast"):format(candidates, votes)
+end
+
+-- The table of the voting window: one row per candidate, most votes first (alphabetical while votes are
+-- hidden). `votes` is nil while the visibility policy hides them. `mine` marks the candidate `actor` voted
+-- for. `rankOf(name)` gives the guild rank name or nil. Text is escaped.
+function ViewModel.VotingRows(session, actor, rankOf)
+  local counts = {}
+  local visible = ns.LootService.VotesVisible(session)
+  for _, entry in ipairs(ns.LootService.Tally(session)) do
+    counts[entry.characterKey] = entry.count
+  end
+  local myVote = session.votes[actor] and session.votes[actor].target
+
+  local rows = {}
+  for name, candidate in pairs(session.candidates) do
+    rows[#rows + 1] = {
+      name = name,
+      label = ViewModel.Escape(name),
+      rank = ViewModel.Escape(rankOf(name) or "?"),
+      need = candidate.need,
+      response = ("%s (%s)"):format(
+        ViewModel.Escape(ViewModel.LOOT_NEED_LABELS[candidate.need] or candidate.need),
+        ViewModel.Escape(candidate.spec)
+      ),
+      upgrade = candidate.upgrade and ViewModel.Escape(candidate.upgrade) or "",
+      votes = visible and (counts[name] or 0) or nil,
+      mine = myVote == name,
+    }
+  end
+  table.sort(rows, function(a, b)
+    if (a.votes or 0) ~= (b.votes or 0) then
+      return (a.votes or 0) > (b.votes or 0)
+    end
+    return a.name < b.name
+  end)
+  return rows
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },

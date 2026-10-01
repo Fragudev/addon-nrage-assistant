@@ -1,5 +1,5 @@
 local function load_controller()
-  local ns = { UI = {} }
+  local ns = { UI = { lootListeners = {} } }
   assert(loadfile("NrageAssistant/UI/LootPopup.lua"))("NrageAssistant", ns)
   return ns.LootPopup.Controller, ns
 end
@@ -41,7 +41,7 @@ end
 
 describe("LootPopup controller", function()
   it("is hooked to the loot change notification", function()
-    assert.is_function(ns.UI.LootChanged)
+    assert.are.equal(ns.LootPopup.Refresh, ns.UI.lootListeners[1])
   end)
 
   it("shows what is waiting for an answer", function()

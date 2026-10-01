@@ -42,6 +42,7 @@ Sync\Comm.lua
 UI\ViewModel.lua
 UI\Main.lua
 UI\LootPopup.lua
+UI\VotingFrame.lua
 UI\MinimapButton.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
