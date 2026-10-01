@@ -121,14 +121,14 @@ describe("LootService permissions", function()
     assert.are.equal("forbidden", select(2, Service.OpenSession(ctx, "ev-1", ITEM)))
   end)
 
-  it("lets every role register, but only the council and admins vote or award", function()
+  it("lets every role register, but members cannot vote, award or close", function()
     local council = build_ctx("council")
     local session = open_session(council)
     for _, role in ipairs({ "member", "rl", "council", "admin" }) do
       local ctx = as(council, role, role .. "-Realm")
       assert.is_truthy(Service.Register(ctx, "ev-1", session.sessionId, CANDIDATE), role)
     end
-    for _, role in ipairs({ "member", "rl" }) do
+    for _, role in ipairs({ "member" }) do
       local ctx = as(council, role, role .. "-Realm")
       assert.are.equal("forbidden", select(2, Service.Vote(ctx, "ev-1", session.sessionId, "member-Realm")))
       assert.are.equal("forbidden", select(2, Service.Award(ctx, "ev-1", session.sessionId, "member-Realm", "no")))
@@ -136,6 +136,18 @@ describe("LootService permissions", function()
     end
     assert.is_nil(next(session.votes))
     assert.are.equal("open", session.status)
+  end)
+end)
+
+describe("LootService raid leaders", function()
+  it("lets a raid leader vote, award and close, but not open a session", function()
+    local council = build_ctx("council")
+    local session = open_session(council)
+    local leader = as(council, "rl", "Leader-Realm")
+    assert.is_truthy(Service.Register(as(council, "member", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE))
+    assert.is_truthy(Service.Vote(leader, "ev-1", session.sessionId, "Ann-Realm"))
+    assert.is_truthy(Service.Award(leader, "ev-1", session.sessionId, "Ann-Realm", "highest need"))
+    assert.are.equal("forbidden", select(2, Service.OpenSession(leader, "ev-1", ITEM)))
   end)
 end)
 

@@ -284,9 +284,9 @@ describe("LootSync LOOT_VOTE", function()
     assert.are.equal("Boss-Realm", votes["Boss-Realm"].updatedBy)
   end)
 
-  it("refuses members, raid leaders and unknown senders", function()
+  it("refuses members and unknown senders", function()
     local payload = vote("Boss-Realm", "Ann-Realm")
-    for _, role in ipairs({ "member", "rl" }) do
+    for _, role in ipairs({ "member" }) do
       assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_VOTE", payload, "X-Realm", role)))
     end
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_VOTE", payload, "X-Realm", nil)))
@@ -361,7 +361,7 @@ describe("LootSync LOOT_AWARD", function()
 
   it("refuses everyone who cannot award and unknown senders", function()
     local payload = award("Ann-Realm", "Highest need")
-    for _, role in ipairs({ "member", "rl" }) do
+    for _, role in ipairs({ "member" }) do
       assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_AWARD", payload, "X-Realm", role)))
     end
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_AWARD", payload, "X-Realm", nil)))

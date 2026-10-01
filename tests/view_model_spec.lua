@@ -370,18 +370,22 @@ describe("ViewModel raid tab helpers", function()
 end)
 
 describe("ViewModel loot tab helpers", function()
-  it("offers apply to everyone and council actions only to the council and admins", function()
-    local member = ViewModel.LootActions("member")
-    assert.is_true(member.apply)
-    assert.is_false(member.open or member.vote or member.award)
-    local rl = ViewModel.LootActions("rl")
-    assert.is_false(rl.open or rl.vote or rl.award)
-    for _, role in ipairs({ "council", "admin" }) do
-      local actions = ViewModel.LootActions(role)
-      assert.is_true(actions.open and actions.apply and actions.vote and actions.award)
+  it(
+    "offers apply to everyone, voting to raid leaders, council and admins, and opening to council and admins",
+    function()
+      local member = ViewModel.LootActions("member")
+      assert.is_true(member.apply)
+      assert.is_false(member.open or member.vote or member.award)
+      local rl = ViewModel.LootActions("rl")
+      assert.is_true(rl.apply and rl.vote and rl.award)
+      assert.is_false(rl.open)
+      for _, role in ipairs({ "council", "admin" }) do
+        local actions = ViewModel.LootActions(role)
+        assert.is_true(actions.open and actions.apply and actions.vote and actions.award)
+      end
+      assert.is_false(ViewModel.LootActions(nil).apply)
     end
-    assert.is_false(ViewModel.LootActions(nil).apply)
-  end)
+  )
 
   it("offers every need the model accepts, and only those", function()
     local ns = {}
