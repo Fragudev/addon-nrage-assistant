@@ -1,0 +1,37 @@
+NrageAssistant/Domain/Diagnostics.lua
+  s_3fd4a5fb5b130a::t_ddfde6e693f563 47,106-110,112-115
+NrageAssistant/Libs/LibSerialize/LibSerialize.lua
+  s_3fd4a5fb5b130a::t_733e19fbd4babd 571-573,1564
+NrageAssistant/Libs/README.md
+  s_3fd4a5fb5b130a::t_29056470b56212 3,12-20
+NrageAssistant/Sync/Codec.lua
+  s_3fd4a5fb5b130a::t_1e14cd020dee47 17
+NrageAssistant/UI/Main.lua
+  s_3fd4a5fb5b130a::t_e3919854204c82 631
+docs/API_NOTES.md
+  s_3fd4a5fb5b130a::t_6b5e6ba6edefac 67-77
+tests/codec_spec.lua
+  s_3fd4a5fb5b130a::t_cb3b88d7812e3f 14,29-38,91,100,150-172
+tests/comm_spec.lua
+  s_3fd4a5fb5b130a::t_4230c1761becad 60
+tests/diagnostics_spec.lua
+  s_3fd4a5fb5b130a::t_ba491491ea6c23 42,182,186-187
+tests/transfer_spec.lua
+  s_3fd4a5fb5b130a::t_518d2da400125f 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6f14efe675fc6bb7c4d91671cf2d1975fdc102b9",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
