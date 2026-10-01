@@ -628,7 +628,7 @@ local function ReleaseTransfer()
 end
 
 local function TransferLibs()
-  return { serialize = LibStub("LibSerialize"), deflate = LibStub("LibDeflate") }
+  return { serialize = LibStub("NrageAssistant-LibSerialize"), deflate = LibStub("LibDeflate") }
 end
 
 local IMPORT_ERRORS = {
