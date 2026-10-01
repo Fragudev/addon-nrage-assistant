@@ -22,6 +22,9 @@ local function new_widget(kind, registry)
     GetText = function(self)
       return self.props.text or ""
     end,
+    SetStatusTable = function(self, status)
+      self.props.status = status
+    end,
     SetImage = function(self, image)
       self.props.image = image
     end,
@@ -60,7 +63,7 @@ end
 -- The candidate names in the order the voting table lists them (they are the labels ending in "-Realm").
 local function walk_labels(root, out)
   walk(root, function(widget)
-    local text = widget.kind == "Label" and widget.props.text
+    local text = (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text
     if text and text:match("^%a+%-Realm$") then
       out[#out + 1] = text
     end
@@ -156,6 +159,12 @@ local function build(rank)
     end,
     GetItemIcon = function(itemId)
       return "icon:" .. tostring(itemId)
+    end,
+    GetItemDetails = function()
+      return { level = 213, slot = "Two-Hand" }
+    end,
+    Now = function()
+      return 0
     end,
   }
   env.tooltip = { shown = false }
@@ -641,6 +650,80 @@ describe("Window smoke test", function()
     assert.are.same({ "Zed-Realm" }, names())
     council.find(window(), "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "all")
     assert.are.equal(3, #names())
+  end)
+
+  it("shows the item level and slot, and what a candidate has already won", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    ns.db.global.events["ev-0"] = {
+      eventId = "ev-0",
+      title = "Last week",
+      status = "closed",
+      attendance = {},
+      assignments = {},
+      loot = {
+        old = {
+          sessionId = "old",
+          itemName = "Sulfuras",
+          status = "closed",
+          candidates = {},
+          votes = {},
+          award = { characterKey = "Leader-Realm", reason = "need", awardedBy = "Boss", at = 5 },
+        },
+      },
+    }
+    local event = ns.db.global.events["ev-1"]
+    local commands = ns.LootCommands.New({
+      events = ns.db.global.events,
+      platform = ns.Platform,
+      comm = ns.comm,
+      onChange = ns.UI.LootChanged,
+    })
+    commands:OpenItem(event, { itemId = 19019, itemName = "Thunderfury" })
+    commands:Apply(event, ns.LootService.Sessions(event)[1], { spec = "Fury", need = "main" })
+
+    council.widgets = {}
+    ns.VotingFrame.Show()
+    local scroll
+    for index = #council.widgets, 1, -1 do
+      if council.widgets[index].kind == "ScrollFrame" then
+        scroll = council.widgets[index]
+        break
+      end
+    end
+    assert.is_truthy(council.find(scroll, "Label", "ilvl 213 - Two-Hand"))
+
+    local name = council.find(scroll, "InteractiveLabel", "Leader-Realm")
+    local lines = {}
+    _G.GameTooltip.AddLine = function(_, text)
+      lines[#lines + 1] = text
+    end
+    name.callbacks.OnEnter(name)
+    assert.are.same({ "Leader-Realm", "Sulfuras (Last week)" }, lines)
+    name.callbacks.OnLeave()
+    assert.is_false(council.tooltip.shown)
+  end)
+
+  it("remembers where the windows are left", function()
+    local council = build("Council")
+    local ns = council.ns
+    ns.db.global.events["ev-1"] =
+      { eventId = "ev-1", title = "Raid", status = "open", attendance = {}, assignments = {}, loot = {} }
+    ns.VotingFrame.Show()
+    local saved = ns.db.global.settings.windows.voting
+    assert.are.equal(760, saved.width)
+    assert.are.equal(460, saved.height)
+
+    -- A size the player chose is kept, not replaced by the default.
+    saved.width = 900
+    pcall(council.close)
+    ns.UI.ApplyWindowStatus(council.widgets[#council.widgets], "voting", 760, 460)
+    assert.are.equal(900, ns.db.global.settings.windows.voting.width)
+
+    ns.UI.OpenTab("home")
+    assert.are.equal(720, ns.db.global.settings.windows.main.width)
   end)
 
   it("shows the loot items with their icon and tooltip instead of buttons", function()

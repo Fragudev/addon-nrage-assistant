@@ -527,6 +527,50 @@ function ViewModel.VotingStatus(session)
   return ("Voting is open: %d candidate(s), %d vote(s) cast"):format(candidates, votes)
 end
 
+-- "ilvl 213 - Two-Hand" from Platform.GetItemDetails, or nil when the client told us nothing.
+function ViewModel.ItemDetailsLine(details)
+  if not details then
+    return nil
+  end
+  local parts = {}
+  if details.level then
+    parts[#parts + 1] = ("ilvl %d"):format(details.level)
+  end
+  if details.slot then
+    parts[#parts + 1] = ViewModel.Escape(details.slot)
+  end
+  return #parts > 0 and table.concat(parts, " - ") or nil
+end
+
+-- The items `name` has won, newest first: { itemName, eventTitle, reason } (not escaped). `limit` caps the list.
+-- Read from the awards already stored, so it shows exactly what this client knows.
+function ViewModel.WonItems(events, name, limit)
+  local won = {}
+  for _, event in pairs(events) do
+    for _, session in pairs(event.loot or {}) do
+      local award = session.award
+      if award and award.characterKey == name then
+        won[#won + 1] = {
+          itemName = session.itemName,
+          eventTitle = event.title,
+          reason = award.reason,
+          at = award.at or 0,
+        }
+      end
+    end
+  end
+  table.sort(won, function(a, b)
+    if a.at ~= b.at then
+      return a.at > b.at
+    end
+    return a.itemName < b.itemName
+  end)
+  while #won > limit do
+    table.remove(won)
+  end
+  return won
+end
+
 ViewModel.VOTING_SORTS = { "name", "rank", "response", "votes" }
 
 -- The sort after clicking the header `key`: the same column flips its direction, another column starts in its

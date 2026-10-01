@@ -101,6 +101,8 @@ ns.Constants = {
   -- revealed once the session is closed. Secret votes until close would need a different message
   -- flow (votes sent only to the leader), so this is reserved for a later decision by the guild.
   VOTE_VISIBILITY = "open",
+  -- The loot popup passes for you after this long without an answer (local only: nothing is sent).
+  LOOT_RESPONSE_TIMEOUT_SECONDS = 60,
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

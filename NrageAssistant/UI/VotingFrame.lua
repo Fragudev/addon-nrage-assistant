@@ -9,6 +9,7 @@ local VotingFrame = {}
 local RETRY_SECONDS = 5
 -- Candidacies and votes arrive in bursts; the window is redrawn at most this often because of them.
 local MIN_REDRAW_SECONDS = 0.2
+local WON_ITEMS_MAX = 8
 local WIDTH, HEIGHT = 760, 460
 local NEED_COLORS = { main = "ff00ff00", off = "ffff9900", other = "ff00ccff" }
 local COLUMNS = { 0.21, 0.14, 0.24, 0.14, 0.08, 0.09, 0.09 }
@@ -162,6 +163,34 @@ local function run(lines)
   draw()
 end
 
+-- The candidate's name; hovering it lists what they have already won, as far as this client knows.
+local function addNameLabel(parent, row, width)
+  local label = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
+  label:SetText(row.label)
+  label:SetRelativeWidth(width)
+  label:SetCallback("OnEnter", function(widget)
+    GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(row.label)
+    local won = ns.ViewModel.WonItems(events(), row.name, WON_ITEMS_MAX)
+    if #won == 0 then
+      GameTooltip:AddLine("Has not won anything yet.", 0.7, 0.7, 0.7)
+    end
+    for _, item in ipairs(won) do
+      GameTooltip:AddLine(
+        ("%s (%s)"):format(ns.ViewModel.Escape(item.itemName), ns.ViewModel.Escape(item.eventTitle)),
+        1,
+        1,
+        1
+      )
+    end
+    GameTooltip:Show()
+  end)
+  label:SetCallback("OnLeave", function()
+    GameTooltip:Hide()
+  end)
+  parent:AddChild(label)
+end
+
 local FILTER_LIST = { all = "All", main = "Main spec", off = "Off spec", other = "Other" }
 local FILTER_ORDER = { "all", "main", "off", "other" }
 local HEADERS = { "name", "rank", "response", nil, "votes" }
@@ -219,7 +248,7 @@ local function drawTable(scroll, event, session, actions)
     addLabel(scroll, needFilter and "Nobody answered that way." or "No candidates yet.")
   end
   for _, row in ipairs(rows) do
-    addLabel(scroll, row.label, COLUMNS[1])
+    addNameLabel(scroll, row, COLUMNS[1])
     addLabel(scroll, row.rank, COLUMNS[2])
     addLabel(scroll, ("|c%s%s|r"):format(NEED_COLORS[row.need] or "ffffffff", row.response), COLUMNS[3])
     addLabel(scroll, row.upgrade == "" and " " or row.upgrade, COLUMNS[4])
@@ -299,6 +328,10 @@ draw = function()
     scroll,
     ("|cffffd100%s|r  (%s)"):format(ns.ViewModel.Escape(session.itemName), ns.ViewModel.Escape(event.title))
   )
+  local details = ns.ViewModel.ItemDetailsLine(ns.Platform.GetItemDetails(session.itemId))
+  if details then
+    addLabel(scroll, details)
+  end
   addLabel(scroll, ns.ViewModel.VotingStatus(session))
   if lastMessage then
     addLabel(scroll, ns.ViewModel.Escape(lastMessage))
@@ -320,8 +353,7 @@ local function ensureFrame()
   frame = LibStub("AceGUI-3.0"):Create("Frame")
   frame:SetTitle("Nrage Loot Council")
   frame:SetStatusText("Votes follow the guild's visibility setting.")
-  frame:SetWidth(WIDTH)
-  frame:SetHeight(HEIGHT)
+  ns.UI.ApplyWindowStatus(frame, "voting", WIDTH, HEIGHT)
   frame:SetLayout("Fill")
   frame:SetCallback("OnClose", function()
     close()

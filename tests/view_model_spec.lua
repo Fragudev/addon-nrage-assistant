@@ -902,3 +902,40 @@ describe("ViewModel voting table sort and filter", function()
     )
   end)
 end)
+
+describe("ViewModel item details and won items", function()
+  it("writes the item line from what the client reported, escaped", function()
+    assert.are.equal("ilvl 213 - Two-Hand", ViewModel.ItemDetailsLine({ level = 213, slot = "Two-Hand" }))
+    assert.are.equal("ilvl 100", ViewModel.ItemDetailsLine({ level = 100 }))
+    assert.are.equal("||cffff0000x", ViewModel.ItemDetailsLine({ slot = "|cffff0000x" }))
+    assert.is_nil(ViewModel.ItemDetailsLine(nil))
+    assert.is_nil(ViewModel.ItemDetailsLine({}))
+  end)
+
+  local function events()
+    local function won(id, item, who, at)
+      return { sessionId = id, itemName = item, award = { characterKey = who, reason = "need", at = at } }
+    end
+    return {
+      a = { title = "Week 1", loot = { s1 = won("s1", "Sulfuras", "Ann", 10), s2 = won("s2", "Boots", "Bob", 20) } },
+      b = { title = "Week 2", loot = { s3 = won("s3", "Ring", "Ann", 30), s4 = { itemName = "Open", award = nil } } },
+    }
+  end
+
+  it("lists what a character has won, newest first, across events", function()
+    local won = ViewModel.WonItems(events(), "Ann", 8)
+    assert.are.equal(2, #won)
+    assert.are.equal("Ring", won[1].itemName)
+    assert.are.equal("Week 2", won[1].eventTitle)
+    assert.are.equal("Sulfuras", won[2].itemName)
+    assert.are.same({}, ViewModel.WonItems(events(), "Nobody", 8))
+  end)
+
+  it("cuts the list at the limit", function()
+    assert.are.equal(1, #ViewModel.WonItems(events(), "Ann", 1))
+  end)
+
+  it("copes with an event that has no loot table", function()
+    assert.are.same({}, ViewModel.WonItems({ x = { title = "Empty" } }, "Ann", 8))
+  end)
+end)
