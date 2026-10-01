@@ -95,11 +95,12 @@ Events are created by raid leaders and admins and are shared with the guild.
 
 ### From the window
 
-The **Raid** tab does everything below without typing commands. Pick an event in the dropdown; raid leaders and
-admins can also create one, rename it, change its status and start time, set each member's attendance from a
-dropdown (members come from the guild roster; type part of a name in *Find a member* to narrow the list), add
-and remove assignments by picking a member, and save or apply a template. Controls your guild rank does not
-allow are not shown. Everyone else sees the event list as read-only text. The commands keep working the same way.
+The **Raid** tab has the events on the left (with a field to create one) and the selected event on the right.
+The right side has a sub-tab for each thing you can do: *Summary* (everyone: status, attendance counts and
+assignments), and, depending on your rank, *Details* (rename, status, start time), *Attendance* (a dropdown per
+member; type part of a name in *Find a member* to narrow the list), *Assignments* (add by picking a member,
+remove) and *Templates* (save, apply, and the suggestions that match the event). Sub-tabs your rank does not
+allow are not shown. Creating an event opens it. The commands keep working the same way.
 
 ### From the chat
 

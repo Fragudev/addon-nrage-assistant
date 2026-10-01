@@ -234,7 +234,6 @@ local function DrawReady(container)
 end
 
 local function DrawEventEditor(container, raid, event)
-  AddHeading(container, "Edit event")
   AddTextInput(container, "Title (Enter to rename)", event.title, 1, function(value)
     Report(raid:RenameEvent(event, value))
   end)
@@ -253,7 +252,6 @@ local function DrawEventEditor(container, raid, event)
 end
 
 local function DrawAttendance(container, raid, event, members)
-  AddHeading(container, "Attendance")
   AddTextInput(container, "Find a member", attendanceFilter, 1, function(value)
     attendanceFilter = value
     Redraw()
@@ -288,7 +286,6 @@ local function DrawAttendance(container, raid, event, members)
 end
 
 local function DrawAssignments(container, raid, event, members)
-  AddHeading(container, "Assignments")
   local assignments = ns.RaidCommands.SortedAssignments(event)
   if #assignments == 0 then
     AddLines(container, { "No assignments yet." })
@@ -325,7 +322,6 @@ local function DrawAssignments(container, raid, event, members)
 end
 
 local function DrawTemplates(container, templates, event)
-  AddHeading(container, "Templates")
   local names = ns.TemplateService.List(ns.db.global.templates)
   local list = {}
   for _, name in ipairs(names) do
@@ -363,7 +359,50 @@ local function DrawTemplates(container, templates, event)
   end)
 end
 
+local raidSubTab = "summary"
+
+-- The right-hand pane: one sub-tab per group of controls the role may use, for the selected event.
+local function DrawEventPane(pane, actions, raid, templates, event)
+  local members = ns.guildRoster and ns.guildRoster:Names() or {}
+  local sub = LibStub("AceGUI-3.0"):Create("TabGroup")
+  sub:SetLayout("List")
+  sub:SetRelativeWidth(0.68)
+  sub:SetTabs(ns.ViewModel.RaidSubTabs(actions))
+  sub:SetCallback("OnGroupSelected", function(group, _, value)
+    raidSubTab = value
+    group:ReleaseChildren()
+    if value == "details" then
+      DrawEventEditor(group, raid, event)
+    elseif value == "attendance" then
+      DrawAttendance(group, raid, event, members)
+    elseif value == "assignments" then
+      DrawAssignments(group, raid, event, members)
+    elseif value == "templates" then
+      DrawTemplates(group, templates, event)
+    else
+      local index = 1
+      for position, listed in ipairs(ns.EventService.List({ events = ns.db.global.events })) do
+        if listed.eventId == event.eventId then
+          index = position
+        end
+      end
+      AddLines(group, ns.ViewModel.RaidEventLines(event, index, ns.Platform.FormatDate))
+    end
+  end)
+  pane:AddChild(sub)
+
+  -- Fall back to the summary when the remembered sub-tab is not available to this role.
+  local allowed = false
+  for _, tab in ipairs(ns.ViewModel.RaidSubTabs(actions)) do
+    allowed = allowed or tab.value == raidSubTab
+  end
+  sub:SelectTab(allowed and raidSubTab or "summary")
+end
+
+-- Raid tab: the events on the left, the selected event on the right. Everyone can read; the sub-tabs on the
+-- right only offer what the role may do (ViewModel.RaidActions).
 local function DrawRaid(container)
+  local AceGUI = LibStub("AceGUI-3.0")
   -- Without a sync transport nothing could be sent, so the tab stays read-only.
   local actions = ns.ViewModel.RaidActions(ns.comm and ns.PermissionService.OwnRole(ns.Platform) or nil)
   local raid, templates = RaidServices()
@@ -372,8 +411,13 @@ local function DrawRaid(container)
     AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
   end
 
+  local left = AceGUI:Create("SimpleGroup")
+  left:SetLayout("List")
+  left:SetRelativeWidth(0.3)
+  container:AddChild(left)
+
   if actions.events then
-    AddTextInput(container, "New event title (Enter to create)", "", 1, function(value)
+    AddTextInput(left, "New event (Enter to create)", "", 1, function(value)
       local before = {}
       for eventId in pairs(ns.db.global.events) do
         before[eventId] = true
@@ -383,6 +427,7 @@ local function DrawRaid(container)
       for eventId in pairs(ns.db.global.events) do
         if not before[eventId] then
           selectedEventId = eventId
+          raidSubTab = "summary"
         end
       end
       Report(lines)
@@ -391,35 +436,21 @@ local function DrawRaid(container)
 
   local list, order = ns.ViewModel.EventChoices(ns.db.global.events)
   if #order == 0 then
-    AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
+    AddLines(left, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
     return
   end
   if not list[selectedEventId] then
     selectedEventId = order[1]
   end
-  AddDropdown(container, "Event", list, order, selectedEventId, 1, function(key)
-    selectedEventId = key
-    Redraw()
-  end)
-
-  local event = ns.db.global.events[selectedEventId]
-  if actions.events then
-    DrawEventEditor(container, raid, event)
+  for _, eventId in ipairs(order) do
+    local selected = eventId == selectedEventId
+    AddButton(left, (selected and "> " or "") .. list[eventId], 1, function()
+      selectedEventId = eventId
+      Redraw()
+    end)
   end
 
-  local members = ns.guildRoster and ns.guildRoster:Names() or {}
-  if actions.attendance then
-    DrawAttendance(container, raid, event, members)
-  end
-  if actions.assignments then
-    DrawAssignments(container, raid, event, members)
-    DrawTemplates(container, templates, event)
-  end
-
-  if not (actions.events or actions.attendance or actions.assignments) then
-    AddHeading(container, "Events")
-    AddLines(container, ns.ViewModel.Raid(ns.db.global.events, ns.Platform.FormatDate))
-  end
+  DrawEventPane(container, actions, raid, templates, ns.db.global.events[selectedEventId])
 end
 
 -- Loot tab. Anyone can apply to an open session; opening, voting and awarding only show for the roles
@@ -580,7 +611,7 @@ local function OnTabSelected(container, _, group)
 
   local AceGUI = LibStub("AceGUI-3.0")
   local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout("List")
+  scroll:SetLayout(group == "raid" and "Flow" or "List")
   container:SetLayout("Fill")
   container:AddChild(scroll)
   DRAWERS[group](scroll)
@@ -672,8 +703,8 @@ function UI.Toggle()
   frame = AceGUI:Create("Frame")
   frame:SetTitle("Nrage Assistant")
   frame:SetStatusText(ns.GetVersion())
-  frame:SetWidth(560)
-  frame:SetHeight(440)
+  frame:SetWidth(720)
+  frame:SetHeight(480)
   frame:SetLayout("Fill")
   frame:SetCallback("OnClose", function()
     Release()
