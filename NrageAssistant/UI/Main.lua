@@ -502,7 +502,12 @@ local function DrawLoot(container)
     selectedEventId = order[1]
   end
   local event = ns.db.global.events[selectedEventId]
-  local loot = ns.LootCommands.New({ events = ns.db.global.events, platform = ns.Platform, comm = ns.comm })
+  local loot = ns.LootCommands.New({
+    events = ns.db.global.events,
+    platform = ns.Platform,
+    comm = ns.comm,
+    onChange = ns.UI.LootChanged,
+  })
 
   if actionMessage then
     AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })

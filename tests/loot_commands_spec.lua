@@ -363,3 +363,41 @@ describe("LootCommands structured operations", function()
     assert.is_nil(ns.LootCommands.ParseItem("not an item"))
   end)
 end)
+
+describe("LootCommands onChange", function()
+  local function with_callback(env)
+    local calls = 0
+    env.loot = ns.LootCommands.New({
+      events = env.events,
+      platform = env.platform,
+      comm = env.comm,
+      onChange = function()
+        calls = calls + 1
+      end,
+    })
+    return function()
+      return calls
+    end
+  end
+
+  it("is called after each change made here, and not after a refused one", function()
+    local env = build("Council")
+    local calls = with_callback(env)
+    local event = env.events["ev-1"]
+    env.loot:OpenItem(event, { itemId = 19019, itemName = "Thunderfury" })
+    assert.are.equal(1, calls())
+    local session = ns.LootService.Sessions(event)[1]
+    env.loot:Apply(event, session, { spec = "Fury", need = "main" })
+    env.loot:VoteFor(event, session, "Boss-Realm")
+    env.loot:AwardTo(event, session, "Boss-Realm", "highest need")
+    assert.are.equal(4, calls())
+
+    env.loot:CloseSession(event, session)
+    assert.are.equal(4, calls())
+  end)
+
+  it("works without a callback", function()
+    local env = build("Council")
+    assert.is_truthy(text(env.loot:OpenItem(env.events["ev-1"], { itemId = 1, itemName = "Item" })))
+  end)
+end)

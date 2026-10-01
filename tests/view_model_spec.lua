@@ -601,3 +601,49 @@ describe("ViewModel.SelfTestFailures", function()
     assert.are.equal("Type /nrage debug selftest for the full result.", lines[4])
   end)
 end)
+
+describe("ViewModel loot popup helpers", function()
+  local function session(id, name, status, candidates)
+    return { sessionId = id, itemName = name, status = status or "open", candidates = candidates or {}, votes = {} }
+  end
+
+  local function events()
+    return {
+      a = {
+        eventId = "a",
+        title = "Molten Core",
+        loot = { s1 = session("s1", "Thunderfury"), s2 = session("s2", "Sulfuras") },
+      },
+      b = { eventId = "b", title = "Onyxia", loot = { s3 = session("s3", "Drake", "closed") } },
+    }
+  end
+
+  it("lists the open sessions the player has not answered, in a stable order", function()
+    local pending = ViewModel.PendingLoot(events(), "Me-Realm", {})
+    assert.are.equal(2, #pending)
+    assert.are.equal("Sulfuras", pending[1].itemName)
+    assert.are.equal("Thunderfury", pending[2].itemName)
+    assert.are.equal("Molten Core", pending[1].eventTitle)
+    assert.are.equal("a", pending[1].eventId)
+  end)
+
+  it("leaves out sessions already answered, passed on or closed", function()
+    local data = events()
+    data.a.loot.s1.candidates["Me-Realm"] = { spec = "Fury", need = "main" }
+    local pending = ViewModel.PendingLoot(data, "Me-Realm", { s2 = true })
+    assert.are.equal(0, #pending)
+  end)
+
+  it("still offers a session someone else applied to", function()
+    local data = events()
+    data.a.loot.s1.candidates["Other-Realm"] = { spec = "Fury", need = "main" }
+    assert.are.equal(2, #ViewModel.PendingLoot(data, "Me-Realm", {}))
+  end)
+
+  it("picks the spec for a one-click candidacy: declared role, else class, else a placeholder", function()
+    assert.are.equal("Tank", ViewModel.DefaultSpec({ class = "WARRIOR", fields = { role = { value = "Tank" } } }))
+    assert.are.equal("WARRIOR", ViewModel.DefaultSpec({ class = "WARRIOR" }))
+    assert.are.equal("WARRIOR", ViewModel.DefaultSpec({ class = "WARRIOR", fields = { role = { value = "  " } } }))
+    assert.are.equal("unknown", ViewModel.DefaultSpec({}))
+  end)
+end)

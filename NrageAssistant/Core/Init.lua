@@ -64,6 +64,7 @@ local function Activate()
   })
   ns.guildRoster:Request()
   ns.guildRoster:Rebuild()
+  ns.LootPopup.Prime()
   ScheduleSelfTest()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end

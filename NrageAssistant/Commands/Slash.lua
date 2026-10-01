@@ -242,6 +242,7 @@ local function LootCommand(rest)
     events = ns.db.global.events,
     platform = ns.Platform,
     comm = ns.comm,
+    onChange = ns.UI.LootChanged,
   })
   for _, line in ipairs(loot:Loot(rest)) do
     print(line)

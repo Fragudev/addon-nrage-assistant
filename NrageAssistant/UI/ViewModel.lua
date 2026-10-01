@@ -409,6 +409,47 @@ function ViewModel.SelfTestFailures(failures)
   return lines
 end
 
+-- The loot sessions waiting for an answer from `actor`: open, no candidacy of theirs yet, and not passed on or
+-- dismissed (`dismissed[sessionId] = true`). Sorted by event title, item name, then id so the popup is stable.
+-- Returns { eventId, sessionId, eventTitle, itemName } entries, text unescaped (escape when drawing).
+function ViewModel.PendingLoot(events, actor, dismissed)
+  local pending = {}
+  for _, event in pairs(events) do
+    for _, session in ipairs(ns.LootService.Sessions(event)) do
+      if session.status == "open" and not session.candidates[actor] and not dismissed[session.sessionId] then
+        pending[#pending + 1] = {
+          eventId = event.eventId,
+          sessionId = session.sessionId,
+          eventTitle = event.title,
+          itemName = session.itemName,
+        }
+      end
+    end
+  end
+  table.sort(pending, function(a, b)
+    if a.eventTitle ~= b.eventTitle then
+      return a.eventTitle < b.eventTitle
+    end
+    if a.itemName ~= b.itemName then
+      return a.itemName < b.itemName
+    end
+    return a.sessionId < b.sessionId
+  end)
+  return pending
+end
+
+-- The spec put on a candidacy made with one click: the declared role, else the class, else a placeholder.
+function ViewModel.DefaultSpec(profile)
+  local role = profile.fields and profile.fields.role and profile.fields.role.value
+  if type(role) == "string" and role:match("%S") then
+    return role
+  end
+  if type(profile.class) == "string" and profile.class:match("%S") then
+    return profile.class
+  end
+  return "unknown"
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },
