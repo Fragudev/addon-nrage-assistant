@@ -10,13 +10,65 @@ local RETRY_SECONDS = 5
 local ROW_HEIGHT = 58
 local WIDTH = 440
 
-local frame
-local shownKey
-local retryScheduled = false
--- Sessions the player answered, passed on or closed the popup over; they are not offered again.
-local dismissed = {}
+-- The decisions, apart from the frame so they can be tested with fakes.
+--   deps: pending(dismissed) -> entries, isLockedDown() -> boolean, after(seconds, fn),
+--         show(entries), hide()
+local Controller = {}
+Controller.__index = Controller
 
-local function pending()
+function Controller.New(deps)
+  return setmetatable({ deps = deps, dismissed = {}, shownKey = nil, retryScheduled = false }, Controller)
+end
+
+-- Sessions the player answered, passed on or closed the popup over are not offered again.
+function Controller:Dismiss(sessionId)
+  self.dismissed[sessionId] = true
+end
+
+function Controller:Hide()
+  self.shownKey = nil
+  self.deps.hide()
+end
+
+-- Shows, updates or closes the popup to match what is waiting for an answer. Called whenever loot changes.
+function Controller:Refresh()
+  local entries = self.deps.pending(self.dismissed)
+  if #entries == 0 then
+    if self.shownKey then
+      self:Hide()
+    end
+    return
+  end
+  if self.deps.isLockedDown() then
+    if not self.retryScheduled then
+      self.retryScheduled = true
+      self.deps.after(RETRY_SECONDS, function()
+        self.retryScheduled = false
+        self:Refresh()
+      end)
+    end
+    return
+  end
+
+  -- Votes and candidacies keep arriving while the popup is up; only rebuild when the list itself changed.
+  local ids = {}
+  for _, entry in ipairs(entries) do
+    ids[#ids + 1] = entry.sessionId
+  end
+  local key = table.concat(ids, ",")
+  if key == self.shownKey then
+    return
+  end
+  self.deps.show(entries)
+  self.shownKey = key
+end
+
+LootPopup.Controller = Controller
+
+local frame
+local controller
+
+local function pending(dismissed)
   return ns.ViewModel.PendingLoot(ns.db.global.events, ns.Platform.GetIdentityKey(), dismissed)
 end
 
@@ -25,7 +77,6 @@ local function close()
     LibStub("AceGUI-3.0"):Release(frame)
     frame = nil
   end
-  shownKey = nil
 end
 
 local NEED_BUTTONS = {
@@ -37,7 +88,7 @@ local NEED_BUTTONS = {
 local function answer(entry, need)
   local event = ns.db.global.events[entry.eventId]
   local session = event and event.loot[entry.sessionId]
-  dismissed[entry.sessionId] = true
+  controller:Dismiss(entry.sessionId)
   if session and ns.comm then
     local loot = ns.LootCommands.New({
       events = ns.db.global.events,
@@ -63,10 +114,10 @@ local function build(entries)
   frame:SetHeight(math.min(120 + #entries * ROW_HEIGHT, 520))
   frame:SetLayout("List")
   frame:SetCallback("OnClose", function()
-    for _, entry in ipairs(pending()) do
-      dismissed[entry.sessionId] = true
+    for _, entry in ipairs(pending(controller.dismissed)) do
+      controller:Dismiss(entry.sessionId)
     end
-    close()
+    controller:Hide()
   end)
 
   for _, entry in ipairs(entries) do
@@ -92,7 +143,7 @@ local function build(entries)
     pass:SetText("Pass")
     pass:SetRelativeWidth(0.25)
     pass:SetCallback("OnClick", function()
-      dismissed[entry.sessionId] = true
+      controller:Dismiss(entry.sessionId)
       LootPopup.Refresh()
     end)
     row:AddChild(pass)
@@ -100,44 +151,24 @@ local function build(entries)
   end
 end
 
--- Shows, updates or closes the popup to match what is waiting for an answer. Called whenever loot changes.
 function LootPopup.Refresh()
-  if not ns.active or not ns.character or not ns.db then
-    return
+  if controller and ns.active and ns.character and ns.db then
+    controller:Refresh()
   end
-  local entries = pending()
-  if #entries == 0 then
-    close()
-    return
-  end
-  if ns.Platform.IsChatMessagingLockedDown() then
-    if not retryScheduled then
-      retryScheduled = true
-      C_Timer.After(RETRY_SECONDS, function()
-        retryScheduled = false
-        LootPopup.Refresh()
-      end)
-    end
-    return
-  end
-  -- Votes and candidacies keep arriving while the popup is up; only rebuild when the list itself changed.
-  local ids = {}
-  for _, entry in ipairs(entries) do
-    ids[#ids + 1] = entry.sessionId
-  end
-  local key = table.concat(ids, ",")
-  if frame and key == shownKey then
-    return
-  end
-  build(entries)
-  shownKey = key
 end
 
--- Sessions already open at login are not popped up: only ones that open from now on.
-function LootPopup.Prime()
+-- Starts the popup. Sessions already open at login are not popped up: only ones that open from now on.
+function LootPopup.Start()
+  controller = Controller.New({
+    pending = pending,
+    isLockedDown = ns.Platform.IsChatMessagingLockedDown,
+    after = C_Timer.After,
+    show = build,
+    hide = close,
+  })
   for _, event in pairs(ns.db.global.events) do
     for _, session in ipairs(ns.LootService.Sessions(event)) do
-      dismissed[session.sessionId] = true
+      controller:Dismiss(session.sessionId)
     end
   end
 end
