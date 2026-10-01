@@ -1,0 +1,29 @@
+NrageAssistant/UI/ViewModel.lua
+  s_3fd4a5fb5b130a::t_fc90a7bced2f30 530-549,559-582,585-599
+NrageAssistant/UI/VotingFrame.lua
+  s_3fd4a5fb5b130a::t_f641113f925d96 10-11,18-19,34-55,70,87,97-103,165-186,196,200-213,216-217,219,229,236-248,375-378
+docs/USER_GUIDE.md
+  s_3fd4a5fb5b130a::t_16d24c8e220b29 155-158
+tests/ui_smoke_spec.lua
+  s_3fd4a5fb5b130a::t_5f4a6136fb2bbe 60-69,552,554-558,563-645
+tests/view_model_spec.lua
+  s_3fd4a5fb5b130a::t_dcb2ca17faf228 822-904
+tests/voting_frame_spec.lua
+  s_3fd4a5fb5b130a::t_550faabf3639dc 94-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fea2fa17c5fe498593abecd18e63f26866100f74",
+  "prompts": {},
+  "sessions": {
+    "s_3fd4a5fb5b130a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f756ce65-f0c9-41fd-b39b-40c9c0485c9f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
