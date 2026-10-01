@@ -121,9 +121,9 @@ describe("LootPopup controller countdown", function()
     env.controller = Controller.New({
       pending = function(dismissed)
         local list = {}
-        for _, entry in ipairs(env.waiting) do
-          if not dismissed[entry.sessionId] then
-            list[#list + 1] = entry
+        for _, waiting_entry in ipairs(env.waiting) do
+          if not dismissed[waiting_entry.sessionId] then
+            list[#list + 1] = waiting_entry
           end
         end
         return list
