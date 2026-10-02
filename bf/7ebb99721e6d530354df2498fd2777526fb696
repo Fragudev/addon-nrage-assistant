@@ -1,0 +1,27 @@
+NrageAssistant/UI/Main.lua
+  s_3a1049e925af91::t_ed6cba829a5de9 128,914-986,996,1012,1112
+NrageAssistant/UI/ViewModel.lua
+  s_3a1049e925af91::t_9839efda1251b9 914-1104
+docs/USER_GUIDE.md
+  s_3a1049e925af91::t_ad6e2473000464 84-90
+tests/ui_smoke_spec.lua
+  s_3a1049e925af91::t_e5f88aeacca6dc 198-208,233-244,1155-1255
+tests/view_model_spec.lua
+  s_3a1049e925af91::t_5dd18caeaa8156 13,1420-1529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf7ebb99721e6d530354df2498fd2777526fb696",
+  "prompts": {},
+  "sessions": {
+    "s_3a1049e925af91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b8de4a-e96a-43bc-b513-78261550de6e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
