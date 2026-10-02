@@ -265,6 +265,11 @@ function Platform.GetItemDetails(itemId)
 end
 
 -- The client's interface number (build 16001 on the Forever beta).
+-- The client's locale code ("enUS", "esES"...); "enUS" when the client does not say.
+function Platform.GetLocale()
+  return GetLocale and GetLocale() or "enUS"
+end
+
 function Platform.GetBuildNumber()
   return select(4, GetBuildInfo())
 end

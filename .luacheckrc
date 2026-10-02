@@ -19,6 +19,7 @@ read_globals = {
   "C_GuildInfo",
   "C_Item",
   "GetInventoryItemLink",
+  "GetLocale",
   "GetItemIcon",
   "GetItemInfo",
   "GetItemInfoInstant",
@@ -70,3 +71,6 @@ files["tests/"] = {
   std = "+busted",
   globals = { "_G" },
 }
+
+-- The translation catalogs hold whole sentences as keys, which do not wrap.
+files["NrageAssistant/Locales/**"] = { max_line_length = false }

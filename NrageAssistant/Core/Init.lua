@@ -1,15 +1,17 @@
 local addonName, ns = ...
 
 local Constants = ns.Constants
+local L = ns.L
 local PREFIX = "|cff33ff99Nrage Assistant|r"
 
 local NOTICES = {
-  not_in_guild = "disabled: you are not in a guild.",
-  wrong_guild = "disabled: this addon is only for the Nrage guild.",
-  wrong_faction = "disabled: this addon is only for the Alliance.",
-  wrong_ruleset = "disabled: this addon is only for the PvP ruleset.",
-  incompatible_data = "disabled: saved data comes from a newer version of the addon. "
-    .. "Update the addon; your data was left untouched.",
+  not_in_guild = L("disabled: you are not in a guild."),
+  wrong_guild = L("disabled: this addon is only for the Nrage guild."),
+  wrong_faction = L("disabled: this addon is only for the Alliance."),
+  wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
+  incompatible_data = L(
+    "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
+  ),
 }
 
 function ns.GetVersion()
