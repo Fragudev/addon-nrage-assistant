@@ -6,13 +6,42 @@ local _, ns = ...
 -- shows its denominator.
 local ReadinessService = {}
 
+local L = ns.L
+
+-- How each status is written where it is shown. The code keeps comparing and storing the English words.
+local STATUS_TEXT = {
+  met = L("met"),
+  missing = L("missing"),
+  unknown = L("unknown"),
+  notApplicable = L("notApplicable"),
+  waived = L("waived"),
+}
+
+function ReadinessService.StatusText(status)
+  return STATUS_TEXT[status] or status
+end
+
+-- The labels of the starting rules (Constants.DEFAULT_RULES), which are data shared in English; they are shown
+-- translated. A rule the guild wrote itself is shown as written.
+local DEFAULT_LABELS = {
+  ["Level 60"] = L("Level 60"),
+  ["Item level"] = L("Item level"),
+  ["Role declared"] = L("Role declared"),
+  ["Consumables ready"] = L("Consumables ready"),
+  ["Enchants done"] = L("Enchants done"),
+}
+
+function ReadinessService.LabelText(label)
+  return DEFAULT_LABELS[label] or label
+end
+
 -- Statuses a player may set by hand on a `confirm` rule. "unknown" clears the confirmation.
 local MANUAL_STATUSES = { met = true, missing = true, waived = true, unknown = true }
 
 local function result(rule, status, detail, source)
   return {
     ruleId = rule.id,
-    label = rule.label,
+    label = ReadinessService.LabelText(rule.label),
     category = rule.category,
     evidenceMode = rule.evidenceMode,
     status = status,
@@ -21,34 +50,34 @@ local function result(rule, status, detail, source)
   }
 end
 
-local function atLeast(rule, value, name)
+local function atLeast(rule, value, name, noData)
   if value == nil then
-    return result(rule, "unknown", "no " .. name .. " data")
+    return result(rule, "unknown", noData)
   end
-  local detail = ("%s %s (needs %s)"):format(name, tostring(value), tostring(rule.min))
+  local detail = L("%s %s (needs %s)"):format(name, tostring(value), tostring(rule.min))
   return result(rule, value >= rule.min and "met" or "missing", detail, "observed")
 end
 
 local function hasProfession(rule, professions)
   if professions == nil then
-    return result(rule, "unknown", "no profession data")
+    return result(rule, "unknown", L("no profession data"))
   end
   for _, profession in ipairs(professions) do
     if profession.name:lower() == rule.profession:lower() then
       local detail = ("%s %s"):format(profession.name, tostring(profession.skill))
       if rule.min and (profession.skill or 0) < rule.min then
-        return result(rule, "missing", ("%s (needs %s)"):format(detail, rule.min), "observed")
+        return result(rule, "missing", L("%s (needs %s)"):format(detail, rule.min), "observed")
       end
       return result(rule, "met", detail, "observed")
     end
   end
-  return result(rule, "missing", rule.profession .. " not learned", "observed")
+  return result(rule, "missing", L("%s not learned"):format(rule.profession), "observed")
 end
 
 -- Required slots are enchanted. Rule: { check = "enchants", slots = { 16, 5, ... } }.
 local function hasEnchants(rule, enchants)
   if enchants == nil then
-    return result(rule, "unknown", "no enchant data")
+    return result(rule, "unknown", L("no enchant data"))
   end
   local missing, unknown = {}, 0
   for _, slot in ipairs(rule.slots or {}) do
@@ -60,18 +89,18 @@ local function hasEnchants(rule, enchants)
     end
   end
   if #missing > 0 then
-    return result(rule, "missing", "not enchanted: slot " .. table.concat(missing, ", "), "observed")
+    return result(rule, "missing", L("not enchanted: slot %s"):format(table.concat(missing, ", ")), "observed")
   end
   if unknown > 0 then
-    return result(rule, "unknown", ("%d slot(s) unreadable or empty"):format(unknown))
+    return result(rule, "unknown", L("%d slot(s) unreadable or empty"):format(unknown))
   end
-  return result(rule, "met", "all required slots enchanted", "observed")
+  return result(rule, "met", L("all required slots enchanted"), "observed")
 end
 
 -- One of the listed buffs is active. Rule: { check = "buff", spellIds = { ... } } and/or names = { ... }.
 local function hasBuff(rule, buffs)
   if buffs == nil then
-    return result(rule, "unknown", "no buff data")
+    return result(rule, "unknown", L("no buff data"))
   end
   local wantedIds, wantedNames = {}, {}
   for _, id in ipairs(rule.spellIds or {}) do
@@ -85,7 +114,7 @@ local function hasBuff(rule, buffs)
       return result(rule, "met", buff.name, "observed")
     end
   end
-  return result(rule, "missing", "no matching buff active", "observed")
+  return result(rule, "missing", L("no matching buff active"), "observed")
 end
 
 local CHECKS = {
@@ -96,10 +125,10 @@ local CHECKS = {
     return hasBuff(rule, profile.buffs)
   end,
   level = function(rule, profile)
-    return atLeast(rule, profile.level, "level")
+    return atLeast(rule, profile.level, L("level"), L("no level data"))
   end,
   ilvl = function(rule, profile)
-    return atLeast(rule, profile.ilvl, "item level")
+    return atLeast(rule, profile.ilvl, L("item level"), L("no item level data"))
   end,
   profession = function(rule, profile)
     return hasProfession(rule, profile.professions)
@@ -107,23 +136,23 @@ local CHECKS = {
   field = function(rule, profile)
     local field = profile.fields and profile.fields[rule.field]
     if not field then
-      return result(rule, "unknown", rule.field .. " not declared")
+      return result(rule, "unknown", L("%s not declared"):format(rule.field))
     end
     return result(rule, "met", field.value, field.source)
   end,
   confirm = function(rule, _, readiness)
     local state = readiness[rule.id]
     if not state or state.status == "unknown" then
-      return result(rule, "unknown", "not confirmed")
+      return result(rule, "unknown", L("not confirmed"))
     end
-    return result(rule, state.status, "confirmed by player", state.source)
+    return result(rule, state.status, L("confirmed by player"), state.source)
   end,
 }
 
 function ReadinessService.EvaluateRule(rule, profile, readiness)
   local check = CHECKS[rule.check]
   if not check then
-    return result(rule, "unknown", "unsupported rule")
+    return result(rule, "unknown", L("unsupported rule"))
   end
   return check(rule, profile or {}, readiness or {})
 end
@@ -147,9 +176,9 @@ function ReadinessService.Evaluate(rules, profile, readiness)
     end
   end
 
-  summary.text = ("%d/%d met"):format(summary.met, summary.countable)
+  summary.text = L("%d/%d met"):format(summary.met, summary.countable)
   if summary.unknown > 0 then
-    summary.text = summary.text .. (", %d unknown"):format(summary.unknown)
+    summary.text = summary.text .. L(", %d unknown"):format(summary.unknown)
   end
   return results, summary
 end
@@ -182,9 +211,13 @@ function ReadinessService.SetManual(platform, rules, readiness, ruleId, status)
 end
 
 function ReadinessService.Describe(results, summary)
-  local lines = { ("Readiness: %s"):format(summary.text) }
+  local lines = { L("Readiness: %s"):format(summary.text) }
   for _, outcome in ipairs(results) do
-    lines[#lines + 1] = ("  [%s] %s - %s"):format(outcome.status, outcome.label, outcome.detail)
+    lines[#lines + 1] = ("  [%s] %s - %s"):format(
+      ReadinessService.StatusText(outcome.status),
+      outcome.label,
+      outcome.detail
+    )
   end
   return lines
 end

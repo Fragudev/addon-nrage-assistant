@@ -7,6 +7,8 @@ local _, ns = ...
 -- `libs` = { serialize = LibSerialize, deflate = LibDeflate }.
 local Transfer = {}
 
+local L = ns.L
+
 local HEADER = "NRAGE1:"
 
 local function sortedKeys(tbl)
@@ -282,9 +284,9 @@ function Transfer.Describe(summary)
   for _, why in ipairs(sortedKeys(summary.skipped)) do
     parts[#parts + 1] = ("%s: %d"):format(why, summary.skipped[why])
   end
-  local text = ("imported %d of %d record(s)"):format(summary.applied, summary.total)
+  local text = L("imported %d of %d record(s)"):format(summary.applied, summary.total)
   if #parts > 0 then
-    text = text .. " (skipped - " .. table.concat(parts, ", ") .. ")"
+    text = text .. L(" (skipped - %s)"):format(table.concat(parts, ", "))
   end
   return text
 end

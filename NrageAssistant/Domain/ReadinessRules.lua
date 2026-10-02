@@ -16,6 +16,8 @@ local _, ns = ...
 -- for the rest), never taken from the input.
 local ReadinessRules = {}
 
+local L = ns.L
+
 local isInt, isText = ns.Validate.Int, ns.Validate.Text
 
 local MAX_ID, MAX_LABEL, MAX_CATEGORY, MAX_NAME = 32, 60, 20, 60
@@ -177,8 +179,9 @@ end
 function ReadinessRules.Describe(record)
   local rules = ReadinessRules.Active(record)
   local custom = rules ~= ns.Constants.DEFAULT_RULES
-  local lines =
-    { custom and ("Guild rules, revision %d:"):format(record.rev or 0) or "Starting rules (none set by the guild):" }
+  local lines = {
+    custom and L("Guild rules, revision %d:"):format(record.rev or 0) or L("Starting rules (none set by the guild):"),
+  }
   for _, rule in ipairs(rules) do
     lines[#lines + 1] = ("  %s - %s [%s]"):format(rule.id, rule.label, rule.check)
   end

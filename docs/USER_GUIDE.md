@@ -9,7 +9,7 @@ ruleset**; on any other character the addon switches itself off and says why onc
 ## Getting started
 
 1. Install it as described in the [README](../README.md).
-2. Log in with a Nrage character. You should see `Nrage Assistant <version> loaded. Type /nrage for help.`
+2. Log in with a Nrage character. You should see `Nrage Assistant <version> loaded. Click the minimap button or type /nrage to open the window.` (in Spanish on a Spanish client)
 3. Click the minimap button, or type `/nrage`, to open the window. Everything is done from there: there are no
    other commands to learn.
 4. Something looks wrong? Run `/nrage debug selftest` and `/nrage debug info`, and send the output to an officer.
@@ -20,8 +20,11 @@ Only three commands exist: `/nrage` (opens the window), `/nrage help` (this shor
 ## Language
 
 The addon speaks Spanish when your game client is in Spanish (Spain or Latin America) and English for every other
-client language. There is no setting: it follows the client. Output meant for developers (`/nrage debug ...`) is
-always in English, and so is what goes over the wire, so players on different languages see the same data.
+client language. There is no setting: it follows the client. Everything you read is translated: the window, the
+messages after each action, the readiness checklist, your profile, the reports and the sync state. The exceptions
+are the output of `/nrage debug ...`, which is for developers, the names of brands and of game items, the words you
+type yourself (a role, a rule's name) and what goes over the wire, which is always the same, so players on different
+languages see the same data.
 
 ## The minimap button
 

@@ -26,6 +26,9 @@ local WORDS = {
   absent = L("absent"),
   excused = L("excused"),
   unknown = L("unknown"),
+  met = L("met"),
+  missing = L("missing"),
+  waived = L("waived"),
   main = L("main"),
   off = L("off"),
   other = L("other"),
@@ -653,7 +656,7 @@ function ViewModel.ManualItems(rules, results)
     if rule.check == "confirm" and results[index] then
       items[#items + 1] = {
         ruleId = rule.id,
-        label = ViewModel.Escape(rule.label),
+        label = ViewModel.Escape(ns.ReadinessService.LabelText(rule.label)),
         status = results[index].status,
       }
     end

@@ -3,19 +3,101 @@ local _, ns = ...
 -- Spanish (neutral, for Spain and Latin America). The key is the English text exactly as the code writes it;
 -- keep the placeholders (%d, %s) in the same order. Developer output (/nrage debug) is not translated.
 ns.Locale.Register("es", {
-  -- UI/ViewModel.lua
-  ["planned"] = "planificado",
-  ["open"] = "abierto",
-  ["closed"] = "cerrado",
-  ["cancelled"] = "cancelado",
-  ["invited"] = "invitado",
-  ["confirmed"] = "confirmado",
+  -- Domain/ProfileService.lua
+  ["verified"] = "verificado",
+  ["declared"] = "declarado",
+  ["received"] = "recibido",
+  ["Class"] = "Clase",
+  ["Level"] = "Nivel",
+  ["Item level"] = "Item level",
+  ["%s: unknown"] = "%s: desconocido",
+  ["Professions: %s [%s]"] = "Profesiones: %s [%s]",
+  ["Professions: unknown"] = "Profesiones: desconocidas",
+  ["Enchants: %d of %d equipped items [%s]"] = "Encantamientos: %d de %d objetos equipados [%s]",
+  ["Enchants: unknown"] = "Encantamientos: desconocidos",
+  ["Active buffs: %d [%s]"] = "Buffs activos: %d [%s]",
+  ["Active buffs: unknown"] = "Buffs activos: desconocidos",
+
+  -- Domain/ReadinessService.lua
+  ["met"] = "cumplido",
+  ["missing"] = "falta",
+  ["unknown"] = "desconocido",
+  ["notApplicable"] = "no aplica",
+  ["waived"] = "exento",
+  ["Level 60"] = "Nivel 60",
+  ["Role declared"] = "Rol declarado",
+  ["Consumables ready"] = "Consumibles listos",
+  ["Enchants done"] = "Encantamientos hechos",
+  ["%s %s (needs %s)"] = "%s %s (hace falta %s)",
+  ["no profession data"] = "sin datos de profesiones",
+  ["%s (needs %s)"] = "%s (hace falta %s)",
+  ["%s not learned"] = "%s no aprendida",
+  ["no enchant data"] = "sin datos de encantamientos",
+  ["not enchanted: slot %s"] = "sin encantar: ranura %s",
+  ["%d slot(s) unreadable or empty"] = "%d ranura(s) ilegibles o vacías",
+  ["all required slots enchanted"] = "todas las ranuras obligatorias encantadas",
+  ["no buff data"] = "sin datos de buffs",
+  ["no matching buff active"] = "ningún buff coincidente activo",
+  ["level"] = "nivel",
+  ["no level data"] = "sin datos de nivel",
+  ["item level"] = "item level",
+  ["no item level data"] = "sin datos de item level",
+  ["%s not declared"] = "%s sin declarar",
+  ["not confirmed"] = "sin confirmar",
+  ["confirmed by player"] = "confirmado por el jugador",
+  ["unsupported rule"] = "regla no admitida",
+  ["%d/%d met"] = "%d/%d cumplidos",
+  [", %d unknown"] = ", %d desconocidos",
+  ["Readiness: %s"] = "Preparación: %s",
+
+  -- Domain/ReadinessRules.lua
+  ["Guild rules, revision %d:"] = "Reglas de la guild, revisión %d:",
+  ["Starting rules (none set by the guild):"] = "Reglas iniciales (la guild no ha fijado ninguna):",
+
+  -- Domain/PublishService.lua
+  ["Nothing can be shared yet: class or level is unknown."] = "Todavía no se puede compartir nada: la clase o el nivel son desconocidos.",
+  ["Shared with the guild: %s, level %d"] = "Compartido con la guild: %s, nivel %d",
+  ["Shared with the guild: item level %d"] = "Compartido con la guild: item level %d",
+  ["Shared with the guild: %s %d"] = "Compartido con la guild: %s %d",
+  ["Shared with the guild: %s = %s"] = "Compartido con la guild: %s = %s",
+  ["Not shared: notes, enchants and buffs (they stay on this computer)."] = "No se comparte: notas, encantamientos ni buffs (se quedan en este ordenador).",
+
+  -- Domain/ReportService.lua
   ["present"] = "presente",
   ["late"] = "tarde",
   ["leftEarly"] = "se fue antes",
   ["absent"] = "ausente",
   ["excused"] = "justificado",
-  ["unknown"] = "desconocido",
+  ["invited"] = "invitado",
+  ["confirmed"] = "confirmado",
+  ["No events held yet: only open or closed events count towards attendance."] = "Aún no se ha celebrado ningún evento: para la asistencia solo cuentan los eventos abiertos o cerrados.",
+  ["%d event(s) held, but no attendance recorded yet."] = "%d evento(s) celebrado(s), pero aún no hay asistencia registrada.",
+  ["Attendance over %d event(s) held:"] = "Asistencia en %d evento(s) celebrado(s):",
+  ["no outcome recorded"] = "sin resultado registrado",
+  ["No loot sessions yet."] = "Aún no hay sesiones de loot.",
+  ["Loot: %d session(s), %d awarded, %d closed without an award, %d still open."] = "Loot: %d sesión(es), %d adjudicada(s), %d cerrada(s) sin adjudicar, %d aún abierta(s).",
+
+  -- Domain/TemplateService.lua
+  ["added %d assignment(s)"] = "%d asignación(es) añadida(s)",
+  [" (skipped - %s)"] = " (omitidas - %s)",
+
+  -- Sync/Transfer.lua
+  ["imported %d of %d record(s)"] = "se importaron %d de %d registro(s)",
+
+  -- Sync/Comm.lua
+  ["sync paused: encounter in progress"] = "sincronización en pausa: encuentro en curso",
+  ["sync ready"] = "sincronización lista",
+  ["queued messages: %d"] = "mensajes en cola: %d",
+  ["last snapshot: %d of %d record(s) applied, from %s"] = "última instantánea: %d de %d registro(s) aplicados, de %s",
+  ["peers seen: %d"] = "pares vistos: %d",
+  ["%s - incompatible protocol version"] = "%s - versión de protocolo incompatible",
+  ["%s - addon %s"] = "%s - addon %s",
+
+  -- UI/ViewModel.lua
+  ["planned"] = "planificado",
+  ["open"] = "abierto",
+  ["closed"] = "cerrado",
+  ["cancelled"] = "cancelado",
   ["main"] = "main",
   ["off"] = "off",
   ["other"] = "otro",
@@ -37,7 +119,6 @@ ns.Locale.Register("es", {
   ["No profiles received yet. Members appear here once they publish theirs."] = "Aún no se ha recibido ningún perfil. Los miembros aparecen aquí cuando publican el suyo.",
   ["%d profile(s) received:"] = "%d perfil(es) recibido(s):",
   ["stale"] = "desactualizado",
-  ["received"] = "recibido",
   [", ilvl %s"] = ", ilvl %s",
   [", role %s"] = ", rol %s",
   ["class or level is unknown, nothing to share yet."] = "la clase o el nivel son desconocidos, aún no hay nada que compartir.",
@@ -149,8 +230,6 @@ ns.Locale.Register("es", {
   ["keep at least one rule; add another before removing this one."] = "deja al menos una regla; añade otra antes de quitar esta.",
   ["that rule no longer exists."] = "esa regla ya no existe.",
   ["%s %d or more"] = "%s %d o más",
-  ["level"] = "nivel",
-  ["item level"] = "item level",
   ["enchanted slots: "] = "ranuras encantadas: ",
   ["any buff of: "] = "cualquier buff de: ",
   ["declared: "] = "declarado: ",
@@ -363,4 +442,5 @@ ns.Locale.Register("es", {
   ["disabled: this addon is only for the Alliance."] = "desactivado: este addon es solo para la Alianza.",
   ["disabled: this addon is only for the PvP ruleset."] = "desactivado: este addon es solo para el reino PvP.",
   ["disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."] = "desactivado: los datos guardados son de una versión más reciente del addon. Actualiza el addon; tus datos no se han tocado.",
+  ["%s %s loaded. Click the minimap button or type /nrage to open the window."] = "%s %s cargado. Pulsa el botón del minimapa o escribe /nrage para abrir la ventana.",
 })

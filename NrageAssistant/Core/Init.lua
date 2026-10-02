@@ -241,7 +241,7 @@ local function Activate()
   StartBlacklist()
   StartAutoPublish()
   ScheduleSelfTest()
-  print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
+  print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))
 end
 
 local noticeShown = false

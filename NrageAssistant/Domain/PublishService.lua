@@ -9,6 +9,8 @@ local _, ns = ...
 -- PUBLISH_COOLDOWN_SECONDS. A publication cannot be recalled from the clients that already hold it.
 local PublishService = {}
 
+local L = ns.L
+
 -- The declared fields that are shared. Anything else, notes included, is never sent.
 local SHARED_FIELDS = { "role", "main" }
 
@@ -81,22 +83,22 @@ end
 function PublishService.Describe(profile)
   local payload = PublishService.BuildPayload(profile, 0)
   if not payload then
-    return { "Nothing can be shared yet: class or level is unknown." }
+    return { L("Nothing can be shared yet: class or level is unknown.") }
   end
 
-  local lines = { ("Shared with the guild: %s, level %d"):format(payload.class, payload.level) }
+  local lines = { L("Shared with the guild: %s, level %d"):format(payload.class, payload.level) }
   if payload.ilvl then
-    lines[#lines + 1] = ("Shared with the guild: item level %d"):format(payload.ilvl)
+    lines[#lines + 1] = L("Shared with the guild: item level %d"):format(payload.ilvl)
   end
   for _, profession in ipairs(payload.professions or {}) do
-    lines[#lines + 1] = ("Shared with the guild: %s %d"):format(profession.name, profession.skill)
+    lines[#lines + 1] = L("Shared with the guild: %s %d"):format(profession.name, profession.skill)
   end
   for _, key in ipairs(SHARED_FIELDS) do
     if payload.fields and payload.fields[key] then
-      lines[#lines + 1] = ("Shared with the guild: %s = %s"):format(key, payload.fields[key])
+      lines[#lines + 1] = L("Shared with the guild: %s = %s"):format(key, payload.fields[key])
     end
   end
-  lines[#lines + 1] = "Not shared: notes, enchants and buffs (they stay on this computer)."
+  lines[#lines + 1] = L("Not shared: notes, enchants and buffs (they stay on this computer).")
   return lines
 end
 

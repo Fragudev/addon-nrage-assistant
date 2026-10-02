@@ -1,6 +1,7 @@
 local function load_service()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Core/Locale.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/ReadinessService.lua"))("NrageAssistant", ns)
   return ns.ReadinessService, ns.Constants
 end

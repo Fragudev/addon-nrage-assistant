@@ -14,6 +14,7 @@ local function load_view_model(locale)
     "Domain/LootService",
     "Domain/BlacklistService",
     "Domain/ReadinessRules",
+    "Domain/ReadinessService",
     "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -533,7 +534,7 @@ describe("ViewModel readiness tab helpers", function()
 
   it("offers exactly the statuses SetManual accepts", function()
     local ns = {}
-    for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/ReadinessService" }) do
+    for _, path in ipairs({ "Core/Constants", "Core/Locale", "Core/Validate", "Domain/ReadinessService" }) do
       assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
     end
     local platform = {
