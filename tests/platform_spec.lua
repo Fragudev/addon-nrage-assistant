@@ -747,3 +747,81 @@ describe("Platform group", function()
     assert.is_false(Platform.PlayAlertSound())
   end)
 end)
+
+describe("Platform.GetEquippedEnchants", function()
+  local saved
+
+  before_each(function()
+    saved = _G.GetInventoryItemLink
+  end)
+
+  after_each(function()
+    _G.GetInventoryItemLink = saved
+  end)
+
+  it("returns nil when the client has no inventory API", function()
+    _G.GetInventoryItemLink = nil
+    assert.is_nil(Platform.GetEquippedEnchants())
+  end)
+
+  it("reads the enchant id of each equipped slot and leaves empty or unreadable slots out", function()
+    local links = {
+      [1] = "|cffffffff|Hitem:1234:2543:0:0|h[Helm]|h|r",
+      [5] = "|cffffffff|Hitem:5678::0:0|h[Chest]|h|r",
+      [6] = "garbage",
+    }
+    _G.GetInventoryItemLink = function(_, slot)
+      return links[slot]
+    end
+    local result = Platform.GetEquippedEnchants()
+    assert.are.equal(2543, result[1])
+    assert.are.equal(0, result[5])
+    assert.is_nil(result[6])
+    assert.is_nil(result[2])
+  end)
+
+  it("drops a slot whose link raises instead of failing", function()
+    _G.GetInventoryItemLink = function(_, slot)
+      if slot == 1 then
+        error("secret value")
+      end
+      return nil
+    end
+    assert.are.same({}, Platform.GetEquippedEnchants())
+  end)
+end)
+
+describe("Platform.GetActiveBuffs", function()
+  local saved
+
+  before_each(function()
+    saved = _G.UnitBuff
+  end)
+
+  after_each(function()
+    _G.UnitBuff = saved
+  end)
+
+  it("returns nil when the client has no buff API", function()
+    _G.UnitBuff = nil
+    assert.is_nil(Platform.GetActiveBuffs())
+  end)
+
+  it("lists name and spell id and drops entries with unusable values", function()
+    local buffs = {
+      { "Elixir of the Mongoose", nil, nil, nil, nil, nil, nil, nil, nil, 17538 },
+      { "Hidden", nil, nil, nil, nil, nil, nil, nil, nil, "secret" },
+      { "Well Fed", nil, nil, nil, nil, nil, nil, nil, nil, 18125 },
+    }
+    _G.UnitBuff = function(_, index)
+      local buff = buffs[index]
+      if buff then
+        return unpack(buff, 1, 10)
+      end
+    end
+    assert.are.same({
+      { name = "Elixir of the Mongoose", spellId = 17538 },
+      { name = "Well Fed", spellId = 18125 },
+    }, Platform.GetActiveBuffs())
+  end)
+end)

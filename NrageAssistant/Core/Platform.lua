@@ -150,6 +150,64 @@ function Platform.GetProfessions()
   return result
 end
 
+-- Equipment slots 1..19 (head to ranged); the shirt (4) and tabard (19) never carry an enchant.
+local ENCHANT_SLOT_FIRST, ENCHANT_SLOT_LAST = 1, 18
+
+-- Enchant id of every equipped item, as { [slot] = enchantId } (0 means not enchanted). A slot with no item,
+-- or whose link is unreadable (secret, or an unexpected format), is left out: unknown, never a guess.
+-- Returns nil when the client has no such API.
+function Platform.GetEquippedEnchants()
+  if not GetInventoryItemLink then
+    return nil
+  end
+  local result = {}
+  for slot = ENCHANT_SLOT_FIRST, ENCHANT_SLOT_LAST do
+    local ok, enchantId = pcall(function()
+      local link = GetInventoryItemLink("player", slot)
+      if type(link) ~= "string" then
+        return nil
+      end
+      -- |Hitem:itemId:enchantId:...
+      local id = link:match("|Hitem:%d+:(%d*)")
+      if id == nil then
+        return nil
+      end
+      return tonumber(id) or 0
+    end)
+    if ok and enchantId then
+      result[slot] = enchantId
+    end
+  end
+  return result
+end
+
+-- Active buffs of the player as a list of { name, spellId }. Entries the client hides (secret values) are
+-- dropped. Returns nil when the client has no buff API.
+local MAX_BUFFS = 40
+
+function Platform.GetActiveBuffs()
+  if not UnitBuff then
+    return nil
+  end
+  local result = {}
+  for index = 1, MAX_BUFFS do
+    local ok, name, spellId = pcall(function()
+      local buffName, _, _, _, _, _, _, _, _, id = UnitBuff("player", index)
+      return buffName, id
+    end)
+    if not ok then
+      break
+    end
+    if name == nil then
+      break
+    end
+    if type(name) == "string" and type(spellId) == "number" then
+      result[#result + 1] = { name = name, spellId = spellId }
+    end
+  end
+  return result
+end
+
 -- The icon texture of an item, from whichever API this client offers (they differ between clients and none is
 -- confirmed on Forever yet), or a question mark when the client does not know the item. An item that is not in
 -- the client's cache may have no icon until it is seen once.

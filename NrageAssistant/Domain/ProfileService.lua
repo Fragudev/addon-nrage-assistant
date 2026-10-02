@@ -42,6 +42,8 @@ function ProfileService.Refresh(platform, profile)
 
   local professions = platform.GetProfessions()
   observe("professions", #professions > 0 and professions or nil)
+  observe("enchants", platform.GetEquippedEnchants())
+  observe("buffs", platform.GetActiveBuffs())
   ensureTable(profile, "fields")
 end
 
@@ -93,6 +95,24 @@ function ProfileService.Describe(profile)
     lines[#lines + 1] = ("Professions: %s [%s]"):format(table.concat(names, ", "), SOURCE_LABELS.observed)
   else
     lines[#lines + 1] = "Professions: unknown"
+  end
+
+  local enchanted, equipped = 0, 0
+  for _, enchantId in pairs(profile.enchants or {}) do
+    equipped = equipped + 1
+    if enchantId ~= 0 then
+      enchanted = enchanted + 1
+    end
+  end
+  if profile.enchants then
+    lines[#lines + 1] = ("Enchants: %d of %d equipped items [%s]"):format(enchanted, equipped, SOURCE_LABELS.observed)
+  else
+    lines[#lines + 1] = "Enchants: unknown"
+  end
+  if profile.buffs then
+    lines[#lines + 1] = ("Active buffs: %d [%s]"):format(#profile.buffs, SOURCE_LABELS.observed)
+  else
+    lines[#lines + 1] = "Active buffs: unknown"
   end
 
   local keys = {}

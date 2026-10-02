@@ -28,6 +28,12 @@ local function fake_platform(overrides)
     GetProfessions = function()
       return { { name = "Mining", skill = 300, max = 300 } }
     end,
+    GetEquippedEnchants = function()
+      return { [16] = 100, [5] = 0 }
+    end,
+    GetActiveBuffs = function()
+      return { { name = "Well Fed", spellId = 18125 } }
+    end,
   }
   for k, v in pairs(overrides or {}) do
     p[k] = v
@@ -36,6 +42,18 @@ local function fake_platform(overrides)
 end
 
 describe("ProfileService.Refresh", function()
+  it("observes enchants and buffs, and describes them with their source", function()
+    local ProfileService = load_service()
+    local profile = {}
+    ProfileService.Refresh(fake_platform(), profile)
+    assert.are.equal(100, profile.enchants[16])
+    assert.are.equal("observed", profile.provenance.enchants.source)
+    assert.are.equal("Well Fed", profile.buffs[1].name)
+    local text = table.concat(ProfileService.Describe(profile), "\n")
+    assert.is_truthy(text:find("Enchants: 1 of 2 equipped items [verified]", 1, true))
+    assert.is_truthy(text:find("Active buffs: 1 [verified]", 1, true))
+  end)
+
   local ProfileService = load_service()
 
   it("stores observed values with their provenance", function()
