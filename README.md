@@ -24,20 +24,13 @@ This addon is for Nrage members only:
 
 ## Usage
 
-Type `/nrage` to open the window and `/nrage help` for the commands. The full guide is [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+Click the minimap button, or type `/nrage`, to open the window: everything is done from there. The full guide is [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 | Command | Description |
 |---|---|
 | `/nrage` | open the window |
-| `/nrage profile`, `publish` | your sheet and what is shared with the guild (automatically) |
-| `/nrage ready` | readiness checklist |
-| `/nrage event`, `attendance`, `assign`, `template` | raid events, attendance, assignments and templates |
-| `/nrage loot` | loot council |
-| `/nrage report` | attendance and loot reports |
-| `/nrage export`, `import` | move raid data as text |
-| `/nrage minimap` | show, hide or reset the minimap button |
-| `/nrage sync`, `role` | sync state, your role |
-| `/nrage debug selftest`, `debug info` | diagnostics |
+| `/nrage help` | the list of commands |
+| `/nrage debug ...` | diagnostics for developers (`selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp`) |
 
 ## Documentation
 

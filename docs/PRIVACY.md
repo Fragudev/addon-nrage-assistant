@@ -44,7 +44,7 @@ receive theirs. It holds:
 | declared role and main | when you set them |
 
 Never shared: your **declared notes** (they stay on this computer), the enchants and buffs the readiness checks read
-from your character, your guid, your inventory and chat. `/nrage publish` lists what is shared, and `/nrage publish now`
+from your character, your guid, your inventory and chat. The Profile tab lists what is shared, and *Publish now*
 sends it at once. Text you declare has escape characters (`|`) and control characters stripped before it is sent. Like
 every addon message the sheet is **not encrypted**, and the only way not to share it is not to run the addon.
 

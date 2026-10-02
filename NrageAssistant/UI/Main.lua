@@ -185,74 +185,8 @@ local function AddLogoHeader(container, title)
   container:AddChild(header)
 end
 
-local function DrawHome(container)
-  local lines = ns.ViewModel.Home({
-    version = ns.GetVersion(),
-    syncLines = ns.comm and ns.comm:Status() or { L("sync not started") },
-    readinessText = ReadinessSummary().text,
-  })
-  AddLogoHeader(container, table.remove(lines, 1))
-  AddLines(container, lines)
-end
-
-local function DrawProfile(container)
-  local AceGUI = LibStub("AceGUI-3.0")
-  local character = ns.character
-
-  AddHeading(container, L("Your profile"))
-  AddLines(container, EscapeAll(ns.ProfileService.Describe(character.profile)))
-
-  AddHeading(container, L("Shared with the guild"))
-  AddLines(container, EscapeAll(ns.PublishService.Describe(character.profile)))
-  AddLines(container, {
-    L("Your profile is shared automatically after login and whenever it changes."),
-    L("Addon messages are not private: any guild member with the addon can read them."),
-  })
-
-  local button = AceGUI:Create("Button")
-  button:SetText(L("Publish now"))
-  button:SetCallback("OnClick", function()
-    local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
-    statusMessage = ok and L("Profile published to the guild.")
-      or (L("Not published: ") .. ns.ViewModel.PublishError(reason))
-    Redraw()
-  end)
-  container:AddChild(button)
-
-  if statusMessage then
-    AddLines(container, { ns.ViewModel.Escape(statusMessage) })
-  end
-end
-
-local function DrawRoster(container)
-  AddLines(container, ns.ViewModel.Roster(ns.db.global.roster, ns.Platform.ServerTime()))
-end
-
--- Raid tab. Reading is open to everyone; each group of controls only appears for a role that may use it
--- (ViewModel.RaidActions), and every control calls the same RaidCommands / TemplateCommands methods as
--- the slash commands, so the checks and the messages sent to the guild are the same.
-local selectedEventId
-local attendanceFilter = ""
 local actionMessage
-local ATTENDANCE_MATCHES_MAX = 8
 
-local function RaidServices()
-  local raid = ns.RaidCommands.New({
-    events = ns.db.global.events,
-    tombstones = ns.db.global.sync.tombstones,
-    platform = ns.Platform,
-    comm = ns.comm,
-  })
-  local templates = ns.TemplateCommands.New({
-    events = ns.db.global.events,
-    templates = ns.db.global.templates,
-    platform = ns.Platform,
-    comm = ns.comm,
-  })
-  return raid, templates
-end
-
--- Shows what an action reported and redraws the tab with the new state.
 local function Report(lines)
   local parts = {}
   for _, line in ipairs(lines) do
@@ -305,6 +239,122 @@ local function AddButton(container, text, width, onClick)
   container:AddChild(button)
 end
 
+local function DrawHome(container)
+  local lines = ns.ViewModel.Home({
+    version = ns.GetVersion(),
+    syncLines = ns.comm and ns.comm:Status() or { L("sync not started") },
+    readinessText = ReadinessSummary().text,
+  })
+  AddLogoHeader(container, table.remove(lines, 1))
+  AddLines(container, lines)
+
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
+  end
+  AddHeading(container, L("Your role"))
+  AddLines(container, {
+    ns.ViewModel.RoleLine(
+      ns.Platform.GetIdentityKey(),
+      ns.Platform.GetOwnGuildRank(),
+      ns.PermissionService.OwnRole(ns.Platform)
+    ),
+  })
+  AddButton(container, L("Request a sync"), 0.4, function()
+    Report({ ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()) })
+  end)
+
+  AddHeading(container, L("Settings"))
+  local box = LibStub("AceGUI-3.0"):Create("CheckBox")
+  box:SetLabel(L("Show the minimap button"))
+  box:SetValue(not ns.MinimapButton.Settings(ns.db).hide)
+  box:SetCallback("OnValueChanged", function(_, _, value)
+    ns.MinimapButton.SetHidden(ns.db, not value)
+  end)
+  container:AddChild(box)
+  AddButton(container, L("Reset the button position"), 0.4, function()
+    ns.MinimapButton.ResetPosition(ns.db)
+    Redraw()
+  end)
+end
+
+local function DrawProfile(container)
+  local AceGUI = LibStub("AceGUI-3.0")
+  local character = ns.character
+
+  AddHeading(container, L("Your profile"))
+  AddLines(container, EscapeAll(ns.ProfileService.Describe(character.profile)))
+
+  AddHeading(container, L("Your declared details"))
+  local declared = character.profile.fields or {}
+  for _, field in ipairs({
+    { key = "role", label = L("Role (tank, healer, dps...)") },
+    { key = "main", label = L("Main character") },
+    { key = "notes", label = L("Notes (these stay on this computer)") },
+  }) do
+    AddTextInput(container, field.label, declared[field.key] and declared[field.key].value or "", 1, function(value)
+      local ok, reason = ns.ProfileService.SetField(ns.Platform, character.profile, field.key, value)
+      if ok then
+        if ns.comm then
+          ns.PublishService.PublishIfChanged(ns.comm, character, ns.Platform)
+        end
+        statusMessage = L("Saved.")
+      else
+        statusMessage = L("Not saved: ") .. (ns.ViewModel.PROFILE_SET_ERRORS[reason] or tostring(reason))
+      end
+      Redraw()
+    end)
+  end
+
+  AddHeading(container, L("Shared with the guild"))
+  AddLines(container, EscapeAll(ns.PublishService.Describe(character.profile)))
+  AddLines(container, {
+    L("Your profile is shared automatically after login and whenever it changes."),
+    L("Addon messages are not private: any guild member with the addon can read them."),
+  })
+
+  local button = AceGUI:Create("Button")
+  button:SetText(L("Publish now"))
+  button:SetCallback("OnClick", function()
+    local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
+    statusMessage = ok and L("Profile published to the guild.")
+      or (L("Not published: ") .. ns.ViewModel.PublishError(reason))
+    Redraw()
+  end)
+  container:AddChild(button)
+
+  if statusMessage then
+    AddLines(container, { ns.ViewModel.Escape(statusMessage) })
+  end
+end
+
+local function DrawRoster(container)
+  AddLines(container, ns.ViewModel.Roster(ns.db.global.roster, ns.Platform.ServerTime()))
+end
+
+-- Raid tab. Reading is open to everyone; each group of controls only appears for a role that may use it
+-- (ViewModel.RaidActions), and every control calls the same RaidCommands / TemplateCommands methods as
+-- the slash commands, so the checks and the messages sent to the guild are the same.
+local selectedEventId
+local attendanceFilter = ""
+local ATTENDANCE_MATCHES_MAX = 8
+
+local function RaidServices()
+  local raid = ns.RaidCommands.New({
+    events = ns.db.global.events,
+    tombstones = ns.db.global.sync.tombstones,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  local templates = ns.TemplateCommands.New({
+    events = ns.db.global.events,
+    templates = ns.db.global.templates,
+    platform = ns.Platform,
+    comm = ns.comm,
+  })
+  return raid, templates
+end
+
+-- Shows what an action reported and redraws the tab with the new state.
 -- Readiness tab: the checklist, with a dropdown for every item confirmed by hand.
 local function DrawReady(container)
   local character = ns.character
@@ -473,6 +523,25 @@ local function DrawTemplates(container, templates, event)
 end
 
 local raidSubTab = "summary"
+-- The reports cover the selected event, or every event.
+local reportAllEvents = false
+
+local function DrawReports(container, event)
+  local scopes = { event = L("This event"), all = L("All events") }
+  AddDropdown(
+    container,
+    L("Scope"),
+    scopes,
+    { "event", "all" },
+    reportAllEvents and "all" or "event",
+    0.4,
+    function(key)
+      reportAllEvents = key == "all"
+      Redraw()
+    end
+  )
+  AddLines(container, ns.ViewModel.ReportLines(ns.db.global.events, event, reportAllEvents))
+end
 
 -- The right-hand pane: one sub-tab per group of controls the role may use, for the selected event.
 local function DrawEventPane(pane, actions, raid, templates, event)
@@ -492,6 +561,8 @@ local function DrawEventPane(pane, actions, raid, templates, event)
       DrawAssignments(group, raid, event, members)
     elseif value == "templates" then
       DrawTemplates(group, templates, event)
+    elseif value == "reports" then
+      DrawReports(group, event)
     else
       local index = 1
       for position, listed in ipairs(ns.EventService.List({ events = ns.db.global.events })) do
@@ -544,6 +615,15 @@ local function DrawRaid(container)
         end
       end
       Report(lines)
+    end)
+  end
+
+  AddButton(left, L("Export"), 1, function()
+    UI.ShowTransfer("export")
+  end)
+  if actions.events then
+    AddButton(left, L("Import"), 1, function()
+      UI.ShowTransfer("import")
     end)
   end
 
@@ -743,6 +823,61 @@ local function AddRankingHeader(container, key, width)
   container:AddChild(header)
 end
 
+-- Admin only, below the ranking: zeroes the PvP counters of one member on every client. The first click asks to
+-- confirm, the second one does it.
+local pvpResetTarget
+local pvpResetConfirming = false
+
+local function DrawPvPAdmin(container, rows)
+  local list, order = {}, {}
+  for _, row in ipairs(rows) do
+    if not row.mine then
+      list[row.name] = row.label
+      order[#order + 1] = row.name
+    end
+  end
+  if #order == 0 then
+    return
+  end
+  table.sort(order)
+  if not list[pvpResetTarget] then
+    pvpResetTarget, pvpResetConfirming = nil, false
+  end
+
+  AddHeading(container, L("Admin"))
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage) })
+  end
+  AddDropdown(container, L("Member"), list, order, pvpResetTarget, 0.5, function(key)
+    pvpResetTarget, pvpResetConfirming = key, false
+  end)
+  AddButton(container, pvpResetConfirming and L("Confirm") or L("Reset PvP counters"), 0.3, function()
+    if not pvpResetTarget then
+      Report({ L("Pick a member first.") })
+      return
+    end
+    if not pvpResetConfirming then
+      pvpResetConfirming = true
+      Report({ L("Reset the PvP counters of %s? Click Confirm to do it."):format(pvpResetTarget) })
+      return
+    end
+    local target = pvpResetTarget
+    pvpResetTarget, pvpResetConfirming = nil, false
+    local ok, outcome, sent = ns.comm:ResetPvP(target)
+    if not ok then
+      Report({ L("Not reset: ") .. (ns.ViewModel.PVP_RESET_ERRORS[outcome] or tostring(outcome)) })
+      return
+    end
+    Report({
+      L("PvP counters of %s reset (revision %d)%s."):format(
+        target,
+        outcome,
+        sent and L(", told to the guild") or L(", NOT sent")
+      ),
+    })
+  end)
+end
+
 -- Ranking sub-tab: the guild members with counters, most honourable kills first; click a title to sort.
 local function DrawPvPRanking(container)
   local tracker = ns.pvpTracker
@@ -808,6 +943,9 @@ local function DrawPvPRanking(container)
     AddLines(container, { "", L("Showing the first %d of %d members."):format(shown, #rows) })
   end
   AddLines(container, { "", L("Counters come from members who run the addon, about a minute after a kill.") })
+  if ns.comm and ns.PermissionService.Can(ns.PermissionService.OwnRole(ns.Platform), "moderate") then
+    DrawPvPAdmin(container, rows)
+  end
 end
 
 -- Recent kills sub-tab: the own kills since login, not saved. Every kill is shared with the guild.

@@ -151,29 +151,12 @@ describe("ViewModel misc", function()
     assert.are.equal("Blacklist", ViewModel.TABS[index_of("blacklist")].text)
   end)
 
-  it("documents every user command in the help", function()
+  it("documents the three commands that are left in the help", function()
     local text = table.concat(ViewModel.HelpLines(), "\n")
-    for _, command in ipairs({
-      "role",
-      "profile",
-      "ready",
-      "publish",
-      "event",
-      "attendance",
-      "assign",
-      "loot",
-      "report",
-      "template",
-      "minimap",
-      "export",
-      "import",
-      "debug",
-      "sync",
-      "help",
-      "version",
-    }) do
-      assert.is_truthy(text:find("/nrage " .. command, 1, true), command)
+    for _, command in ipairs({ "/nrage  ", "/nrage help", "/nrage debug" }) do
+      assert.is_truthy(text:find(command, 1, true), command)
     end
+    assert.are.equal(3, #ViewModel.HelpLines())
   end)
 end)
 
@@ -826,12 +809,15 @@ describe("ViewModel raid tab layout helpers", function()
       end
       return out
     end
-    assert.are.same({ "summary" }, values({ events = false, attendance = false, assignments = false }))
+    assert.are.same({ "summary", "reports" }, values({ events = false, attendance = false, assignments = false }))
     assert.are.same(
-      { "summary", "details", "attendance", "assignments", "templates" },
+      { "summary", "details", "attendance", "assignments", "templates", "reports" },
       values({ events = true, attendance = true, assignments = true })
     )
-    assert.are.same({ "summary", "attendance" }, values({ events = false, attendance = true, assignments = false }))
+    assert.are.same(
+      { "summary", "attendance", "reports" },
+      values({ events = false, attendance = true, assignments = false })
+    )
   end)
 
   it("describes one event with its number, attendance counts and assignments, escaped", function()
@@ -1414,12 +1400,11 @@ describe("ViewModel.BlacklistAlertLine", function()
 end)
 
 describe("ViewModel help", function()
-  it("lists the blacklist command", function()
-    local found = false
-    for _, line in ipairs(ViewModel.HelpLines()) do
-      found = found or line:find("/nrage blacklist", 1, true) ~= nil
+  it("does not list a command that no longer exists", function()
+    local text = table.concat(ViewModel.HelpLines(), "\n")
+    for _, gone in ipairs({ "blacklist", "event", "loot", "report", "minimap", "sync", "publish" }) do
+      assert.is_nil(text:find("/nrage " .. gone, 1, true), gone)
     end
-    assert.is_true(found)
   end)
 end)
 

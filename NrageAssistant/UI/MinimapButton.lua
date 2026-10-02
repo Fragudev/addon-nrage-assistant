@@ -39,22 +39,18 @@ function MinimapButton.Settings(db)
   return minimap
 end
 
--- Text for /nrage minimap [show|hide|reset]. Returns the line to print.
-function MinimapButton.Command(db, action)
-  local settings = MinimapButton.Settings(db)
-  if action == "show" then
-    settings.hide = false
-  elseif action == "hide" then
-    settings.hide = true
-  elseif action == "reset" then
-    settings.hide = false
-    settings.angle = ns.Constants.MINIMAP_DEFAULT_ANGLE
-  elseif action ~= "" then
-    return L("usage: /nrage minimap [show | hide | reset]")
-  end
+-- Shows or hides the button.
+function MinimapButton.SetHidden(db, hidden)
+  MinimapButton.Settings(db).hide = hidden == true
   MinimapButton.Refresh()
-  return settings.hide and L("minimap button hidden. Type /nrage minimap show to bring it back.")
-    or L("minimap button shown. Drag it to move it around the minimap.")
+end
+
+-- Brings the button back, at its default place.
+function MinimapButton.ResetPosition(db)
+  local settings = MinimapButton.Settings(db)
+  settings.hide = false
+  settings.angle = ns.Constants.MINIMAP_DEFAULT_ANGLE
+  MinimapButton.Refresh()
 end
 
 local button, warning

@@ -102,7 +102,9 @@ local function load_window(locale)
     "Domain/ProfileService",
     "Domain/PublishService",
     "Domain/BlacklistService",
+    "Domain/ReportService",
     "UI/ViewModel",
+    "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
     "Commands/TemplateCommands",
@@ -235,6 +237,20 @@ local function build(rank, locale)
       return { "sync ready" }
     end,
   }
+  -- What the profile publication sends; kept apart from env.sent so the other tests do not see it.
+  env.messages = {}
+  ns.comm.Send = function(_, messageType)
+    env.messages[#env.messages + 1] = messageType
+    return true
+  end
+  ns.comm.RequestSync = function()
+    env.sent[#env.sent + 1] = "RequestSync"
+    return true
+  end
+  ns.comm.ResetPvP = function(_, target)
+    env.sent[#env.sent + 1] = "ResetPvP:" .. target
+    return true, 3, true
+  end
   -- The admin's way to set the rules: what Comm does, without the sending.
   ns.comm.SetReadinessRules = function(_, rules)
     local clean, reason = ns.ReadinessRules.Validate(rules)
@@ -639,7 +655,10 @@ describe("Window smoke test", function()
     local raid = member.open("raid")
     assert.is_nil(member.find(raid, "EditBox"))
     local sub = member.find(raid, "TabGroup")
-    assert.are.same({ { value = "summary", text = "Summary" } }, sub.props.tabs)
+    assert.are.same(
+      { { value = "summary", text = "Summary" }, { value = "reports", text = "Reports" } },
+      sub.props.tabs
+    )
     pcall(member.close)
   end)
 
@@ -655,7 +674,7 @@ describe("Window smoke test", function()
     }, { title = "Raid" })
     local raid = env.raid("attendance")
     local sub = env.find(raid, "TabGroup")
-    assert.are.equal(5, #sub.props.tabs)
+    assert.are.equal(6, #sub.props.tabs)
 
     -- Redrawing the window (as every action does) comes back on the same sub-tab.
     raid = env.open("raid")
@@ -1287,5 +1306,146 @@ describe("Window in Spanish", function()
     env = build("GM", "frFR")
     local tab = env.open("rules")
     assert.is_truthy(env.find(tab, "Button", "Add rule"))
+  end)
+end)
+
+describe("Controls that replace the slash commands", function()
+  local env
+
+  local function labels(root)
+    local found = {}
+    walk(root, function(widget)
+      if (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text then
+        found[#found + 1] = widget.props.text
+      end
+    end)
+    return table.concat(found, "\n")
+  end
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  describe("on the Home tab", function()
+    it("shows the guild rank and the addon role, and asks the guild for a sync", function()
+      env = build("GM")
+      local home = env.open("home")
+      assert.is_truthy(labels(home):find("guild rank: GM", 1, true))
+      assert.is_truthy(labels(home):find("addon role: admin", 1, true))
+      env.find(home, "Button", "Request a sync").callbacks.OnClick()
+      assert.are.same({ "RequestSync" }, env.sent)
+    end)
+
+    it("hides and shows the minimap button, and puts it back in its place", function()
+      env = build("Member")
+      local home = env.open("home")
+      local box = env.find(home, "CheckBox")
+      assert.is_true(box.props.value)
+      box.callbacks.OnValueChanged(nil, nil, false)
+      assert.is_true(env.ns.MinimapButton.Settings(env.ns.db).hide)
+      box.callbacks.OnValueChanged(nil, nil, true)
+      assert.is_false(env.ns.MinimapButton.Settings(env.ns.db).hide)
+      env.ns.MinimapButton.Settings(env.ns.db).angle = 10
+      env.find(home, "Button", "Reset the button position").callbacks.OnClick()
+      assert.are.equal(env.ns.Constants.MINIMAP_DEFAULT_ANGLE, env.ns.MinimapButton.Settings(env.ns.db).angle)
+    end)
+  end)
+
+  describe("on the Profile tab", function()
+    it("saves the declared role, main and notes", function()
+      env = build("Member")
+      local profile = env.open("profile")
+      env.find(profile, "EditBox", "Role (tank, healer, dps...)").callbacks.OnEnterPressed(nil, nil, "tank")
+      assert.are.equal("tank", env.ns.character.profile.fields.role.value)
+      profile = env.open("profile")
+      env.find(profile, "EditBox", "Notes (these stay on this computer)").callbacks.OnEnterPressed(nil, nil, "weekends")
+      assert.are.equal("weekends", env.ns.character.profile.fields.notes.value)
+    end)
+
+    it("says why a value was not saved", function()
+      env = build("Member")
+      local profile = env.open("profile")
+      env.find(profile, "EditBox", "Main character").callbacks.OnEnterPressed(nil, nil, string.rep("x", 500))
+      profile = env.open("profile")
+      assert.is_truthy(labels(profile):find("Not saved: value is too long.", 1, true))
+      assert.is_nil(env.ns.character.profile.fields.main)
+    end)
+  end)
+
+  describe("on the Raid tab", function()
+    it("offers Export to everyone and Import only to who may manage events", function()
+      env = build("Member")
+      local raid = env.open("raid")
+      assert.is_truthy(env.find(raid, "Button", "Export"))
+      assert.is_nil(env.find(raid, "Button", "Import"))
+      pcall(env.close)
+      env = build("RL")
+      raid = env.open("raid")
+      assert.is_truthy(env.find(raid, "Button", "Export"))
+      assert.is_truthy(env.find(raid, "Button", "Import"))
+    end)
+
+    it("opens the export and import windows from the buttons", function()
+      env = build("RL")
+      local opened = {}
+      env.ns.UI.ShowTransfer = function(mode)
+        opened[#opened + 1] = mode
+      end
+      local raid = env.open("raid")
+      env.find(raid, "Button", "Export").callbacks.OnClick()
+      env.find(raid, "Button", "Import").callbacks.OnClick()
+      assert.are.same({ "export", "import" }, opened)
+    end)
+
+    it("has a Reports sub-tab for every role with the attendance and loot reports", function()
+      env = build("Member")
+      env.ns.EventService.Create({
+        events = env.ns.db.global.events,
+        role = "rl",
+        actor = "Leader-Realm",
+        now = env.ns.Platform.ServerTime,
+        newId = function()
+          return "ev-1"
+        end,
+      }, { title = "Raid" })
+      local raid = env.raid("reports")
+      local text = labels(raid)
+      assert.is_truthy(text:find("ttendance", 1, true))
+      assert.is_truthy(text:find("oot", 1, true))
+      assert.is_truthy(env.find(raid, "Dropdown", "Scope"))
+      env.find(raid, "Dropdown", "Scope").callbacks.OnValueChanged(nil, nil, "all")
+    end)
+  end)
+
+  describe("on the PvP ranking", function()
+    local function open_ranking()
+      env.ns.db.global.pvpStats = {
+        ["Ann-Realm"] = { honor = { world = 30, bg = 20 }, updatedAt = 900, rev = 1 },
+      }
+      local pvp = env.open("pvp")
+      env.find(pvp, "TabGroup"):SelectTab("ranking")
+      return pvp
+    end
+
+    it("offers the reset to an admin only", function()
+      env = build("Member")
+      assert.is_nil(env.find(open_ranking(), "Button", "Reset PvP counters"))
+      pcall(env.close)
+      env = build("GM")
+      assert.is_truthy(env.find(open_ranking(), "Button", "Reset PvP counters"))
+    end)
+
+    it("asks to confirm before it resets a member", function()
+      env = build("GM")
+      local pvp = open_ranking()
+      env.find(pvp, "Dropdown", "Member").callbacks.OnValueChanged(nil, nil, "Ann-Realm")
+      env.find(pvp, "Button", "Reset PvP counters").callbacks.OnClick()
+      assert.are.same({}, env.sent)
+      pvp = env.open("pvp")
+      env.find(pvp, "TabGroup"):SelectTab("ranking")
+      assert.is_truthy(labels(pvp):find("Reset the PvP counters of Ann-Realm?", 1, true))
+      env.find(pvp, "Button", "Confirm").callbacks.OnClick()
+      assert.are.same({ "ResetPvP:Ann-Realm" }, env.sent)
+    end)
   end)
 end)
