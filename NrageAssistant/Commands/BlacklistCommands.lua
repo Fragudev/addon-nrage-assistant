@@ -35,7 +35,8 @@ local ERRORS = {
   empty_reason = "enter a reason.",
   long_reason = "the reason is too long (up to 100 characters).",
   bad_reason = "the reason cannot contain | or control characters.",
-  exists = "that player is already on the blacklist.",
+  not_author = "that player is already on the blacklist; only the member who added them or an officer can change "
+    .. "the reason.",
   limit = "the blacklist is full.",
   not_found = "that player is not on the blacklist.",
 }
@@ -81,13 +82,15 @@ end
 
 function BlacklistCommands:Add(name, reason)
   local ctx = self:Context()
-  local entry, key = ns.BlacklistService.Add(ctx, name, reason)
+  local entry, key, updated = ns.BlacklistService.Add(ctx, name, reason)
   if not entry then
     return { fail(ctx, key, "add") }
   end
   self:Changed()
   return {
-    ("added %s to the blacklist."):format(ns.ViewModel.Escape(entry.name)),
+    (updated and "changed the reason of %s on the blacklist." or "added %s to the blacklist."):format(
+      ns.ViewModel.Escape(entry.name)
+    ),
     sentNote(self.comm:SendBlacklistUpsert(key, entry)),
   }
 end

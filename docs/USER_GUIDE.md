@@ -240,7 +240,8 @@ The **Blacklist** tab is a guild-wide list of players the guild wants to be warn
 member running the addon (see the privacy notes: names and the reason you type go to the whole guild, unencrypted).
 
 - **Anyone can add** a player: type the **Name** (a name with several words is fine, a realm suffix is dropped) and a
-  **Reason** of up to 100 characters, then press **Add**. A player who is already listed cannot be added twice.
+  **Reason** of up to 100 characters, then press **Add**. Adding a player who is already listed changes the reason, but only the member who added
+  the entry and the guild master and officers can do it; for anyone else it is refused.
 - **Only the guild master and officers can remove** an entry. The **Remove** button only shows for them, and every
   client checks the sender's rank again, so a removal from anyone else is ignored. Once a player has been removed,
   anyone can add them again.

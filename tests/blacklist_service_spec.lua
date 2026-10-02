@@ -129,13 +129,57 @@ describe("BlacklistService.Add", function()
     assert.is_nil(next(ctx.blacklist))
   end)
 
-  it("refuses a player who is already listed, in any spelling", function()
+  it("lets the one who added a player change the reason, in any spelling", function()
     local ctx = context()
     Service.Add(ctx, "Yonemon Gg", "x")
-    local entry, reason = Service.Add(ctx, "yonemongg-Realm", "y")
+    ctx.now = function()
+      return 2000
+    end
+    local entry, key, updated = Service.Add(ctx, "yonemongg-Realm", "y")
+    assert.are.equal("yonemongg", key)
+    assert.is_true(updated)
+    assert.are.equal(entry, ctx.blacklist.yonemongg)
+    assert.are.same({
+      name = "Yonemon Gg",
+      reason = "y",
+      addedBy = "Ann-Realm",
+      addedAt = 1000,
+      rev = 2,
+      updatedAt = 2000,
+      updatedBy = "Ann-Realm",
+    }, ctx.blacklist.yonemongg)
+  end)
+
+  it("refuses to change the reason of a player somebody else added", function()
+    local ctx = context()
+    Service.Add(ctx, "Yonemon Gg", "x")
+    ctx.actor = "Bob-Realm"
+    local entry, reason = Service.Add(ctx, "yonemongg", "y")
     assert.is_nil(entry)
-    assert.are.equal("exists", reason)
+    assert.are.equal("not_author", reason)
     assert.are.equal("x", ctx.blacklist.yonemongg.reason)
+    assert.are.equal(1, ctx.blacklist.yonemongg.rev)
+  end)
+
+  it("lets an admin change the reason of any entry and keeps who added it", function()
+    local ctx = context()
+    Service.Add(ctx, "Yonemon Gg", "x")
+    ctx.actor, ctx.role = "Boss-Realm", "admin"
+    local entry, _, updated = Service.Add(ctx, "yonemongg", "y")
+    assert.is_true(updated)
+    assert.are.equal("y", entry.reason)
+    assert.are.equal("Ann-Realm", entry.addedBy)
+    assert.are.equal("Boss-Realm", entry.updatedBy)
+  end)
+
+  it("tells who may edit an entry", function()
+    local entry = { addedBy = "Ann-Realm" }
+    assert.is_true(Service.CanEdit(entry, "ann-realm", "member"))
+    assert.is_true(Service.CanEdit(entry, "Boss-Realm", "admin"))
+    assert.is_false(Service.CanEdit(entry, "Bob-Realm", "member"))
+    assert.is_false(Service.CanEdit(entry, "Bob-Realm", "rl"))
+    assert.is_false(Service.CanEdit({}, "Bob-Realm", "member"))
+    assert.is_false(Service.CanEdit(entry, nil, "member"))
   end)
 
   it("stops at the limit", function()

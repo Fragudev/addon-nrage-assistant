@@ -96,11 +96,28 @@ describe("BlacklistCommands add", function()
     assert.are.equal(0, env.changes)
   end)
 
-  it("refuses a player who is already listed", function()
+  it("changes the reason when the one who added the player adds them again", function()
     local env = build("member")
     env.commands:Blacklist("add Ann | one")
-    assert.is_truthy(text(env.commands:Blacklist("add ann | two")):find("already", 1, true))
+    local lines = env.commands:Blacklist("add ann | two")
+    assert.is_truthy(text(lines):find("changed the reason of Ann", 1, true))
+    assert.are.equal("two", env.blacklist.ann.reason)
+    assert.are.equal(2, env.sent[2].entry.rev)
+  end)
+
+  it("refuses to change the reason of a player somebody else added", function()
+    local env = build("member")
+    env.blacklist.ann = { name = "Ann", reason = "one", addedBy = "Other-Realm", addedAt = 1, rev = 1, updatedAt = 1 }
+    assert.is_truthy(text(env.commands:Blacklist("add ann | two")):find("only the member who added", 1, true))
     assert.are.equal("one", env.blacklist.ann.reason)
+    assert.are.equal(0, #env.sent)
+  end)
+
+  it("lets an officer change the reason of any player", function()
+    local env = build("officer")
+    env.blacklist.ann = { name = "Ann", reason = "one", addedBy = "Other-Realm", addedAt = 1, rev = 1, updatedAt = 1 }
+    env.commands:Blacklist("add ann | two")
+    assert.are.equal("two", env.blacklist.ann.reason)
   end)
 
   it("refuses when the guild rank gives no role", function()

@@ -86,6 +86,17 @@ function BlacklistService.NextRev(tombstones, key)
 end
 
 -- Adds a player. Returns the entry, or nil plus "forbidden" | "exists" | "limit" | a Validate reason.
+-- May `actor` (with `role`) change the reason of `entry`? The member who added it, and admins for any entry.
+-- Names are compared the way keys are, ignoring case and spaces.
+function BlacklistService.CanEdit(entry, actor, role)
+  if Can(role, "blacklist_edit_any") then
+    return true
+  end
+  return type(actor) == "string"
+    and type(entry.addedBy) == "string"
+    and ns.Validate.NameKey(actor) == ns.Validate.NameKey(entry.addedBy)
+end
+
 function BlacklistService.Add(ctx, name, reason)
   if not Can(ctx.role, "blacklist_add") then
     return nil, "forbidden"
@@ -94,14 +105,24 @@ function BlacklistService.Add(ctx, name, reason)
   if not clean then
     return nil, why
   end
-  if ctx.blacklist[clean.key] then
-    return nil, "exists"
+  local now = ctx.now()
+  local listed = ctx.blacklist[clean.key]
+  if listed then
+    -- Adding a player who is already listed changes the reason, but only for the one who added the entry and for
+    -- admins; the name, who added it and when stay.
+    if not BlacklistService.CanEdit(listed, ctx.actor, ctx.role) then
+      return nil, "not_author"
+    end
+    listed.reason = clean.reason
+    listed.rev = listed.rev + 1
+    listed.updatedAt = now
+    listed.updatedBy = ctx.actor
+    return listed, clean.key, true
   end
   if countKeys(ctx.blacklist) >= ns.Constants.BLACKLIST_MAX then
     return nil, "limit"
   end
 
-  local now = ctx.now()
   local entry = {
     name = clean.name,
     reason = clean.reason,

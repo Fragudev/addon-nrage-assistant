@@ -21,6 +21,9 @@ local ACTIONS = {
   -- admin can take the warning back.
   blacklist_add = { member = true, rl = true, council = true, admin = true },
   blacklist_remove = { admin = true },
+  -- Changing the reason of a player who is already listed: the member who added the entry may (see
+  -- BlacklistService.CanEdit), and so may an admin, for any entry.
+  blacklist_edit_any = { admin = true },
   moderate = { admin = true },
 }
 
