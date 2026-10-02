@@ -1,5 +1,6 @@
 local function load_controller()
   local ns = { UI = { lootListeners = {} } }
+  assert(loadfile("NrageAssistant/Core/Locale.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/UI/VotingFrame.lua"))("NrageAssistant", ns)
   return ns.VotingFrame.Controller, ns
 end
