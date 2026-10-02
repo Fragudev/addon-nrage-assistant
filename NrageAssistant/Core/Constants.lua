@@ -108,6 +108,11 @@ ns.Constants = {
   PVP_DAILY_DAYS = 30,
   -- The honour counter can update a moment after its event; it is read once more after this delay.
   PVP_RECHECK_SECONDS = 0.5,
+  -- Killing blows come from COMBAT_LOG_EVENT_UNFILTERED, which Midnight protects: registering it is the suspected
+  -- cause of the "blocked from an action only available to the Blizzard UI" dialog seen at login, and a pcall does
+  -- not hide that dialog. So it stays off, and killing blows are not counted, until it is measured that Forever
+  -- allows it (issue #99). Honourable kills do not need it.
+  PVP_COMBAT_LOG_ENABLED = false,
   -- PvP sync. A counter in a PVP_STATS message is a whole number in 0..PVP_MAX_KILLS. The receiver accepts at most
   -- PVP_MAX_KILLS_PER_HOUR new honourable kills per hour since the previous record of that member (never less than
   -- one hour's worth), which limits a modified client; it cannot prevent one.

@@ -44,7 +44,7 @@ local function ScheduleSelfTest()
 end
 
 -- The events the PvP counters listen to. Both are registered one by one, so a client that does not know one of
--- them still loads and keeps the other; the combat log is optional (it may be restricted on this client).
+-- them still loads and keeps the other. The combat log is optional and off (Constants.PVP_COMBAT_LOG_ENABLED).
 local PVP_HONOR_EVENTS = { "CHAT_MSG_COMBAT_HONOR_GAIN", "PLAYER_PVP_KILLS_CHANGED" }
 local PVP_HONOR_TEXT_EVENT = PVP_HONOR_EVENTS[1]
 local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
@@ -131,7 +131,10 @@ local function StartPvP()
   for _, event in ipairs(PVP_HONOR_EVENTS) do
     ns.Platform.TryRegisterEvent(pvpFrame, event)
   end
-  tracker.blowsAvailable = ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
+  -- A protected event: even inside a pcall, registering it shows the client's "blocked action" dialog.
+  tracker.blowsAvailable = Constants.PVP_COMBAT_LOG_ENABLED
+      and ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
+    or false
   feed.blowNames = tracker.blowsAvailable
   pvpFrame:SetScript("OnEvent", function(_, event, text)
     if not ns.active then
