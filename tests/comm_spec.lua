@@ -21,6 +21,7 @@ local function load_addon()
     "Sync/SyncRules",
     "Sync/EventSync",
     "Sync/LootSync",
+    "Sync/PvPSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -43,6 +44,10 @@ local function build_env()
     events = {},
     tombstones = {},
     roles = {},
+    pvpStats = {},
+    pvpResets = {},
+    pvpChanges = {},
+    ownResets = {},
   }
 
   env.platform = {
@@ -85,6 +90,14 @@ local function build_env()
     roster = env.roster,
     events = env.events,
     tombstones = env.tombstones,
+    pvpStats = env.pvpStats,
+    pvpResets = env.pvpResets,
+    onPvPChange = function(messageType)
+      env.pvpChanges[#env.pvpChanges + 1] = messageType
+    end,
+    onPvPReset = function(rev)
+      env.ownResets[#env.ownResets + 1] = rev
+    end,
     roleOf = function(sender)
       return env.roles[sender]
     end,
@@ -920,5 +933,270 @@ describe("Comm loot change notification", function()
     local event = env.wire("EVENT_UPSERT", { eventId = "ev-2", rev = 1, updatedAt = 10, title = "Other" }, "m-2")
     assert.is_true(env.comm:HandleMessage(event, "Lead-Realm", "GUILD"))
     assert.are.same({}, changes)
+  end)
+end)
+
+describe("Comm PvP counters", function()
+  local env
+
+  local function stats(overrides)
+    local p = {
+      rev = 1,
+      updatedAt = 4990,
+      honor = { world = 10, bg = 5 },
+      blows = { world = 3, bg = 1 },
+      today = { day = "2026-10-01", honor = { world = 2, bg = 1 }, blows = { world = 1, bg = 0 } },
+    }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.roles["Boss-Realm"] = "admin"
+    env.roles["Lead-Realm"] = "rl"
+  end)
+
+  it("stores a record under the sender and tells the UI", function()
+    local body = stats()
+    body.owner = "Victim-Realm"
+    assert.is_true(env.comm:HandleMessage(env.wire("PVP_STATS", body, "p-1"), "Ann-Realm", "GUILD"))
+    assert.are.equal(15, env.pvpStats["Ann-Realm"].honor.world + env.pvpStats["Ann-Realm"].honor.bg)
+    assert.is_nil(env.pvpStats["Victim-Realm"])
+    assert.are.same({ "PVP_STATS" }, env.pvpChanges)
+  end)
+
+  it("reads the sender's role from the roster, never from the message", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("PVP_STATS", stats(), "p-1"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.pvpStats)
+    assert.are.same({}, env.pvpChanges)
+  end)
+
+  it("drops an implausible or stale record without telling the UI", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("PVP_STATS", stats(), "p-1"), "Ann-Realm", "GUILD"))
+    local lowered = stats({ rev = 2, honor = { world = 1, bg = 1 } })
+    local ok, reason = env.comm:HandleMessage(env.wire("PVP_STATS", lowered, "p-2"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("implausible", reason)
+    ok, reason = env.comm:HandleMessage(env.wire("PVP_STATS", stats(), "p-3"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("stale", reason)
+    assert.are.equal(1, #env.pvpChanges)
+  end)
+
+  it("lets only an admin reset a member", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("PVP_STATS", stats(), "p-1"), "Ann-Realm", "GUILD"))
+    local reset = env.wire("PVP_RESET", { target = "Ann-Realm", rev = 2 }, "r-1")
+    local ok, reason = env.comm:HandleMessage(reset, "Lead-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    assert.are.equal(10, env.pvpStats["Ann-Realm"].honor.world)
+
+    reset = env.wire("PVP_RESET", { target = "Ann-Realm", rev = 2 }, "r-2")
+    assert.is_true(env.comm:HandleMessage(reset, "Boss-Realm", "GUILD"))
+    assert.are.equal(0, env.pvpStats["Ann-Realm"].honor.world)
+    assert.are.equal(2, env.pvpResets["Ann-Realm"].rev)
+    assert.are.same({}, env.ownResets)
+    ok, reason = env.comm:HandleMessage(env.wire("PVP_STATS", stats({ rev = 2 }), "p-2"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("reset", reason)
+  end)
+
+  it("hands a reset of this client's own key to the callback", function()
+    local reset = env.wire("PVP_RESET", { target = "Me-Realm", rev = 7 }, "r-1")
+    assert.is_true(env.comm:HandleMessage(reset, "Boss-Realm", "GUILD"))
+    assert.are.same({ 7 }, env.ownResets)
+  end)
+
+  it("accepts neither message as a whisper", function()
+    local text = env.wire("PVP_STATS", stats(), "p-1")
+    local ok, reason = env.comm:HandleMessage(text, "Lead-Realm", "WHISPER")
+    assert.is_false(ok)
+    assert.are.equal("wrong_channel", reason)
+    assert.are.same({}, env.pvpStats)
+  end)
+
+  it("sends the own counters under one queue key, so a newer message replaces a waiting one", function()
+    env.locked = true
+    assert.is_true(env.comm:SendPvPStats(stats({ rev = 1 })))
+    assert.is_true(env.comm:SendPvPStats(stats({ rev = 2 })))
+    assert.are.equal(1, env.queue:Pending())
+    env.locked = false
+    env.comm:Flush()
+    assert.are.equal(1, #env.sent)
+    local decoded = assert(env.codec:Decode(env.sent[1]))
+    assert.are.equal("PVP_STATS", decoded.t)
+    assert.are.equal(2, decoded.p.rev)
+  end)
+
+  describe("an admin reset from this client", function()
+    it("is applied here, then told to the guild", function()
+      env.ownRole = "admin"
+      env.roles["Me-Realm"] = "admin"
+      env.pvpStats["Ann-Realm"] = {
+        honor = { world = 5, bg = 0 },
+        today = { day = "2026-10-01", honor = { world = 0, bg = 0 } },
+        rev = 4,
+        updatedAt = 100,
+      }
+      local ok, rev, queued = env.comm:ResetPvP("Ann-Realm")
+      assert.is_true(ok)
+      assert.are.equal(5, rev)
+      assert.is_true(queued)
+      assert.are.equal(0, env.pvpStats["Ann-Realm"].honor.world)
+      assert.are.same({ "PVP_RESET" }, env.pvpChanges)
+      local decoded = assert(env.codec:Decode(env.sent[1]))
+      assert.are.same({ target = "Ann-Realm", rev = 5 }, decoded.p)
+    end)
+
+    it("is refused to anybody else and for a bad name", function()
+      env.ownRole = "rl"
+      local ok, reason = env.comm:ResetPvP("Ann-Realm")
+      assert.is_false(ok)
+      assert.are.equal("forbidden", reason)
+      assert.are.equal(0, #env.sent)
+
+      env.ownRole = "admin"
+      ok, reason = env.comm:ResetPvP("bad|name")
+      assert.is_false(ok)
+      assert.are.equal("bad_target", reason)
+      assert.are.equal(0, #env.sent)
+    end)
+
+    it("resets the own counters through the callback when it names this client", function()
+      env.ownRole = "admin"
+      env.roles["Me-Realm"] = "admin"
+      assert.is_true(env.comm:ResetPvP("Me-Realm"))
+      assert.are.same({ 1 }, env.ownResets)
+    end)
+  end)
+end)
+
+describe("Comm PvP in a snapshot", function()
+  local leader, joiner
+
+  local function record(overrides)
+    local r = {
+      rev = 1,
+      updatedAt = 4990,
+      honor = { world = 10, bg = 5 },
+      blows = { world = 3, bg = 1 },
+      today = { day = "2026-10-01", honor = { world = 2, bg = 1 }, blows = { world = 1, bg = 0 } },
+      receivedAt = 4995,
+    }
+    for k, v in pairs(overrides or {}) do
+      r[k] = v
+    end
+    return r
+  end
+
+  before_each(function()
+    leader, joiner = build_env(), build_env()
+    leader.ownRole = "rl"
+    joiner.roles["Lead-Realm"] = "rl"
+    leader.pvpStats["Ann-Realm"] = record()
+    leader.pvpStats["Bob-Realm"] = record({ honor = { world = 20, bg = 5 } })
+  end)
+
+  local function send_snapshot()
+    local ok = leader.comm:SendSnapshot("Joiner-Realm")
+    assert.is_true(ok)
+    return leader.sent[#leader.sent]
+  end
+
+  it("gives a late joiner the records of other members, owner by owner", function()
+    assert.is_true(joiner.comm:HandleMessage(send_snapshot(), "Lead-Realm", "WHISPER"))
+    assert.are.equal(10, joiner.pvpStats["Ann-Realm"].honor.world)
+    assert.are.equal(20, joiner.pvpStats["Bob-Realm"].honor.world)
+    assert.is_nil(joiner.pvpStats["Lead-Realm"])
+    assert.are.equal(2, joiner.comm.lastSnapshot.applied)
+    assert.is_truthy(joiner.pvpChanges[1])
+  end)
+
+  it("carries the resets, which only count when an admin sent the snapshot", function()
+    leader.pvpResets["Ann-Realm"] = { rev = 9 }
+    local text = send_snapshot()
+    assert.is_true(joiner.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+    assert.is_nil(joiner.pvpResets["Ann-Realm"])
+    assert.are.equal(10, joiner.pvpStats["Ann-Realm"].honor.world)
+
+    local admin = build_env()
+    admin.roles["Boss-Realm"] = "admin"
+    assert.is_true(admin.comm:HandleMessage(text, "Boss-Realm", "WHISPER"))
+    assert.are.equal(9, admin.pvpResets["Ann-Realm"].rev)
+  end)
+
+  it("resets this client's own counters when a snapshot from an admin carries its reset", function()
+    leader.pvpResets["Me-Realm"] = { rev = 6 }
+    local text = send_snapshot()
+    local admin = build_env()
+    admin.roles["Boss-Realm"] = "admin"
+    assert.is_true(admin.comm:HandleMessage(text, "Boss-Realm", "WHISPER"))
+    assert.are.same({ 6 }, admin.ownResets)
+  end)
+
+  it("stays under the byte cap with a maximal number of maximal records", function()
+    math.randomseed(11)
+    leader.pvpStats, leader.pvpResets = {}, {}
+    leader.comm.pvpStats, leader.comm.pvpResets = leader.pvpStats, leader.pvpResets
+    local function noise(length)
+      local chars = {}
+      for i = 1, length do
+        chars[i] = string.char(math.random(97, 122))
+      end
+      return table.concat(chars)
+    end
+    for i = 1, ns.Constants.GUILD_ROSTER_MAX do
+      leader.pvpStats[noise(64)] = record({
+        rev = math.random(1, 2000000000),
+        updatedAt = 1000 + i,
+        honor = { world = math.random(500000, 600000), bg = math.random(1, 400000) },
+        blows = { world = math.random(500000, 600000), bg = math.random(1, 400000) },
+      })
+      leader.pvpResets[noise(64)] = { rev = math.random(1, 2000000000) }
+    end
+    local ok = leader.comm:SendSnapshot("Joiner-Realm")
+    assert.is_true(ok)
+    assert.is_true(#leader.sent[1] <= ns.Constants.SYNC_MAX_ENCODED_BYTES, #leader.sent[1])
+
+    local admin = build_env()
+    admin.roles["Boss-Realm"] = "admin"
+    assert.is_true(admin.comm:HandleMessage(leader.sent[1], "Boss-Realm", "WHISPER"))
+    local received, resets = 0, 0
+    for _ in pairs(admin.pvpStats) do
+      received = received + 1
+    end
+    for _ in pairs(admin.pvpResets) do
+      resets = resets + 1
+    end
+    assert.are.equal(ns.Constants.PVP_SNAPSHOT_MAX, received)
+    assert.are.equal(ns.Constants.PVP_SNAPSHOT_MAX, resets)
+  end)
+
+  it("shrinks the PvP part together with the events when the snapshot would not fit", function()
+    local saved = ns.Constants.SYNC_MAX_ENCODED_BYTES
+    ns.Constants.SYNC_MAX_ENCODED_BYTES = 1500
+    math.randomseed(5)
+    for i = 1, 100 do
+      local chars = {}
+      for j = 1, 40 do
+        chars[j] = string.char(math.random(97, 122))
+      end
+      leader.pvpStats[table.concat(chars)] = record({ updatedAt = 1000 + i })
+    end
+    local ok = leader.comm:SendSnapshot("Joiner-Realm")
+    ns.Constants.SYNC_MAX_ENCODED_BYTES = saved
+    assert.is_true(ok)
+    assert.is_true(#leader.sent[1] <= 1500)
+  end)
+
+  it("sends a snapshot of PvP records alone", function()
+    local ok = leader.comm:SendSnapshot("Joiner-Realm")
+    assert.is_true(ok)
   end)
 end)

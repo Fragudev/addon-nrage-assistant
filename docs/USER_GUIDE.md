@@ -192,11 +192,29 @@ a total and today's count for each. Days follow the server's date in UTC, so the
 - **Killing blows** are counted from the combat log, only when the client allows the addon to read it. If it does
   not, the killing blows section is not shown.
 - If the client does not offer the honour counter either, the tab says so and counts nothing.
-- The counters are saved per character and stay on your client in this phase; nothing is sent to the guild. Daily
-  counts are kept for 30 days.
+- The counters are saved per character. Daily counts are kept for 30 days.
+- They are also **shared with the guild automatically**: about a minute after a kill, every guild member running
+  the addon receives your counters, and you receive theirs. There is nothing to switch on, and nothing is sent
+  during an encounter. The counters are not encrypted (see the privacy notes).
 - Your **PvP rank** is at the top, with how many honourable kills you need for the next one. There are 14 ranks,
   from Private to Grand Marshal; only honourable kills count towards them. Their names and thresholds are set in
   `PVP_RANKS` in `Core/Constants.lua`, and the thresholds there are placeholders until the guild decides them.
+
+### Ranking
+
+The **Ranking** sub-tab lists the guild members whose counters you have received, plus you (your row is green and
+always uses your own counters). Columns: name, PvP rank, honourable kills in the open world, in battlegrounds and
+in total, killing blows (only shown when you or somebody else can count them) and when the record was last
+updated. The default order is total honourable kills, highest first; click a column title to sort by it and click
+it again to reverse. Members who are no longer in the guild are not listed, and at most 100 rows are drawn.
+
+A member who logs in late gets the ranking from the snapshot a raid leader or admin whispers. The numbers can lag
+a minute behind, and a modified addon could report more than it earned: the addon only checks that totals never
+go down and do not grow faster than about 300 honourable kills an hour.
+
+Admins can reset a member's counters with `/nrage pvp reset <name>` (the name as the guild roster writes it). It
+acts at once, prints the revision it used, and zeroes the member on every client; the member's own counters are
+zeroed when their client receives it, or at their next login. Nobody else can do this.
 
 ## Reports
 

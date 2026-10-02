@@ -5,7 +5,7 @@ local _, ns = ...
 -- Everything received is hostile input: only whitelisted types and fields survive, values are
 -- bounds-checked, unknown fields are dropped, and strings carrying escape sequences are rejected
 -- (so a message can never smuggle colour codes or links into the UI).
--- HELLO and PROFILE are the phase 1 messages; the raid operations follow below.
+-- HELLO and PROFILE are the phase 1 messages; the raid operations and the PvP counters follow below.
 local Protocol = {}
 
 local MAX_VERSION_LENGTH = 32
@@ -240,6 +240,71 @@ local function validateLootVote(payload)
   }
 end
 
+-- PvP counters. As with PROFILE, the record belongs to the sender: there is no name in PVP_STATS, and a member
+-- can only ever publish their own. A reset names its target but is accepted from an admin only.
+local function validatePair(pair)
+  if type(pair) ~= "table" then
+    return nil
+  end
+  local high = ns.Constants.PVP_MAX_KILLS
+  if not (isInt(pair.world, 0, high) and isInt(pair.bg, 0, high)) then
+    return nil
+  end
+  return { world = pair.world, bg = pair.bg }
+end
+
+local function validateDay(day)
+  if type(day) ~= "string" then
+    return false
+  end
+  local year, month, date = day:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  if not year then
+    return false
+  end
+  year, month, date = tonumber(year), tonumber(month), tonumber(date)
+  return year >= 2000 and year <= 2100 and month >= 1 and month <= 12 and date >= 1 and date <= 31
+end
+
+local function validatePvPStats(payload)
+  if not validateRevision(payload) then
+    return nil
+  end
+  local clean = { rev = payload.rev, updatedAt = payload.updatedAt, honor = validatePair(payload.honor) }
+  if not clean.honor then
+    return nil
+  end
+  -- Killing blows are left out by a client that cannot read the combat log.
+  if payload.blows ~= nil then
+    clean.blows = validatePair(payload.blows)
+    if not clean.blows then
+      return nil
+    end
+  end
+
+  local today = payload.today
+  if type(today) ~= "table" or not validateDay(today.day) then
+    return nil
+  end
+  clean.today = { day = today.day, honor = validatePair(today.honor) }
+  if not clean.today.honor then
+    return nil
+  end
+  if today.blows ~= nil then
+    clean.today.blows = validatePair(today.blows)
+    if not clean.today.blows then
+      return nil
+    end
+  end
+  return clean
+end
+
+local function validatePvPReset(payload)
+  if not (ns.EventModel.IsCharacterKey(payload.target) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  return { target = payload.target, rev = payload.rev }
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -261,6 +326,8 @@ local VALIDATORS = {
   LOOT_AWARD = validateLootAward,
   LOOT_CANDIDATE = validateLootCandidate,
   LOOT_VOTE = validateLootVote,
+  PVP_STATS = validatePvPStats,
+  PVP_RESET = validatePvPReset,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

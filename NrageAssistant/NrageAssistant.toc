@@ -32,6 +32,7 @@ Domain\Diagnostics.lua
 Domain\TemplateService.lua
 Domain\PvPService.lua
 Domain\PvPTracker.lua
+Domain\PvPPublisher.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -39,6 +40,7 @@ Sync\OutboundQueue.lua
 Sync\SyncRules.lua
 Sync\EventSync.lua
 Sync\LootSync.lua
+Sync\PvPSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\ViewModel.lua

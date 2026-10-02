@@ -284,8 +284,40 @@ local function ReportCommand(rest)
   end
 end
 
+local PVP_RESET_ERRORS = {
+  forbidden = "only an admin can reset PvP counters.",
+  stale = "that member was already reset (or a later reset is known).",
+  limit = "too many resets are remembered.",
+  bad_target = "that is not a valid member name.",
+}
+
+-- /nrage pvp reset <name>: zeroes the PvP counters of a guild member on every client (admin only).
+local function PvPCommand(rest)
+  if not ns.active or not ns.comm then
+    say("PvP commands are unavailable while the addon is disabled.")
+    return
+  end
+  local sub, name = rest:match("^(%S*)%s*(.-)$")
+  if sub ~= "reset" or name == "" then
+    say("usage: /nrage pvp reset <name>  (admin only; names with spaces are fine)")
+    return
+  end
+  name = ns.Platform.NormalizeName(name)
+  if not (ns.guildRoster and ns.guildRoster:Lookup(name)) then
+    say(("'%s' is not in the guild roster."):format(name))
+    return
+  end
+  local ok, rev, sent = ns.comm:ResetPvP(name)
+  if not ok then
+    say("not reset: " .. (PVP_RESET_ERRORS[rev] or tostring(rev)))
+    return
+  end
+  say(("PvP counters of %s reset (revision %d)%s."):format(name, rev, sent and ", told to the guild" or ", NOT sent"))
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  pvp = PvPCommand,
   report = ReportCommand,
   template = TemplateCommand,
   minimap = MinimapCommand,

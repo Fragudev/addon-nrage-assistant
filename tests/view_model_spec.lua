@@ -951,8 +951,11 @@ describe("ViewModel PvP", function()
     return pvp
   end
 
-  it("has a single sub-tab for now", function()
-    assert.are.same({ { value = "mine", text = "My stats" } }, ViewModel.PvPSubTabs())
+  it("has the own counters and the ranking as sub-tabs", function()
+    assert.are.same(
+      { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } },
+      ViewModel.PvPSubTabs()
+    )
   end)
 
   it("lists honourable kills and killing blows with totals and today", function()
@@ -997,5 +1000,175 @@ describe("ViewModel PvP", function()
     local text = table.concat(ViewModel.PvPStats(nil, { blowsAvailable = true }), "\n")
     assert.is_truthy(text:find("Honourable kills are not available on this client.", 1, true))
     assert.is_truthy(text:find("Today: 0 (open world 0, battleground 0)", 1, true))
+  end)
+end)
+
+describe("ViewModel.PvPRanking", function()
+  local RANKS = { { name = "Private", kills = 0 }, { name = "Corporal", kills = 25 } }
+
+  local function record(world, bg, blows, updatedAt)
+    return {
+      honor = { world = world, bg = bg },
+      blows = blows and { world = blows, bg = 0 } or nil,
+      updatedAt = updatedAt or 900,
+      rev = 1,
+    }
+  end
+
+  local function names(rows)
+    local list = {}
+    for _, row in ipairs(rows) do
+      list[#list + 1] = row.name
+    end
+    return list
+  end
+
+  local function options(overrides)
+    local o = {
+      own = { name = "Me", stats = { honor = { world = 5, bg = 5 }, blows = { world = 2, bg = 0 }, daily = {} } },
+      rosterNames = { Ann = true, Bob = true, Cid = true, Me = true },
+      ranks = RANKS,
+      now = 1000,
+    }
+    for k, v in pairs(overrides or {}) do
+      o[k] = v
+    end
+    return o
+  end
+
+  local records = {
+    Ann = record(20, 10, 4, 940),
+    Bob = record(5, 0, nil, 1000 - 7200),
+    Cid = record(15, 15, nil, 1000 - 3 * 86400),
+  }
+
+  it("orders by total honourable kills, highest first, then by name", function()
+    local rows = ViewModel.PvPRanking(records, options())
+    assert.are.same({ "Ann", "Cid", "Me", "Bob" }, names(rows))
+    local tied = ViewModel.PvPRanking({ Bob = record(10, 0), Ann = record(5, 5), Cid = record(2, 2) }, options())
+    assert.are.same({ "Ann", "Bob", "Me", "Cid" }, names(tied))
+  end)
+
+  it("fills each row with the counters, the rank name and the age of the last update", function()
+    local rows = ViewModel.PvPRanking(records, options())
+    assert.are.equal(20, rows[1].world)
+    assert.are.equal(10, rows[1].bg)
+    assert.are.equal(30, rows[1].total)
+    assert.are.equal(4, rows[1].blows)
+    assert.are.equal("Corporal", rows[1].rank)
+    assert.are.equal("1 min ago", rows[1].updated)
+    assert.are.equal("3 d ago", rows[2].updated)
+    assert.are.equal("2 h ago", rows[4].updated)
+    assert.are.equal("Private", rows[4].rank)
+    assert.is_nil(rows[4].blows)
+  end)
+
+  it("always lists the own row, from the local counters, and marks it", function()
+    local synced = { Me = record(999, 999) }
+    local rows = ViewModel.PvPRanking(synced, options({ blowsAvailable = true }))
+    assert.are.equal(1, #rows)
+    assert.are.equal("Me", rows[1].name)
+    assert.is_true(rows[1].mine)
+    assert.are.equal(10, rows[1].total)
+    assert.are.equal(2, rows[1].blows)
+    assert.are.equal("now", rows[1].updated)
+    -- Even when the roster does not list this character yet.
+    rows = ViewModel.PvPRanking({}, options({ rosterNames = {} }))
+    assert.are.same({ "Me" }, names(rows))
+  end)
+
+  it("hides the records of members who are not in the roster", function()
+    local rows = ViewModel.PvPRanking(records, options({ rosterNames = { Ann = true } }))
+    assert.are.same({ "Ann", "Me" }, names(rows))
+    rows = ViewModel.PvPRanking(records, options({ rosterNames = false }))
+    assert.are.same({ "Me" }, names(rows))
+    local without = options()
+    without.rosterNames = nil
+    rows = ViewModel.PvPRanking(records, without)
+    assert.are.same({ "Me" }, names(rows))
+  end)
+
+  it("skips damaged records", function()
+    local damaged = { Ann = "oops", Bob = { honor = "x" }, Cid = { honor = { world = 1 } }, [5] = record(1, 1) }
+    local rows = ViewModel.PvPRanking(damaged, options({ rosterNames = { Ann = true, Bob = true, Cid = true } }))
+    assert.are.same({ "Me" }, names(rows))
+  end)
+
+  it("sorts by the chosen column, in the chosen direction", function()
+    local rows = ViewModel.PvPRanking(records, options({ sort = { key = "name", descending = false } }))
+    assert.are.same({ "Ann", "Bob", "Cid", "Me" }, names(rows))
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "name", descending = true } }))
+    assert.are.same({ "Me", "Cid", "Bob", "Ann" }, names(rows))
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "world", descending = false } }))
+    assert.are.same({ "Bob", "Me", "Cid", "Ann" }, names(rows))
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "bg", descending = true } }))
+    assert.are.same({ "Cid", "Ann", "Me", "Bob" }, names(rows))
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "rank", descending = true } }))
+    assert.are.equal("Corporal", rows[1].rank)
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "updated", descending = true } }))
+    assert.are.same({ "Me", "Ann", "Bob", "Cid" }, names(rows))
+  end)
+
+  it("sorts members without killing blows last when sorting by them", function()
+    local rows = ViewModel.PvPRanking(records, options({ sort = { key = "blows", descending = true } }))
+    assert.are.equal("Ann", rows[1].name)
+    assert.is_nil(rows[#rows].blows)
+    rows = ViewModel.PvPRanking(records, options({ sort = { key = "nonsense", descending = false } }))
+    assert.are.same({ "Ann", "Cid", "Me", "Bob" }, names(rows))
+  end)
+
+  it("toggles the direction with NextSort and starts the numbers high to low", function()
+    local first = ViewModel.NextSort(nil, "total", ViewModel.PVP_FIRST_DESCENDING)
+    assert.are.same({ key = "total", descending = true }, first)
+    assert.are.same(
+      { key = "total", descending = false },
+      ViewModel.NextSort(first, "total", ViewModel.PVP_FIRST_DESCENDING)
+    )
+    assert.are.same(
+      { key = "name", descending = false },
+      ViewModel.NextSort(first, "name", ViewModel.PVP_FIRST_DESCENDING)
+    )
+  end)
+
+  it("shows the killing blows column only when they are available or somebody sent them", function()
+    local _, columns = ViewModel.PvPRanking({ Bob = records.Bob }, options())
+    assert.is_false(columns.blows)
+    _, columns = ViewModel.PvPRanking({ Bob = records.Bob }, options({ blowsAvailable = true }))
+    assert.is_true(columns.blows)
+    _, columns = ViewModel.PvPRanking({ Ann = records.Ann }, options())
+    assert.is_true(columns.blows)
+  end)
+
+  it("escapes names and ranks", function()
+    local rows = ViewModel.PvPRanking(
+      { ["|cffff0000Eve"] = record(1, 1) },
+      options({ rosterNames = { ["|cffff0000Eve"] = true }, ranks = { { name = "Ra|nk", kills = 0 } } })
+    )
+    for _, row in ipairs(rows) do
+      assert.are.equal("Ra||nk", row.rank)
+    end
+    local labels = {}
+    for _, row in ipairs(rows) do
+      labels[row.name] = row.label
+    end
+    assert.are.equal("||cffff0000Eve", labels["|cffff0000Eve"])
+  end)
+
+  it("uses the configured ranks by default", function()
+    local plain = options()
+    plain.ranks = nil
+    local rows = ViewModel.PvPRanking({}, plain)
+    assert.are.equal("Private", rows[1].rank)
+  end)
+
+  it("shows a dash for a missing last update", function()
+    local noClock = options()
+    noClock.now = nil
+    local rows = ViewModel.PvPRanking({ Bob = { honor = { world = 1, bg = 1 } } }, noClock)
+    local bob
+    for _, row in ipairs(rows) do
+      bob = row.name == "Bob" and row or bob
+    end
+    assert.are.equal("-", bob.updated)
   end)
 end)

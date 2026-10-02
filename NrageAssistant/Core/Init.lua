@@ -63,10 +63,41 @@ local function StartPvP()
     platform = ns.Platform,
     stats = pvp,
     schedule = C_Timer.After,
-    onChange = ns.UI.PvPChanged,
   })
   tracker:Start()
   ns.pvpTracker = tracker
+
+  -- The own counters go to the guild by themselves: a while after login, and after a change at most once per
+  -- interval. Without a transport (or outside the guild) nothing is scheduled.
+  local publisher = ns.PvPPublisher.New({
+    sync = ns.character.pvpSync,
+    stats = pvp,
+    send = function(payload)
+      return ns.comm:SendPvPStats(payload)
+    end,
+    now = ns.Platform.Now,
+    serverTime = ns.Platform.ServerTime,
+    day = function()
+      return tracker:Day()
+    end,
+    blowsAvailable = function()
+      return tracker.blowsAvailable
+    end,
+    schedule = C_Timer.After,
+    random = math.random,
+  })
+  ns.pvpPublisher = publisher
+  tracker.onChange = function()
+    ns.UI.PvPChanged()
+    publisher:Changed()
+  end
+  -- An admin reset of this character (received, or found in a snapshot): zero the counters, tell the guild.
+  ns.comm.onPvPReset = function(rev)
+    ns.PvPService.Reset(pvp)
+    publisher:OnReset(rev)
+    ns.UI.PvPChanged()
+  end
+  publisher:SendAtLogin()
 
   local pvpFrame = CreateFrame("Frame")
   for _, event in ipairs(PVP_HONOR_EVENTS) do

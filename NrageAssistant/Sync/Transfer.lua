@@ -112,8 +112,11 @@ function Transfer.Decode(libs, text)
 end
 
 -- The most recent `maxEvents` events (by start time, else last edit), each with its attendance and
--- assignments, plus every tombstone. Used for the snapshot answered to a late joiner.
-function Transfer.BuildSnapshot(events, tombstones, maxEvents)
+-- assignments, plus every tombstone. Used for the snapshot answered to a late joiner. `pvp` (optional) is a PvP
+-- context (see PvPSync) and `maxPvP` how many of its records and resets to add: the PvP items are appended
+-- after the raid ones and carry the owner of each record, which only a snapshot may do. The text export never
+-- includes them (BuildItems is used for it).
+function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP)
   local list = {}
   for _, event in pairs(events) do
     list[#list + 1] = event
@@ -130,20 +133,52 @@ function Transfer.BuildSnapshot(events, tombstones, maxEvents)
   for index = 1, math.min(maxEvents, #list) do
     recent[list[index].eventId] = list[index]
   end
-  return Transfer.BuildItems(recent, tombstones)
+  local items = Transfer.BuildItems(recent, tombstones)
+  if pvp and maxPvP and maxPvP > 0 then
+    for _, item in ipairs(ns.PvPSync.SnapshotItems(pvp, maxPvP)) do
+      items[#items + 1] = item
+    end
+  end
+  return items
+end
+
+-- A PvP item of a snapshot, applied as if its owner had sent it (a reset is applied under the role of the
+-- sender of the snapshot, so it only counts when that is an admin). Only a snapshot names an owner.
+local function applyPvPItem(item, ctx, sender, role)
+  local owner = sender
+  if item.t == "PVP_STATS" then
+    if not ns.EventModel.IsCharacterKey(item.owner) then
+      return false, "bad_owner"
+    end
+    owner = item.owner
+  end
+  local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
+  if not message then
+    return false, invalid
+  end
+  return ns.PvPSync.Apply(ctx, message, owner, role)
 end
 
 -- Applies a list of { t, p } items as if `sender` had sent each one: every item goes through the
 -- protocol validation, the role check for `role` and the conflict rules. `ctx` = { events, tombstones,
--- now } as for EventSync. Returns { total, applied, skipped = { [reason] = count } }.
+-- now } as for EventSync; PvP items are only applied when `ctx.pvpStats` is there (see PvPSync), which a text
+-- import never provides. Returns { total, applied, pvp (how many of those were PvP), skipped = { [reason] = count } }.
 function Transfer.ApplyItems(items, ctx, sender, role)
-  local summary = { total = #items, applied = 0, skipped = {} }
+  local summary = { total = #items, applied = 0, pvp = 0, skipped = {} }
   local function skip(why)
     summary.skipped[why] = (summary.skipped[why] or 0) + 1
   end
 
   for _, item in ipairs(items) do
-    if type(item) ~= "table" or type(item.t) ~= "string" or not ns.EventSync.IsRaidMessage(item.t) then
+    if type(item) == "table" and type(item.t) == "string" and ctx.pvpStats and ns.PvPSync.IsPvPMessage(item.t) then
+      local ok, why = applyPvPItem(item, ctx, sender, role)
+      if ok then
+        summary.applied = summary.applied + 1
+        summary.pvp = summary.pvp + 1
+      else
+        skip(why)
+      end
+    elseif type(item) ~= "table" or type(item.t) ~= "string" or not ns.EventSync.IsRaidMessage(item.t) then
       skip("unsupported")
     else
       local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))

@@ -186,7 +186,7 @@ local function build(rank)
       env.tooltip.shown = false
     end,
   }
-  ns.db = { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} } } }
+  ns.db = { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} }, pvpStats = {} } }
   ns.character = {
     profile = { fields = {} },
     consent = {},
@@ -286,7 +286,10 @@ describe("Window smoke test", function()
 
   it("draws the PvP tab with the counters and redraws it when they change", function()
     local pvp = env.open("pvp")
-    assert.are.same({ { value = "mine", text = "My stats" } }, env.find(pvp, "TabGroup").props.tabs)
+    assert.are.same(
+      { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } },
+      env.find(pvp, "TabGroup").props.tabs
+    )
     local function texts(root)
       local found = {}
       walk(root, function(widget)
@@ -310,6 +313,103 @@ describe("Window smoke test", function()
     text = texts(scrolls[#scrolls])
     assert.is_truthy(text:find("Killing blows", 1, true))
     assert.is_nil(text:find("not available", 1, true))
+  end)
+
+  describe("PvP ranking", function()
+    local function cells(root)
+      local found = {}
+      walk(root, function(widget)
+        if (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text then
+          found[#found + 1] = widget.props.text
+        end
+      end)
+      return found
+    end
+
+    local function open_ranking()
+      env.ns.db.global.pvpStats = {
+        ["Ann-Realm"] = {
+          honor = { world = 30, bg = 20 },
+          blows = { world = 5, bg = 1 },
+          updatedAt = 900,
+          rev = 1,
+        },
+        ["Gone-Realm"] = { honor = { world = 99, bg = 99 }, updatedAt = 900, rev = 1 },
+      }
+      local pvp = env.open("pvp")
+      env.find(pvp, "TabGroup"):SelectTab("ranking")
+      return pvp
+    end
+
+    it("draws the members in the roster and the own row, hiding those who left", function()
+      local text = table.concat(cells(open_ranking()), "\n")
+      assert.is_truthy(text:find("Ann-Realm", 1, true))
+      assert.is_truthy(text:find("ff33ff99Leader-Realm", 1, true))
+      assert.is_nil(text:find("Gone-Realm", 1, true))
+      assert.is_truthy(text:find("Blows", 1, true))
+      assert.is_truthy(text:find("Total", 1, true))
+    end)
+
+    it("leaves out the killing blows column when nobody has them", function()
+      env.ns.db.global.pvpStats = {}
+      local pvp = env.open("pvp")
+      env.find(pvp, "TabGroup"):SelectTab("ranking")
+      local text = table.concat(cells(pvp), "\n")
+      assert.is_nil(text:find("Blows", 1, true))
+      assert.is_truthy(text:find("Leader-Realm", 1, true))
+    end)
+
+    it("sorts by a column when its title is clicked, and flips on the second click", function()
+      local pvp = open_ranking()
+      local function order()
+        local list = {}
+        for _, text in ipairs(cells(pvp)) do
+          local name = text:match("(%a+%-Realm)")
+          if name then
+            list[#list + 1] = name
+          end
+        end
+        return list
+      end
+      assert.are.same({ "Ann-Realm", "Leader-Realm" }, order())
+
+      local function click(title)
+        local header = find_all(pvp, function(w)
+          return w.kind == "InteractiveLabel" and w.props.text and w.props.text:find(title, 1, true)
+        end)[1]
+        env.widgets = {}
+        header.callbacks.OnClick()
+        local scrolls = find_all(env.widgets[1], function(w)
+          return w.kind == "ScrollFrame"
+        end)
+        pvp = scrolls[#scrolls]
+      end
+      click("Name")
+      assert.are.same({ "Ann-Realm", "Leader-Realm" }, order())
+      click("Name")
+      assert.are.same({ "Leader-Realm", "Ann-Realm" }, order())
+    end)
+
+    it("redraws when a record arrives, but not more than once per interval", function()
+      local clock = 100
+      env.ns.Platform.Now = function()
+        return clock
+      end
+      open_ranking()
+      env.timers = nil
+      env.widgets = {}
+      env.ns.UI.PvPChanged()
+      assert.is_true(#env.widgets > 0)
+      -- A second change in the same instant waits for the timer instead of redrawing.
+      env.widgets = {}
+      env.ns.UI.PvPChanged()
+      env.ns.UI.PvPChanged()
+      assert.are.equal(0, #env.widgets)
+      assert.are.equal(1, #env.timers)
+      clock = clock + env.ns.Constants.PVP_REDRAW_SECONDS
+      env.timers[1]()
+      assert.is_true(#env.widgets > 0)
+    end)
   end)
 
   it("does not redraw when the PvP tab is not the one on screen", function()

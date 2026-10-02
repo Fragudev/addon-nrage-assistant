@@ -10,8 +10,8 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 5", function()
-    assert.are.equal(5, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 6", function()
+    assert.are.equal(6, ns.Constants.SCHEMA_VERSION)
   end)
 
   it("defines PvP ranks with names and thresholds that keep going up", function()

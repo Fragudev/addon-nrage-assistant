@@ -8,6 +8,7 @@ local Comm = {}
 Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
+--       pvpStats (table), pvpResets (table), onPvPChange() and onPvPReset(rev) (optional),
 --       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
 --       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
@@ -22,6 +23,10 @@ function Comm.New(deps)
     roleOf = deps.roleOf,
     ownRole = deps.ownRole,
     onLootChange = deps.onLootChange,
+    pvpStats = deps.pvpStats or {},
+    pvpResets = deps.pvpResets or {},
+    onPvPChange = deps.onPvPChange,
+    onPvPReset = deps.onPvPReset,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -209,6 +214,9 @@ function Comm:HandleMessage(text, sender, channel)
   if message.t == "PROFILE" then
     return self:HandleProfile(sender, message.p)
   end
+  if ns.PvPSync.IsPvPMessage(message.t) then
+    return self:HandlePvP(sender, message)
+  end
   -- SYNC_DATA is only ever accepted as a whisper.
   return false, "wrong_channel"
 end
@@ -255,7 +263,9 @@ function Comm:SendSnapshot(target)
   local constants = ns.Constants
   local count = constants.SYNC_MAX_EVENTS
   while count >= 1 do
-    local items = ns.Transfer.BuildSnapshot(self.events, self.tombstones, count)
+    -- The PvP part shrinks along with the events, so a snapshot that is too big gets smaller as a whole.
+    local pvpMax = math.floor(constants.PVP_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
+    local items = ns.Transfer.BuildSnapshot(self.events, self.tombstones, count, self:PvPContext(), pvpMax)
     if #items == 0 then
       return false, "empty"
     end
@@ -317,9 +327,13 @@ function Comm:HandleWhisper(text, sender)
     return false, "duplicate"
   end
 
-  local ctx = { events = self.events, tombstones = self.tombstones, now = self.platform.ServerTime }
+  local ctx = self:PvPContext()
+  ctx.events, ctx.tombstones = self.events, self.tombstones
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
+  if summary.pvp > 0 and self.onPvPChange then
+    self.onPvPChange("SYNC_DATA")
+  end
   return true
 end
 
@@ -333,6 +347,27 @@ function Comm:HandleRaid(sender, message)
   local ok, reason = ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onLootChange and message.t:sub(1, 5) == "LOOT_" then
     self.onLootChange(message.t)
+  end
+  return ok, reason
+end
+
+-- The tables and callbacks the PvP rules work with.
+function Comm:PvPContext()
+  return {
+    pvpStats = self.pvpStats,
+    pvpResets = self.pvpResets,
+    now = self.platform.ServerTime,
+    ownKey = self.platform.GetIdentityKey,
+    onOwnReset = self.onPvPReset,
+  }
+end
+
+-- PVP_STATS and PVP_RESET: the sender's role is read from the local guild roster, and a record belongs to the
+-- sender, never to a name in the payload.
+function Comm:HandlePvP(sender, message)
+  local ok, reason = ns.PvPSync.Apply(self:PvPContext(), message, sender, self.roleOf(sender))
+  if ok and self.onPvPChange then
+    self.onPvPChange(message.t)
   end
   return ok, reason
 end
@@ -374,6 +409,34 @@ end
 function Comm:SendLootVote(eventId, sessionId, vote)
   local payload = ns.LootSync.VotePayload(eventId, sessionId, vote)
   return self:Send("LOOT_VOTE", payload, ("LV:%s:%s"):format(eventId, sessionId))
+end
+
+-- The own counters. Keyed, so a newer message replaces one still waiting in the queue.
+function Comm:SendPvPStats(payload)
+  return self:Send("PVP_STATS", payload, "pvp")
+end
+
+-- Admin only: resets a member. The reset is applied here first (own messages are never received), then told to
+-- the guild. Returns true, the revision used and whether it was queued; or false plus the reason.
+function Comm:ResetPvP(target)
+  local role = self.ownRole()
+  if not ns.PermissionService.Can(role, "moderate") then
+    return false, "forbidden"
+  end
+  local ctx = self:PvPContext()
+  local payload = { target = target, rev = ns.PvPSync.NextResetRev(ctx, target) }
+  local message = ns.Protocol.Validate(ns.Protocol.Build("PVP_RESET", payload, "local"))
+  if not message then
+    return false, "bad_target"
+  end
+  local ok, reason = ns.PvPSync.Apply(ctx, message, self.platform.GetIdentityKey(), role)
+  if not ok then
+    return false, reason
+  end
+  if self.onPvPChange then
+    self.onPvPChange(message.t)
+  end
+  return true, payload.rev, (self:Send("PVP_RESET", message.p, "PVPR:" .. target))
 end
 
 function Comm:SendDeleteEvent(eventId)
@@ -473,6 +536,13 @@ function Comm.Start()
     onLootChange = function()
       if ns.UI and ns.UI.LootChanged then
         ns.UI.LootChanged()
+      end
+    end,
+    pvpStats = ns.db.global.pvpStats,
+    pvpResets = ns.db.global.pvpResets,
+    onPvPChange = function()
+      if ns.UI and ns.UI.PvPChanged then
+        ns.UI.PvPChanged()
       end
     end,
     version = ns.GetVersion(),

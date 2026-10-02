@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 5,
+  SCHEMA_VERSION = 6,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 0,
+  PROTOCOL_MINOR = 1,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -108,6 +108,24 @@ ns.Constants = {
   PVP_DAILY_DAYS = 30,
   -- The honour counter can update a moment after its event; it is read once more after this delay.
   PVP_RECHECK_SECONDS = 0.5,
+  -- PvP sync. A counter in a PVP_STATS message is a whole number in 0..PVP_MAX_KILLS. The receiver accepts at most
+  -- PVP_MAX_KILLS_PER_HOUR new honourable kills per hour since the previous record of that member (never less than
+  -- one hour's worth), which limits a modified client; it cannot prevent one.
+  PVP_MAX_KILLS = 1000000,
+  PVP_MAX_KILLS_PER_HOUR = 300,
+  -- The own counters are sent at most this often (a change waits for the next slot, a burst of kills is one message).
+  PVP_SYNC_INTERVAL_SECONDS = 60,
+  -- A change is sent no sooner than this, so the two readings of one kill (PVP_RECHECK_SECONDS) become one message.
+  PVP_SYNC_MIN_DELAY_SECONDS = 2,
+  -- After login the own counters are sent once, after a random delay in this range.
+  PVP_LOGIN_SEND_DELAY_MIN = 8,
+  PVP_LOGIN_SEND_DELAY_MAX = 20,
+  -- A snapshot carries at most this many PvP records (the most recently updated) and this many admin resets.
+  PVP_SNAPSHOT_MAX = 100,
+  -- The ranking draws at most this many rows (one widget per cell).
+  PVP_RANKING_ROWS_MAX = 100,
+  -- A redraw of the PvP tab because of a received record waits at least this long after the previous one.
+  PVP_REDRAW_SECONDS = 1,
   -- PvP ranks, lowest first, as in the Classic honour system. `kills` is the total of honourable kills (open
   -- world plus battleground) a rank needs; killing blows do not count. Names and thresholds can be changed
   -- freely, and the list can be longer or shorter, as long as the thresholds keep going up. The rank is worked

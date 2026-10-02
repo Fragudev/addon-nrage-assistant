@@ -50,9 +50,11 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `LOOT_SESSION` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `status` | council, admin |
 | `LOOT_CANDIDATE` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `spec`, `need`, optional `upgrade` | anyone; the candidate is the sender |
 | `LOOT_VOTE` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `target` | council, admin; the voter is the sender |
+| `PVP_STATS` | guild | `rev`, `updatedAt`, `honor{world, bg}`, optional `blows{world, bg}`, `today{day, honor{world, bg}, optional blows{world, bg}}` | anyone, for themselves; the record belongs to the sender |
+| `PVP_RESET` | guild | `target`, `rev` | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
-| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid or loot messages | rl, admin (checked before decoding) |
+| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot or PvP messages (a `PVP_STATS` item also carries `owner`) | rl, admin (checked before decoding) |
 
 `guid` is deliberately never sent.
 
@@ -73,6 +75,38 @@ order end up identical.
 - A `LOOT_SESSION` that wins replaces the session state, an award included. `LOOT_AWARD` carries the item, so a
   client that never saw the session can still record the decision.
 - A candidate or vote is accepted only for an open session; a vote only for a known candidate.
+
+## PvP counters
+
+`PVP_STATS` follows the `PROFILE` model: the record belongs to the **sender**, there is no name in the payload and
+a name sent anyway is dropped. Counters are whole numbers from 0 to 1,000,000, `day` is a `YYYY-MM-DD` server date
+in UTC, and `blows` (killing blows) is left out by a client that cannot read the combat log; the receiver then
+keeps the killing blows it already knew. The rank is never sent: every client works it out from the honourable
+kills. The records are stored in `db.global.pvpStats[owner]`, at most 1000 (when full, the record updated longest
+ago makes room).
+
+Sending is automatic: a change of the counters is sent after a couple of seconds, but at most once per minute
+(a burst of kills is one message), and once about 8 to 20 seconds after login. The queue key `pvp` makes a newer
+message replace a queued one, and nothing is sent during an encounter lockdown.
+
+A record is dropped when:
+
+- its `rev` does not exceed the minimum left by an admin reset (`reset`), or it does not win the conflict rules
+  above (`stale`; an identical record is a no-op);
+- it is **implausible** next to the record held for the same sender: a total (open world or battleground,
+  honourable kills or killing blows) went down, the honourable kills grew by more than 300 per hour since the
+  previous record's `updatedAt` (never less than one hour's worth, so there is no zero window), a day holds more
+  than the total, or the totals of a first record exceed 1,000,000.
+
+These checks only limit what a **modified client** can claim: someone who stays within them can still inflate
+their numbers by about 300 kills an hour, and the first record of a sender is only bounded by the maximum. They
+cannot make the counters true.
+
+`PVP_RESET` (admin only, `moderate`) zeroes the record held for `target` and stores `rev` as the **minimum
+accepted revision** (`db.global.pvpResets[target]`, the highest one is kept), so the old totals cannot come back
+with an older `rev`. The admin's client picks a `rev` above everything it has seen of that member. The target's own
+client resets its counters when it receives the message and continues with revisions above it. A member who was
+offline during the reset learns it from the snapshot on the next login, when the snapshot comes from an admin.
 
 ## Deletions
 
@@ -102,13 +136,22 @@ are bounded (500) and expire after 30 days.
 Loot candidates and votes are not part of a snapshot: on the wire they always belong to the sender and cannot be
 re-attributed to whoever relays them.
 
+PvP records are part of a snapshot, and here is the one documented exception to "the author is the sender": inside
+`SYNC_DATA` (only accepted from a raid leader or admin, checked before decoding) a `PVP_STATS` item carries the
+`owner` of the record, validated like a character name, and is applied as if that owner had sent it, through the
+same plausibility and conflict rules, so a relayed record cannot lower or outrun what a client already holds. On
+the guild channel an `owner` is never accepted. The PvP part is capped separately: the 100 most recently updated
+records and the 100 highest resets, shrinking together with the events if the snapshot does not fit. The resets
+in a snapshot only count when its sender is an admin (a raid leader cannot reset anybody). PvP is not part of the
+text export.
+
 ## Limits on stored data
 
 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
-and 30 votes each, 500 received profiles, 20 templates. Events are purged 90 days after their start.
+and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 20 templates. Events are purged 90 days after their start.
 
 ## Text import and export
 
 `NRAGE1:` followed by LibSerialize, LibDeflate and the print encoding of `{ items = { { t, p } ... } }`, the same
-items a snapshot carries. Import requires the manage-events role, accepts at most 32 KB of text, 256 KB decoded and
+raid items a snapshot carries (never PvP records: an imported `PVP_STATS` or `PVP_RESET` item is skipped). Import requires the manage-events role, accepts at most 32 KB of text, 256 KB decoded and
 3000 items, and applies each item like a received message, with the sender `import`.
