@@ -1,0 +1,31 @@
+NrageAssistant/Locales/esES.lua
+  s_3a1049e925af91::t_53b2c3a0a5fefc 179-290
+NrageAssistant/UI/LootPopup.lua
+  s_3a1049e925af91::t_1f1b3c548131a1 9-10,117,139-141,168,201
+NrageAssistant/UI/Main.lua
+  s_3a1049e925af91::t_b91ed3109abd92 7-8,191,202,205,208-209,213,216-217,321,337,343,345,349,361,366,368,376-377,381,388,397,404,413,423,426-427,429,446,448,456,459,461,468,470,533,572-573,575,592,599,610,618,621,627,669,675,681-683,686,695,697,702,718-724,768-781,808,810,882-884,886,894,896,904,911-912,924,926,935,946,950,953,960,965,969-971,974,979,984-985,1035-1041,1053,1066,1068,1075-1076,1086,1088
+NrageAssistant/UI/VotingFrame.lua
+  s_3a1049e925af91::t_a4aed76a9f179a 9-10,178,196,199,204,225,232,241,250,259,268,272,300,342,348,356-357
+tests/loot_popup_spec.lua
+  s_3a1049e925af91::t_35139f9e99dd04 3
+tests/ui_smoke_spec.lua
+  s_3a1049e925af91::t_63c8be5e6a66d7 83-84,89,114-116,121-122,1261-1291
+tests/voting_frame_spec.lua
+  s_3a1049e925af91::t_d77c896eeeb4d2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2941851eddfcee55cca9da46faeba6dcfcaab87d",
+  "prompts": {},
+  "sessions": {
+    "s_3a1049e925af91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b8de4a-e96a-43bc-b513-78261550de6e",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
