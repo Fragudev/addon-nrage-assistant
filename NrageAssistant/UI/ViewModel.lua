@@ -170,6 +170,10 @@ function ViewModel.PvPRankLine(kills, ranks)
 end
 
 -- The sub-tabs of the PvP tab: the own counters and the guild ranking.
+-- The period selector of the ranking.
+ViewModel.PVP_PERIODS = { total = "Total", today = "Today" }
+ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
+
 function ViewModel.PvPSubTabs()
   return { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } }
 end
@@ -185,14 +189,17 @@ local function ageText(seconds)
   return ("%d d ago"):format(math.floor(seconds / 86400))
 end
 
-local function rankRow(name, honor, blows, updatedAt, mine, options, ranks)
+-- `honor` and `blows` are the counters shown (all time or today); `rankKills` is the all-time total of
+-- honourable kills, because the rank never depends on the period shown.
+local function rankRow(name, honor, blows, rankKills, updatedAt, mine, options, ranks)
   local total = honor.world + honor.bg
-  local rank = ns.PvPService.RankFor(total, ranks)
+  local rank = ns.PvPService.RankFor(rankKills, ranks)
   return {
     name = name,
     label = ViewModel.Escape(name),
     rank = ViewModel.Escape(rank.name or "-"),
     rankIndex = rank.index or 0,
+    rankKills = rankKills,
     world = honor.world,
     bg = honor.bg,
     total = total,
@@ -211,6 +218,19 @@ local function validPair(pair)
   return type(pair) == "table" and type(pair.world) == "number" and type(pair.bg) == "number"
 end
 
+local ZERO_PAIR = { world = 0, bg = 0 }
+
+-- Today's counters of a received record: its `today` block when it is for `day`, else zeros (the member has not
+-- sent anything today). Killing blows stay nil when the member never sent any.
+local function todayOf(record, day, hasBlows)
+  local block = record.today
+  if type(block) ~= "table" or block.day ~= day or type(day) ~= "string" or not validPair(block.honor) then
+    return ZERO_PAIR, hasBlows and ZERO_PAIR or nil
+  end
+  local blows = validPair(block.blows) and block.blows or (hasBlows and ZERO_PAIR or nil)
+  return block.honor, blows
+end
+
 -- The guild ranking of the PvP tab: one row per member with counters, most honourable kills first. `records` is
 -- db.global.pvpStats (received); `options`:
 --   own = { name, stats }     this character, always listed, from the local counters (not from the synced copy)
@@ -218,6 +238,10 @@ end
 --   ranks                     default Constants.PVP_RANKS
 --   blowsAvailable            this client reads killing blows (the own row has them)
 --   now                       server time, for the "last update" text
+--   period                    "total" (default) or "today": which counters the columns show; the rank is always
+--                             the all-time one
+--   day                       today as "YYYY-MM-DD" (server date), for period "today": a record whose day is
+--                             another one counts as zero
 --   sort = { key, descending }  key: "name" | "rank" | "world" | "bg" | "total" | "blows" | "updated"
 --                             (default: total, highest first). Ties fall back to the name.
 -- Returns the rows and { blows = boolean }: the killing blows column is only worth showing when this client reads
@@ -226,6 +250,7 @@ function ViewModel.PvPRanking(records, options)
   local ranks = options.ranks or ns.Constants.PVP_RANKS
   local roster = options.rosterNames or {}
   local own = options.own
+  local today = options.period == "today"
   local rows = {}
 
   for name, record in pairs(records or {}) do
@@ -233,14 +258,20 @@ function ViewModel.PvPRanking(records, options)
       if type(record) == "table" and validPair(record.honor) then
         local blows = validPair(record.blows) and record.blows or nil
         local updatedAt = type(record.updatedAt) == "number" and record.updatedAt or nil
-        rows[#rows + 1] = rankRow(name, record.honor, blows, updatedAt, false, options, ranks)
+        local rankKills = record.honor.world + record.honor.bg
+        local honor = record.honor
+        if today then
+          honor, blows = todayOf(record, options.day, blows ~= nil)
+        end
+        rows[#rows + 1] = rankRow(name, honor, blows, rankKills, updatedAt, false, options, ranks)
       end
     end
   end
   if own then
     local totals = ns.PvPService.Totals(own.stats)
-    local blows = options.blowsAvailable and totals.blows or nil
-    rows[#rows + 1] = rankRow(own.name, totals.honor, blows, nil, true, options, ranks)
+    local shown = today and ns.PvPService.Today(own.stats, options.day) or totals
+    local blows = options.blowsAvailable and shown.blows or nil
+    rows[#rows + 1] = rankRow(own.name, shown.honor, blows, totals.honor.total, nil, true, options, ranks)
   end
 
   local showBlows = options.blowsAvailable and true or false
@@ -258,7 +289,7 @@ function ViewModel.PvPRanking(records, options)
     if key == "name" then
       left, right = a.name:lower(), b.name:lower()
     elseif key == "rank" then
-      left, right = a.rankIndex, b.rankIndex
+      left, right = a.rankKills, b.rankKills
     elseif key == "world" or key == "bg" or key == "total" then
       left, right = a[key], b[key]
     elseif key == "blows" then

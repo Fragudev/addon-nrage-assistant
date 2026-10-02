@@ -350,6 +350,20 @@ describe("Window smoke test", function()
       assert.is_truthy(text:find("Total", 1, true))
     end)
 
+    it("switches between all-time and today's counters", function()
+      local pvp = open_ranking()
+      assert.is_truthy(table.concat(cells(pvp), "\n"):find("\n50\n", 1, true))
+      env.widgets = {}
+      env.find(pvp, "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "today")
+      local scrolls = find_all(env.widgets[1], function(w)
+        return w.kind == "ScrollFrame"
+      end)
+      local text = table.concat(cells(scrolls[#scrolls]), "\n")
+      assert.is_nil(text:find("\n50\n", 1, true))
+      assert.is_truthy(text:find("Today's kills", 1, true))
+      env.find(scrolls[#scrolls], "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "total")
+    end)
+
     it("leaves out the killing blows column when nobody has them", function()
       env.ns.db.global.pvpStats = {}
       local pvp = env.open("pvp")

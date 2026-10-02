@@ -208,6 +208,9 @@ in total, killing blows (only shown when you or somebody else can count them) an
 updated. The default order is total honourable kills, highest first; click a column title to sort by it and click
 it again to reverse. Members who are no longer in the guild are not listed, and at most 100 rows are drawn.
 
+The **Show** selector switches between **Total** (all time, the default) and **Today**. Today follows the server
+day in UTC: members who have not sent anything today show zero, and the rank column still shows the all-time rank.
+
 A member who logs in late gets the ranking from the snapshot a raid leader or admin whispers. The numbers can lag
 a minute behind, and a modified addon could report more than it earned: the addon only checks that totals never
 go down and do not grow faster than about 300 honourable kills an hour.
