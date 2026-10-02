@@ -14,12 +14,14 @@ local function load_modules()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/ReadinessRules",
     "Sync/Protocol",
     "Sync/SyncRules",
     "Sync/EventSync",
     "Sync/LootSync",
     "Sync/PvPSync",
     "Sync/BlacklistSync",
+    "Sync/ReadinessRulesSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)

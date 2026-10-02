@@ -117,8 +117,10 @@ end
 -- after the raid ones and carry the owner of each record, which only a snapshot may do. The text export never
 -- includes them (BuildItems is used for it). `blacklist` (optional) is the blacklist table and `maxBlacklist` how
 -- many of its entries and of its removals ("B:" tombstones) to add, after the PvP items; its entries carry their
--- author, as an item of a snapshot may. The text export leaves the blacklist out as well.
-function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP, blacklist, maxBlacklist)
+-- author, as an item of a snapshot may. The text export leaves the blacklist out as well. `readinessRules`
+-- (optional) is the stored set of guild readiness rules; its item goes last and only counts at the receiver when
+-- whoever sends the snapshot is an admin (see ReadinessRulesSync).
+function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP, blacklist, maxBlacklist, readinessRules)
   local list = {}
   for _, event in pairs(events) do
     list[#list + 1] = event
@@ -143,6 +145,12 @@ function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP, blac
   end
   if blacklist and maxBlacklist and maxBlacklist > 0 then
     for _, item in ipairs(ns.BlacklistSync.SnapshotItems(blacklist, tombstones, maxBlacklist)) do
+      items[#items + 1] = item
+    end
+  end
+  if readinessRules then
+    local item = ns.ReadinessRulesSync.SnapshotItem(readinessRules)
+    if item then
       items[#items + 1] = item
     end
   end
@@ -180,13 +188,23 @@ local function applyBlacklistItem(item, ctx, sender, role)
   return ns.BlacklistSync.Apply(ctx, message, sender, role, origin)
 end
 
+-- The readiness rules of a snapshot, applied as if the sender had sent them.
+local function applyRulesItem(item, ctx, sender, role)
+  local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
+  if not message then
+    return false, invalid
+  end
+  return ns.ReadinessRulesSync.Apply({ record = ctx.readinessRules, now = ctx.now }, message, sender, role)
+end
+
 -- Applies a list of { t, p } items as if `sender` had sent each one: every item goes through the
 -- protocol validation, the role check for `role` and the conflict rules. `ctx` = { events, tombstones,
 -- now } as for EventSync; PvP items are only applied when `ctx.pvpStats` is there (see PvPSync) and blacklist items
--- when `ctx.blacklist` is (see BlacklistSync), which a text import never provides. Returns { total, applied, pvp
--- (how many of those were PvP), blacklist (how many were blacklist), skipped = { [reason] = count } }.
+-- when `ctx.blacklist` is (see BlacklistSync), which a text import never provides; the readiness rules likewise
+-- when `ctx.readinessRules` is there. Returns { total, applied, pvp (how many of those were PvP), blacklist (how
+-- many were blacklist), rules (1 when the guild rules were applied), skipped = { [reason] = count } }.
 function Transfer.ApplyItems(items, ctx, sender, role)
-  local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, skipped = {} }
+  local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, rules = 0, skipped = {} }
   local function skip(why)
     summary.skipped[why] = (summary.skipped[why] or 0) + 1
   end
@@ -210,6 +228,19 @@ function Transfer.ApplyItems(items, ctx, sender, role)
       if ok then
         summary.applied = summary.applied + 1
         summary.blacklist = summary.blacklist + 1
+      else
+        skip(why)
+      end
+    elseif
+      type(item) == "table"
+      and type(item.t) == "string"
+      and ctx.readinessRules
+      and ns.ReadinessRulesSync.IsRulesMessage(item.t)
+    then
+      local ok, why = applyRulesItem(item, ctx, sender, role)
+      if ok then
+        summary.applied = summary.applied + 1
+        summary.rules = summary.rules + 1
       else
         skip(why)
       end

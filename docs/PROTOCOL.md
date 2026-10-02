@@ -55,9 +55,10 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
 | `BLACKLIST_UPSERT` | guild | `key`, `name` (1 to 40 bytes), `reason` (1 to 100 bytes), `rev`, `updatedAt` | anyone; the author is the sender |
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
+| `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
-| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP or blacklist messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
+| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist or readiness rules messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
 `guid` is deliberately never sent.
 
@@ -176,6 +177,21 @@ sender of the snapshot is an admin, like a PvP reset. The blacklist part is capp
 recently updated entries and the 200 newest removals, and shrinks together with the events and the PvP records
 (halved until the snapshot fits in 32 KB). The blacklist is not part of the text export, and an imported blacklist
 item is skipped.
+
+## Guild readiness rules
+
+One set of readiness rules for the whole guild (issue #32), in a single record `{ rev, updatedAt, updatedBy, rules }`
+that an admin replaces as a whole with `READINESS_RULES`. The protocol minor version was raised to 4 for it.
+
+- **Authority:** `rules_edit`, admin only, read from the receiver's own guild roster. A newer `rev` wins, then
+  `updatedAt` (clamped), then the sender; a replay is a no-op. Until a set arrives, the starting checklist applies.
+- **Rule validation:** every rule is checked field by field, and unknown fields are dropped. `check` is one of
+  `field`, `confirm`, `level`, `ilvl`, `profession`, `enchants` or `buff`, with the numbers or lists that check
+  needs (levels and item levels 1 to 999, enchant slots 1 to 18, up to 20 spell ids or names). `evidenceMode`
+  is worked out from the check and never taken from the message. Ids are unique, up to 32 characters of `[%w_]`.
+- **Late joiners:** the set is part of a snapshot only when the sender is an admin, and the receiver applies it
+  under the role of the sender, so a leader who is not an admin cannot relay (or forge) rules. For the members who
+  were not online, an admin also sends the set once after login.
 
 ## Deletions
 

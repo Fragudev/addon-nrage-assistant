@@ -2,7 +2,8 @@ local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
---                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {} }
+--                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {},
+--                 readinessRules = { rev, updatedAt, updatedBy, rules } }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
 local Store = {}
@@ -62,6 +63,11 @@ local MIGRATIONS = {
   -- sync.tombstones, which already exists.
   [8] = function(db)
     ensureTable(ensureTable(db, "global"), "blacklist")
+  end,
+  -- v9: the guild's readiness rules (readinessRules = { rev, updatedAt, updatedBy, rules }, see ReadinessRules).
+  -- Empty until an admin sets them; the starting checklist applies meanwhile.
+  [9] = function(db)
+    ensureTable(ensureTable(db, "global"), "readinessRules")
   end,
 }
 

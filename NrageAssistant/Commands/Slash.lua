@@ -52,9 +52,21 @@ local function ReadyCommand(rest)
     return
   end
 
-  local rules = ns.Constants.DEFAULT_RULES
+  local rules = ns.ReadinessRules.Current()
   local readiness = ns.character.readiness
   local sub, ruleId, status = rest:match("^(%S*)%s*(%S*)%s*(%S*)")
+  if sub == "rules" then
+    if ruleId == "default" then
+      -- Admin only: puts the starting checklist back as the guild's rules.
+      local ok, reason = ns.comm:SetReadinessRules(ns.Constants.DEFAULT_RULES)
+      say(ok and "the guild rules were reset to the starting checklist." or ("could not set the rules: " .. reason))
+      return
+    end
+    for _, line in ipairs(ns.ReadinessRules.Describe(ns.db.global.readinessRules)) do
+      print(line)
+    end
+    return
+  end
   if sub == "set" then
     local ok, reason = ns.ReadinessService.SetManual(ns.Platform, rules, readiness, ruleId, status)
     if not ok then

@@ -22,6 +22,7 @@ Core\PvPProbe.lua
 Core\Store.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
+Domain\ReadinessRules.lua
 Domain\PublishService.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
@@ -47,6 +48,7 @@ Sync\EventSync.lua
 Sync\LootSync.lua
 Sync\PvPSync.lua
 Sync\BlacklistSync.lua
+Sync\ReadinessRulesSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\ViewModel.lua

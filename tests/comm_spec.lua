@@ -15,6 +15,7 @@ local function load_addon()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/ReadinessRules",
     "Sync/Codec",
     "Sync/Protocol",
     "Sync/Inbox",
@@ -24,6 +25,7 @@ local function load_addon()
     "Sync/LootSync",
     "Sync/PvPSync",
     "Sync/BlacklistSync",
+    "Sync/ReadinessRulesSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -52,6 +54,8 @@ local function build_env()
     pvpKills = {},
     blacklist = {},
     blacklistChanges = {},
+    readinessRules = {},
+    rulesChanges = {},
     ownResets = {},
   }
 
@@ -109,6 +113,10 @@ local function build_env()
     blacklist = env.blacklist,
     onBlacklistChange = function(messageType)
       env.blacklistChanges[#env.blacklistChanges + 1] = messageType
+    end,
+    readinessRules = env.readinessRules,
+    onRulesChange = function(messageType)
+      env.rulesChanges[#env.rulesChanges + 1] = messageType
     end,
     roleOf = function(sender)
       return env.roles[sender]
@@ -1462,6 +1470,116 @@ describe("Comm blacklist", function()
     it("sends a snapshot of removals alone", function()
       leader.tombstones["B:gone"] = { at = 10, rev = 5 }
       assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+    end)
+  end)
+end)
+
+describe("Comm readiness rules", function()
+  local env
+
+  local function rules(min)
+    return { { id = "level", label = "Level", check = "level", min = min or 60 } }
+  end
+
+  local function payload(overrides)
+    local p = { rev = 1, updatedAt = 4000, rules = rules() }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.roles["Boss-Realm"] = "admin"
+  end)
+
+  it("keeps the rules an admin sends and tells the interface", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("READINESS_RULES", payload()), "Boss-Realm", "GUILD"))
+    assert.are.equal(60, env.readinessRules.rules[1].min)
+    assert.are.same({ "READINESS_RULES" }, env.rulesChanges)
+  end)
+
+  it("drops rules from a member or from a sender the roster does not know", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("READINESS_RULES", payload()), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    ok, reason = env.comm:HandleMessage(env.wire("READINESS_RULES", payload(), "id-2"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.is_nil(env.readinessRules.rules)
+    assert.are.same({}, env.rulesChanges)
+  end)
+
+  it("lets an admin set the rules: applied here, then told to the guild", function()
+    env.ownRole = "admin"
+    local ok, rev, queued = env.comm:SetReadinessRules(rules(58))
+    assert.is_true(ok)
+    assert.are.equal(1, rev)
+    assert.is_true(queued)
+    assert.are.equal(58, env.readinessRules.rules[1].min)
+    assert.are.same({ "READINESS_RULES" }, env.rulesChanges)
+    local decoded = env.codec:Decode(env.sent[1])
+    assert.are.equal("READINESS_RULES", decoded.t)
+    assert.are.equal(1, decoded.p.rev)
+
+    ok, rev = env.comm:SetReadinessRules(rules(60))
+    assert.is_true(ok)
+    assert.are.equal(2, rev)
+  end)
+
+  it("refuses to set the rules for anyone but an admin, and refuses rules that do not validate", function()
+    env.ownRole = "rl"
+    assert.are.same({ false, "forbidden" }, { env.comm:SetReadinessRules(rules()) })
+    env.ownRole = "admin"
+    assert.are.same({ false, "empty" }, { env.comm:SetReadinessRules({}) })
+    assert.are.same(
+      { false, "bad_check" },
+      { env.comm:SetReadinessRules({ { id = "x", label = "X", check = "run" } }) }
+    )
+    assert.is_nil(env.readinessRules.rules)
+    assert.are.same({}, env.sent)
+  end)
+
+  it("sends nothing while there are no rules", function()
+    assert.are.same({ false, "no_rules" }, { env.comm:SendReadinessRules() })
+  end)
+
+  describe("in a snapshot", function()
+    local leader
+
+    before_each(function()
+      leader = build_env()
+      leader.roles["Ann-Realm"] = "member"
+      leader.readinessRules.rules = rules(58)
+      leader.readinessRules.rev = 3
+      leader.readinessRules.updatedAt = 4000
+      leader.tombstones["B:x"] = { at = 1, rev = 1 }
+    end)
+
+    it("gives a late joiner the rules when the snapshot comes from an admin", function()
+      leader.ownRole = "admin"
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Boss-Realm", "WHISPER"))
+      assert.are.equal(58, env.readinessRules.rules[1].min)
+      assert.are.equal(3, env.readinessRules.rev)
+      assert.are.same({ "SYNC_DATA" }, env.rulesChanges)
+    end)
+
+    it("does not put the rules in a snapshot that does not come from an admin", function()
+      leader.ownRole = "rl"
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Boss-Realm", "WHISPER"))
+      assert.is_nil(env.readinessRules.rules)
+    end)
+
+    it("ignores the rules of a snapshot whose sender is not an admin for the receiver", function()
+      leader.ownRole = "admin"
+      env.roles["Boss-Realm"] = "rl"
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      env.comm:HandleMessage(leader.sent[1], "Boss-Realm", "WHISPER")
+      assert.is_nil(env.readinessRules.rules)
     end)
   end)
 end)

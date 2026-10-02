@@ -75,8 +75,13 @@ for example `1/3 met, 2 unknown`. An item nobody has confirmed is `unknown`, and
 
 Manual items are confirmed from a dropdown on the **Readiness** tab (the score updates at once), or with
 `/nrage ready set <item> <met|missing|waived|unknown>`. A `waived` item leaves the
-score but stays visible. The guild has not chosen the level, item level and profession thresholds yet, so today
-the list only holds the items that need no numbers.
+score but stays visible.
+
+The rules are the same for the whole guild and only an admin can change them. Until the guild sets its own, the
+starting list applies (level 60, item level, role, consumables and enchants). `/nrage ready rules` shows the rules in
+force; an admin can put the starting list back with `/nrage ready rules default`. Items measured from the game
+(level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
+hand. An editor window for admins is planned.
 
 ## Character names with several words
 

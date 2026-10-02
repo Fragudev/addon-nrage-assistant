@@ -24,6 +24,8 @@ local ACTIONS = {
   -- Changing the reason of a player who is already listed: the member who added the entry may (see
   -- BlacklistService.CanEdit), and so may an admin, for any entry.
   blacklist_edit_any = { admin = true },
+  -- Setting the readiness rules the whole guild is measured against (issue #41 may widen this later).
+  rules_edit = { admin = true },
   moderate = { admin = true },
 }
 
