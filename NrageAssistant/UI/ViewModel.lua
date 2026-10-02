@@ -29,11 +29,39 @@ local WORDS = {
   main = L("main"),
   off = L("off"),
   other = L("other"),
+  member = L("member"),
+  rl = L("raid leader"),
+  council = L("loot council"),
+  admin = L("admin"),
 }
 
 function ViewModel.Word(value)
   return WORDS[value] or value
 end
+
+-- The own guild rank and addon role, for the Home tab.
+function ViewModel.RoleLine(identityKey, rank, role)
+  return L("%s - guild rank: %s - addon role: %s"):format(
+    ViewModel.Escape(identityKey),
+    ViewModel.Escape(rank or "?"),
+    role and ViewModel.Escape(ViewModel.Word(role)) or L("none")
+  )
+end
+
+-- Why a declared profile field was not saved.
+ViewModel.PROFILE_SET_ERRORS = {
+  unknown_field = L("unknown field. Allowed: role, main, notes."),
+  too_long = L("value is too long."),
+  invalid_value = L("invalid value."),
+}
+
+-- Why the PvP counters of a member could not be reset (Comm:ResetPvP).
+ViewModel.PVP_RESET_ERRORS = {
+  forbidden = L("only an admin can reset PvP counters."),
+  stale = L("that member was already reset (or a later reset is known)."),
+  limit = L("too many resets are remembered."),
+  bad_target = L("that is not a valid member name."),
+}
 
 -- args: version, syncLines (Comm:Status()), readinessText (summary.text)
 function ViewModel.Home(args)
@@ -164,6 +192,22 @@ function ViewModel.Raid(events, formatDate)
   return lines
 end
 
+-- The attendance and loot reports, for `event` only or for every event in `events`, as lines.
+function ViewModel.ReportLines(events, event, allEvents)
+  local scope = allEvents and events or { [event.eventId] = event }
+  local lines = {}
+  local rows, held = ns.ReportService.Attendance(scope)
+  for _, line in ipairs(ns.ReportService.DescribeAttendance(rows, held)) do
+    lines[#lines + 1] = ViewModel.Escape(line)
+  end
+  lines[#lines + 1] = ""
+  local lootRows, totals = ns.ReportService.Loot(scope)
+  for _, line in ipairs(ns.ReportService.DescribeLoot(lootRows, totals)) do
+    lines[#lines + 1] = ViewModel.Escape(line)
+  end
+  return lines
+end
+
 -- The sub-tabs of the Raid tab for a role (ViewModel.RaidActions): everyone gets the summary, and each
 -- group of controls gets its own tab only when the role may use it.
 function ViewModel.RaidSubTabs(actions)
@@ -178,6 +222,7 @@ function ViewModel.RaidSubTabs(actions)
     tabs[#tabs + 1] = { value = "assignments", text = L("Assignments") }
     tabs[#tabs + 1] = { value = "templates", text = L("Templates") }
   end
+  tabs[#tabs + 1] = { value = "reports", text = L("Reports") }
   return tabs
 end
 
@@ -1138,26 +1183,9 @@ end
 
 function ViewModel.HelpLines()
   return {
-    L("/nrage               open the window"),
+    L("/nrage               open the window, where everything else is done"),
     L("/nrage help          this list"),
-    L("/nrage version       addon version"),
-    L("/nrage role          your guild rank, addon role and what it allows"),
-    L("/nrage profile       show your profile (profile set <role|main|notes> <text>)"),
-    L("/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)"),
-    L("/nrage publish       what is shared with the guild ('publish now' sends it at once)"),
-    L("/nrage event         raid events (event new <title> | rename | status | start | delete)"),
-    L("/nrage attendance    attendance for an event (attendance <n> <name> <state>)"),
-    L('/nrage assign        assignments for an event (assign <n> add <name> <encounter>; "quotes" for spaced names)'),
-    L("/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)"),
-    L("/nrage template      save an event's assignments as a template and apply it to another event"),
-    L("/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)"),
-    L("/nrage export        copy all raid events, attendance and assignments as text"),
-    L("/nrage import        paste an export to merge it into your data (RL/admin only)"),
-    L("/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)"),
-    L("/nrage pvp           admin only: pvp reset <name> zeroes a member's PvP counters"),
-    L("/nrage blacklist     guild blacklist (blacklist add <name> | <reason>; blacklist remove <name> is admin only)"),
-    L("/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)"),
-    L("/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)"),
+    L("/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"),
   }
 end
 

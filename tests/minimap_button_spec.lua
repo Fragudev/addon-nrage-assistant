@@ -123,44 +123,32 @@ describe("MinimapButton.Settings", function()
   end)
 end)
 
-describe("MinimapButton.Command", function()
+describe("MinimapButton.SetHidden and ResetPosition", function()
   local function database()
     return { global = {} }
   end
 
-  it("hides and shows the button and says how to bring it back", function()
+  it("hides and shows the button", function()
     local db = database()
-    assert.is_truthy(MinimapButton.Command(db, "hide"):find("/nrage minimap show", 1, true))
+    MinimapButton.SetHidden(db, true)
     assert.is_true(MinimapButton.Settings(db).hide)
-    assert.is_truthy(MinimapButton.Command(db, "show"):find("shown", 1, true))
+    MinimapButton.SetHidden(db, false)
+    assert.is_false(MinimapButton.Settings(db).hide)
+  end)
+
+  it("treats anything but true as showing it", function()
+    local db = database()
+    MinimapButton.SetHidden(db, true)
+    MinimapButton.SetHidden(db, nil)
     assert.is_false(MinimapButton.Settings(db).hide)
   end)
 
   it("resets the position and shows the button again", function()
     local db = database()
-    MinimapButton.Command(db, "hide")
+    MinimapButton.SetHidden(db, true)
     MinimapButton.Settings(db).angle = 10
-    MinimapButton.Command(db, "reset")
+    MinimapButton.ResetPosition(db)
     assert.are.equal(Constants.MINIMAP_DEFAULT_ANGLE, MinimapButton.Settings(db).angle)
     assert.is_false(MinimapButton.Settings(db).hide)
-  end)
-
-  it("reports the current state without changing anything when no action is given", function()
-    local db = database()
-    MinimapButton.Settings(db).angle = 10
-    assert.is_truthy(MinimapButton.Command(db, ""):find("shown", 1, true))
-    assert.are.equal(10, MinimapButton.Settings(db).angle)
-  end)
-
-  it("gives the usage for an unknown action and changes nothing", function()
-    local db = database()
-    assert.is_truthy(MinimapButton.Command(db, "explode"):find("usage:", 1, true))
-    assert.is_false(MinimapButton.Settings(db).hide)
-  end)
-
-  it("does not fail when the button has not been created yet", function()
-    assert.has_no.errors(function()
-      MinimapButton.Refresh()
-    end)
   end)
 end)

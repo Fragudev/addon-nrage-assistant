@@ -51,23 +51,16 @@ describe("Addon load", function()
     assert.is_truthy(run(""):find("version dev", 1, true))
   end)
 
-  it("prints the version for /nrage version", function()
-    assert.is_truthy(run("version"):find("version dev", 1, true))
-  end)
-
-  it("lists the commands for /nrage help", function()
+  it("lists the three commands for /nrage help", function()
     local text = run("help")
-    assert.is_truthy(text:find("/nrage publish", 1, true))
+    assert.is_truthy(text:find("/nrage debug", 1, true))
+    assert.is_nil(text:find("/nrage event", 1, true))
   end)
 
-  it("points to help for an unknown command", function()
-    local text = run("frobnicate")
-    assert.is_truthy(text:find("unknown command 'frobnicate'", 1, true))
-    assert.is_truthy(text:find("/nrage help", 1, true))
-  end)
-
-  it("refuses data commands while the addon is disabled instead of raising", function()
-    local commands = {
+  it("points to help for a command that is not there, including the ones that moved into the window", function()
+    for _, command in ipairs({
+      "frobnicate",
+      "version",
       "profile",
       "ready",
       "sync",
@@ -81,9 +74,13 @@ describe("Addon load", function()
       "report",
       "template",
       "minimap",
-    }
-    for _, command in ipairs(commands) do
-      assert.is_truthy(run(command):find("unavailable while the addon is disabled", 1, true), command)
+      "blacklist",
+      "role",
+      "pvp",
+    }) do
+      local text = run(command)
+      assert.is_truthy(text:find("unknown command '" .. command .. "'", 1, true), command)
+      assert.is_truthy(text:find("/nrage help", 1, true), command)
     end
   end)
 end)
