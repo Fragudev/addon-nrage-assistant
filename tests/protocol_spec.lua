@@ -594,3 +594,67 @@ describe("Protocol.Validate PVP_RESET", function()
     end
   end)
 end)
+
+describe("Protocol.Validate PVP_KILL", function()
+  local function kill(overrides)
+    local payload = { victim = "Zed", where = "world", blow = true }
+    for k, v in pairs(overrides or {}) do
+      payload[k] = v
+    end
+    return payload
+  end
+
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("PVP_KILL", payload, "id-1"))
+  end
+
+  it("keeps the victim, the place and the blow", function()
+    assert.are.same(kill(), validate(kill()).p)
+    assert.are.same(kill({ where = "bg", blow = false }), validate(kill({ where = "bg", blow = false })).p)
+  end)
+
+  it("accepts multi-word names up to the limit and drops unknown fields such as a killer", function()
+    assert.is_truthy(validate(kill({ victim = "Yonemon Gg" })))
+    assert.is_truthy(validate(kill({ victim = ("x"):rep(Constants.PVP_FEED_VICTIM_MAX) })))
+    local clean = validate(kill({ killer = "Someone", owner = "Someone" }))
+    assert.is_nil(clean.p.killer)
+    assert.is_nil(clean.p.owner)
+  end)
+
+  it("rejects a victim that is empty, too long, not text or carries escapes", function()
+    for _, bad in ipairs({ "", ("x"):rep(Constants.PVP_FEED_VICTIM_MAX + 1), 5, true, "A|cffff0000B", "A\nB" }) do
+      local _, reason = validate(kill({ victim = bad }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+    end
+    local missing = kill()
+    missing.victim = nil
+    local _, reason = validate(missing)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("rejects a place that is not world or bg", function()
+    for _, bad in ipairs({ "arena", "World", "", 1, true }) do
+      local _, reason = validate(kill({ where = bad }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+    end
+    local missing = kill()
+    missing.where = nil
+    local _, reason = validate(missing)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("rejects a blow that is not a boolean", function()
+    for _, bad in ipairs({ "true", 1, 0, {} }) do
+      local _, reason = validate(kill({ blow = bad }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+    end
+    local missing = kill()
+    missing.blow = nil
+    local _, reason = validate(missing)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("is at protocol minor version 2", function()
+    assert.are.equal(2, Constants.PROTOCOL_MINOR)
+  end)
+end)

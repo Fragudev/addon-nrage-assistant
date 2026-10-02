@@ -245,6 +245,15 @@ describe("PvPTracker killing blows", function()
     assert.are.equal(1, env.changes)
   end)
 
+  it("tells the caller whether the event was a killing blow on a player", function()
+    local env = available()
+    assert.is_true(env.tracker:OnCombatLog(kill()))
+    assert.is_false(env.tracker:OnCombatLog(kill({ sourceGUID = "Player-9-ZZZZ" })))
+    assert.is_false(env.tracker:OnCombatLog(kill({ destGUID = "Creature-0-1" })))
+    env.tracker.blowsAvailable = false
+    assert.is_false(env.tracker:OnCombatLog(kill()))
+  end)
+
   it("counts in the battleground bucket inside a battleground", function()
     local env = available()
     env.battleground = true

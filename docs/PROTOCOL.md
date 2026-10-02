@@ -52,6 +52,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `LOOT_VOTE` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `target` | council, admin; the voter is the sender |
 | `PVP_STATS` | guild | `rev`, `updatedAt`, `honor{world, bg}`, optional `blows{world, bg}`, `today{day, honor{world, bg}, optional blows{world, bg}}` | anyone, for themselves; the record belongs to the sender |
 | `PVP_RESET` | guild | `target`, `rev` | admin |
+| `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
 | `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot or PvP messages (a `PVP_STATS` item also carries `owner`) | rl, admin (checked before decoding) |
@@ -107,6 +108,26 @@ accepted revision** (`db.global.pvpResets[target]`, the highest one is kept), so
 with an older `rev`. The admin's client picks a `rev` above everything it has seen of that member. The target's own
 client resets its counters when it receives the message and continues with revisions above it. A member who was
 offline during the reset learns it from the snapshot on the next login, when the snapshot comes from an admin.
+
+## PvP kill feed
+
+`PVP_KILL` tells the guild that the sender killed `victim`. The killer is the **sender**, never a payload field (a
+name sent anyway is dropped). `victim` is plain text of at most 40 bytes without escapes or control characters,
+`where` is `world` or `bg`, and `blow` must be a real boolean (the killing blow, as opposed to honour credit);
+anything else drops the message. It is **not** part of a snapshot: the feed is live only, kept in memory (the last
+50 entries) and never saved. The protocol minor version was raised for it; older clients ignore the unknown type.
+
+Sending: an own kill waits 5 seconds before it is sent, so the honour message and the killing blow (two events for
+one kill, in either order) become one message. A killing blow without honour (a grey target) is sent alone with
+`blow = true`. The message goes out only if the setting for its place is on (`settings.pvp.feedWorld`, default on;
+`feedBg`, default off), never during an encounter lockdown (it is dropped, never queued), and at most 5 per rolling
+minute (the rest are dropped).
+
+Receiving: the sender must be a known guild member (`pvp_publish`) and passes the per-sender rate limit of the
+inbox plus a limit of 5 entries per minute for the feed. An entry whose place is switched off is ignored. An entry
+about a victim (compared ignoring case) already in the list within 15 seconds is the same kill, since every
+member who gets honour for it sends one: the sender is added to the killers of that entry (at most 5) and no new
+chat line is printed. Nothing received is stored beyond the in-memory list.
 
 ## Deletions
 

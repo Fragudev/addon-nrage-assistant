@@ -298,6 +298,21 @@ local function validatePvPStats(payload)
   return clean
 end
 
+-- A kill for the guild feed. The killer is the sender of the message; the payload names only the victim. The
+-- victim is plain text like any other name (no escapes), `where` one of two places and `blow` a real boolean.
+local function validatePvPKill(payload)
+  if not isText(payload.victim, ns.Constants.PVP_FEED_VICTIM_MAX) then
+    return nil
+  end
+  if payload.where ~= "world" and payload.where ~= "bg" then
+    return nil
+  end
+  if type(payload.blow) ~= "boolean" then
+    return nil
+  end
+  return { victim = payload.victim, where = payload.where, blow = payload.blow }
+end
+
 local function validatePvPReset(payload)
   if not (ns.EventModel.IsCharacterKey(payload.target) and isInt(payload.rev, 1, MAX_REV)) then
     return nil
@@ -328,6 +343,7 @@ local VALIDATORS = {
   LOOT_VOTE = validateLootVote,
   PVP_STATS = validatePvPStats,
   PVP_RESET = validatePvPReset,
+  PVP_KILL = validatePvPKill,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

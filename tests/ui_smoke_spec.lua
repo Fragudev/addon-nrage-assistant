@@ -87,6 +87,7 @@ local function load_window()
     "Core/Validate",
     "Core/Args",
     "Domain/PvPService",
+    "Domain/PvPFeed",
     "Domain/PermissionService",
     "Domain/EventModel",
     "Domain/EventService",
@@ -141,6 +142,9 @@ local function build(rank)
     end,
     ParseDate = function()
       return 2000
+    end,
+    FormatClock = function(timestamp)
+      return "clock:" .. timestamp
     end,
     GetGUID = function() end,
     GetClass = function()
@@ -286,10 +290,11 @@ describe("Window smoke test", function()
 
   it("draws the PvP tab with the counters and redraws it when they change", function()
     local pvp = env.open("pvp")
-    assert.are.same(
-      { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } },
-      env.find(pvp, "TabGroup").props.tabs
-    )
+    assert.are.same({
+      { value = "mine", text = "My stats" },
+      { value = "ranking", text = "Ranking" },
+      { value = "feed", text = "Recent kills" },
+    }, env.find(pvp, "TabGroup").props.tabs)
     local function texts(root)
       local found = {}
       walk(root, function(widget)
@@ -423,6 +428,74 @@ describe("Window smoke test", function()
       clock = clock + env.ns.Constants.PVP_REDRAW_SECONDS
       env.timers[1]()
       assert.is_true(#env.widgets > 0)
+    end)
+  end)
+
+  describe("PvP recent kills", function()
+    local function labels(root)
+      local found = {}
+      walk(root, function(widget)
+        if widget.kind == "Label" and widget.props.text then
+          found[#found + 1] = widget.props.text
+        end
+      end)
+      return table.concat(found, "\n")
+    end
+
+    local function open_feed()
+      local pvp = env.open("pvp")
+      env.find(pvp, "TabGroup"):SelectTab("feed")
+      return pvp
+    end
+
+    local function feed_with(entries, available)
+      env.ns.pvpFeed = {
+        Entries = function()
+          return entries
+        end,
+        Available = function()
+          return available
+        end,
+      }
+    end
+
+    it("shows the two switches with the saved values", function()
+      feed_with({}, true)
+      local pvp = open_feed()
+      local world = env.find(pvp, "CheckBox", "Feed in the open world")
+      local bg = env.find(pvp, "CheckBox", "Feed in battlegrounds")
+      assert.is_true(world.props.value)
+      assert.is_false(bg.props.value)
+      assert.are.same({ feedWorld = true, feedBg = false }, env.ns.db.global.settings.pvp)
+    end)
+
+    it("changes the settings from the switches", function()
+      feed_with({}, true)
+      local pvp = open_feed()
+      env.find(pvp, "CheckBox", "Feed in battlegrounds").callbacks.OnValueChanged(nil, nil, true)
+      assert.is_true(env.ns.db.global.settings.pvp.feedBg)
+      pvp = open_feed()
+      env.find(pvp, "CheckBox", "Feed in the open world").callbacks.OnValueChanged(nil, nil, false)
+      assert.is_false(env.ns.db.global.settings.pvp.feedWorld)
+      assert.is_true(env.ns.db.global.settings.pvp.feedBg)
+    end)
+
+    it("lists the recent kills with escaped names", function()
+      feed_with({
+        { victim = "|cffff0000Zed|r", where = "world", blow = true, killers = { "Ann", "Bob" }, time = 77 },
+      }, true)
+      local text = labels(open_feed())
+      assert.is_truthy(text:find("clock:77  Ann, Bob killed ||cffff0000Zed||r (open world, killing blow)", 1, true))
+      assert.is_nil(text:find("not available", 1, true))
+    end)
+
+    it("says when the feed is not available on this client, or not started", function()
+      feed_with({}, false)
+      assert.is_truthy(labels(open_feed()):find("not available on this client", 1, true))
+      env.ns.pvpFeed = nil
+      local text = labels(open_feed())
+      assert.is_truthy(text:find("not available on this client", 1, true))
+      assert.is_truthy(text:find("No kills yet", 1, true))
     end)
   end)
 

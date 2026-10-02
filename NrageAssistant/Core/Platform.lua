@@ -216,6 +216,11 @@ function Platform.FormatDate(timestamp)
   return date("%Y-%m-%d %H:%M", timestamp)
 end
 
+-- "20:30" in the client's local time.
+function Platform.FormatClock(timestamp)
+  return date("%H:%M", timestamp)
+end
+
 -- "2026-10-01 20:30" (local time) -> timestamp, or nil when the text is not a real date and time.
 -- A date that would roll over (2026-02-31) is refused instead of silently becoming March.
 function Platform.ParseDate(text)
@@ -325,25 +330,124 @@ function Platform.TryRegisterEvent(frame, event)
   return ok
 end
 
+-- The text of a name from the client as a plain string without a realm suffix, or nil when it is not readable
+-- (not a string, empty, or a secret value, which raises when it is measured or concatenated).
+local function readableName(name)
+  local ok, copy = pcall(function()
+    if type(name) == "string" and #name > 0 then
+      return name .. ""
+    end
+    return nil
+  end)
+  if not (ok and copy) then
+    return nil
+  end
+  local normalizedOk, normalized = pcall(Platform.NormalizeName, copy)
+  return normalizedOk and type(normalized) == "string" and normalized or copy
+end
+
 local combatInfo = {}
 
--- { subevent, sourceGUID, destGUID } of the combat log event being handled, only for PARTY_KILL (the one
--- subevent that matters here), else nil. The table is reused to keep the combat log free of allocations, so
--- it must be read before the next event. The values may be secret: they are not inspected beyond that test.
+-- { subevent, sourceGUID, destGUID, destName } of the combat log event being handled, only for PARTY_KILL (the
+-- one subevent that matters here), else nil. `destName` is the victim's name, or nil when it is not readable.
+-- The table is reused to keep the combat log free of allocations, so it must be read before the next event.
+-- The GUIDs may be secret: they are not inspected beyond that test.
 function Platform.GetCombatLogInfo()
   if not CombatLogGetCurrentEventInfo then
     return nil
   end
   local ok, wanted = pcall(function()
-    local _, subevent, _, sourceGUID, _, _, _, destGUID = CombatLogGetCurrentEventInfo()
+    local _, subevent, _, sourceGUID, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
     if subevent ~= "PARTY_KILL" then
       return false
     end
     combatInfo.subevent, combatInfo.sourceGUID, combatInfo.destGUID = subevent, sourceGUID, destGUID
+    combatInfo.destName = readableName(destName)
     return true
   end)
   if ok and wanted then
     return combatInfo
+  end
+  return nil
+end
+
+-- The client's own text for an honourable kill message: COMBATLOG_HONORGAIN ("%s dies, honorable kill Rank:
+-- %s (%d Honor Points)") and the variant without a rank. Not measured on Forever yet (issue #99).
+local HONOR_FORMATS = { "COMBATLOG_HONORGAIN", "COMBATLOG_HONORGAIN_NO_RANK" }
+
+-- Turns a client format string into an anchored Lua pattern: the text is matched literally, "%s" becomes a lazy
+-- capture and "%d" a number capture. Returns the pattern and the number of the capture that holds the first
+-- argument (the victim; a positional format such as "%2$s" can reorder them), or nil when `format` is not a
+-- usable string or has no "%s" for a first argument.
+function Platform.HonorGainPattern(format)
+  if type(format) ~= "string" or format == "" then
+    return nil
+  end
+  local parts, captures, victim = {}, 0, nil
+  local index = 1
+  while index <= #format do
+    local char = format:sub(index, index)
+    if char == "%" then
+      local position, kind = format:match("^%%(%d+)%$([sd])", index)
+      local length
+      if position then
+        length = #position + 3
+      else
+        kind = format:match("^%%([sd])", index)
+        length = 2
+      end
+      if kind then
+        captures = captures + 1
+        if (position and tonumber(position) or captures) == 1 and kind == "s" then
+          victim = captures
+        end
+        parts[#parts + 1] = kind == "s" and "(.-)" or "(%d+)"
+        index = index + length
+      elseif format:sub(index + 1, index + 1) == "%" then
+        parts[#parts + 1] = "%%"
+        index = index + 2
+      else
+        return nil
+      end
+    else
+      parts[#parts + 1] = (char:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+      index = index + 1
+    end
+  end
+  if not victim then
+    return nil
+  end
+  return "^" .. table.concat(parts) .. "$", victim
+end
+
+-- Is there a client text from which the victim of an honourable kill can be read?
+function Platform.HasHonorVictimSource()
+  for _, name in ipairs(HONOR_FORMATS) do
+    if Platform.HonorGainPattern(_G[name]) then
+      return true
+    end
+  end
+  return false
+end
+
+-- The victim named by the text of a CHAT_MSG_COMBAT_HONOR_GAIN event, or nil when the client has no such format,
+-- the text does not match it (a different message, such as bonus honour) or it is not readable (a secret value
+-- raises on any use). Never raises.
+function Platform.ParseHonorVictim(text)
+  if type(text) ~= "string" then
+    return nil
+  end
+  for _, name in ipairs(HONOR_FORMATS) do
+    local pattern, victim = Platform.HonorGainPattern(_G[name])
+    if pattern then
+      local ok, captured = pcall(function()
+        local found = { text:match(pattern) }
+        return found[victim]
+      end)
+      if ok and type(captured) == "string" and captured ~= "" then
+        return captured
+      end
+    end
   end
   return nil
 end

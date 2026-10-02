@@ -169,13 +169,62 @@ function ViewModel.PvPRankLine(kills, ranks)
   return "Rank: none (no ranks are configured)"
 end
 
--- The sub-tabs of the PvP tab: the own counters and the guild ranking.
 -- The period selector of the ranking.
 ViewModel.PVP_PERIODS = { total = "Total", today = "Today" }
 ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
 
+-- The sub-tabs of the PvP tab: the own counters, the guild ranking and the recent kills of the guild.
 function ViewModel.PvPSubTabs()
-  return { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } }
+  return {
+    { value = "mine", text = "My stats" },
+    { value = "ranking", text = "Ranking" },
+    { value = "feed", text = "Recent kills" },
+  }
+end
+
+local FEED_PLACES = { world = "open world", bg = "battleground" }
+
+-- "Ann killed Zed (open world)" for the chat line of a received kill. The names are escaped.
+function ViewModel.PvPFeedChatLine(entry)
+  local killer = entry.killers and entry.killers[1] or "?"
+  return ("%s killed %s (%s)"):format(
+    ViewModel.Escape(killer),
+    ViewModel.Escape(entry.victim),
+    FEED_PLACES[entry.where] or "?"
+  )
+end
+
+-- The recent kills of the guild, newest first (the order of `entries`): "12:04  Ann, Bob killed Zed (open world,
+-- killing blow)". `options` = { available = boolean (the client can give a victim name), formatTime =
+-- function(seconds) -> text }. Names are escaped.
+function ViewModel.PvPFeed(entries, options)
+  local lines = {}
+  if not options.available then
+    lines[1] = "The kill feed is not available on this client: the name of a killed player cannot be read."
+    lines[2] = ""
+  end
+  if #entries == 0 then
+    lines[#lines + 1] = "No kills yet. Kills of members who run the addon show up here."
+    return lines
+  end
+  for _, entry in ipairs(entries) do
+    local names = {}
+    for index, killer in ipairs(entry.killers) do
+      names[index] = ViewModel.Escape(killer)
+    end
+    local place = FEED_PLACES[entry.where] or "?"
+    if entry.blow then
+      place = place .. ", killing blow"
+    end
+    local time = options.formatTime and options.formatTime(entry.time) or "--:--"
+    lines[#lines + 1] = ("%s  %s killed %s (%s)"):format(
+      ViewModel.Escape(time),
+      table.concat(names, ", "),
+      ViewModel.Escape(entry.victim),
+      place
+    )
+  end
+  return lines
 end
 
 local function ageText(seconds)

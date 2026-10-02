@@ -35,6 +35,7 @@ Domain\TemplateService.lua
 Domain\PvPService.lua
 Domain\PvPTracker.lua
 Domain\PvPPublisher.lua
+Domain\PvPFeed.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

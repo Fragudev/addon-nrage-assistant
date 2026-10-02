@@ -8,7 +8,8 @@ local Comm = {}
 Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
---       pvpStats (table), pvpResets (table), onPvPChange() and onPvPReset(rev) (optional),
+--       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
+--       (all optional),
 --       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
 --       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
@@ -27,6 +28,7 @@ function Comm.New(deps)
     pvpResets = deps.pvpResets or {},
     onPvPChange = deps.onPvPChange,
     onPvPReset = deps.onPvPReset,
+    onPvPKill = deps.onPvPKill,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -214,6 +216,9 @@ function Comm:HandleMessage(text, sender, channel)
   if message.t == "PROFILE" then
     return self:HandleProfile(sender, message.p)
   end
+  if message.t == "PVP_KILL" then
+    return self:HandlePvPKill(sender, message.p)
+  end
   if ns.PvPSync.IsPvPMessage(message.t) then
     return self:HandlePvP(sender, message)
   end
@@ -372,6 +377,19 @@ function Comm:HandlePvP(sender, message)
   return ok, reason
 end
 
+-- A kill for the guild feed: nothing is stored here. The killer is the sender (never a payload field); the
+-- sender must be a known guild member who may publish PvP data. The feed decides what to show.
+function Comm:HandlePvPKill(sender, payload)
+  local denied = ns.SyncRules.Authorize(self.roleOf(sender), "pvp_publish")
+  if denied then
+    return false, denied
+  end
+  if self.onPvPKill then
+    self.onPvPKill(sender, payload)
+  end
+  return true
+end
+
 -- Local change -> wire. Each message is keyed so a newer edit of the same record replaces a
 -- queued older one instead of both being sent.
 function Comm:SendEvent(event)
@@ -414,6 +432,15 @@ end
 -- The own counters. Keyed, so a newer message replaces one still waiting in the queue.
 function Comm:SendPvPStats(payload)
   return self:Send("PVP_STATS", payload, "pvp")
+end
+
+-- A kill for the feed. Never queued: during the lockdown it is refused instead of waiting, because a kill that
+-- is old by the time the encounter ends is not news.
+function Comm:SendPvPKill(payload)
+  if not self.queue.guard:CanSend() then
+    return false, "locked"
+  end
+  return self:Send("PVP_KILL", payload)
 end
 
 -- Admin only: resets a member. The reset is applied here first (own messages are never received), then told to

@@ -46,6 +46,7 @@ end
 -- The events the PvP counters listen to. Both are registered one by one, so a client that does not know one of
 -- them still loads and keeps the other; the combat log is optional (it may be restricted on this client).
 local PVP_HONOR_EVENTS = { "CHAT_MSG_COMBAT_HONOR_GAIN", "PLAYER_PVP_KILLS_CHANGED" }
+local PVP_HONOR_TEXT_EVENT = PVP_HONOR_EVENTS[1]
 local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
 
 local pvpStarted = false
@@ -99,22 +100,56 @@ local function StartPvP()
   end
   publisher:SendAtLogin()
 
+  -- The guild kill feed. Its victim names come from the text of the honour message and from the killing blow in
+  -- the combat log; with neither, it stays empty and the tab says so.
+  local feed = ns.PvPFeed.New({
+    now = ns.Platform.Now,
+    serverTime = ns.Platform.ServerTime,
+    send = function(payload)
+      return ns.comm:SendPvPKill(payload)
+    end,
+    isLocked = function()
+      return not ns.lockdown:CanSend()
+    end,
+    schedule = C_Timer.After,
+    settings = function()
+      return ns.PvPFeed.Settings(ns.db)
+    end,
+    ownName = ns.Platform.GetIdentityKey,
+    onChange = ns.UI.PvPChanged,
+  })
+  feed.honorNames = ns.Platform.HasHonorVictimSource()
+  ns.pvpFeed = feed
+  ns.comm.onPvPKill = function(sender, payload)
+    local show, entry = feed:OnReceived(sender, payload)
+    if show then
+      print(("%s %s"):format(PREFIX, ns.ViewModel.PvPFeedChatLine(entry)))
+    end
+  end
+
   local pvpFrame = CreateFrame("Frame")
   for _, event in ipairs(PVP_HONOR_EVENTS) do
     ns.Platform.TryRegisterEvent(pvpFrame, event)
   end
   tracker.blowsAvailable = ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
-  pvpFrame:SetScript("OnEvent", function(_, event)
+  feed.blowNames = tracker.blowsAvailable
+  pvpFrame:SetScript("OnEvent", function(_, event, text)
     if not ns.active then
       return
     end
     if event == PVP_COMBAT_LOG_EVENT then
       local info = ns.Platform.GetCombatLogInfo()
-      if info then
-        tracker:OnCombatLog(info)
+      if info and tracker:OnCombatLog(info) and info.destName then
+        feed:OnKillingBlow(info.destName, tracker:Where())
       end
     else
       tracker:OnHonorEvent()
+      if event == PVP_HONOR_TEXT_EVENT then
+        local victim = ns.Platform.ParseHonorVictim(text)
+        if victim then
+          feed:OnHonorKill(victim, tracker:Where())
+        end
+      end
     end
   end)
 end

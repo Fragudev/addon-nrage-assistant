@@ -54,7 +54,12 @@ they say. Every value is logged through `pcall`; a secret value shows as `<secre
 | 4 | Does `IsInInstance()` return `instanceType == "pvp"` inside a battleground? | `IsInInstance` | not measured yet |
 | 5 | Do kills that give no honour (grey targets, repeated kills of the same target) increase any counter? | counters | not measured yet |
 | 6 | Are victim names multi-word and first-word-only, like `UnitName`? | event | not measured yet |
+| 7 | Does the global `COMBATLOG_HONORGAIN` (and `COMBATLOG_HONORGAIN_NO_RANK`) exist, and does it match the text of `CHAT_MSG_COMBAT_HONOR_GAIN`? Is `destName` of `PARTY_KILL` readable (not secret)? | globals, event | not measured yet |
 
+The kill feed (phase 6, #97) needs a victim name and takes it from either source, whichever works: the first `%s`
+of `COMBATLOG_HONORGAIN` turned into a pattern and matched against the chat text, or `destName` of a `PARTY_KILL` by
+the player. Neither is measured (#99). Without a readable name no feed entry is produced, and the tab says the feed
+is not available when neither source exists on the client.
 Decisions still open: the source of honourable kills (counter delta, chat event, or both) and whether killing
 blows are available.
 
@@ -69,7 +74,7 @@ blows are available.
 | Guild | `IsInGuild`, `GetGuildInfo`, `C_GuildInfo.GuildRoster`, `GetNumGuildMembers`, `GetGuildRosterInfo`, `C_Club.GetGuildClubId`, event `GUILD_ROSTER_UPDATE` |
 | Messaging | `C_ChatInfo.RegisterAddonMessagePrefix`, `C_ChatInfo.SendAddonMessage`, `C_ChatInfo.InChatMessagingLockdown`, event `CHAT_MSG_ADDON` |
 | Encounters and combat | events `ENCOUNTER_START`, `ENCOUNTER_END`, `PLAYER_REGEN_DISABLED`, `PLAYER_REGEN_ENABLED` (the lockdown probe) |
-| PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
+| PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo` (also the destination name, for the kill feed), the globals `COMBATLOG_HONORGAIN` and `COMBATLOG_HONORGAIN_NO_RANK`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
 | PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
 | Time | `GetServerTime`, `GetTime`, `date`, `time` |
 | UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata`, AceGUI |

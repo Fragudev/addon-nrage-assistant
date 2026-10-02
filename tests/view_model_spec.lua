@@ -951,11 +951,12 @@ describe("ViewModel PvP", function()
     return pvp
   end
 
-  it("has the own counters and the ranking as sub-tabs", function()
-    assert.are.same(
-      { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } },
-      ViewModel.PvPSubTabs()
-    )
+  it("has the own counters, the ranking and the recent kills as sub-tabs", function()
+    assert.are.same({
+      { value = "mine", text = "My stats" },
+      { value = "ranking", text = "Ranking" },
+      { value = "feed", text = "Recent kills" },
+    }, ViewModel.PvPSubTabs())
   end)
 
   it("lists honourable kills and killing blows with totals and today", function()
@@ -1245,5 +1246,68 @@ describe("ViewModel.PvPRanking", function()
       )
       assert.are.equal("Ann", rows[1].name)
     end)
+  end)
+end)
+
+describe("ViewModel PvP feed", function()
+  local function entry(overrides)
+    local e = { victim = "Zed", where = "world", blow = false, killers = { "Ann" }, time = 100 }
+    for k, val in pairs(overrides or {}) do
+      e[k] = val
+    end
+    return e
+  end
+
+  local function options(overrides)
+    local o = {
+      available = true,
+      formatTime = function(seconds)
+        return "t" .. seconds
+      end,
+    }
+    for k, val in pairs(overrides or {}) do
+      o[k] = val
+    end
+    return o
+  end
+
+  it("lists the entries in the order given, with the killers and the place", function()
+    local lines = ViewModel.PvPFeed({
+      entry({ killers = { "Ann", "Bob" }, blow = true, time = 200 }),
+      entry({ victim = "Yan", where = "bg", time = 100 }),
+    }, options())
+    assert.are.same({
+      "t200  Ann, Bob killed Zed (open world, killing blow)",
+      "t100  Ann killed Yan (battleground)",
+    }, lines)
+  end)
+
+  it("escapes every name", function()
+    local lines = ViewModel.PvPFeed({ entry({ victim = "|cffff0000Z|r", killers = { "|Hlink|h", "B|n" } }) }, options())
+    assert.are.equal("t100  ||Hlink||h, B||n killed ||cffff0000Z||r (open world)", lines[1])
+    local chat = ViewModel.PvPFeedChatLine(entry({ victim = "|cffff0000Z|r", killers = { "A|r" } }))
+    assert.are.equal("A||r killed ||cffff0000Z||r (open world)", chat)
+  end)
+
+  it("says so when there are no kills yet", function()
+    local lines = ViewModel.PvPFeed({}, options())
+    assert.are.equal(1, #lines)
+    assert.is_truthy(lines[1]:find("No kills yet", 1, true))
+  end)
+
+  it("says when the client cannot give victim names", function()
+    local lines = ViewModel.PvPFeed({}, options({ available = false }))
+    assert.is_truthy(lines[1]:find("not available on this client", 1, true))
+    assert.is_truthy(lines[#lines]:find("No kills yet", 1, true))
+  end)
+
+  it("does not need a time formatter", function()
+    local lines = ViewModel.PvPFeed({ entry() }, { available = true })
+    assert.are.equal("--:--  Ann killed Zed (open world)", lines[1])
+  end)
+
+  it("words the chat line", function()
+    assert.are.equal("Ann killed Zed (open world)", ViewModel.PvPFeedChatLine(entry()))
+    assert.are.equal("Ann killed Zed (battleground)", ViewModel.PvPFeedChatLine(entry({ where = "bg" })))
   end)
 end)
