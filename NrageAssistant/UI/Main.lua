@@ -677,6 +677,8 @@ end
 
 local pvpSubTab = "mine"
 local pvpSort = { key = "total", descending = true }
+-- "total" or "today" (ViewModel.PVP_PERIODS); kept while the session lasts.
+local pvpPeriod = "total"
 
 -- Relative column widths of the ranking, with and without the killing blows column (the sum stays under 1 so a
 -- row never wraps).
@@ -731,10 +733,17 @@ local function DrawPvPRanking(container)
     blowsAvailable = blowsAvailable,
     now = ns.Platform.ServerTime(),
     sort = pvpSort,
+    period = pvpPeriod,
+    day = tracker and tracker:Day() or nil,
   })
   local widths = columns.blows and RANKING_COLUMNS.withBlows or RANKING_COLUMNS.withoutBlows
 
-  AddLines(container, { "Click a column title to sort by it. Your row is green.", "" })
+  AddDropdown(container, "Show", ns.ViewModel.PVP_PERIODS, ns.ViewModel.PVP_PERIOD_ORDER, pvpPeriod, 0.3, function(key)
+    pvpPeriod = key
+    Redraw()
+  end)
+  local hint = pvpPeriod == "today" and "Today's kills (server day, UTC); the rank is the all-time one. " or ""
+  AddLines(container, { hint .. "Click a column title to sort by it. Your row is green.", "" })
   for _, key in ipairs(RANKING_ORDER) do
     if widths[key] then
       AddRankingHeader(container, key, widths[key])

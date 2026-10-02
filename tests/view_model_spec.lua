@@ -1171,4 +1171,79 @@ describe("ViewModel.PvPRanking", function()
     end
     assert.are.equal("-", bob.updated)
   end)
+
+  describe("today", function()
+    local function today_record(world, bg, day, todayHonor, todayBlows)
+      local r = record(world, bg, todayBlows and 9 or nil)
+      r.today = { day = day, honor = todayHonor, blows = todayBlows }
+      return r
+    end
+
+    local function by_name(rows)
+      local found = {}
+      for _, row in ipairs(rows) do
+        found[row.name] = row
+      end
+      return found
+    end
+
+    it("shows today's counters of records sent today and zero for the rest", function()
+      local synced = {
+        Ann = today_record(20, 10, "2026-10-02", { world = 3, bg = 1 }, { world = 2, bg = 0 }),
+        Bob = today_record(40, 0, "2026-10-01", { world = 7, bg = 0 }),
+        Cid = record(15, 15),
+      }
+      local rows = by_name(ViewModel.PvPRanking(synced, options({ period = "today", day = "2026-10-02" })))
+      assert.are.same({ 3, 1, 4, 2 }, { rows.Ann.world, rows.Ann.bg, rows.Ann.total, rows.Ann.blows })
+      assert.are.same({ 0, 0, 0 }, { rows.Bob.world, rows.Bob.bg, rows.Bob.total })
+      assert.are.equal(0, rows.Cid.total)
+      assert.is_nil(rows.Cid.blows)
+    end)
+
+    it("keeps the all-time rank while showing today", function()
+      local synced = { Ann = today_record(20, 10, "2026-10-02", { world = 1, bg = 0 }) }
+      local rows = by_name(ViewModel.PvPRanking(synced, options({ period = "today", day = "2026-10-02" })))
+      assert.are.equal("Corporal", rows.Ann.rank)
+      assert.are.equal(1, rows.Ann.total)
+    end)
+
+    it("uses the own counters of today", function()
+      local own = {
+        name = "Me",
+        stats = {
+          honor = { world = 50, bg = 0 },
+          blows = { world = 4, bg = 0 },
+          daily = { ["2026-10-02"] = { honor = { world = 2, bg = 3 }, blows = { world = 1, bg = 0 } } },
+        },
+      }
+      local rows = by_name(
+        ViewModel.PvPRanking({}, options({ own = own, period = "today", day = "2026-10-02", blowsAvailable = true }))
+      )
+      assert.are.same({ 2, 3, 5, 1 }, { rows.Me.world, rows.Me.bg, rows.Me.total, rows.Me.blows })
+      assert.are.equal("Corporal", rows.Me.rank)
+    end)
+
+    it("orders by today's total, and an unknown day counts as zero", function()
+      local synced = {
+        Ann = today_record(100, 0, "2026-10-02", { world = 1, bg = 0 }),
+        Bob = today_record(1, 0, "2026-10-02", { world = 1, bg = 4 }),
+      }
+      local rows = ViewModel.PvPRanking(synced, options({ period = "today", day = "2026-10-02" }))
+      assert.are.same({ "Bob", "Ann", "Me" }, names(rows))
+      rows = by_name(ViewModel.PvPRanking(synced, options({ period = "today" })))
+      assert.are.equal(0, rows.Bob.total)
+    end)
+
+    it("still sorts by the all-time rank", function()
+      local synced = {
+        Ann = today_record(30, 0, "2026-10-02", { world = 0, bg = 0 }),
+        Bob = today_record(1, 0, "2026-10-02", { world = 9, bg = 0 }),
+      }
+      local rows = ViewModel.PvPRanking(
+        synced,
+        options({ period = "today", day = "2026-10-02", sort = { key = "rank", descending = true } })
+      )
+      assert.are.equal("Ann", rows[1].name)
+    end)
+  end)
 end)
