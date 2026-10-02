@@ -81,7 +81,13 @@ The rules are the same for the whole guild and only an admin can change them. Un
 starting list applies (level 60, item level, role, consumables and enchants). `/nrage ready rules` shows the rules in
 force; an admin can put the starting list back with `/nrage ready rules default`. Items measured from the game
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
-hand. An editor window for admins is planned.
+hand.
+
+Admins (guild master and officers) also see a **Rules** tab, which nobody else gets. It lists the rules in force with a
+Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
+buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
+says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
+Every change replaces the whole set for the guild; **Use the starting list** puts the starting rules back.
 
 ## Character names with several words
 

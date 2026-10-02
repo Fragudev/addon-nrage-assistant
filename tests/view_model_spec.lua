@@ -10,6 +10,7 @@ local function load_view_model()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/ReadinessRules",
     "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -1414,5 +1415,115 @@ describe("ViewModel help", function()
       found = found or line:find("/nrage blacklist", 1, true) ~= nil
     end
     assert.is_true(found)
+  end)
+end)
+
+describe("ViewModel readiness rules editor", function()
+  local existing = { { id = "level", label = "Level 60", check = "level", min = 60 } }
+
+  it("offers the rules tab only to those who may edit the rules", function()
+    local function values(role)
+      local found = {}
+      for _, tab in ipairs(ViewModel.TabsFor(role)) do
+        found[#found + 1] = tab.value
+      end
+      return found
+    end
+    for _, role in ipairs({ "member", "rl", "council" }) do
+      assert.are.equal(#ViewModel.TABS, #values(role))
+    end
+    assert.are.equal(#ViewModel.TABS, #values(nil))
+    local admin = values("admin")
+    assert.are.equal("rules", admin[#admin])
+    assert.are.equal(#ViewModel.TABS + 1, #admin)
+  end)
+
+  it("reads a level or item level", function()
+    local rule = ViewModel.RuleFromInput("ilvl", "Item level 100", " 100 ", existing)
+    assert.are.same(
+      { id = "item_level_100", label = "Item level 100", check = "ilvl", min = 100, evidenceMode = "observed" },
+      rule
+    )
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("level", "Level", "abc", existing)))
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("level", "Level", "", existing)))
+  end)
+
+  it("reads enchant slots by name or number", function()
+    local rule = ViewModel.RuleFromInput("enchants", "Enchants", "Mainhand, chest , 15", existing)
+    assert.are.same({ 16, 5, 15 }, rule.slots)
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("enchants", "E", "mainhand, nowhere", existing)))
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("enchants", "E", "", existing)))
+  end)
+
+  it("reads buffs as spell ids and names", function()
+    local rule = ViewModel.RuleFromInput("buff", "Flask", "17538, Well Fed, 18125", existing)
+    assert.are.same({ 17538, 18125 }, rule.spellIds)
+    assert.are.same({ "Well Fed" }, rule.names)
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("buff", "Flask", "", existing)))
+  end)
+
+  it("reads a profession with or without a minimum skill", function()
+    local with = ViewModel.RuleFromInput("profession", "Alchemy", "Alchemy 300", existing)
+    assert.are.equal("Alchemy", with.profession)
+    assert.are.equal(300, with.min)
+    local without = ViewModel.RuleFromInput("profession", "Mining", "Mining", existing)
+    assert.are.equal("Mining", without.profession)
+    assert.is_nil(without.min)
+  end)
+
+  it("reads a declared field and a rule confirmed by hand", function()
+    assert.are.equal("role", ViewModel.RuleFromInput("field", "Role", "Role", existing).field)
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("field", "X", "nonsense", existing)))
+    assert.are.equal("manual", ViewModel.RuleFromInput("confirm", "Food", "", existing).evidenceMode)
+  end)
+
+  it("refuses an empty or unsafe name", function()
+    assert.are.equal("bad_label", select(2, ViewModel.RuleFromInput("confirm", "   ", "", existing)))
+    assert.are.equal("bad_label", select(2, ViewModel.RuleFromInput("confirm", "|cffff0000x|r", "", existing)))
+  end)
+
+  it("gives every rule a name that no other rule has", function()
+    local first = ViewModel.RuleFromInput("confirm", "Level 60", "", existing)
+    assert.are.equal("level_60", first.id)
+    local second = ViewModel.RuleFromInput("confirm", "Level 60", "", ViewModel.WithRule(existing, first))
+    assert.are.equal("level_60_2", second.id)
+    assert.are.equal("rule", ViewModel.RuleFromInput("confirm", "???", "", {}).id)
+  end)
+
+  it("adds and removes a rule without touching the list it was given", function()
+    local added = ViewModel.WithRule(existing, { id = "b", label = "B", check = "confirm" })
+    assert.are.equal(2, #added)
+    assert.are.equal(1, #existing)
+    local removed = ViewModel.WithoutRule(added, "level")
+    assert.are.equal("b", removed[1].id)
+    assert.are.equal("unknown_rule", select(2, ViewModel.WithoutRule(added, "nope")))
+    assert.are.equal("last_rule", select(2, ViewModel.WithoutRule(existing, "level")))
+  end)
+
+  it("summarises each kind of rule", function()
+    local function summary(check, details)
+      return ViewModel.RuleSummary(ViewModel.RuleFromInput(check, "R", details, {}))
+    end
+    assert.are.equal("level 60 or more", summary("level", "60"))
+    assert.are.equal("item level 100 or more", summary("ilvl", "100"))
+    assert.are.equal("Alchemy 300 or more", summary("profession", "Alchemy 300"))
+    assert.are.equal("enchanted slots: 16, 5", summary("enchants", "16, chest"))
+    assert.are.equal("any buff of: 17538, Well Fed", summary("buff", "17538, Well Fed"))
+    assert.are.equal("declared: role", summary("field", "role"))
+    assert.are.equal("confirmed by the player", summary("confirm", ""))
+  end)
+
+  it("has a sentence for every reason the editor can show", function()
+    for _, reason in ipairs({
+      "forbidden",
+      "empty",
+      "too_many",
+      "bad_label",
+      "bad_details",
+      "duplicate_id",
+      "last_rule",
+    }) do
+      assert.is_string(ViewModel.RULE_ERRORS[reason], reason)
+    end
   end)
 end)
