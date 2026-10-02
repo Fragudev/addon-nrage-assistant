@@ -305,3 +305,142 @@ describe("Platform.GetItemDetails", function()
     assert.is_nil(Platform.GetItemDetails("19019"))
   end)
 end)
+
+describe("Platform PvP reads", function()
+  local saved = {}
+  local names = { "GetPVPSessionStats", "IsInInstance", "CombatLogGetCurrentEventInfo" }
+
+  before_each(function()
+    for _, name in ipairs(names) do
+      saved[name] = _G[name]
+    end
+  end)
+
+  after_each(function()
+    for _, name in ipairs(names) do
+      _G[name] = saved[name]
+    end
+  end)
+
+  local function secret()
+    return setmetatable({}, {
+      __lt = function()
+        error("secret")
+      end,
+      __le = function()
+        error("secret")
+      end,
+    })
+  end
+
+  it("reads the honourable kills of the session", function()
+    _G.GetPVPSessionStats = function()
+      return 12, 3
+    end
+    assert.are.equal(12, Platform.GetPvPSessionKills())
+  end)
+
+  it("gives nil when the counter is missing, raises, or is not a count", function()
+    _G.GetPVPSessionStats = nil
+    assert.is_nil(Platform.GetPvPSessionKills())
+    _G.GetPVPSessionStats = function()
+      error("restricted")
+    end
+    assert.is_nil(Platform.GetPvPSessionKills())
+    for _, value in ipairs({ "5", -1, 1.5 }) do
+      _G.GetPVPSessionStats = function()
+        return value
+      end
+      assert.is_nil(Platform.GetPvPSessionKills())
+    end
+    _G.GetPVPSessionStats = function() end
+    assert.is_nil(Platform.GetPvPSessionKills())
+  end)
+
+  it("tells a battleground from the rest", function()
+    _G.IsInInstance = function()
+      return true, "pvp"
+    end
+    assert.is_true(Platform.IsInBattleground())
+    for _, kind in ipairs({ "none", "party", "raid", "arena" }) do
+      _G.IsInInstance = function()
+        return kind ~= "none", kind
+      end
+      assert.is_false(Platform.IsInBattleground(), kind)
+    end
+  end)
+
+  it("gives nil when the instance type is unreadable", function()
+    _G.IsInInstance = nil
+    assert.is_nil(Platform.IsInBattleground())
+    _G.IsInInstance = function()
+      error("restricted")
+    end
+    assert.is_nil(Platform.IsInBattleground())
+    _G.IsInInstance = function()
+      return true, secret()
+    end
+    assert.is_nil(Platform.IsInBattleground())
+  end)
+
+  it("formats the server day in UTC", function()
+    assert.are.equal("1970-01-01", Platform.ServerDay(0))
+    assert.are.equal("2026-10-01", Platform.ServerDay(1790812800))
+    assert.are.equal("2026-10-01", Platform.ServerDay(1790812800 + 86399))
+    assert.are.equal("2026-10-02", Platform.ServerDay(1790812800 + 86400))
+  end)
+
+  it("gives no day for something that is not a timestamp", function()
+    assert.is_nil(Platform.ServerDay(nil))
+    assert.is_nil(Platform.ServerDay("1000"))
+    assert.is_nil(Platform.ServerDay(1e300))
+  end)
+
+  it("registers an event, and reports false when the client refuses it", function()
+    local registered = {}
+    local frame = {
+      RegisterEvent = function(_, event)
+        if event == "NOPE" then
+          error("unknown event")
+        end
+        registered[#registered + 1] = event
+      end,
+    }
+    assert.is_true(Platform.TryRegisterEvent(frame, "A"))
+    assert.is_false(Platform.TryRegisterEvent(frame, "NOPE"))
+    assert.are.same({ "A" }, registered)
+  end)
+
+  it("hands over only PARTY_KILL combat log events", function()
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 1, "PARTY_KILL", false, "Player-1", "Me", 0, 0, "Player-2", "You"
+    end
+    assert.are.same(
+      { subevent = "PARTY_KILL", sourceGUID = "Player-1", destGUID = "Player-2" },
+      Platform.GetCombatLogInfo()
+    )
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 1, "SWING_DAMAGE", false, "Player-1", "Me", 0, 0, "Player-2", "You"
+    end
+    assert.is_nil(Platform.GetCombatLogInfo())
+  end)
+
+  it("gives nil when the combat log is missing, raises or is secret", function()
+    _G.CombatLogGetCurrentEventInfo = nil
+    assert.is_nil(Platform.GetCombatLogInfo())
+    _G.CombatLogGetCurrentEventInfo = function()
+      error("restricted")
+    end
+    assert.is_nil(Platform.GetCombatLogInfo())
+    local value = setmetatable({}, {
+      __eq = function()
+        error("secret")
+      end,
+    })
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 1, value
+    end
+    -- A table is never equal to a string without calling __eq, so it is simply not a PARTY_KILL.
+    assert.is_nil(Platform.GetCombatLogInfo())
+  end)
+end)

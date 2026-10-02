@@ -25,7 +25,7 @@ describe("Store.Load", function()
     assert.are.equal(raw, db)
     assert.are.equal("me", db.keep)
     assert.is_nil(db.schemaVersion)
-    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.equal(5, db.global.schemaVersion)
   end)
 
   it("is idempotent", function()
@@ -33,7 +33,7 @@ describe("Store.Load", function()
     db.global.roster["A-B"] = { level = 60 }
     local again = Store.Load(db)
     assert.are.equal(60, again.global.roster["A-B"].level)
-    assert.are.equal(4, again.global.schemaVersion)
+    assert.are.equal(5, again.global.schemaVersion)
   end)
 
   it("refuses data from a newer schema and leaves it untouched", function()
@@ -47,14 +47,14 @@ describe("Store.Load", function()
 
   it("recovers from corrupted values instead of raising", function()
     local db = Store.Load({ schemaVersion = "banana", global = "oops", chars = 5 })
-    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.equal(5, db.global.schemaVersion)
     assert.is_table(db.global.roster)
     assert.is_table(db.chars)
   end)
 
   it("treats a non-table saved variable as empty", function()
     local db = Store.Load("garbage")
-    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.equal(5, db.global.schemaVersion)
   end)
 end)
 
@@ -68,6 +68,7 @@ describe("Store.GetChar", function()
     assert.is_table(char.readiness)
     assert.is_table(char.consent)
     assert.is_table(char.publish)
+    assert.is_table(char.pvp)
     assert.are.equal(60, Store.GetChar(db, "Nrager-ClassicBetaPvP").profile.level)
   end)
 end)
@@ -88,7 +89,7 @@ describe("Store migration to schema 3", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.equal(5, db.global.schemaVersion)
     assert.are.same({}, db.global.templates)
     assert.are.equal(60, db.global.roster["A-B"].level)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -116,7 +117,7 @@ describe("Store migration to schema 4", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(4, db.global.schemaVersion)
+    assert.are.equal(5, db.global.schemaVersion)
     assert.are.same({ minimap = {} }, db.global.settings)
     assert.is_table(db.global.templates.Boss)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -130,5 +131,41 @@ describe("Store migration to schema 4", function()
 
   it("creates the settings for a fresh database", function()
     assert.are.same({ minimap = {} }, Store.Load(nil).global.settings)
+  end)
+end)
+
+describe("Store migration to schema 5", function()
+  local Store = load_store()
+
+  it("gives the characters already saved a pvp table and keeps everything else", function()
+    local raw = {
+      global = { schemaVersion = 4, settings = { minimap = {} } },
+      chars = { ["Me-Realm"] = { profile = { level = 60 } }, ["Broken-Realm"] = "oops" },
+    }
+    local db = Store.Load(raw)
+    assert.are.equal(raw, db)
+    assert.are.equal(5, db.global.schemaVersion)
+    assert.are.same({}, db.chars["Me-Realm"].pvp)
+    assert.are.equal(60, db.chars["Me-Realm"].profile.level)
+    assert.are.equal("oops", db.chars["Broken-Realm"])
+  end)
+
+  it("does not touch counters that already exist", function()
+    local pvp = { honor = { world = 3, bg = 1 } }
+    local db = Store.Load({ global = { schemaVersion = 4 }, chars = { ["Me-Realm"] = { pvp = pvp } } })
+    assert.are.equal(pvp, db.chars["Me-Realm"].pvp)
+    assert.are.equal(3, db.chars["Me-Realm"].pvp.honor.world)
+  end)
+
+  it("repairs a pvp value that is not a table", function()
+    local db = Store.Load({ global = { schemaVersion = 4 }, chars = { ["Me-Realm"] = { pvp = 5 } } })
+    assert.are.same({}, db.chars["Me-Realm"].pvp)
+  end)
+
+  it("is idempotent", function()
+    local db = Store.Load({ global = { schemaVersion = 4 }, chars = { ["Me-Realm"] = {} } })
+    db.chars["Me-Realm"].pvp.honor = { world = 2, bg = 0 }
+    local again = Store.Load(db)
+    assert.are.equal(2, again.chars["Me-Realm"].pvp.honor.world)
   end)
 end)

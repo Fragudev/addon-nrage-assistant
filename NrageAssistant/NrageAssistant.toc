@@ -30,6 +30,8 @@ Domain\LootService.lua
 Domain\ReportService.lua
 Domain\Diagnostics.lua
 Domain\TemplateService.lua
+Domain\PvPService.lua
+Domain\PvPTracker.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

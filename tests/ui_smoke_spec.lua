@@ -86,6 +86,7 @@ local function load_window()
     "Core/Constants",
     "Core/Validate",
     "Core/Args",
+    "Domain/PvPService",
     "Domain/PermissionService",
     "Domain/EventModel",
     "Domain/EventService",
@@ -186,7 +187,13 @@ local function build(rank)
     end,
   }
   ns.db = { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} } } }
-  ns.character = { profile = { fields = {} }, consent = {}, readiness = {}, publish = {} }
+  ns.character = {
+    profile = { fields = {} },
+    consent = {},
+    readiness = {},
+    publish = {},
+    pvp = { honor = { world = 4, bg = 6 }, blows = { world = 1, bg = 2 }, daily = {} },
+  }
   ns.guildRoster = {
     Names = function()
       return { "Ann-Realm", "Yonemon Gg" }
@@ -275,6 +282,41 @@ describe("Window smoke test", function()
     for _, tab in ipairs(env.ns.ViewModel.TABS) do
       assert.is_truthy(env.open(tab.value), tab.value)
     end
+  end)
+
+  it("draws the PvP tab with the counters and redraws it when they change", function()
+    local pvp = env.open("pvp")
+    assert.are.same({ { value = "mine", text = "My stats" } }, env.find(pvp, "TabGroup").props.tabs)
+    local function texts(root)
+      local found = {}
+      walk(root, function(widget)
+        if widget.kind == "Label" and widget.props.text then
+          found[#found + 1] = widget.props.text
+        end
+      end)
+      return table.concat(found, "\n")
+    end
+    local text = texts(pvp)
+    assert.is_truthy(text:find("Honourable kills", 1, true))
+    assert.is_truthy(text:find("Honourable kills are not available on this client.", 1, true))
+    assert.is_nil(text:find("Killing blows", 1, true))
+
+    env.ns.pvpTracker = { honorAvailable = true, blowsAvailable = true, Day = function() end }
+    env.widgets = {}
+    env.ns.UI.PvPChanged()
+    local scrolls = find_all(env.widgets[1], function(w)
+      return w.kind == "ScrollFrame"
+    end)
+    text = texts(scrolls[#scrolls])
+    assert.is_truthy(text:find("Killing blows", 1, true))
+    assert.is_nil(text:find("not available", 1, true))
+  end)
+
+  it("does not redraw when the PvP tab is not the one on screen", function()
+    env.open("home")
+    env.widgets = {}
+    env.ns.UI.PvPChanged()
+    assert.are.equal(0, #env.widgets)
   end)
 
   it("creates an event from the Raid tab, opens it and offers a matching template", function()

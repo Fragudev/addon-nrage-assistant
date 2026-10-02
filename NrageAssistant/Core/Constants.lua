@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 4,
+  SCHEMA_VERSION = 5,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -103,6 +103,11 @@ ns.Constants = {
   VOTE_VISIBILITY = "open",
   -- The loot popup passes for you after this long without an answer (local only: nothing is sent).
   LOOT_RESPONSE_TIMEOUT_SECONDS = 60,
+
+  -- PvP counters: how many days of per-day buckets are kept in the saved data of a character.
+  PVP_DAILY_DAYS = 30,
+  -- The honour counter can update a moment after its event; it is read once more after this delay.
+  PVP_RECHECK_SECONDS = 0.5,
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

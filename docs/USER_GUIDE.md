@@ -182,6 +182,19 @@ Votes are visible to everyone while a session is open; whether they should be se
 be decided by the guild. A late joiner receives the minutes (awards and open sessions), not the votes of past
 sessions.
 
+## PvP
+
+The **PvP** tab (*My stats*) counts your kills automatically, split into **open world** and **battleground**, with
+a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
+
+- **Honourable kills** are read from the game's own honour counter, so group credit counts whenever you receive
+  honour. Kills made before you logged in or reloaded are not counted again.
+- **Killing blows** are counted from the combat log, only when the client allows the addon to read it. If it does
+  not, the killing blows section is not shown.
+- If the client does not offer the honour counter either, the tab says so and counts nothing.
+- The counters are saved per character and stay on your client in this phase; nothing is sent to the guild. Daily
+  counts are kept for 30 days.
+
 ## Reports
 
 `/nrage report attendance [event]` and `/nrage report loot [event]`, over every event held or over one.

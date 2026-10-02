@@ -3,7 +3,7 @@ local _, ns = ...
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap },
 --                 sync = { seen, tombstones } }
---   db.chars[identityKey] = { profile = {}, readiness = {} }
+--   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {} }
 local Store = {}
 
 local function ensureTable(parent, key)
@@ -35,6 +35,15 @@ local MIGRATIONS = {
   -- v4: account-wide settings, starting with the minimap button (see MinimapButton.Settings).
   [4] = function(db)
     ensureTable(ensureTable(ensureTable(db, "global"), "settings"), "minimap")
+  end,
+  -- v5: per-character PvP counters (char.pvp, filled by PvPService.Ensure). Nothing global changes; GetChar
+  -- creates the table for each character, so this only makes sure the characters already saved have it.
+  [5] = function(db)
+    for _, char in pairs(ensureTable(db, "chars")) do
+      if type(char) == "table" then
+        ensureTable(char, "pvp")
+      end
+    end
   end,
 }
 
@@ -71,6 +80,7 @@ function Store.GetChar(db, identityKey)
   ensureTable(char, "readiness")
   ensureTable(char, "consent")
   ensureTable(char, "publish")
+  ensureTable(char, "pvp")
   return char
 end
 
