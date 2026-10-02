@@ -53,8 +53,8 @@ local MIGRATIONS = {
     ensureTable(global, "pvpStats")
     ensureTable(global, "pvpResets")
   end,
-  -- v7: account-wide PvP settings (db.global.settings.pvp, see PvPFeed.Settings): the guild kill feed per
-  -- place. Missing fields get their defaults when read.
+  -- v7: account-wide PvP settings table (db.global.settings.pvp). The kill feed switches that lived there are
+  -- gone: every kill is shared; the table is kept so older data migrates unchanged.
   [7] = function(db)
     ensureTable(ensureTable(ensureTable(db, "global"), "settings"), "pvp")
   end,

@@ -53,9 +53,8 @@ channel can read them. An admin can reset a member's counters.
 
 **The kill feed shares the names of the players you kill.** When you kill a player, the guild members running the
 addon receive the victim's name, whether it was in the open world or a battleground, and whether you landed the
-killing blow, together with your name as the sender; you receive theirs. It is on by default in the open world and
-off in battlegrounds, and each place can be turned off in the *Recent kills* sub-tab of the PvP tab (one switch per
-place controls both what you share and what you see). Kills are sent about 5 seconds after they happen, at most 5
+killing blow, together with your name as the sender. It is always on, in the open world and in
+battlegrounds, and cannot be turned off. The *Recent kills* sub-tab of the PvP tab only lists your own kills. Kills are sent about 5 seconds after they happen, at most 5
 per minute and never during an encounter. The feed is not saved: the last 50 entries are kept in memory until you
 log out. Like every addon message it is **not encrypted**, and a message already sent cannot be recalled.
 

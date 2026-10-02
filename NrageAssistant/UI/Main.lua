@@ -800,30 +800,9 @@ local function DrawPvPRanking(container)
   AddLines(container, { "", "Counters come from members who run the addon, about a minute after a kill." })
 end
 
--- Recent kills sub-tab: the two switches of the feed (they decide both what is shared and what is shown) and the
--- last kills of the guild, not saved.
+-- Recent kills sub-tab: the own kills since login, not saved. Every kill is shared with the guild.
 local function DrawPvPFeed(container)
-  local AceGUI = LibStub("AceGUI-3.0")
-  local settings = ns.PvPFeed.Settings(ns.db)
   local feed = ns.pvpFeed
-  local switches = {
-    { key = "feedWorld", label = "Feed in the open world" },
-    { key = "feedBg", label = "Feed in battlegrounds" },
-  }
-  for _, switch in ipairs(switches) do
-    local box = AceGUI:Create("CheckBox")
-    box:SetLabel(switch.label)
-    box:SetValue(settings[switch.key] and true or false)
-    box:SetCallback("OnValueChanged", function(_, _, value)
-      settings[switch.key] = value and true or false
-      Redraw()
-    end)
-    container:AddChild(box)
-  end
-  AddLines(container, {
-    "Each switch decides both what you share with the guild and what you see.",
-    "",
-  })
   AddLines(
     container,
     ns.ViewModel.PvPFeed(feed and feed:Entries() or {}, {

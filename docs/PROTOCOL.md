@@ -116,20 +116,16 @@ offline during the reset learns it from the snapshot on the next login, when the
 `PVP_KILL` tells the guild that the sender killed `victim`. The killer is the **sender**, never a payload field (a
 name sent anyway is dropped). `victim` is plain text of at most 40 bytes without escapes or control characters,
 `where` is `world` or `bg`, and `blow` must be a real boolean (the killing blow, as opposed to honour credit);
-anything else drops the message. It is **not** part of a snapshot: the feed is live only, kept in memory (the last
-50 entries) and never saved. The protocol minor version was raised for it; older clients ignore the unknown type.
+anything else drops the message. It is **not** part of a snapshot: the feed is live only, the own kills are kept in memory (the
+last 50 entries) and never saved. The protocol minor version was raised for it; older clients ignore the unknown type.
 
 Sending: an own kill waits 5 seconds before it is sent, so the honour message and the killing blow (two events for
 one kill, in either order) become one message. A killing blow without honour (a grey target) is sent alone with
-`blow = true`. The message goes out only if the setting for its place is on (`settings.pvp.feedWorld`, default on;
-`feedBg`, default off), never during an encounter lockdown (it is dropped, never queued), and at most 5 per rolling
-minute (the rest are dropped).
+`blow = true`. The message always goes out (no setting), except during an encounter lockdown (it is dropped, never
+queued) and beyond 5 per rolling minute (the rest are dropped).
 
 Receiving: the sender must be a known guild member (`pvp_publish`) and passes the per-sender rate limit of the
-inbox plus a limit of 5 entries per minute for the feed. An entry whose place is switched off is ignored. An entry
-about a victim (compared ignoring case) already in the list within 15 seconds is the same kill, since every
-member who gets honour for it sends one: the sender is added to the killers of that entry (at most 5) and no new
-chat line is printed. Nothing received is stored beyond the in-memory list.
+inbox. The kill is validated and then ignored: the Recent kills list only holds the own kills.
 
 ## Guild blacklist
 

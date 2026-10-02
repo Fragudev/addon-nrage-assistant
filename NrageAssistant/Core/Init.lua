@@ -100,8 +100,8 @@ local function StartPvP()
   end
   publisher:SendAtLogin()
 
-  -- The guild kill feed. Its victim names come from the text of the honour message and from the killing blow in
-  -- the combat log; with neither, it stays empty and the tab says so.
+  -- The own kill feed, shared with the guild. Its victim names come from the text of the honour message and from
+  -- the killing blow in the combat log; with neither, it stays empty and the tab says so.
   local feed = ns.PvPFeed.New({
     now = ns.Platform.Now,
     serverTime = ns.Platform.ServerTime,
@@ -112,20 +112,11 @@ local function StartPvP()
       return not ns.lockdown:CanSend()
     end,
     schedule = C_Timer.After,
-    settings = function()
-      return ns.PvPFeed.Settings(ns.db)
-    end,
     ownName = ns.Platform.GetIdentityKey,
     onChange = ns.UI.PvPChanged,
   })
   feed.honorNames = ns.Platform.HasHonorVictimSource()
   ns.pvpFeed = feed
-  ns.comm.onPvPKill = function(sender, payload)
-    local show, entry = feed:OnReceived(sender, payload)
-    if show then
-      print(("%s %s"):format(PREFIX, ns.ViewModel.PvPFeedChatLine(entry)))
-    end
-  end
 
   local pvpFrame = CreateFrame("Frame")
   for _, event in ipairs(PVP_HONOR_EVENTS) do
