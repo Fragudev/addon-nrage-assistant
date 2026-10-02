@@ -122,6 +122,31 @@ function UI.PvPChanged()
   Redraw()
 end
 
+local blacklistDrawnAt
+local blacklistDrawPending = false
+
+-- Called when a blacklist entry arrived from the guild: the tab is drawn again if it is the one on screen, at most
+-- once per interval like the PvP tab (a snapshot brings the whole list at once).
+function UI.BlacklistChanged()
+  if not (frame and currentTab == "blacklist") then
+    return
+  end
+  local now = ns.Platform.Now()
+  local wait = blacklistDrawnAt and (ns.Constants.BLACKLIST_REDRAW_SECONDS - (now - blacklistDrawnAt)) or 0
+  if wait > 0 then
+    if not blacklistDrawPending then
+      blacklistDrawPending = true
+      C_Timer.After(wait, function()
+        blacklistDrawPending = false
+        UI.BlacklistChanged()
+      end)
+    end
+    return
+  end
+  blacklistDrawnAt = now
+  Redraw()
+end
+
 local function EscapeAll(lines)
   local escaped = {}
   for index, line in ipairs(lines) do
@@ -844,6 +869,61 @@ local function DrawPvP(container)
   sub:SelectTab(allowed and pvpSubTab or "mine")
 end
 
+-- Blacklist tab: a form to add a player (open to everyone) and the list, with a Remove button on each row only
+-- for a role that may remove (the receiver checks the role again, so hiding the button is only convenience).
+local BLACKLIST_COLUMNS = { name = 0.22, reason = 0.4, added = 0.25, remove = 0.13 }
+
+local function DrawBlacklist(container)
+  local role = ns.PermissionService.OwnRole(ns.Platform)
+  local commands = ns.BlacklistCommands.New({
+    blacklist = ns.db.global.blacklist,
+    tombstones = ns.db.global.sync.tombstones,
+    platform = ns.Platform,
+    comm = ns.comm,
+    onChange = function()
+      if ns.blacklistWatcher then
+        pcall(ns.blacklistWatcher.Check, ns.blacklistWatcher)
+      end
+    end,
+  })
+
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
+  end
+  AddHeading(container, "Add a player")
+  local name = AddField(container, "Name", 0.3)
+  local reason = AddField(container, "Reason", 0.5)
+  reason:SetMaxLetters(ns.Constants.BLACKLIST_REASON_MAX)
+  AddButton(container, "Add", 0.2, function()
+    Report(commands:Add(name:GetText(), reason:GetText()))
+  end)
+
+  local rows = ns.ViewModel.BlacklistRows(ns.db.global.blacklist, {
+    canRemove = ns.PermissionService.Can(role, "blacklist_remove"),
+    formatDate = ns.Platform.FormatDate,
+  })
+  AddHeading(container, ("Blacklist (%d)"):format(#rows))
+  if #rows == 0 then
+    AddLines(container, { "Nobody is on the blacklist." })
+    return
+  end
+  for _, row in ipairs(rows) do
+    AddCell(container, row.name, BLACKLIST_COLUMNS.name)
+    AddCell(container, row.reason, BLACKLIST_COLUMNS.reason)
+    AddCell(container, ("%s, %s"):format(row.addedBy, row.added), BLACKLIST_COLUMNS.added)
+    if row.canRemove then
+      AddButton(container, "Remove", BLACKLIST_COLUMNS.remove, function()
+        Report(commands:Remove(row.key))
+      end)
+    end
+  end
+  AddLines(container, {
+    "",
+    "Everyone can add a player. Only the guild master and officers can remove one.",
+    "You are warned once when a listed player is in your group.",
+  })
+end
+
 local DRAWERS = {
   home = DrawHome,
   profile = DrawProfile,
@@ -851,6 +931,7 @@ local DRAWERS = {
   raid = DrawRaid,
   loot = DrawLoot,
   pvp = DrawPvP,
+  blacklist = DrawBlacklist,
   roster = DrawRoster,
 }
 
@@ -867,7 +948,7 @@ local function OnTabSelected(container, _, group)
 
   local AceGUI = LibStub("AceGUI-3.0")
   local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout(group == "raid" and "Flow" or "List")
+  scroll:SetLayout((group == "raid" or group == "blacklist") and "Flow" or "List")
   container:SetLayout("Fill")
   container:AddChild(scroll)
   DRAWERS[group](scroll)

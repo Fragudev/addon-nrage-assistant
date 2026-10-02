@@ -346,6 +346,69 @@ local function readableName(name)
   return normalizedOk and type(normalized) == "string" and normalized or copy
 end
 
+-- Group (party or raid). The names are those the client gives: on Forever `UnitName` returns only the first word
+-- of a multi-word name, and what `GetRaidRosterInfo` returns for one has not been measured yet (see API_NOTES).
+-- Every call is guarded, so a missing API or a secret value leaves a name out instead of raising.
+
+-- true when the player is in a party or a raid; false when not or when the client does not say.
+function Platform.IsInGroup()
+  if not IsInGroup then
+    return false
+  end
+  local ok, grouped = pcall(IsInGroup)
+  return ok and grouped == true
+end
+
+-- The name of a unit or roster row without any realm suffix, or nil when it is not readable.
+local function groupName(read)
+  local ok, name = pcall(read)
+  local readable = ok and readableName(name) or nil
+  return readable and readable:match("^([^%-]+)") or nil
+end
+
+-- The names of the other members of the group, and of the player in a raid (the roster lists everyone): a list of
+-- strings, empty when not in a group or when nothing is readable.
+function Platform.GetGroupMemberNames()
+  local names = {}
+  if not Platform.IsInGroup() then
+    return names
+  end
+  local inRaid = IsInRaid and select(2, pcall(IsInRaid)) == true
+  if inRaid and GetRaidRosterInfo and GetNumGroupMembers then
+    local ok, total = pcall(GetNumGroupMembers)
+    for index = 1, ok and type(total) == "number" and total or 0 do
+      names[#names + 1] = groupName(function()
+        return (GetRaidRosterInfo(index))
+      end)
+    end
+  elseif not inRaid then
+    for index = 1, 4 do
+      names[#names + 1] = groupName(function()
+        return (UnitName("party" .. index))
+      end)
+    end
+  end
+  return names
+end
+
+-- Shows `text` as a raid warning in the middle of the screen. False when the client has no such frame.
+function Platform.ShowRaidNotice(text)
+  if not (RaidNotice_AddMessage and RaidWarningFrame) then
+    return false
+  end
+  local ok = pcall(RaidNotice_AddMessage, RaidWarningFrame, text, ChatTypeInfo and ChatTypeInfo["RAID_WARNING"])
+  return ok
+end
+
+-- The raid warning sound. False when the client has none or refuses it.
+function Platform.PlayAlertSound()
+  if not PlaySound then
+    return false
+  end
+  local ok = pcall(PlaySound, SOUNDKIT and SOUNDKIT.RAID_WARNING or "RaidWarning")
+  return ok
+end
+
 local combatInfo = {}
 
 -- { subevent, sourceGUID, destGUID, destName } of the combat log event being handled, only for PARTY_KILL (the

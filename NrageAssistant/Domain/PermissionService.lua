@@ -17,6 +17,10 @@ local ACTIONS = {
   loot_vote = { rl = true, council = true, admin = true },
   loot_award = { rl = true, council = true, admin = true },
   pvp_publish = { member = true, rl = true, council = true, admin = true },
+  -- The blacklist is open to add to and closed to remove from: anyone can warn the guild about a player, only an
+  -- admin can take the warning back.
+  blacklist_add = { member = true, rl = true, council = true, admin = true },
+  blacklist_remove = { admin = true },
   moderate = { admin = true },
 }
 
@@ -30,11 +34,9 @@ function PermissionService.RoleForRank(rankName, mapping)
   return mapping[rankName:lower()] or "member"
 end
 
--- Lowercase, no spaces: "Some Name" and "somename" are the same name. Character names cannot
--- contain spaces in the game, so this only makes the configured list forgiving.
-local function normalizeName(text)
-  return (text:lower():gsub("%s+", ""))
-end
+-- "Some Name" and "somename" are the same name. Character names cannot contain spaces in the game, so this only
+-- makes the configured list forgiving.
+local normalizeName = ns.Validate.NameKey
 
 -- BETA ONLY (tracked in issue #25): the characters listed in Constants.BETA_ADMIN_NAMES are treated as
 -- admins, as if they were the guild master. `identityKey` is "Name" or "Name-Realm"; only the name

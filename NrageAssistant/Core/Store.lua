@@ -2,7 +2,7 @@ local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
---                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {} }
+--                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {} }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
 local Store = {}
@@ -57,6 +57,11 @@ local MIGRATIONS = {
   -- place. Missing fields get their defaults when read.
   [7] = function(db)
     ensureTable(ensureTable(ensureTable(db, "global"), "settings"), "pvp")
+  end,
+  -- v8: the guild blacklist (blacklist[nameKey], see BlacklistService). Its removals are tombstones "B:<key>" in
+  -- sync.tombstones, which already exists.
+  [8] = function(db)
+    ensureTable(ensureTable(db, "global"), "blacklist")
   end,
 }
 

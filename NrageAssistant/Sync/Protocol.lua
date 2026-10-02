@@ -313,6 +313,37 @@ local function validatePvPKill(payload)
   return { victim = payload.victim, where = payload.where, blow = payload.blow }
 end
 
+-- Guild blacklist. The author is the sender, so the payload has no field for it. A name has to be the one the
+-- blacklist would keep (BlacklistService.Validate: no realm suffix, trimmed, no escapes), and the key is only
+-- bounded here: the receiver works it out again from the name (BlacklistSync).
+local function validateBlacklistKey(key)
+  return isText(key, ns.Constants.BLACKLIST_NAME_MAX) and not key:find(":", 1, true)
+end
+
+local function validateBlacklistUpsert(payload)
+  if not (validateBlacklistKey(payload.key) and validateRevision(payload)) then
+    return nil
+  end
+  local clean = ns.BlacklistService.Validate(payload.name, payload.reason)
+  if not (clean and clean.name == payload.name and clean.reason == payload.reason) then
+    return nil
+  end
+  return {
+    key = payload.key,
+    name = clean.name,
+    reason = clean.reason,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+  }
+end
+
+local function validateBlacklistDelete(payload)
+  if not (validateBlacklistKey(payload.key) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  return { key = payload.key, rev = payload.rev }
+end
+
 local function validatePvPReset(payload)
   if not (ns.EventModel.IsCharacterKey(payload.target) and isInt(payload.rev, 1, MAX_REV)) then
     return nil
@@ -344,6 +375,8 @@ local VALIDATORS = {
   PVP_STATS = validatePvPStats,
   PVP_RESET = validatePvPReset,
   PVP_KILL = validatePvPKill,
+  BLACKLIST_UPSERT = validateBlacklistUpsert,
+  BLACKLIST_DELETE = validateBlacklistDelete,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

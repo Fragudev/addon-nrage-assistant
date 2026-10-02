@@ -23,4 +23,10 @@ function Validate.Id(value)
   return Validate.Text(value, 40) and value:find("^[%w%-_]+$") ~= nil
 end
 
+-- Lowercase, no whitespace: "Some Name" and "somename" are the same name. Used to compare names that people type
+-- or that come from different places, never to display them.
+function Validate.NameKey(text)
+  return (text:lower():gsub("%s+", ""))
+end
+
 ns.Validate = Validate

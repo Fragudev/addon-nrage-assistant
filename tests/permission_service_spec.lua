@@ -1,6 +1,7 @@
 local function load_service()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/PermissionService.lua"))("NrageAssistant", ns)
   return ns.PermissionService, ns.Constants
 end
@@ -86,6 +87,18 @@ describe("PermissionService.Can", function()
       assert.is_true(Service.Can(role, "pvp_publish"))
     end
     assert.is_false(Service.Can(nil, "pvp_publish"))
+  end)
+
+  it("lets every role add to the blacklist but only an admin remove from it", function()
+    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+      assert.is_true(Service.Can(role, "blacklist_add"), role)
+    end
+    assert.is_false(Service.Can(nil, "blacklist_add"))
+    assert.is_true(Service.Can("admin", "blacklist_remove"))
+    for _, role in ipairs({ "member", "rl", "council" }) do
+      assert.is_false(Service.Can(role, "blacklist_remove"), role)
+    end
+    assert.is_false(Service.Can(nil, "blacklist_remove"))
   end)
 
   it("denies unknown actions and unknown roles", function()

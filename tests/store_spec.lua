@@ -25,7 +25,7 @@ describe("Store.Load", function()
     assert.are.equal(raw, db)
     assert.are.equal("me", db.keep)
     assert.is_nil(db.schemaVersion)
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
   end)
 
   it("is idempotent", function()
@@ -33,7 +33,7 @@ describe("Store.Load", function()
     db.global.roster["A-B"] = { level = 60 }
     local again = Store.Load(db)
     assert.are.equal(60, again.global.roster["A-B"].level)
-    assert.are.equal(7, again.global.schemaVersion)
+    assert.are.equal(8, again.global.schemaVersion)
   end)
 
   it("refuses data from a newer schema and leaves it untouched", function()
@@ -47,14 +47,14 @@ describe("Store.Load", function()
 
   it("recovers from corrupted values instead of raising", function()
     local db = Store.Load({ schemaVersion = "banana", global = "oops", chars = 5 })
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
     assert.is_table(db.global.roster)
     assert.is_table(db.chars)
   end)
 
   it("treats a non-table saved variable as empty", function()
     local db = Store.Load("garbage")
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
   end)
 end)
 
@@ -89,7 +89,7 @@ describe("Store migration to schema 3", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
     assert.are.same({}, db.global.templates)
     assert.are.equal(60, db.global.roster["A-B"].level)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -117,7 +117,7 @@ describe("Store migration to schema 4", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
     assert.are.same({ minimap = {}, pvp = {} }, db.global.settings)
     assert.is_table(db.global.templates.Boss)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -144,7 +144,7 @@ describe("Store migration to schema 5", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
     assert.are.same({}, db.chars["Me-Realm"].pvp)
     assert.are.equal(60, db.chars["Me-Realm"].profile.level)
     assert.are.equal("oops", db.chars["Broken-Realm"])
@@ -204,7 +204,7 @@ describe("Store migration to schema 7", function()
   it("creates the PvP settings table and keeps the other settings", function()
     local raw = { global = { schemaVersion = 6, settings = { minimap = { angle = 90 }, pvp = nil } } }
     local db = Store.Load(raw)
-    assert.are.equal(7, db.global.schemaVersion)
+    assert.are.equal(8, db.global.schemaVersion)
     assert.are.same({}, db.global.settings.pvp)
     assert.are.equal(90, db.global.settings.minimap.angle)
   end)
@@ -213,7 +213,7 @@ describe("Store migration to schema 7", function()
     local raw = { global = { schemaVersion = 6, settings = { pvp = { feedWorld = false, feedBg = true } } } }
     local db = Store.Load(raw)
     assert.are.same({ feedWorld = false, feedBg = true }, db.global.settings.pvp)
-    local again = Store.Load(db, 7)
+    local again = Store.Load(db, 8)
     assert.are.same({ feedWorld = false, feedBg = true }, again.global.settings.pvp)
     -- Running the migration again over an already migrated database changes nothing.
     db.global.schemaVersion = 6
@@ -223,5 +223,37 @@ describe("Store migration to schema 7", function()
   it("repairs a settings value that is not a table", function()
     local db = Store.Load({ global = { schemaVersion = 6, settings = { pvp = "oops" } } })
     assert.are.same({}, db.global.settings.pvp)
+  end)
+end)
+
+describe("Store migration to schema 8", function()
+  local Store = load_store()
+
+  it("creates the blacklist and keeps the rest", function()
+    local raw =
+      { global = { schemaVersion = 7, roster = { x = 1 }, sync = { tombstones = { ["B:x"] = { rev = 2 } } } } }
+    local db = Store.Load(raw)
+    assert.are.equal(8, db.global.schemaVersion)
+    assert.are.same({}, db.global.blacklist)
+    assert.are.same({ x = 1 }, db.global.roster)
+    assert.are.equal(2, db.global.sync.tombstones["B:x"].rev)
+  end)
+
+  it("is idempotent and keeps the entries already saved", function()
+    local entry = { name = "Bad Guy", reason = "ninja", rev = 1 }
+    local db = Store.Load({ global = { schemaVersion = 7, blacklist = { badguy = entry } } })
+    assert.are.equal(entry, db.global.blacklist.badguy)
+    -- Running the migration again over an already migrated database changes nothing.
+    db.global.schemaVersion = 7
+    assert.are.equal(entry, Store.Load(db).global.blacklist.badguy)
+  end)
+
+  it("repairs a blacklist that is not a table", function()
+    local db = Store.Load({ global = { schemaVersion = 7, blacklist = "oops" } })
+    assert.are.same({}, db.global.blacklist)
+  end)
+
+  it("gives a new database an empty blacklist", function()
+    assert.are.same({}, Store.Load(nil).global.blacklist)
   end)
 end)

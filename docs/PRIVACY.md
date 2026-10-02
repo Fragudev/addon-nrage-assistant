@@ -23,6 +23,7 @@ secret store.
 | Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
 | PvP counters received from other members | the guild channel |
 | Recent guild kills (killer, victim, place), in memory only | the guild channel, and your own kills |
+| The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates | you; never shared |
@@ -57,6 +58,16 @@ off in battlegrounds, and each place can be turned off in the *Recent kills* sub
 place controls both what you share and what you see). Kills are sent about 5 seconds after they happen, at most 5
 per minute and never during an encounter. The feed is not saved: the last 50 entries are kept in memory until you
 log out. Like every addon message it is **not encrypted**, and a message already sent cannot be recalled.
+
+**The blacklist shares names and free text about other people.** When you add a player to the guild blacklist, every
+guild member running the addon receives the player's name, the reason you typed (up to 100 characters) and your
+name as the author, and you receive the entries of the others; a member who logs in later gets the whole list from
+a leader. There is no consent switch: adding a player is the act of sharing, and anyone with a guild role can do
+it. Only the guild master and officers can remove an entry. The reason is about a third party who has not agreed
+to it, so write only what you would say to them in the guild channel. Like every addon message these are **not
+encrypted**, a message already sent cannot be recalled, and removing an entry does not erase copies held by
+clients that never received the removal (the removal itself is remembered for 30 days). The blacklist is not part
+of the text export.
 
 Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
 publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are

@@ -570,3 +570,180 @@ describe("Platform.FormatClock", function()
     assert.are.equal("20:30", Platform.FormatClock(timestamp))
   end)
 end)
+
+describe("Platform group", function()
+  local saved = {}
+  local names = {
+    "IsInGroup",
+    "IsInRaid",
+    "GetNumGroupMembers",
+    "GetRaidRosterInfo",
+    "UnitName",
+    "RaidNotice_AddMessage",
+    "RaidWarningFrame",
+    "ChatTypeInfo",
+    "PlaySound",
+    "SOUNDKIT",
+    "GetNormalizedRealmName",
+  }
+
+  before_each(function()
+    for _, name in ipairs(names) do
+      saved[name] = _G[name]
+    end
+    _G.GetNormalizedRealmName = function()
+      return "ClassicBetaPvP"
+    end
+  end)
+
+  after_each(function()
+    for _, name in ipairs(names) do
+      _G[name] = saved[name]
+    end
+  end)
+
+  local function party(units)
+    _G.IsInGroup = function()
+      return true
+    end
+    _G.IsInRaid = function()
+      return false
+    end
+    _G.UnitName = function(unit)
+      local value = units[unit]
+      if type(value) == "table" then
+        return value[1], value[2]
+      end
+      return value
+    end
+  end
+
+  local function raid(rows)
+    _G.IsInGroup = function()
+      return true
+    end
+    _G.IsInRaid = function()
+      return true
+    end
+    _G.GetNumGroupMembers = function()
+      return #rows
+    end
+    _G.GetRaidRosterInfo = function(index)
+      return rows[index]
+    end
+  end
+
+  local function secret()
+    return setmetatable({}, {
+      __concat = function()
+        error("secret")
+      end,
+      __len = function()
+        error("secret")
+      end,
+    })
+  end
+
+  it("is empty when not in a group", function()
+    _G.IsInGroup = function()
+      return false
+    end
+    assert.is_false(Platform.IsInGroup())
+    assert.are.same({}, Platform.GetGroupMemberNames())
+  end)
+
+  it("reads the party members, without realm suffixes", function()
+    party({ party1 = "Ann", party2 = { "Bob", "OtherRealm" }, party3 = "Cid-ClassicBetaPvP", party4 = nil })
+    assert.is_true(Platform.IsInGroup())
+    assert.are.same({ "Ann", "Bob", "Cid" }, Platform.GetGroupMemberNames())
+  end)
+
+  it("reads the raid roster, without realm suffixes", function()
+    raid({ "Ann", "Bob-ClassicBetaPvP", "Yonemon Gg" })
+    assert.are.same({ "Ann", "Bob", "Yonemon Gg" }, Platform.GetGroupMemberNames())
+  end)
+
+  it("leaves out what cannot be read and keeps the rest", function()
+    raid({ "Ann", "", secret(), 5, "Bob" })
+    assert.are.same({ "Ann", "Bob" }, Platform.GetGroupMemberNames())
+    party({ party1 = secret(), party2 = "Bob" })
+    assert.are.same({ "Bob" }, Platform.GetGroupMemberNames())
+  end)
+
+  it("never raises, whatever the client does", function()
+    raid({ "Ann" })
+    _G.GetRaidRosterInfo = function()
+      error("restricted")
+    end
+    assert.are.same({}, Platform.GetGroupMemberNames())
+    _G.GetNumGroupMembers = function()
+      error("restricted")
+    end
+    assert.are.same({}, Platform.GetGroupMemberNames())
+    _G.IsInGroup = function()
+      error("restricted")
+    end
+    assert.is_false(Platform.IsInGroup())
+    assert.are.same({}, Platform.GetGroupMemberNames())
+  end)
+
+  it("gives an empty list when the group APIs are missing", function()
+    _G.IsInGroup = nil
+    assert.is_false(Platform.IsInGroup())
+    assert.are.same({}, Platform.GetGroupMemberNames())
+    _G.IsInGroup = function()
+      return true
+    end
+    _G.IsInRaid = nil
+    _G.GetRaidRosterInfo = nil
+    _G.UnitName = nil
+    assert.are.same({}, Platform.GetGroupMemberNames())
+  end)
+
+  it("shows a raid notice with the raid warning colour", function()
+    local shown
+    _G.RaidWarningFrame = {}
+    _G.ChatTypeInfo = { RAID_WARNING = { r = 1, g = 0.5, b = 0 } }
+    _G.RaidNotice_AddMessage = function(frame, text, color)
+      shown = { frame = frame, text = text, color = color }
+    end
+    assert.is_true(Platform.ShowRaidNotice("watch out"))
+    assert.are.equal(_G.RaidWarningFrame, shown.frame)
+    assert.are.equal("watch out", shown.text)
+    assert.are.equal(_G.ChatTypeInfo.RAID_WARNING, shown.color)
+  end)
+
+  it("does not raise when the raid notice is missing or fails", function()
+    _G.RaidWarningFrame = nil
+    assert.is_false(Platform.ShowRaidNotice("x"))
+    _G.RaidWarningFrame = {}
+    _G.ChatTypeInfo = nil
+    _G.RaidNotice_AddMessage = function()
+      error("boom")
+    end
+    assert.is_false(Platform.ShowRaidNotice("x"))
+    _G.RaidNotice_AddMessage = nil
+    assert.is_false(Platform.ShowRaidNotice("x"))
+  end)
+
+  it("plays the raid warning sound, and does not raise when it cannot", function()
+    local played
+    _G.SOUNDKIT = { RAID_WARNING = 8959 }
+    _G.PlaySound = function(sound)
+      played = sound
+    end
+    assert.is_true(Platform.PlayAlertSound())
+    assert.are.equal(8959, played)
+
+    _G.SOUNDKIT = nil
+    assert.is_true(Platform.PlayAlertSound())
+    assert.are.equal("RaidWarning", played)
+
+    _G.PlaySound = function()
+      error("boom")
+    end
+    assert.is_false(Platform.PlayAlertSound())
+    _G.PlaySound = nil
+    assert.is_false(Platform.PlayAlertSound())
+  end)
+end)

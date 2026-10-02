@@ -9,6 +9,7 @@ local function load_view_model()
     "Domain/EventService",
     "Domain/LootModel",
     "Domain/LootService",
+    "Domain/BlacklistService",
     "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -114,10 +115,33 @@ describe("ViewModel misc", function()
     for _, tab in ipairs(ViewModel.TABS) do
       values[tab.value] = true
     end
-    assert.are.same(
-      { home = true, profile = true, ready = true, raid = true, loot = true, pvp = true, roster = true },
-      values
-    )
+    assert.are.same({
+      home = true,
+      profile = true,
+      ready = true,
+      raid = true,
+      loot = true,
+      pvp = true,
+      blacklist = true,
+      roster = true,
+    }, values)
+  end)
+
+  it("puts the Blacklist tab after PvP and before Roster", function()
+    local order = {}
+    for _, tab in ipairs(ViewModel.TABS) do
+      order[#order + 1] = tab.value
+    end
+    local function index_of(value)
+      for index, name in ipairs(order) do
+        if name == value then
+          return index
+        end
+      end
+    end
+    assert.are.equal(index_of("pvp") + 1, index_of("blacklist"))
+    assert.are.equal(index_of("blacklist") + 1, index_of("roster"))
+    assert.are.equal("Blacklist", ViewModel.TABS[index_of("blacklist")].text)
   end)
 
   it("documents every user command in the help", function()
@@ -1309,5 +1333,93 @@ describe("ViewModel PvP feed", function()
   it("words the chat line", function()
     assert.are.equal("Ann killed Zed (open world)", ViewModel.PvPFeedChatLine(entry()))
     assert.are.equal("Ann killed Zed (battleground)", ViewModel.PvPFeedChatLine(entry({ where = "bg" })))
+  end)
+end)
+
+describe("ViewModel.BlacklistRows", function()
+  local function entry(name, reason, overrides)
+    local e = { name = name, reason = reason, addedBy = "Ann-Realm", addedAt = 500, rev = 1, updatedAt = 500 }
+    for k, v in pairs(overrides or {}) do
+      e[k] = v
+    end
+    return e
+  end
+
+  it("lists the entries sorted by name with the author and the date", function()
+    local rows = ViewModel.BlacklistRows({
+      zed = entry("Zed", "ninja"),
+      ann = entry("ann", "scammer", { addedBy = "Bob-Realm" }),
+      yonemongg = entry("Yonemon Gg", "afk"),
+    }, {
+      canRemove = true,
+      formatDate = function(timestamp)
+        return "date:" .. timestamp
+      end,
+    })
+    assert.are.equal(3, #rows)
+    assert.are.same({ "ann", "Yonemon Gg", "Zed" }, { rows[1].name, rows[2].name, rows[3].name })
+    assert.are.same({ "ann", "yonemongg", "zed" }, { rows[1].key, rows[2].key, rows[3].key })
+    assert.are.equal("scammer", rows[1].reason)
+    assert.are.equal("Bob-Realm", rows[1].addedBy)
+    assert.are.equal("date:500", rows[1].added)
+    assert.is_true(rows[1].canRemove)
+  end)
+
+  it("only offers Remove when the role may remove", function()
+    local entries = { ann = entry("Ann", "x") }
+    assert.is_false(ViewModel.BlacklistRows(entries, { canRemove = false })[1].canRemove)
+    assert.is_false(ViewModel.BlacklistRows(entries)[1].canRemove)
+  end)
+
+  it("escapes names, reasons and authors", function()
+    local rows = ViewModel.BlacklistRows({ x = entry("|cffff0000Bad", "|Hurl|hclick", { addedBy = "|rEvil" }) })
+    assert.are.equal("||cffff0000Bad", rows[1].name)
+    assert.are.equal("||Hurl||hclick", rows[1].reason)
+    assert.are.equal("||rEvil", rows[1].addedBy)
+  end)
+
+  it("shows a dash where a date or an author is missing", function()
+    local rows = ViewModel.BlacklistRows({ x = entry("Ann", "x", { addedAt = false, addedBy = false }) }, {
+      formatDate = function()
+        return "never"
+      end,
+    })
+    assert.are.equal("-", rows[1].added)
+    assert.are.equal("-", rows[1].addedBy)
+  end)
+
+  it("is empty for an empty blacklist", function()
+    assert.are.same({}, ViewModel.BlacklistRows({}))
+  end)
+end)
+
+describe("ViewModel.BlacklistAlertLine", function()
+  it("names the player and the reason", function()
+    local line = ViewModel.BlacklistAlertLine({ member = "Ann", entry = { name = "Ann", reason = "ninja" } })
+    assert.are.equal("Ann is on the blacklist: ninja", line)
+  end)
+
+  it("says it is a guess when only the first word matched", function()
+    local line = ViewModel.BlacklistAlertLine({
+      member = "Yonemon",
+      approximate = true,
+      entry = { name = "Yonemon Gg", reason = "ninja" },
+    })
+    assert.are.equal("Yonemon may be Yonemon Gg, who is on the blacklist: ninja", line)
+  end)
+
+  it("escapes what it shows", function()
+    local line = ViewModel.BlacklistAlertLine({ member = "|rA", entry = { name = "|cB", reason = "|Hc" } })
+    assert.is_nil(line:find("[^|]|[^|]"))
+  end)
+end)
+
+describe("ViewModel help", function()
+  it("lists the blacklist command", function()
+    local found = false
+    for _, line in ipairs(ViewModel.HelpLines()) do
+      found = found or line:find("/nrage blacklist", 1, true) ~= nil
+    end
+    assert.is_true(found)
   end)
 end)

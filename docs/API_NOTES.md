@@ -63,6 +63,23 @@ is not available when neither source exists on the client.
 Decisions still open: the source of honourable kills (counter delta, chat event, or both) and whether killing
 blows are available.
 
+## Group names for the blacklist alert (to be measured)
+
+The blacklist alert compares the members of the party or raid with the blacklist. Nothing about group names has
+been measured on Forever yet; the addon assumes the same behaviour as `UnitName`, and handles both possibilities:
+a single-word group name that equals the first word of a listed multi-word name is reported as a possible match
+("may be ..."). Check in game with a character that has a multi-word name in a party and in a raid:
+
+| # | Question | API | Result |
+|---|---|---|---|
+| 1 | Does `UnitName("party1")` return only the first word of a multi-word name, like `UnitName("player")`? | `UnitName` | not measured yet |
+| 2 | Does `GetRaidRosterInfo(i)` return the full multi-word name or only the first word? Is a realm suffix ever added? | `GetRaidRosterInfo` | not measured yet |
+| 3 | Do `IsInGroup`, `IsInRaid`, `GetNumGroupMembers` and the events `GROUP_ROSTER_UPDATE` and `PLAYER_ENTERING_WORLD` exist and fire as on Mainline? | APIs, events | not measured yet |
+| 4 | Do `RaidNotice_AddMessage(RaidWarningFrame, ...)` and `PlaySound` work for the warning? | UI | not measured yet |
+
+verify-in-game: record the answers above here, and if the full name is available the first-word fallback can be
+removed. Every call is guarded, so a missing API or a secret value leaves a name out instead of raising.
+
 ## APIs the addon uses
 
 `/nrage debug selftest` checks each of these on the running client.
@@ -76,6 +93,7 @@ blows are available.
 | Encounters and combat | events `ENCOUNTER_START`, `ENCOUNTER_END`, `PLAYER_REGEN_DISABLED`, `PLAYER_REGEN_ENABLED` (the lockdown probe) |
 | PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo` (also the destination name, for the kill feed), the globals `COMBATLOG_HONORGAIN` and `COMBATLOG_HONORGAIN_NO_RANK`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
 | PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
+| Group and warning (**not measured yet**) | `IsInGroup`, `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("party1".."party4")`, `RaidNotice_AddMessage`, `RaidWarningFrame`, `PlaySound`, events `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`. Each is guarded and registered in `pcall`; not in the self test on purpose |
 | Time | `GetServerTime`, `GetTime`, `date`, `time` |
 | UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata`, AceGUI |
 | Load | events `ADDON_LOADED`, `PLAYER_LOGIN`, `PLAYER_GUILD_UPDATE`, `## SavedVariables` |

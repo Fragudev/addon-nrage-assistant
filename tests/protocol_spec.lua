@@ -2,7 +2,9 @@ local function load_protocol()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/PermissionService.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/EventModel.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/BlacklistService.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
@@ -654,7 +656,83 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 2", function()
-    assert.are.equal(2, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 3", function()
+    assert.are.equal(3, Constants.PROTOCOL_MINOR)
+  end)
+end)
+
+describe("Protocol.Validate BLACKLIST_UPSERT and BLACKLIST_DELETE", function()
+  local function upsert(overrides)
+    local payload = { key = "yonemongg", name = "Yonemon Gg", reason = "ninja", rev = 1, updatedAt = 1000 }
+    for k, v in pairs(overrides or {}) do
+      payload[k] = v
+    end
+    return payload
+  end
+
+  local function validate_upsert(payload)
+    return Protocol.Validate(Protocol.Build("BLACKLIST_UPSERT", payload, "id-1"))
+  end
+
+  local function validate_delete(payload)
+    return Protocol.Validate(Protocol.Build("BLACKLIST_DELETE", payload, "id-1"))
+  end
+
+  it("keeps the fields of an upsert and drops everything else, such as an author", function()
+    assert.are.same(upsert(), validate_upsert(upsert()).p)
+    local clean = validate_upsert(upsert({ addedBy = "Boss-Realm", updatedBy = "Boss-Realm", addedAt = 5, extra = 1 }))
+    assert.are.same(upsert(), clean.p)
+  end)
+
+  it("accepts the limits of the name and the reason", function()
+    local name = ("n"):rep(Constants.BLACKLIST_NAME_MAX)
+    local reason = ("r"):rep(Constants.BLACKLIST_REASON_MAX)
+    assert.is_truthy(validate_upsert(upsert({ key = name, name = name, reason = reason })))
+  end)
+
+  it("rejects a name or a key that is empty, too long, not text, or carries escapes or separators", function()
+    local long = ("n"):rep(Constants.BLACKLIST_NAME_MAX + 1)
+    for _, bad in ipairs({ "", long, 5, true, "A|cffff0000B", "A\nB", "A:B" }) do
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ name = bad }))), tostring(bad))
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ key = bad }))), tostring(bad))
+      assert.are.equal("bad_payload", select(2, validate_delete({ key = bad, rev = 1 })), tostring(bad))
+    end
+  end)
+
+  it("rejects a name that is not the one the blacklist would keep", function()
+    for _, bad in ipairs({ " Ann", "Ann ", "A  nn", "Ann-Realm" }) do
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ name = bad }))), bad)
+    end
+  end)
+
+  it("rejects a reason that is empty, too long, not text, or carries escapes", function()
+    local long = ("r"):rep(Constants.BLACKLIST_REASON_MAX + 1)
+    for _, bad in ipairs({ "", long, 5, false, "a|cffff0000b", "two\nlines", " padded " }) do
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ reason = bad }))), tostring(bad))
+    end
+  end)
+
+  it("rejects a revision or a time out of range or not a whole number", function()
+    for _, bad in ipairs({ 0, -1, 1.5, 2147483648, "1", true }) do
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ rev = bad }))), tostring(bad))
+      assert.are.equal("bad_payload", select(2, validate_delete({ key = "ann", rev = bad })), tostring(bad))
+    end
+    for _, bad in ipairs({ -1, 4102444801, 1.5, "1" }) do
+      assert.are.equal("bad_payload", select(2, validate_upsert(upsert({ updatedAt = bad }))), tostring(bad))
+    end
+  end)
+
+  it("rejects a message with a missing field", function()
+    for _, field in ipairs({ "key", "name", "reason", "rev", "updatedAt" }) do
+      local payload = upsert()
+      payload[field] = nil
+      assert.are.equal("bad_payload", select(2, validate_upsert(payload)), field)
+    end
+    assert.are.equal("bad_payload", select(2, validate_delete({ key = "ann" })))
+    assert.are.equal("bad_payload", select(2, validate_delete({ rev = 2 })))
+  end)
+
+  it("keeps the fields of a delete", function()
+    assert.are.same({ key = "ann", rev = 2 }, validate_delete({ key = "ann", rev = 2, extra = true }).p)
   end)
 end)
