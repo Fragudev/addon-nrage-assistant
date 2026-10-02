@@ -189,8 +189,8 @@ a total and today's count for each. Days follow the server's date in UTC, so the
 
 - **Honourable kills** are read from the game's own honour counter, so group credit counts whenever you receive
   honour. Kills made before you logged in or reloaded are not counted again.
-- **Killing blows** are counted from the combat log, only when the client allows the addon to read it. If it does
-  not, the killing blows section is not shown.
+- **Killing blows** would come from the combat log, which the client protects: asking for it makes the client
+  show a "blocked action" warning at login. They are off for now, so the killing blows section is not shown.
 - If the client does not offer the honour counter either, the tab says so and counts nothing.
 - The counters are saved per character. Daily counts are kept for 30 days.
 - They are also **shared with the guild automatically**: about a minute after a kill, every guild member running

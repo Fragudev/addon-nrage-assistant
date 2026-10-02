@@ -50,7 +50,7 @@ they say. Every value is logged through `pcall`; a secret value shows as `<secre
 |---|---|---|---|
 | 1 | Do the honour counters exist, and do they increase on an honourable kill, including group credit? | `GetPVPSessionStats()`, `GetPVPLifetimeStats()` | not measured yet |
 | 2 | Does `CHAT_MSG_COMBAT_HONOR_GAIN` fire? What text and arguments does it carry (victim name, rank, honour)? Is it a secret value? | event | not measured yet |
-| 3 | Can an addon register `COMBAT_LOG_EVENT_UNFILTERED` outside encounters? Does `CombatLogGetCurrentEventInfo()` return readable `PARTY_KILL` data (source GUID = player, destination = hostile player)? | event | not measured yet |
+| 3 | Can an addon register `COMBAT_LOG_EVENT_UNFILTERED` outside encounters? Does `CombatLogGetCurrentEventInfo()` return readable `PARTY_KILL` data (source GUID = player, destination = hostile player)? | event | Right after login the client showed "NrageAssistant has been blocked from an action only available to the Blizzard UI". The dialog does not name the call; this registration is the suspect (Midnight protects the event, and a `pcall` does not hide the dialog), not a confirmed cause. The addon no longer registers it (`PVP_COMBAT_LOG_ENABLED = false`). `/nrage debug pvp start` still tries it, so the dialog may show when you run the probe. |
 | 4 | Does `IsInInstance()` return `instanceType == "pvp"` inside a battleground? | `IsInInstance` | not measured yet |
 | 5 | Do kills that give no honour (grey targets, repeated kills of the same target) increase any counter? | counters | not measured yet |
 | 6 | Are victim names multi-word and first-word-only, like `UnitName`? | event | not measured yet |
