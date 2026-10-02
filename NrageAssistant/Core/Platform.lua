@@ -247,6 +247,19 @@ function Platform.ServerTime()
   return GetServerTime()
 end
 
+-- "YYYY-MM-DD" of a server timestamp in UTC (the "!" prefix), or nil when it cannot be formatted. UTC and not
+-- the local time zone, so every member agrees on where a day starts and ends.
+function Platform.ServerDay(timestamp)
+  if type(timestamp) ~= "number" then
+    return nil
+  end
+  local ok, day = pcall(date, "!%Y-%m-%d", timestamp)
+  if ok and type(day) == "string" then
+    return day
+  end
+  return nil
+end
+
 function Platform.Now()
   return GetTime()
 end
@@ -264,6 +277,75 @@ end
 
 function Platform.SendGuildMessage(prefix, text)
   return C_ChatInfo.SendAddonMessage(prefix, text, "GUILD")
+end
+
+-- PvP. None of these APIs is measured on Forever yet (issue #99), so each one is guarded: a missing API, an
+-- error or a secret value (which raises when compared) gives nil and the caller treats the data as unavailable.
+
+-- Honourable kills of this session, from the first value of GetPVPSessionStats, or nil.
+function Platform.GetPvPSessionKills()
+  if not GetPVPSessionStats then
+    return nil
+  end
+  local ok, kills = pcall(GetPVPSessionStats)
+  if not ok or type(kills) ~= "number" then
+    return nil
+  end
+  -- The comparison is the probe for a secret value: it raises on one.
+  local readable, whole = pcall(function()
+    return kills >= 0 and kills % 1 == 0
+  end)
+  if readable and whole then
+    return kills
+  end
+  return nil
+end
+
+-- true in a battleground (instance type "pvp"), false anywhere else, nil when the client does not say.
+function Platform.IsInBattleground()
+  if not IsInInstance then
+    return nil
+  end
+  local ok, result = pcall(function()
+    local _, instanceType = IsInInstance()
+    if type(instanceType) ~= "string" then
+      return nil
+    end
+    return instanceType == "pvp"
+  end)
+  if ok then
+    return result
+  end
+  return nil
+end
+
+-- Registers `event` on `frame`; false when the client refuses it (an unknown event or a restricted one).
+function Platform.TryRegisterEvent(frame, event)
+  local ok = pcall(frame.RegisterEvent, frame, event)
+  return ok
+end
+
+local combatInfo = {}
+
+-- { subevent, sourceGUID, destGUID } of the combat log event being handled, only for PARTY_KILL (the one
+-- subevent that matters here), else nil. The table is reused to keep the combat log free of allocations, so
+-- it must be read before the next event. The values may be secret: they are not inspected beyond that test.
+function Platform.GetCombatLogInfo()
+  if not CombatLogGetCurrentEventInfo then
+    return nil
+  end
+  local ok, wanted = pcall(function()
+    local _, subevent, _, sourceGUID, _, _, _, destGUID = CombatLogGetCurrentEventInfo()
+    if subevent ~= "PARTY_KILL" then
+      return false
+    end
+    combatInfo.subevent, combatInfo.sourceGUID, combatInfo.destGUID = subevent, sourceGUID, destGUID
+    return true
+  end)
+  if ok and wanted then
+    return combatInfo
+  end
+  return nil
 end
 
 ns.Platform = Platform

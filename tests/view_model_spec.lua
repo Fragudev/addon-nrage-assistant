@@ -3,6 +3,7 @@ local function load_view_model()
   for _, path in ipairs({
     "Core/Constants",
     "Core/Validate",
+    "Domain/PvPService",
     "Domain/PermissionService",
     "Domain/EventModel",
     "Domain/EventService",
@@ -113,7 +114,10 @@ describe("ViewModel misc", function()
     for _, tab in ipairs(ViewModel.TABS) do
       values[tab.value] = true
     end
-    assert.are.same({ home = true, profile = true, ready = true, raid = true, loot = true, roster = true }, values)
+    assert.are.same(
+      { home = true, profile = true, ready = true, raid = true, loot = true, pvp = true, roster = true },
+      values
+    )
   end)
 
   it("documents every user command in the help", function()
@@ -937,5 +941,41 @@ describe("ViewModel item details and won items", function()
 
   it("copes with an event that has no loot table", function()
     assert.are.same({}, ViewModel.WonItems({ x = { title = "Empty" } }, "Ann", 8))
+  end)
+end)
+
+describe("ViewModel PvP", function()
+  local function stats()
+    local pvp = { honor = { world = 4, bg = 6 }, blows = { world = 1, bg = 2 }, daily = {} }
+    pvp.daily["2026-10-01"] = { honor = { world = 1, bg = 2 }, blows = { world = 0, bg = 1 } }
+    return pvp
+  end
+
+  it("has a single sub-tab for now", function()
+    assert.are.same({ { value = "mine", text = "My stats" } }, ViewModel.PvPSubTabs())
+  end)
+
+  it("lists honourable kills and killing blows with totals and today", function()
+    local pvp = stats()
+    local text =
+      table.concat(ViewModel.PvPStats(pvp, { day = "2026-10-01", honorAvailable = true, blowsAvailable = true }), "\n")
+    assert.is_truthy(text:find("Honourable kills\n  Open world: 4\n  Battleground: 6\n  Total: 10", 1, true))
+    assert.is_truthy(text:find("Today: 3 (open world 1, battleground 2)", 1, true))
+    assert.is_truthy(text:find("Killing blows\n  Open world: 1\n  Battleground: 2\n  Total: 3", 1, true))
+    assert.is_truthy(text:find("Today: 1 (open world 0, battleground 1)", 1, true))
+    assert.is_nil(text:find("not available", 1, true))
+  end)
+
+  it("leaves the killing blows out when the client does not allow them", function()
+    local pvp = stats()
+    local text = table.concat(ViewModel.PvPStats(pvp, { day = "2026-10-01", honorAvailable = true }), "\n")
+    assert.is_nil(text:find("Killing blows", 1, true))
+    assert.is_truthy(text:find("Honourable kills", 1, true))
+  end)
+
+  it("says so when honourable kills cannot be read", function()
+    local text = table.concat(ViewModel.PvPStats(nil, { blowsAvailable = true }), "\n")
+    assert.is_truthy(text:find("Honourable kills are not available on this client.", 1, true))
+    assert.is_truthy(text:find("Today: 0 (open world 0, battleground 0)", 1, true))
   end)
 end)

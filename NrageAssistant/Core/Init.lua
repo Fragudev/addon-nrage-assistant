@@ -43,6 +43,51 @@ local function ScheduleSelfTest()
   end)
 end
 
+-- The events the PvP counters listen to. Both are registered one by one, so a client that does not know one of
+-- them still loads and keeps the other; the combat log is optional (it may be restricted on this client).
+local PVP_HONOR_EVENTS = { "CHAT_MSG_COMBAT_HONOR_GAIN", "PLAYER_PVP_KILLS_CHANGED" }
+local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
+
+local pvpStarted = false
+
+-- Own frame, so the access frame below stays as it is. Runs once: access can be lost and regained.
+local function StartPvP()
+  if pvpStarted then
+    return
+  end
+  pvpStarted = true
+  local pvp = ns.PvPService.Ensure(ns.character.pvp)
+  ns.character.pvp = pvp
+  ns.PvPService.Prune(pvp, ns.Platform.ServerDay(ns.Platform.ServerTime()), Constants.PVP_DAILY_DAYS)
+  local tracker = ns.PvPTracker.New({
+    platform = ns.Platform,
+    stats = pvp,
+    schedule = C_Timer.After,
+    onChange = ns.UI.PvPChanged,
+  })
+  tracker:Start()
+  ns.pvpTracker = tracker
+
+  local pvpFrame = CreateFrame("Frame")
+  for _, event in ipairs(PVP_HONOR_EVENTS) do
+    ns.Platform.TryRegisterEvent(pvpFrame, event)
+  end
+  tracker.blowsAvailable = ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
+  pvpFrame:SetScript("OnEvent", function(_, event)
+    if not ns.active then
+      return
+    end
+    if event == PVP_COMBAT_LOG_EVENT then
+      local info = ns.Platform.GetCombatLogInfo()
+      if info then
+        tracker:OnCombatLog(info)
+      end
+    else
+      tracker:OnHonorEvent()
+    end
+  end)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -66,6 +111,7 @@ local function Activate()
   ns.guildRoster:Rebuild()
   ns.LootPopup.Start()
   ns.VotingFrame.Start()
+  StartPvP()
   ScheduleSelfTest()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end

@@ -156,6 +156,38 @@ function ViewModel.RaidSubTabs(actions)
   return tabs
 end
 
+-- The sub-tabs of the PvP tab. Only the own counters for now; the guild ranking comes with the sync phase.
+function ViewModel.PvPSubTabs()
+  return { { value = "mine", text = "My stats" } }
+end
+
+-- The lines of "My stats": honourable kills and killing blows split into open world and battleground, with
+-- the total and today. `options` = { day = "YYYY-MM-DD" (today, server date), honorAvailable, blowsAvailable }.
+-- The killing blows are left out when this client does not allow reading them.
+function ViewModel.PvPStats(stats, options)
+  local totals = ns.PvPService.Totals(stats)
+  local today = ns.PvPService.Today(stats, options.day)
+  local lines = {}
+
+  local function section(title, all, day)
+    lines[#lines + 1] = title
+    lines[#lines + 1] = ("  Open world: %d"):format(all.world)
+    lines[#lines + 1] = ("  Battleground: %d"):format(all.bg)
+    lines[#lines + 1] = ("  Total: %d"):format(all.total)
+    lines[#lines + 1] = ("  Today: %d (open world %d, battleground %d)"):format(day.total, day.world, day.bg)
+  end
+
+  section("Honourable kills", totals.honor, today.honor)
+  if not options.honorAvailable then
+    lines[#lines + 1] = "Honourable kills are not available on this client."
+  end
+  if options.blowsAvailable then
+    lines[#lines + 1] = ""
+    section("Killing blows", totals.blows, today.blows)
+  end
+  return lines
+end
+
 -- Loot council sessions per event: what is open, what was awarded and why. Only aggregate vote
 -- counts are shown here (never who voted for whom), and everything from the guild is escaped.
 function ViewModel.Loot(events)
@@ -653,6 +685,7 @@ ViewModel.TABS = {
   { value = "ready", text = "Readiness" },
   { value = "raid", text = "Raid" },
   { value = "loot", text = "Loot" },
+  { value = "pvp", text = "PvP" },
   { value = "roster", text = "Roster" },
 }
 

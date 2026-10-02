@@ -96,6 +96,13 @@ local function Redraw()
   end
 end
 
+-- Called by the PvP tracker when a counter changed: the PvP tab is drawn again if it is the one on screen.
+function UI.PvPChanged()
+  if frame and currentTab == "pvp" then
+    Redraw()
+  end
+end
+
 local function EscapeAll(lines)
   local escaped = {}
   for index, line in ipairs(lines) do
@@ -649,12 +656,43 @@ local function DrawLoot(container)
   AddLines(container, { "", "Addon messages are not private: anyone with the addon can read votes." })
 end
 
+local pvpSubTab = "mine"
+
+-- PvP tab: sub-tabs like the Raid tab (only "My stats" until the ranking exists).
+local function DrawPvP(container)
+  local sub = LibStub("AceGUI-3.0"):Create("TabGroup")
+  sub:SetLayout("List")
+  sub:SetFullWidth(true)
+  sub:SetTabs(ns.ViewModel.PvPSubTabs())
+  sub:SetCallback("OnGroupSelected", function(group, _, value)
+    pvpSubTab = value
+    group:ReleaseChildren()
+    local tracker = ns.pvpTracker
+    AddLines(
+      group,
+      ns.ViewModel.PvPStats(ns.character.pvp, {
+        day = tracker and tracker:Day() or nil,
+        honorAvailable = tracker ~= nil and tracker.honorAvailable,
+        blowsAvailable = tracker ~= nil and tracker.blowsAvailable,
+      })
+    )
+  end)
+  container:AddChild(sub)
+
+  local allowed = false
+  for _, tab in ipairs(ns.ViewModel.PvPSubTabs()) do
+    allowed = allowed or tab.value == pvpSubTab
+  end
+  sub:SelectTab(allowed and pvpSubTab or "mine")
+end
+
 local DRAWERS = {
   home = DrawHome,
   profile = DrawProfile,
   ready = DrawReady,
   raid = DrawRaid,
   loot = DrawLoot,
+  pvp = DrawPvP,
   roster = DrawRoster,
 }
 

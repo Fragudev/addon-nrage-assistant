@@ -11,7 +11,7 @@ describe("Constants", function()
   end)
 
   it("is at schema version 4", function()
-    assert.are.equal(4, ns.Constants.SCHEMA_VERSION)
+    assert.are.equal(5, ns.Constants.SCHEMA_VERSION)
   end)
 end)
 
