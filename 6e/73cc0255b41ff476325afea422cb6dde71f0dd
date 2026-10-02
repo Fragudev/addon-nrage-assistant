@@ -1,0 +1,29 @@
+NrageAssistant/Locales/esES.lua
+  s_3a1049e925af91::t_484973fc69f7d6 20-178
+NrageAssistant/UI/ViewModel.lua
+  s_3a1049e925af91::t_8f5ff0f0f411e7 7-8,14-37,41,43,64,67,71,75,79,87-91,106,120,124,126,154,170,172,175,178-179,187,189,192,194,198,204-206,210,218,222,232,235,247,249,251,253,272-274,389-392,395,397,401,417,422,431,435,443,445,467-471,526-528,536,544,554,560,564-569,571,588,598-600,644,646,648,650,652-653,664,669-670,676,678,683,688,734,765,772,781,791,928,934,938-942,944-945,949,966-972,975-979,981,1000-1011,1119,1121,1123,1132,1134,1136,1141-1160
+tests/blacklist_commands_spec.lua
+  s_3a1049e925af91::t_b498b0ecfd4932 5
+tests/locale_spec.lua
+  s_3a1049e925af91::t_de0a026b311f8a 83-86
+tests/ui_smoke_spec.lua
+  s_3a1049e925af91::t_04a2a8fc277176 87
+tests/view_model_spec.lua
+  s_3a1049e925af91::t_330ff157635b26 1-2,6-7,20-22,1535-1572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e73cc0255b41ff476325afea422cb6dde71f0dd",
+  "prompts": {},
+  "sessions": {
+    "s_3a1049e925af91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b8de4a-e96a-43bc-b513-78261550de6e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
