@@ -5,6 +5,7 @@ local function load_protocol()
   assert(loadfile("NrageAssistant/Domain/PermissionService.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/EventModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/BlacklistService.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/ReadinessRules.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
@@ -656,8 +657,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 3", function()
-    assert.are.equal(3, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 4", function()
+    assert.are.equal(4, Constants.PROTOCOL_MINOR)
   end)
 end)
 

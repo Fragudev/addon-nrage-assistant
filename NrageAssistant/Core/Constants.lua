@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 8,
+  SCHEMA_VERSION = 9,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 3,
+  PROTOCOL_MINOR = 4,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -188,6 +188,9 @@ ns.Constants = {
   QUEUE_MAX_ITEMS = 100,
   QUEUE_TTL_SECONDS = 120,
   QUEUE_MAX_JITTER_SECONDS = 5,
+
+  -- The guild's own readiness rules (admins set them, see ReadinessRules): at most this many in one set.
+  READINESS_RULES_MAX = 30,
 
   -- Starting checklist (guild decision #32). Level 60 is required; the item level minimum is a
   -- placeholder of 1 (nothing is excluded) until the guild sets a real threshold. Profession rules

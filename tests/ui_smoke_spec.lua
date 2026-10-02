@@ -95,6 +95,7 @@ local function load_window()
     "Domain/LootService",
     "Domain/TemplateService",
     "Domain/ReadinessService",
+    "Domain/ReadinessRules",
     "Domain/ProfileService",
     "Domain/PublishService",
     "Domain/BlacklistService",

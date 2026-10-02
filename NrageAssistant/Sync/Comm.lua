@@ -31,6 +31,8 @@ function Comm.New(deps)
     onPvPKill = deps.onPvPKill,
     blacklist = deps.blacklist or {},
     onBlacklistChange = deps.onBlacklistChange,
+    readinessRules = deps.readinessRules or {},
+    onRulesChange = deps.onRulesChange,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -224,6 +226,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.PvPSync.IsPvPMessage(message.t) then
     return self:HandlePvP(sender, message)
   end
+  if ns.ReadinessRulesSync.IsRulesMessage(message.t) then
+    return self:HandleReadinessRules(sender, message)
+  end
   if ns.BlacklistSync.IsBlacklistMessage(message.t) then
     return self:HandleBlacklist(sender, message)
   end
@@ -284,7 +289,9 @@ function Comm:SendSnapshot(target)
       self:PvPContext(),
       pvpMax,
       self.blacklist,
-      blacklistMax
+      blacklistMax,
+      -- Only an admin's snapshot carries the rules: a receiver applies them under the role of the sender.
+      ns.PermissionService.Can(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil
     )
     if #items == 0 then
       return false, "empty"
@@ -350,6 +357,7 @@ function Comm:HandleWhisper(text, sender)
   local ctx = self:PvPContext()
   ctx.events, ctx.tombstones = self.events, self.tombstones
   ctx.blacklist = self.blacklist
+  ctx.readinessRules = self.readinessRules
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
   if summary.pvp > 0 and self.onPvPChange then
@@ -357,6 +365,9 @@ function Comm:HandleWhisper(text, sender)
   end
   if summary.blacklist > 0 and self.onBlacklistChange then
     self.onBlacklistChange("SYNC_DATA")
+  end
+  if summary.rules > 0 and self.onRulesChange then
+    self.onRulesChange("SYNC_DATA")
   end
   return true
 end
@@ -403,6 +414,16 @@ function Comm:HandleBlacklist(sender, message)
   local ok, reason = ns.BlacklistSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onBlacklistChange then
     self.onBlacklistChange(message.t)
+  end
+  return ok, reason
+end
+
+-- READINESS_RULES: the sender's role is read from the local guild roster; only an admin's set is kept.
+function Comm:HandleReadinessRules(sender, message)
+  local ctx = { record = self.readinessRules, now = self.platform.ServerTime }
+  local ok, reason = ns.ReadinessRulesSync.Apply(ctx, message, sender, self.roleOf(sender))
+  if ok and self.onRulesChange then
+    self.onRulesChange(message.t)
   end
   return ok, reason
 end
@@ -508,6 +529,51 @@ function Comm:SendBlacklistDelete(key)
     return false, "no_tombstone"
   end
   return self:Send("BLACKLIST_DELETE", payload, "BL:" .. key)
+end
+
+-- Tells the guild the stored set of readiness rules (one message, replacing one still waiting in the queue).
+function Comm:SendReadinessRules()
+  local payload = ns.ReadinessRulesSync.Payload(self.readinessRules)
+  if not payload then
+    return false, "no_rules"
+  end
+  return self:Send("READINESS_RULES", payload, "RR")
+end
+
+-- Admin only: replaces the guild's rules with `rules`. They are validated and applied here first (own messages are
+-- never received), then told to the guild. Returns true, the revision used and whether it was queued; or false plus
+-- the reason ("forbidden" or a ReadinessRules.Validate reason).
+function Comm:SetReadinessRules(rules)
+  local role = self.ownRole()
+  if not ns.PermissionService.Can(role, "rules_edit") then
+    return false, "forbidden"
+  end
+  local clean, reason = ns.ReadinessRules.Validate(rules)
+  if not clean then
+    return false, reason
+  end
+  local payload = {
+    rev = (self.readinessRules.rev or 0) + 1,
+    updatedAt = self.platform.ServerTime(),
+    rules = clean,
+  }
+  local message = ns.Protocol.Validate(ns.Protocol.Build("READINESS_RULES", payload, "local"))
+  if not message then
+    return false, "bad_rules"
+  end
+  local ok, applied = ns.ReadinessRulesSync.Apply(
+    { record = self.readinessRules, now = self.platform.ServerTime },
+    message,
+    self.platform.GetIdentityKey(),
+    role
+  )
+  if not ok then
+    return false, applied
+  end
+  if self.onRulesChange then
+    self.onRulesChange(message.t)
+  end
+  return true, payload.rev, (self:SendReadinessRules())
 end
 
 function Comm:SendDeleteEvent(eventId)
@@ -623,6 +689,12 @@ function Comm.Start()
         ns.BlacklistChanged()
       end
     end,
+    readinessRules = ns.db.global.readinessRules,
+    onRulesChange = function()
+      if ns.UI and ns.UI.RulesChanged then
+        ns.UI.RulesChanged()
+      end
+    end,
     version = ns.GetVersion(),
     now = platform.Now,
     schedule = C_Timer.After,
@@ -657,6 +729,10 @@ function Comm.Start()
   C_Timer.After(math.random(constants.SYNC_LOGIN_REQUEST_DELAY_MIN, constants.SYNC_LOGIN_REQUEST_DELAY_MAX), function()
     if ns.active then
       comm:RequestSync()
+      -- An admin also tells the guild the rules once, for the members who were not there when they were set.
+      if ns.PermissionService.Can(comm.ownRole(), "rules_edit") then
+        comm:SendReadinessRules()
+      end
     end
   end)
 

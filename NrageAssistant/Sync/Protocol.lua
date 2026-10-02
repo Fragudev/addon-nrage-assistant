@@ -351,6 +351,18 @@ local function validatePvPReset(payload)
   return { target = payload.target, rev = payload.rev }
 end
 
+-- The guild's readiness rules: the whole set, validated rule by rule (ReadinessRules.Validate).
+local function validateReadinessRules(payload)
+  if not validateRevision(payload) then
+    return nil
+  end
+  local rules = ns.ReadinessRules.Validate(payload.rules)
+  if not rules then
+    return nil
+  end
+  return { rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -377,6 +389,7 @@ local VALIDATORS = {
   PVP_KILL = validatePvPKill,
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
+  READINESS_RULES = validateReadinessRules,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

@@ -122,6 +122,14 @@ function UI.PvPChanged()
   Redraw()
 end
 
+-- Called when the guild's readiness rules changed: the checklist is drawn again if it is on screen. They are rare
+-- (one message per change), so there is no throttling.
+function UI.RulesChanged()
+  if frame and currentTab == "ready" then
+    Redraw()
+  end
+end
+
 local blacklistDrawnAt
 local blacklistDrawPending = false
 
@@ -157,7 +165,7 @@ end
 
 local function ReadinessSummary()
   local character = ns.character
-  local _, summary = ns.ReadinessService.Evaluate(ns.Constants.DEFAULT_RULES, character.profile, character.readiness)
+  local _, summary = ns.ReadinessService.Evaluate(ns.ReadinessRules.Current(), character.profile, character.readiness)
   return summary
 end
 
@@ -306,7 +314,7 @@ end
 -- Readiness tab: the checklist, with a dropdown for every item confirmed by hand.
 local function DrawReady(container)
   local character = ns.character
-  local rules = ns.Constants.DEFAULT_RULES
+  local rules = ns.ReadinessRules.Current()
   local results, summary = ns.ReadinessService.Evaluate(rules, character.profile, character.readiness)
 
   if actionMessage then
