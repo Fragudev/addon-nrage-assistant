@@ -17,6 +17,7 @@ local function load_modules()
     "Sync/SyncRules",
     "Sync/EventSync",
     "Sync/LootSync",
+    "Sync/PvPSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -405,5 +406,139 @@ describe("Transfer with loot sessions", function()
     assert.are.equal(1, types.EVENT_UPSERT)
     assert.are.equal(1, types.LOOT_AWARD)
     assert.are.equal(1, types.LOOT_SESSION)
+  end)
+end)
+
+describe("Transfer PvP items in a snapshot", function()
+  local function record(world)
+    return {
+      rev = 2,
+      updatedAt = 9000,
+      honor = { world = world, bg = 5 },
+      blows = { world = 3, bg = 1 },
+      today = { day = "2026-10-01", honor = { world = 2, bg = 1 }, blows = { world = 1, bg = 0 } },
+      receivedAt = 9001,
+    }
+  end
+
+  local function pvp_context(overrides)
+    local ctx = {
+      events = {},
+      tombstones = {},
+      pvpStats = {},
+      pvpResets = {},
+      now = function()
+        return 10000
+      end,
+    }
+    for k, v in pairs(overrides or {}) do
+      ctx[k] = v
+    end
+    return ctx
+  end
+
+  local function source_context()
+    return pvp_context({
+      pvpStats = { ["Ann-Realm"] = record(10), ["Bob-Realm"] = record(20) },
+      pvpResets = { ["Cid-Realm"] = { rev = 4 } },
+    })
+  end
+
+  it("adds the PvP records with their owners and the resets after the raid items", function()
+    local s = populated()
+    local items = Transfer.BuildSnapshot(s.events, s.tombstones, 5, source_context(), 10)
+    local raid = #Transfer.BuildItems(s.events, s.tombstones)
+    assert.are.equal(raid + 3, #items)
+    local owners, resets = {}, {}
+    for index = raid + 1, #items do
+      local item = items[index]
+      if item.t == "PVP_STATS" then
+        owners[item.owner] = item.p.honor.world
+        assert.is_nil(item.p.owner)
+        assert.is_nil(item.p.receivedAt)
+      else
+        resets[item.p.target] = item.p.rev
+      end
+    end
+    assert.are.same({ ["Ann-Realm"] = 10, ["Bob-Realm"] = 20 }, owners)
+    assert.are.same({ ["Cid-Realm"] = 4 }, resets)
+  end)
+
+  it("adds nothing without a PvP part or with a cap of zero", function()
+    local s = populated()
+    local plain = Transfer.BuildItems(s.events, s.tombstones)
+    assert.are.equal(#plain, #Transfer.BuildSnapshot(s.events, s.tombstones, 5))
+    assert.are.equal(#plain, #Transfer.BuildSnapshot(s.events, s.tombstones, 5, source_context(), 0))
+  end)
+
+  it("caps the records at the most recently updated ones", function()
+    local ctx = pvp_context()
+    for index = 1, 30 do
+      local r = record(10)
+      r.updatedAt = 1000 + index
+      ctx.pvpStats["M" .. index .. "-Realm"] = r
+    end
+    local items = Transfer.BuildSnapshot({}, {}, 5, ctx, 4)
+    assert.are.equal(4, #items)
+    assert.are.equal("M30-Realm", items[1].owner)
+    assert.are.equal("M27-Realm", items[4].owner)
+  end)
+
+  it("applies each record to its owner and the resets under the role of the snapshot's sender", function()
+    local items = Transfer.BuildSnapshot({}, {}, 5, source_context(), 10)
+    local ctx = pvp_context()
+    local summary = Transfer.ApplyItems(items, ctx, "Lead-Realm", "admin")
+    assert.are.equal(3, summary.applied)
+    assert.are.equal(3, summary.pvp)
+    assert.are.equal(10, ctx.pvpStats["Ann-Realm"].honor.world)
+    assert.are.equal(20, ctx.pvpStats["Bob-Realm"].honor.world)
+    assert.is_nil(ctx.pvpStats["Lead-Realm"])
+    assert.are.equal(4, ctx.pvpResets["Cid-Realm"].rev)
+
+    -- A raid leader's snapshot still brings the records, but cannot reset anybody.
+    local other = pvp_context()
+    summary = Transfer.ApplyItems(items, other, "Lead-Realm", "rl")
+    assert.are.equal(2, summary.applied)
+    assert.are.equal(1, summary.skipped.forbidden)
+    assert.is_nil(other.pvpResets["Cid-Realm"])
+  end)
+
+  it("skips an item whose owner is missing or not a valid name", function()
+    local ctx = pvp_context()
+    local good = Transfer.BuildSnapshot({}, {}, 5, source_context(), 10)[2]
+    local items = {
+      { t = "PVP_STATS", p = good.p },
+      { t = "PVP_STATS", p = good.p, owner = "" },
+      { t = "PVP_STATS", p = good.p, owner = ("n"):rep(65) },
+      { t = "PVP_STATS", p = good.p, owner = "|cffff0000Ann" },
+      { t = "PVP_STATS", p = good.p, owner = 5 },
+      { t = "PVP_STATS", p = { rev = 1 }, owner = "Ann-Realm" },
+    }
+    local summary = Transfer.ApplyItems(items, ctx, "Lead-Realm", "rl")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(5, summary.skipped.bad_owner)
+    assert.are.equal(1, summary.skipped.bad_payload)
+    assert.is_nil(next(ctx.pvpStats))
+  end)
+
+  it("does not apply PvP items to a context without PvP tables, such as a text import", function()
+    local items = Transfer.BuildSnapshot({}, {}, 5, source_context(), 10)
+    local ctx = pvp_context()
+    ctx.pvpStats, ctx.pvpResets = nil, nil
+    local summary = Transfer.ApplyItems(items, ctx, "import", "admin")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(3, summary.skipped.unsupported)
+  end)
+
+  it("keeps PvP out of the text export", function()
+    local s = populated()
+    local plain = Transfer.BuildItems(s.events, s.tombstones)
+    for _, item in ipairs(plain) do
+      assert.is_false(item.t == "PVP_STATS" or item.t == "PVP_RESET")
+      assert.is_nil(item.owner)
+    end
+    local text = assert(Transfer.Export(libs, s.events, s.tombstones))
+    local decoded = assert(Transfer.Decode(libs, text))
+    assert.are.equal(#plain, #decoded)
   end)
 end)

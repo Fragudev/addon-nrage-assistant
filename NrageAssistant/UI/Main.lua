@@ -96,11 +96,30 @@ local function Redraw()
   end
 end
 
--- Called by the PvP tracker when a counter changed: the PvP tab is drawn again if it is the one on screen.
+local pvpDrawnAt
+local pvpDrawPending = false
+
+-- Called when a PvP counter changed, here or on a received record: the PvP tab is drawn again if it is the one
+-- on screen. Records arrive in bursts (a whole guild logging in), so a redraw that comes too soon after the
+-- previous one is postponed, once, to the end of the interval and then shows the latest state.
 function UI.PvPChanged()
-  if frame and currentTab == "pvp" then
-    Redraw()
+  if not (frame and currentTab == "pvp") then
+    return
   end
+  local now = ns.Platform.Now()
+  local wait = pvpDrawnAt and (ns.Constants.PVP_REDRAW_SECONDS - (now - pvpDrawnAt)) or 0
+  if wait > 0 then
+    if not pvpDrawPending then
+      pvpDrawPending = true
+      C_Timer.After(wait, function()
+        pvpDrawPending = false
+        UI.PvPChanged()
+      end)
+    end
+    return
+  end
+  pvpDrawnAt = now
+  Redraw()
 end
 
 local function EscapeAll(lines)
@@ -657,16 +676,109 @@ local function DrawLoot(container)
 end
 
 local pvpSubTab = "mine"
+local pvpSort = { key = "total", descending = true }
 
--- PvP tab: sub-tabs like the Raid tab (only "My stats" until the ranking exists).
+-- Relative column widths of the ranking, with and without the killing blows column (the sum stays under 1 so a
+-- row never wraps).
+local RANKING_COLUMNS = {
+  withBlows = { name = 0.21, rank = 0.2, world = 0.1, bg = 0.1, total = 0.1, blows = 0.1, updated = 0.17 },
+  withoutBlows = { name = 0.24, rank = 0.22, world = 0.12, bg = 0.12, total = 0.12, updated = 0.17 },
+}
+local RANKING_ORDER = { "name", "rank", "world", "bg", "total", "blows", "updated" }
+local RANKING_TITLES = {
+  name = "Name",
+  rank = "Rank",
+  world = "World",
+  bg = "BG",
+  total = "Total",
+  blows = "Blows",
+  updated = "Updated",
+}
+
+local function AddCell(container, text, width, color)
+  local label = LibStub("AceGUI-3.0"):Create("Label")
+  label:SetText(color and ("|c%s%s|r"):format(color, text) or text)
+  label:SetRelativeWidth(width)
+  container:AddChild(label)
+end
+
+local function AddRankingHeader(container, key, width)
+  local mark = pvpSort.key == key and (pvpSort.descending and " v" or " ^") or ""
+  local header = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
+  header:SetText(("|cffffd100%s%s|r"):format(RANKING_TITLES[key], mark))
+  header:SetRelativeWidth(width)
+  header:SetCallback("OnClick", function()
+    pvpSort = ns.ViewModel.NextSort(pvpSort, key, ns.ViewModel.PVP_FIRST_DESCENDING)
+    Redraw()
+  end)
+  container:AddChild(header)
+end
+
+-- Ranking sub-tab: the guild members with counters, most honourable kills first; click a title to sort.
+local function DrawPvPRanking(container)
+  local tracker = ns.pvpTracker
+  local blowsAvailable = tracker ~= nil and tracker.blowsAvailable
+  local rosterNames = {}
+  if ns.guildRoster then
+    for _, name in ipairs(ns.guildRoster:Names()) do
+      rosterNames[name] = true
+    end
+  end
+
+  local rows, columns = ns.ViewModel.PvPRanking(ns.db.global.pvpStats, {
+    own = { name = ns.Platform.GetIdentityKey(), stats = ns.character.pvp },
+    rosterNames = rosterNames,
+    blowsAvailable = blowsAvailable,
+    now = ns.Platform.ServerTime(),
+    sort = pvpSort,
+  })
+  local widths = columns.blows and RANKING_COLUMNS.withBlows or RANKING_COLUMNS.withoutBlows
+
+  AddLines(container, { "Click a column title to sort by it. Your row is green.", "" })
+  for _, key in ipairs(RANKING_ORDER) do
+    if widths[key] then
+      AddRankingHeader(container, key, widths[key])
+    end
+  end
+
+  local shown = math.min(#rows, ns.Constants.PVP_RANKING_ROWS_MAX)
+  for index = 1, shown do
+    local row = rows[index]
+    local color = row.mine and "ff33ff99" or nil
+    local cells = {
+      name = row.label,
+      rank = row.rank,
+      world = tostring(row.world),
+      bg = tostring(row.bg),
+      total = tostring(row.total),
+      blows = row.blows and tostring(row.blows) or "-",
+      updated = row.updated,
+    }
+    for _, key in ipairs(RANKING_ORDER) do
+      if widths[key] then
+        AddCell(container, cells[key], widths[key], color)
+      end
+    end
+  end
+  if shown < #rows then
+    AddLines(container, { "", ("Showing the first %d of %d members."):format(shown, #rows) })
+  end
+  AddLines(container, { "", "Counters come from members who run the addon, about a minute after a kill." })
+end
+
+-- PvP tab: sub-tabs like the Raid tab.
 local function DrawPvP(container)
   local sub = LibStub("AceGUI-3.0"):Create("TabGroup")
-  sub:SetLayout("List")
+  sub:SetLayout("Flow")
   sub:SetFullWidth(true)
   sub:SetTabs(ns.ViewModel.PvPSubTabs())
   sub:SetCallback("OnGroupSelected", function(group, _, value)
     pvpSubTab = value
     group:ReleaseChildren()
+    if value == "ranking" then
+      DrawPvPRanking(group)
+      return
+    end
     local tracker = ns.pvpTracker
     AddLines(
       group,

@@ -156,7 +156,6 @@ function ViewModel.RaidSubTabs(actions)
   return tabs
 end
 
--- The sub-tabs of the PvP tab. Only the own counters for now; the guild ranking comes with the sync phase.
 -- "Rank: Knight (512 honourable kills) - 288 to Knight-Lieutenant", or the top rank, or no rank yet.
 function ViewModel.PvPRankLine(kills, ranks)
   local rank = ns.PvPService.RankFor(kills, ranks)
@@ -170,8 +169,113 @@ function ViewModel.PvPRankLine(kills, ranks)
   return "Rank: none (no ranks are configured)"
 end
 
+-- The sub-tabs of the PvP tab: the own counters and the guild ranking.
 function ViewModel.PvPSubTabs()
-  return { { value = "mine", text = "My stats" } }
+  return { { value = "mine", text = "My stats" }, { value = "ranking", text = "Ranking" } }
+end
+
+local function ageText(seconds)
+  if seconds < 60 then
+    return "just now"
+  elseif seconds < 3600 then
+    return ("%d min ago"):format(math.floor(seconds / 60))
+  elseif seconds < 86400 then
+    return ("%d h ago"):format(math.floor(seconds / 3600))
+  end
+  return ("%d d ago"):format(math.floor(seconds / 86400))
+end
+
+local function rankRow(name, honor, blows, updatedAt, mine, options, ranks)
+  local total = honor.world + honor.bg
+  local rank = ns.PvPService.RankFor(total, ranks)
+  return {
+    name = name,
+    label = ViewModel.Escape(name),
+    rank = ViewModel.Escape(rank.name or "-"),
+    rankIndex = rank.index or 0,
+    world = honor.world,
+    bg = honor.bg,
+    total = total,
+    blows = blows and (blows.world + blows.bg) or nil,
+    updatedAt = updatedAt,
+    updated = (mine and "now") or (updatedAt and options.now and ageText(math.max(0, options.now - updatedAt))) or "-",
+    mine = mine,
+  }
+end
+
+local PVP_SORT_KEYS = { name = true, rank = true, world = true, bg = true, total = true, blows = true, updated = true }
+-- The columns that sort highest first on the first click.
+ViewModel.PVP_FIRST_DESCENDING = { rank = true, world = true, bg = true, total = true, blows = true, updated = true }
+
+local function validPair(pair)
+  return type(pair) == "table" and type(pair.world) == "number" and type(pair.bg) == "number"
+end
+
+-- The guild ranking of the PvP tab: one row per member with counters, most honourable kills first. `records` is
+-- db.global.pvpStats (received); `options`:
+--   own = { name, stats }     this character, always listed, from the local counters (not from the synced copy)
+--   rosterNames               set of the names in the guild roster now; received records of anyone else are hidden
+--   ranks                     default Constants.PVP_RANKS
+--   blowsAvailable            this client reads killing blows (the own row has them)
+--   now                       server time, for the "last update" text
+--   sort = { key, descending }  key: "name" | "rank" | "world" | "bg" | "total" | "blows" | "updated"
+--                             (default: total, highest first). Ties fall back to the name.
+-- Returns the rows and { blows = boolean }: the killing blows column is only worth showing when this client reads
+-- them or somebody sent them. Text is escaped.
+function ViewModel.PvPRanking(records, options)
+  local ranks = options.ranks or ns.Constants.PVP_RANKS
+  local roster = options.rosterNames or {}
+  local own = options.own
+  local rows = {}
+
+  for name, record in pairs(records or {}) do
+    if type(name) == "string" and roster[name] and not (own and own.name == name) then
+      if type(record) == "table" and validPair(record.honor) then
+        local blows = validPair(record.blows) and record.blows or nil
+        local updatedAt = type(record.updatedAt) == "number" and record.updatedAt or nil
+        rows[#rows + 1] = rankRow(name, record.honor, blows, updatedAt, false, options, ranks)
+      end
+    end
+  end
+  if own then
+    local totals = ns.PvPService.Totals(own.stats)
+    local blows = options.blowsAvailable and totals.blows or nil
+    rows[#rows + 1] = rankRow(own.name, totals.honor, blows, nil, true, options, ranks)
+  end
+
+  local showBlows = options.blowsAvailable and true or false
+  for _, row in ipairs(rows) do
+    showBlows = showBlows or row.blows ~= nil
+  end
+
+  local sort = options.sort or { key = "total", descending = true }
+  local key, descending = sort.key, sort.descending
+  if not PVP_SORT_KEYS[key] then
+    key, descending = "total", true
+  end
+  table.sort(rows, function(a, b)
+    local left, right
+    if key == "name" then
+      left, right = a.name:lower(), b.name:lower()
+    elseif key == "rank" then
+      left, right = a.rankIndex, b.rankIndex
+    elseif key == "world" or key == "bg" or key == "total" then
+      left, right = a[key], b[key]
+    elseif key == "blows" then
+      left, right = a.blows or -1, b.blows or -1
+    else -- "updated"
+      -- The own row is the freshest there is.
+      left, right = a.mine and math.huge or (a.updatedAt or -1), b.mine and math.huge or (b.updatedAt or -1)
+    end
+    if left ~= right then
+      if descending then
+        return left > right
+      end
+      return left < right
+    end
+    return a.name < b.name
+  end)
+  return rows, { blows = showBlows }
 end
 
 -- The lines of "My stats": honourable kills and killing blows split into open world and battleground, with
@@ -620,12 +724,13 @@ end
 ViewModel.VOTING_SORTS = { "name", "rank", "response", "votes" }
 
 -- The sort after clicking the header `key`: the same column flips its direction, another column starts in its
--- natural one (votes high to low, the rest A to Z). `current` = { key, descending } or nil.
-function ViewModel.NextSort(current, key)
+-- natural one (votes high to low, the rest A to Z; `firstDescending` = set of keys that start high to low
+-- instead, default only "votes"). `current` = { key, descending } or nil.
+function ViewModel.NextSort(current, key, firstDescending)
   if current and current.key == key then
     return { key = key, descending = not current.descending }
   end
-  return { key = key, descending = key == "votes" }
+  return { key = key, descending = (firstDescending or { votes = true })[key] == true }
 end
 
 local NEED_ORDER = { main = 1, off = 2, other = 3 }
@@ -722,6 +827,7 @@ function ViewModel.HelpLines()
     "/nrage export        copy all raid events, attendance and assignments as text",
     "/nrage import        paste an export to merge it into your data (RL/admin only)",
     "/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)",
+    "/nrage pvp           admin only: pvp reset <name> zeroes a member's PvP counters",
     "/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)",
     "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",
   }

@@ -486,3 +486,111 @@ describe("Protocol.Validate loot messages", function()
     invalid("LOOT_VOTE", base({}))
   end)
 end)
+
+describe("Protocol.Validate PVP_STATS", function()
+  local function stats(overrides)
+    local p = {
+      rev = 4,
+      updatedAt = 1000,
+      honor = { world = 10, bg = 5 },
+      blows = { world = 3, bg = 1 },
+      today = { day = "2026-10-01", honor = { world = 2, bg = 1 }, blows = { world = 1, bg = 0 } },
+    }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("PVP_STATS", payload, "id-1"))
+  end
+
+  it("keeps the counters and the day", function()
+    local clean = validate(stats())
+    assert.are.same(stats(), clean.p)
+  end)
+
+  it("drops unknown fields, such as a name", function()
+    local clean = validate(stats({ owner = "Victim", name = "Victim" }))
+    assert.is_nil(clean.p.owner)
+    assert.is_nil(clean.p.name)
+  end)
+
+  it("accepts a record without killing blows", function()
+    local payload = stats({ today = { day = "2026-10-01", honor = { world = 2, bg = 1 } } })
+    payload.blows = nil
+    local clean = validate(payload)
+    assert.is_nil(clean.p.blows)
+    assert.is_nil(clean.p.today.blows)
+  end)
+
+  it("bounds every counter to whole numbers in 0..PVP_MAX_KILLS", function()
+    local high = Constants.PVP_MAX_KILLS
+    assert.is_truthy(validate(stats({ honor = { world = high, bg = 0 } })))
+    for _, bad in ipairs({ -1, high + 1, 1.5, "7", math.huge, 0 / 0 }) do
+      local _, reason = validate(stats({ honor = { world = bad, bg = 0 } }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+      _, reason = validate(stats({ blows = { world = 0, bg = bad } }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+      _, reason = validate(stats({ today = { day = "2026-10-01", honor = { world = bad, bg = 0 } } }))
+      assert.are.equal("bad_payload", reason, tostring(bad))
+      _, reason = validate(
+        stats({ today = { day = "2026-10-01", honor = { world = 0, bg = 0 }, blows = { world = bad, bg = 0 } } })
+      )
+      assert.are.equal("bad_payload", reason, tostring(bad))
+    end
+  end)
+
+  it("needs both counters of a pair and the pair to be a table", function()
+    for _, bad in ipairs({ { world = 1 }, { bg = 1 }, "many", {} }) do
+      local _, reason = validate(stats({ honor = bad }))
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+
+  it("rejects a bad day", function()
+    for _, day in ipairs({ "2026-1-01", "20261001", "2026-13-01", "2026-10-00", "2026-10-32", "1999-10-01", "x", 5 }) do
+      local _, reason = validate(stats({ today = { day = day, honor = { world = 0, bg = 0 } } }))
+      assert.are.equal("bad_payload", reason, tostring(day))
+    end
+    local payload = stats()
+    payload.today = nil
+    local _, reason = validate(payload)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("bounds the revision and the timestamp", function()
+    for _, overrides in ipairs({
+      { rev = 0 },
+      { rev = 2147483648 },
+      { rev = 1.5 },
+      { updatedAt = -1 },
+      { updatedAt = "now" },
+    }) do
+      local _, reason = validate(stats(overrides))
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+end)
+
+describe("Protocol.Validate PVP_RESET", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("PVP_RESET", payload, "id-1"))
+  end
+
+  it("keeps the target and the revision", function()
+    assert.are.same({ target = "Ann-Realm", rev = 7 }, validate({ target = "Ann-Realm", rev = 7, extra = 1 }).p)
+  end)
+
+  it("rejects a hostile or oversized target and a bad revision", function()
+    for _, target in ipairs({ "", ("n"):rep(65), "|cffff0000Ann", "line\nbreak", 5 }) do
+      local _, reason = validate({ target = target, rev = 1 })
+      assert.are.equal("bad_payload", reason)
+    end
+    for _, rev in ipairs({ 0, -1, 2147483648, 1.5, "1" }) do
+      local _, reason = validate({ target = "Ann", rev = rev })
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+end)

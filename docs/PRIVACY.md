@@ -20,6 +20,8 @@ secret store.
 | Your sheet: class, level, item level, professions, guid, and the fields you declared (role, main, notes) | read from the game, or typed by you |
 | Your consent choices and readiness confirmations | you |
 | Profiles received from other members | the guild channel |
+| Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
+| PvP counters received from other members | the guild channel |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates | you; never shared |
@@ -40,6 +42,12 @@ goes out. Consent is per kind of data:
 
 Never shared: your guid, your inventory, chat, or anything you did not consent to. Text you declare has escape
 characters (`|`) and control characters stripped before it is sent.
+
+**PvP counters are shared automatically, without a consent switch.** Every guild member running the addon
+receives your honourable kills and killing blows (open world and battleground, totals and today's count), and you
+receive theirs; that is what the ranking shows. Nothing else about the fights is shared: no victim names, places or
+times of single kills. Like every addon message they are **not encrypted**, so anyone able to read the addon
+channel can read them. An admin can reset a member's counters.
 
 Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
 publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are

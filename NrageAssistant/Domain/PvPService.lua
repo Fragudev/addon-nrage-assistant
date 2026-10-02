@@ -60,6 +60,15 @@ function PvPService.Ensure(stats)
   return stats
 end
 
+-- Sets every counter back to zero, in place (an admin reset). The tracker's baseline is not touched, so the
+-- session kills already counted are not counted again.
+function PvPService.Reset(stats)
+  stats.honor = { world = 0, bg = 0 }
+  stats.blows = { world = 0, bg = 0 }
+  stats.daily = {}
+  return stats
+end
+
 local function dailyBucket(stats, day)
   if not isDay(day) then
     return nil

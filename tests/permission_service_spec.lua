@@ -81,6 +81,13 @@ describe("PermissionService.Can", function()
     assert.is_true(Service.Can("admin", "moderate"))
   end)
 
+  it("lets every role publish its own PvP counters", function()
+    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+      assert.is_true(Service.Can(role, "pvp_publish"))
+    end
+    assert.is_false(Service.Can(nil, "pvp_publish"))
+  end)
+
   it("denies unknown actions and unknown roles", function()
     assert.is_false(Service.Can("admin", "delete_the_guild"))
     assert.is_false(Service.Can(nil, "view"))

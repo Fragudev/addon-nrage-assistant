@@ -16,6 +16,7 @@ local ACTIONS = {
   loot_open = { council = true, admin = true },
   loot_vote = { rl = true, council = true, admin = true },
   loot_award = { rl = true, council = true, admin = true },
+  pvp_publish = { member = true, rl = true, council = true, admin = true },
   moderate = { admin = true },
 }
 

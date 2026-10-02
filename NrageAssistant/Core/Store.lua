@@ -2,8 +2,9 @@ local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap },
---                 sync = { seen, tombstones } }
---   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {} }
+--                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {} }
+--   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {},
+--                             pvpSync = { rev } }
 local Store = {}
 
 local function ensureTable(parent, key)
@@ -45,6 +46,13 @@ local MIGRATIONS = {
       end
     end
   end,
+  -- v6: PvP counters received from the guild (pvpStats[ownerKey]) and the minimum revision accepted for a
+  -- member after an admin reset (pvpResets[ownerKey]); GetChar creates the revision of the own record.
+  [6] = function(db)
+    local global = ensureTable(db, "global")
+    ensureTable(global, "pvpStats")
+    ensureTable(global, "pvpResets")
+  end,
 }
 
 local function versionOf(db)
@@ -81,6 +89,10 @@ function Store.GetChar(db, identityKey)
   ensureTable(char, "consent")
   ensureTable(char, "publish")
   ensureTable(char, "pvp")
+  local sync = ensureTable(char, "pvpSync")
+  if type(sync.rev) ~= "number" or sync.rev < 0 or sync.rev % 1 ~= 0 then
+    sync.rev = 0
+  end
   return char
 end
 
