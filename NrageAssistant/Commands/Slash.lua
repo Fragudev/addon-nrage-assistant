@@ -310,6 +310,8 @@ local COMMANDS = {
       PrintIdentity()
     elseif sub == "lockdown" then
       ns.Probe.Handle(action)
+    elseif sub == "pvp" then
+      ns.PvPProbe.Handle(action)
     elseif sub == "roster" then
       PrintRoster()
     elseif sub == "senders" then
@@ -324,7 +326,7 @@ local COMMANDS = {
         print(line)
       end
     else
-      say("usage: /nrage debug identity | roster | senders | selftest | info | lockdown <action>")
+      say("usage: /nrage debug identity | roster | senders | selftest | info | lockdown <action> | pvp <action>")
     end
   end,
 }

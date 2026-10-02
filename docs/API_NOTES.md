@@ -39,6 +39,25 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
 - Whether `CHAT_MSG_LOOT` and item links arrive as secret values during an encounter. Loot sessions currently take
   the item from a link typed after the encounter.
 
+## PvP (to be measured, issue #92)
+
+Nothing PvP-related has been measured on Forever yet. Run the probe on a PvP realm, in the open world and in a
+battleground: `/nrage debug pvp start`, do some honourable kills (also grey targets and repeated kills of the same
+target), then `/nrage debug pvp log` and copy the result here. `/nrage debug pvp status | stop | clear` do what
+they say. Every value is logged through `pcall`; a secret value shows as `<secret>`.
+
+| # | Question | API | Result |
+|---|---|---|---|
+| 1 | Do the honour counters exist, and do they increase on an honourable kill, including group credit? | `GetPVPSessionStats()`, `GetPVPLifetimeStats()` | not measured yet |
+| 2 | Does `CHAT_MSG_COMBAT_HONOR_GAIN` fire? What text and arguments does it carry (victim name, rank, honour)? Is it a secret value? | event | not measured yet |
+| 3 | Can an addon register `COMBAT_LOG_EVENT_UNFILTERED` outside encounters? Does `CombatLogGetCurrentEventInfo()` return readable `PARTY_KILL` data (source GUID = player, destination = hostile player)? | event | not measured yet |
+| 4 | Does `IsInInstance()` return `instanceType == "pvp"` inside a battleground? | `IsInInstance` | not measured yet |
+| 5 | Do kills that give no honour (grey targets, repeated kills of the same target) increase any counter? | counters | not measured yet |
+| 6 | Are victim names multi-word and first-word-only, like `UnitName`? | event | not measured yet |
+
+Decisions still open: the source of honourable kills (counter delta, chat event, or both) and whether killing
+blows are available.
+
 ## APIs the addon uses
 
 `/nrage debug selftest` checks each of these on the running client.
@@ -50,7 +69,8 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
 | Guild | `IsInGuild`, `GetGuildInfo`, `C_GuildInfo.GuildRoster`, `GetNumGuildMembers`, `GetGuildRosterInfo`, `C_Club.GetGuildClubId`, event `GUILD_ROSTER_UPDATE` |
 | Messaging | `C_ChatInfo.RegisterAddonMessagePrefix`, `C_ChatInfo.SendAddonMessage`, `C_ChatInfo.InChatMessagingLockdown`, event `CHAT_MSG_ADDON` |
 | Encounters and combat | events `ENCOUNTER_START`, `ENCOUNTER_END`, `PLAYER_REGEN_DISABLED`, `PLAYER_REGEN_ENABLED` (the lockdown probe) |
-| PvP (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
+| PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
+| PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
 | Time | `GetServerTime`, `GetTime`, `date`, `time` |
 | UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata`, AceGUI |
 | Load | events `ADDON_LOADED`, `PLAYER_LOGIN`, `PLAYER_GUILD_UPDATE`, `## SavedVariables` |

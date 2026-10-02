@@ -707,7 +707,7 @@ function ViewModel.HelpLines()
     "/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)",
     "/nrage export        copy all raid events, attendance and assignments as text",
     "/nrage import        paste an export to merge it into your data (RL/admin only)",
-    "/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown)",
+    "/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)",
     "/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)",
     "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",
   }
