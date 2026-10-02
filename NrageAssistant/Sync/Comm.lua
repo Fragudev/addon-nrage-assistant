@@ -9,7 +9,7 @@ Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
---       (all optional),
+--       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional),
 --       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
 --       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
@@ -29,6 +29,8 @@ function Comm.New(deps)
     onPvPChange = deps.onPvPChange,
     onPvPReset = deps.onPvPReset,
     onPvPKill = deps.onPvPKill,
+    blacklist = deps.blacklist or {},
+    onBlacklistChange = deps.onBlacklistChange,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -222,6 +224,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.PvPSync.IsPvPMessage(message.t) then
     return self:HandlePvP(sender, message)
   end
+  if ns.BlacklistSync.IsBlacklistMessage(message.t) then
+    return self:HandleBlacklist(sender, message)
+  end
   -- SYNC_DATA is only ever accepted as a whisper.
   return false, "wrong_channel"
 end
@@ -268,9 +273,19 @@ function Comm:SendSnapshot(target)
   local constants = ns.Constants
   local count = constants.SYNC_MAX_EVENTS
   while count >= 1 do
-    -- The PvP part shrinks along with the events, so a snapshot that is too big gets smaller as a whole.
+    -- The PvP and blacklist parts shrink along with the events, so a snapshot that is too big gets smaller as a
+    -- whole.
     local pvpMax = math.floor(constants.PVP_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
-    local items = ns.Transfer.BuildSnapshot(self.events, self.tombstones, count, self:PvPContext(), pvpMax)
+    local blacklistMax = math.floor(constants.BLACKLIST_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
+    local items = ns.Transfer.BuildSnapshot(
+      self.events,
+      self.tombstones,
+      count,
+      self:PvPContext(),
+      pvpMax,
+      self.blacklist,
+      blacklistMax
+    )
     if #items == 0 then
       return false, "empty"
     end
@@ -334,10 +349,14 @@ function Comm:HandleWhisper(text, sender)
 
   local ctx = self:PvPContext()
   ctx.events, ctx.tombstones = self.events, self.tombstones
+  ctx.blacklist = self.blacklist
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
   if summary.pvp > 0 and self.onPvPChange then
     self.onPvPChange("SYNC_DATA")
+  end
+  if summary.blacklist > 0 and self.onBlacklistChange then
+    self.onBlacklistChange("SYNC_DATA")
   end
   return true
 end
@@ -373,6 +392,17 @@ function Comm:HandlePvP(sender, message)
   local ok, reason = ns.PvPSync.Apply(self:PvPContext(), message, sender, self.roleOf(sender))
   if ok and self.onPvPChange then
     self.onPvPChange(message.t)
+  end
+  return ok, reason
+end
+
+-- BLACKLIST_UPSERT and BLACKLIST_DELETE: the sender's role is read from the local guild roster, and the author is
+-- the sender, never a payload field.
+function Comm:HandleBlacklist(sender, message)
+  local ctx = { blacklist = self.blacklist, tombstones = self.tombstones, now = self.platform.ServerTime }
+  local ok, reason = ns.BlacklistSync.Apply(ctx, message, sender, self.roleOf(sender))
+  if ok and self.onBlacklistChange then
+    self.onBlacklistChange(message.t)
   end
   return ok, reason
 end
@@ -464,6 +494,20 @@ function Comm:ResetPvP(target)
     self.onPvPChange(message.t)
   end
   return true, payload.rev, (self:Send("PVP_RESET", message.p, "PVPR:" .. target))
+end
+
+-- An entry added or changed here, or the removal of one (its tombstone is already in place). Keyed by player, so
+-- a newer edit replaces one still waiting in the queue.
+function Comm:SendBlacklistUpsert(key, entry)
+  return self:Send("BLACKLIST_UPSERT", ns.BlacklistSync.UpsertPayload(key, entry), "BL:" .. key)
+end
+
+function Comm:SendBlacklistDelete(key)
+  local payload = ns.BlacklistSync.DeletePayload(self.tombstones, key)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("BLACKLIST_DELETE", payload, "BL:" .. key)
 end
 
 function Comm:SendDeleteEvent(eventId)
@@ -570,6 +614,13 @@ function Comm.Start()
     onPvPChange = function()
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()
+      end
+    end,
+    blacklist = ns.db.global.blacklist,
+    -- An entry that arrives may be about someone already in the group: Init redraws the tab and looks again.
+    onBlacklistChange = function()
+      if ns.BlacklistChanged then
+        ns.BlacklistChanged()
       end
     end,
     version = ns.GetVersion(),

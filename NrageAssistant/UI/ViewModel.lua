@@ -878,6 +878,38 @@ function ViewModel.VotingRows(session, actor, rankOf, options)
   return rows
 end
 
+-- The rows of the blacklist tab: the entries sorted by name, with the text already escaped. `options` =
+-- { canRemove = boolean (the own role may remove entries), formatDate = function(timestamp) -> text }.
+function ViewModel.BlacklistRows(entries, options)
+  options = options or {}
+  local rows = {}
+  for _, entry in ipairs(ns.BlacklistService.List(entries)) do
+    rows[#rows + 1] = {
+      key = entry.key,
+      name = ViewModel.Escape(entry.name),
+      reason = ViewModel.Escape(entry.reason or "-"),
+      addedBy = ViewModel.Escape(entry.addedBy or "-"),
+      added = type(entry.addedAt) == "number" and options.formatDate and options.formatDate(entry.addedAt) or "-",
+      canRemove = options.canRemove == true,
+    }
+  end
+  return rows
+end
+
+-- What the group alert says about a match of BlacklistService.Match. An approximate match is a guess: the client
+-- gives only the first word of a multi-word name.
+function ViewModel.BlacklistAlertLine(match)
+  local reason = ViewModel.Escape(match.entry.reason)
+  if match.approximate then
+    return ("%s may be %s, who is on the blacklist: %s"):format(
+      ViewModel.Escape(match.member),
+      ViewModel.Escape(match.entry.name),
+      reason
+    )
+  end
+  return ("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
+end
+
 ViewModel.TABS = {
   { value = "home", text = "Home" },
   { value = "profile", text = "Profile" },
@@ -885,6 +917,7 @@ ViewModel.TABS = {
   { value = "raid", text = "Raid" },
   { value = "loot", text = "Loot" },
   { value = "pvp", text = "PvP" },
+  { value = "blacklist", text = "Blacklist" },
   { value = "roster", text = "Roster" },
 }
 
@@ -908,6 +941,7 @@ function ViewModel.HelpLines()
     "/nrage import        paste an export to merge it into your data (RL/admin only)",
     "/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)",
     "/nrage pvp           admin only: pvp reset <name> zeroes a member's PvP counters",
+    "/nrage blacklist     guild blacklist (blacklist add <name> | <reason>; blacklist remove <name> is admin only)",
     "/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)",
     "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",
   }

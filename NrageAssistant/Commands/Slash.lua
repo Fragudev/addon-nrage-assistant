@@ -315,8 +315,26 @@ local function PvPCommand(rest)
   say(("PvP counters of %s reset (revision %d)%s."):format(name, rev, sent and ", told to the guild" or ", NOT sent"))
 end
 
+local function BlacklistCommand(rest)
+  if not ns.active or not ns.comm then
+    say("the blacklist is unavailable while the addon is disabled.")
+    return
+  end
+  local blacklist = ns.BlacklistCommands.New({
+    blacklist = ns.db.global.blacklist,
+    tombstones = ns.db.global.sync.tombstones,
+    platform = ns.Platform,
+    comm = ns.comm,
+    onChange = ns.BlacklistChanged,
+  })
+  for _, line in ipairs(blacklist:Blacklist(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  blacklist = BlacklistCommand,
   pvp = PvPCommand,
   report = ReportCommand,
   template = TemplateCommand,

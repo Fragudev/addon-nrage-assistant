@@ -13,11 +13,13 @@ local function load_modules()
     "Domain/EventService",
     "Domain/LootModel",
     "Domain/LootService",
+    "Domain/BlacklistService",
     "Sync/Protocol",
     "Sync/SyncRules",
     "Sync/EventSync",
     "Sync/LootSync",
     "Sync/PvPSync",
+    "Sync/BlacklistSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -540,5 +542,159 @@ describe("Transfer PvP items in a snapshot", function()
     local text = assert(Transfer.Export(libs, s.events, s.tombstones))
     local decoded = assert(Transfer.Decode(libs, text))
     assert.are.equal(#plain, #decoded)
+  end)
+end)
+
+describe("Transfer blacklist items in a snapshot", function()
+  local function entry(name, overrides)
+    local e = {
+      name = name,
+      reason = "ninja",
+      addedBy = "Ann-Realm",
+      addedAt = 500,
+      rev = 1,
+      updatedAt = 9000,
+      updatedBy = "Ann-Realm",
+    }
+    for k, v in pairs(overrides or {}) do
+      e[k] = v
+    end
+    return e
+  end
+
+  local function context(overrides)
+    local ctx = {
+      events = {},
+      tombstones = {},
+      blacklist = {},
+      now = function()
+        return 10000
+      end,
+    }
+    for k, v in pairs(overrides or {}) do
+      ctx[k] = v
+    end
+    return ctx
+  end
+
+  local function source()
+    return context({
+      blacklist = { yonemongg = entry("Yonemon Gg"), ann = entry("Ann", { addedBy = "Bob-Realm", updatedAt = 9500 }) },
+      tombstones = { ["B:gone"] = { at = 10, rev = 4 }, ["E:event"] = { at = 10, rev = 2 } },
+    })
+  end
+
+  it("adds the entries with their author and the removals after the raid items", function()
+    local s = source()
+    local items = Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, s.blacklist, 10)
+    local types = {}
+    for _, item in ipairs(items) do
+      types[#types + 1] = item.t
+    end
+    assert.are.same({ "DELETE", "BLACKLIST_UPSERT", "BLACKLIST_UPSERT", "BLACKLIST_DELETE" }, types)
+    assert.are.equal("ann", items[2].p.key)
+    assert.are.equal("Bob-Realm", items[2].addedBy)
+    assert.are.equal(500, items[2].addedAt)
+    assert.are.same({ key = "gone", rev = 4 }, items[4].p)
+  end)
+
+  it("adds nothing without a blacklist or with a cap of zero", function()
+    local s = source()
+    local plain = Transfer.BuildSnapshot({}, s.tombstones, 5)
+    assert.are.equal(#plain, #Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, s.blacklist, 0))
+    assert.are.equal(#plain, #Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, nil, 10))
+  end)
+
+  it("caps the entries and the removals separately", function()
+    local ctx = context()
+    for index = 1, 5 do
+      ctx.blacklist["p" .. index] = entry("P" .. index, { updatedAt = 100 + index })
+      ctx.tombstones["B:t" .. index] = { at = index, rev = 1 }
+    end
+    local items = Transfer.BuildSnapshot({}, ctx.tombstones, 5, nil, nil, ctx.blacklist, 2)
+    assert.are.equal(4, #items)
+  end)
+
+  it("applies the entries as the sender with the author kept, and the removals under the sender's role", function()
+    local s = source()
+    local items = Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, s.blacklist, 10)
+
+    local target = context()
+    local summary = Transfer.ApplyItems(items, target, "Lead-Realm", "rl")
+    assert.are.equal(2, summary.blacklist)
+    -- The two entries and the removal of an event, which a leader may apply.
+    assert.are.equal(3, summary.applied)
+    assert.are.equal("Bob-Realm", target.blacklist.ann.addedBy)
+    assert.are.equal(500, target.blacklist.ann.addedAt)
+    assert.are.equal("Lead-Realm", target.blacklist.ann.updatedBy)
+    -- A removal only counts from an admin.
+    assert.are.equal(1, summary.skipped.forbidden)
+    assert.is_nil(target.tombstones["B:gone"])
+
+    local admin = context()
+    summary = Transfer.ApplyItems(items, admin, "Boss-Realm", "admin")
+    assert.are.equal(3, summary.blacklist)
+    assert.are.equal(4, admin.tombstones["B:gone"].rev)
+  end)
+
+  it("applies the same result whatever the order of the items", function()
+    local s = source()
+    s.tombstones["B:ann"] = { at = 20, rev = 2 }
+    local items = Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, s.blacklist, 10)
+    local reversed = {}
+    for index = #items, 1, -1 do
+      reversed[#reversed + 1] = items[index]
+    end
+    local a, b = context(), context()
+    Transfer.ApplyItems(items, a, "Boss-Realm", "admin")
+    Transfer.ApplyItems(reversed, b, "Boss-Realm", "admin")
+    assert.are.same(a.blacklist, b.blacklist)
+  end)
+
+  it("skips an item whose author or date is unusable, or that does not validate", function()
+    local ctx = context()
+    local good = { t = "BLACKLIST_UPSERT", p = { key = "ann", name = "Ann", reason = "x", rev = 1, updatedAt = 10 } }
+    local function with(overrides)
+      local item = { t = good.t, p = good.p, addedBy = "Ann-Realm", addedAt = 5 }
+      for k, v in pairs(overrides) do
+        item[k] = v
+      end
+      return item
+    end
+    local summary = Transfer.ApplyItems({
+      with({ addedBy = "|cffff0000Evil" }),
+      with({ addedAt = "yesterday" }),
+      with({ addedBy = false }),
+      with({ p = { key = "ann", name = "Ann", reason = "", rev = 1, updatedAt = 10 } }),
+    }, ctx, "Lead-Realm", "rl")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(3, summary.skipped.bad_origin)
+    assert.are.equal(1, summary.skipped.bad_payload)
+    assert.is_nil(next(ctx.blacklist))
+  end)
+
+  it("takes an item without an author as sent by the relay", function()
+    local ctx = context()
+    local item = { t = "BLACKLIST_UPSERT", p = { key = "ann", name = "Ann", reason = "x", rev = 1, updatedAt = 10 } }
+    assert.are.equal(1, Transfer.ApplyItems({ item }, ctx, "Lead-Realm", "rl").applied)
+    assert.are.equal("Lead-Realm", ctx.blacklist.ann.addedBy)
+  end)
+
+  it("does not apply blacklist items to a context without a blacklist, such as a text import", function()
+    local s = source()
+    local items = Transfer.BuildSnapshot({}, {}, 5, nil, nil, s.blacklist, 10)
+    local ctx = context()
+    ctx.blacklist = nil
+    local summary = Transfer.ApplyItems(items, ctx, "import", "admin")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(2, summary.skipped.unsupported)
+  end)
+
+  it("keeps the blacklist out of the text export", function()
+    local s = source()
+    local plain = Transfer.BuildItems({}, s.tombstones)
+    for _, item in ipairs(plain) do
+      assert.is_false(item.t == "BLACKLIST_UPSERT" or item.t == "BLACKLIST_DELETE")
+    end
   end)
 end)

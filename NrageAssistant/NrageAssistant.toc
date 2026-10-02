@@ -36,6 +36,8 @@ Domain\PvPService.lua
 Domain\PvPTracker.lua
 Domain\PvPPublisher.lua
 Domain\PvPFeed.lua
+Domain\BlacklistService.lua
+Domain\BlacklistWatcher.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -44,6 +46,7 @@ Sync\SyncRules.lua
 Sync\EventSync.lua
 Sync\LootSync.lua
 Sync\PvPSync.lua
+Sync\BlacklistSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\ViewModel.lua
@@ -55,5 +58,6 @@ Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\ReportCommands.lua
 Commands\TemplateCommands.lua
+Commands\BlacklistCommands.lua
 Commands\Slash.lua
 Core\Init.lua

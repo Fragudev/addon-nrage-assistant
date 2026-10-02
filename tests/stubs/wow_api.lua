@@ -31,3 +31,22 @@ _G.IsInInstance = function()
 end
 
 _G.CombatLogGetCurrentEventInfo = function() end
+
+-- Group: the player is alone. Specs that need a party or a raid replace these.
+_G.IsInGroup = function()
+  return false
+end
+
+_G.IsInRaid = function()
+  return false
+end
+
+_G.GetNumGroupMembers = function()
+  return 0
+end
+
+_G.GetRaidRosterInfo = function() end
+
+_G.RaidNotice_AddMessage = function() end
+
+_G.PlaySound = function() end

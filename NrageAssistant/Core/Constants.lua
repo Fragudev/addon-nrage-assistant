@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 7,
+  SCHEMA_VERSION = 8,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 2,
+  PROTOCOL_MINOR = 3,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -163,6 +163,15 @@ ns.Constants = {
     { name = "Field Marshal", kills = 4700 },
     { name = "Grand Marshal", kills = 6000 },
   },
+
+  -- Guild blacklist: names and short free-text reasons, shared with the guild. A snapshot carries at most
+  -- BLACKLIST_SNAPSHOT_MAX entries (the most recently updated) and as many removals (the newest). The tab redraws
+  -- because of a received entry at most once per BLACKLIST_REDRAW_SECONDS.
+  BLACKLIST_MAX = 200,
+  BLACKLIST_NAME_MAX = 40,
+  BLACKLIST_REASON_MAX = 100,
+  BLACKLIST_SNAPSHOT_MAX = 200,
+  BLACKLIST_REDRAW_SECONDS = 1,
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

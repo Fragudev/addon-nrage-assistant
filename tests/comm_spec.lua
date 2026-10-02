@@ -14,6 +14,7 @@ local function load_addon()
     "Domain/EventService",
     "Domain/LootModel",
     "Domain/LootService",
+    "Domain/BlacklistService",
     "Sync/Codec",
     "Sync/Protocol",
     "Sync/Inbox",
@@ -22,6 +23,7 @@ local function load_addon()
     "Sync/EventSync",
     "Sync/LootSync",
     "Sync/PvPSync",
+    "Sync/BlacklistSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -48,6 +50,8 @@ local function build_env()
     pvpResets = {},
     pvpChanges = {},
     pvpKills = {},
+    blacklist = {},
+    blacklistChanges = {},
     ownResets = {},
   }
 
@@ -101,6 +105,10 @@ local function build_env()
     end,
     onPvPReset = function(rev)
       env.ownResets[#env.ownResets + 1] = rev
+    end,
+    blacklist = env.blacklist,
+    onBlacklistChange = function(messageType)
+      env.blacklistChanges[#env.blacklistChanges + 1] = messageType
     end,
     roleOf = function(sender)
       return env.roles[sender]
@@ -1267,5 +1275,193 @@ describe("Comm PVP_KILL", function()
     assert.are.equal("locked", reason)
     assert.are.equal(0, env.queue:Pending())
     assert.are.equal(1, #env.sent)
+  end)
+end)
+
+describe("Comm blacklist", function()
+  local env
+
+  local function upsert(overrides)
+    local p = { key = "yonemongg", name = "Yonemon Gg", reason = "ninja", rev = 1, updatedAt = 4990 }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.roles["Boss-Realm"] = "admin"
+  end)
+
+  it("stores an entry from any member, with the sender as the author, and tells the interface", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("BLACKLIST_UPSERT", upsert()), "Ann-Realm", "GUILD"))
+    assert.are.equal("Ann-Realm", env.blacklist.yonemongg.addedBy)
+    assert.are.same({ "BLACKLIST_UPSERT" }, env.blacklistChanges)
+  end)
+
+  it("drops an entry from a sender the roster does not know", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("BLACKLIST_UPSERT", upsert()), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.blacklist)
+    assert.are.same({}, env.blacklistChanges)
+  end)
+
+  it("lets only an admin remove, and tells the interface only when something changed", function()
+    env.comm:HandleMessage(env.wire("BLACKLIST_UPSERT", upsert(), "u1"), "Ann-Realm", "GUILD")
+    local forged = env.wire("BLACKLIST_DELETE", { key = "yonemongg", rev = 2 }, "d1")
+    local ok, reason = env.comm:HandleMessage(forged, "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    assert.is_truthy(env.blacklist.yonemongg)
+
+    assert.is_true(
+      env.comm:HandleMessage(env.wire("BLACKLIST_DELETE", { key = "yonemongg", rev = 2 }, "d2"), "Boss-Realm", "GUILD")
+    )
+    assert.is_nil(env.blacklist.yonemongg)
+    assert.are.equal(2, env.tombstones["B:yonemongg"].rev)
+    assert.are.same({ "BLACKLIST_UPSERT", "BLACKLIST_DELETE" }, env.blacklistChanges)
+  end)
+
+  it("drops an entry whose key does not belong to its name", function()
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("BLACKLIST_UPSERT", upsert({ key = "other" })), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("bad_key", reason)
+  end)
+
+  it("sends an entry keyed by player, so a newer edit replaces a queued one", function()
+    env.locked = true
+    local entry = { name = "Yonemon Gg", reason = "ninja", rev = 1, updatedAt = 4990 }
+    assert.is_true(env.comm:SendBlacklistUpsert("yonemongg", entry))
+    entry.rev, entry.reason = 2, "afk"
+    assert.is_true(env.comm:SendBlacklistUpsert("yonemongg", entry))
+    assert.are.equal(0, #env.sent)
+    assert.are.equal(1, env.queue:Pending())
+
+    env.locked = false
+    env.queue:Flush()
+    assert.are.equal(1, #env.sent)
+    local decoded = env.codec:Decode(env.sent[1])
+    assert.are.equal("BLACKLIST_UPSERT", decoded.t)
+    assert.are.equal(2, decoded.p.rev)
+    assert.are.equal("afk", decoded.p.reason)
+  end)
+
+  it("sends a removal with the revision of its tombstone, and refuses one without a tombstone", function()
+    local ok, reason = env.comm:SendBlacklistDelete("yonemongg")
+    assert.is_false(ok)
+    assert.are.equal("no_tombstone", reason)
+
+    env.tombstones["B:yonemongg"] = { at = 1, rev = 3 }
+    assert.is_true(env.comm:SendBlacklistDelete("yonemongg"))
+    local decoded = env.codec:Decode(env.sent[1])
+    assert.are.equal("BLACKLIST_DELETE", decoded.t)
+    assert.are.same({ key = "yonemongg", rev = 3 }, decoded.p)
+  end)
+
+  it("holds a send back during the encounter lockdown", function()
+    env.locked = true
+    env.tombstones["B:x"] = { at = 1, rev = 1 }
+    assert.is_true(env.comm:SendBlacklistDelete("x"))
+    assert.are.same({}, env.sent)
+    assert.are.equal(1, env.queue:Pending())
+  end)
+
+  describe("in a snapshot", function()
+    local leader
+
+    local function entry(name, overrides)
+      local e = {
+        name = name,
+        reason = "ninja",
+        addedBy = "Ann-Realm",
+        addedAt = 500,
+        rev = 1,
+        updatedAt = 4000,
+        updatedBy = "Ann-Realm",
+      }
+      for k, v in pairs(overrides or {}) do
+        e[k] = v
+      end
+      return e
+    end
+
+    before_each(function()
+      leader = build_env()
+      leader.ownRole = "admin"
+      env.roles["Lead-Realm"] = "admin"
+    end)
+
+    it("gives a late joiner the entries with their author, and the removals", function()
+      leader.blacklist.yonemongg = entry("Yonemon Gg")
+      leader.blacklist.bob = entry("Bob", { addedBy = "Cid-Realm" })
+      leader.tombstones["B:gone"] = { at = 10, rev = 5 }
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      assert.are.equal("Ann-Realm", env.blacklist.yonemongg.addedBy)
+      assert.are.equal("Cid-Realm", env.blacklist.bob.addedBy)
+      assert.are.equal("Lead-Realm", env.blacklist.bob.updatedBy)
+      assert.are.equal(5, env.tombstones["B:gone"].rev)
+      assert.are.same({ "SYNC_DATA" }, env.blacklistChanges)
+    end)
+
+    it("stays under the byte cap with a maximal number of maximal entries and removals", function()
+      math.randomseed(23)
+      local function noise(length)
+        local chars = {}
+        for i = 1, length do
+          chars[i] = string.char(math.random(97, 122))
+        end
+        return table.concat(chars)
+      end
+      local constants = ns.Constants
+      for i = 1, constants.BLACKLIST_MAX do
+        local name = noise(constants.BLACKLIST_NAME_MAX)
+        leader.blacklist[name] = entry(name, {
+          reason = noise(constants.BLACKLIST_REASON_MAX),
+          addedBy = noise(60),
+          addedAt = math.random(1, 2000000000),
+          rev = math.random(1, 2000000000),
+          updatedAt = 1000 + i,
+        })
+        leader.tombstones["B:" .. noise(constants.BLACKLIST_NAME_MAX)] = { at = i, rev = math.random(1, 2000000000) }
+      end
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      assert.is_true(#leader.sent[1] <= constants.SYNC_MAX_ENCODED_BYTES, #leader.sent[1])
+
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      local received = 0
+      for _ in pairs(env.blacklist) do
+        received = received + 1
+      end
+      assert.is_true(received >= 1 and received <= constants.BLACKLIST_SNAPSHOT_MAX, received)
+    end)
+
+    it("shrinks the blacklist part together with the events when the snapshot would not fit", function()
+      local saved = ns.Constants.SYNC_MAX_ENCODED_BYTES
+      ns.Constants.SYNC_MAX_ENCODED_BYTES = 1500
+      math.randomseed(7)
+      for i = 1, 100 do
+        local chars = {}
+        for j = 1, 30 do
+          chars[j] = string.char(math.random(97, 122))
+        end
+        local name = table.concat(chars)
+        leader.blacklist[name] = entry(name, { updatedAt = 1000 + i })
+      end
+      local ok = leader.comm:SendSnapshot("Joiner-Realm")
+      ns.Constants.SYNC_MAX_ENCODED_BYTES = saved
+      assert.is_true(ok)
+      assert.is_true(#leader.sent[1] <= 1500)
+    end)
+
+    it("sends a snapshot of removals alone", function()
+      leader.tombstones["B:gone"] = { at = 10, rev = 5 }
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+    end)
   end)
 end)

@@ -154,6 +154,57 @@ local function StartPvP()
   end)
 end
 
+-- The events the blacklist watcher listens to: the group changed, and a new world (login, a loading screen)
+-- with a group already formed. Each is registered on its own, so a client that does not know one keeps the other.
+local BLACKLIST_EVENTS = { "GROUP_ROSTER_UPDATE", "PLAYER_ENTERING_WORLD" }
+
+local blacklistStarted = false
+
+-- A blacklist entry changed here or arrived from the guild: the tab is redrawn and the group is looked at again,
+-- because the entry may be about someone who is already in it.
+function ns.BlacklistChanged()
+  ns.UI.BlacklistChanged()
+  if ns.blacklistWatcher then
+    pcall(ns.blacklistWatcher.Check, ns.blacklistWatcher)
+  end
+end
+
+-- Own frame. Runs once: access can be lost and regained.
+local function StartBlacklist()
+  if blacklistStarted then
+    return
+  end
+  blacklistStarted = true
+  local watcher = ns.BlacklistWatcher.New({
+    blacklist = ns.db.global.blacklist,
+    isGrouped = ns.Platform.IsInGroup,
+    members = ns.Platform.GetGroupMemberNames,
+    ownNames = function()
+      return { ns.Platform.GetIdentityKey(), ns.Platform.GetPlayerName() }
+    end,
+    -- Each part is guarded inside Platform: a warning that cannot be shown must not hide the chat line.
+    alert = function(match)
+      local line = ns.ViewModel.BlacklistAlertLine(match)
+      print(("%s: %s"):format(PREFIX, line))
+      ns.Platform.ShowRaidNotice(line)
+      ns.Platform.PlayAlertSound()
+    end,
+  })
+  ns.blacklistWatcher = watcher
+
+  local blacklistFrame = CreateFrame("Frame")
+  for _, event in ipairs(BLACKLIST_EVENTS) do
+    ns.Platform.TryRegisterEvent(blacklistFrame, event)
+  end
+  blacklistFrame:SetScript("OnEvent", function()
+    if ns.active then
+      pcall(watcher.Check, watcher)
+    end
+  end)
+  -- A group that already exists when the addon starts.
+  pcall(watcher.Check, watcher)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -178,6 +229,7 @@ local function Activate()
   ns.LootPopup.Start()
   ns.VotingFrame.Start()
   StartPvP()
+  StartBlacklist()
   ScheduleSelfTest()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end

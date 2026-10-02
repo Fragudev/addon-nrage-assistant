@@ -53,9 +53,11 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_STATS` | guild | `rev`, `updatedAt`, `honor{world, bg}`, optional `blows{world, bg}`, `today{day, honor{world, bg}, optional blows{world, bg}}` | anyone, for themselves; the record belongs to the sender |
 | `PVP_RESET` | guild | `target`, `rev` | admin |
 | `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
+| `BLACKLIST_UPSERT` | guild | `key`, `name` (1 to 40 bytes), `reason` (1 to 100 bytes), `rev`, `updatedAt` | anyone; the author is the sender |
+| `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
-| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot or PvP messages (a `PVP_STATS` item also carries `owner`) | rl, admin (checked before decoding) |
+| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP or blacklist messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
 `guid` is deliberately never sent.
 
@@ -129,9 +131,55 @@ about a victim (compared ignoring case) already in the list within 15 seconds is
 member who gets honour for it sends one: the sender is added to the killers of that entry (at most 5) and no new
 chat line is printed. Nothing received is stored beyond the in-memory list.
 
+## Guild blacklist
+
+A list of players the guild wants to be warned about, each with a short reason. Two messages, both on the guild
+channel; the protocol minor version was raised to 3 for them, and older clients drop the unknown types with
+`unknown_type`.
+
+| Action | Roles | Message |
+|---|---|---|
+| `blacklist_add` | member, rl, council, admin (everyone with a role) | `BLACKLIST_UPSERT` |
+| `blacklist_remove` | admin (guild master, officers and the beta admins) | `BLACKLIST_DELETE` |
+
+The receiver reads the role of the **sender** from its own guild roster, so hiding the Remove button is only
+convenience: a delete from anyone but an admin is dropped with `forbidden`, and one from a sender the roster does
+not know with `unknown_sender`.
+
+- **The author is the sender.** `addedBy` (set once, when the entry is created) and `updatedBy` (every write) are
+  never payload fields; fields sent anyway are dropped.
+- `name` is the name as it is shown: no realm suffix, no leading, trailing or doubled spaces, no `|`, `:` or
+  control characters. `key` is the name in lowercase without any whitespace (`Yonemon Gg` is `yonemongg`). The
+  receiver works the key out again from the name and drops the message (`bad_key`) when they differ.
+- Entries are stored in `db.global.blacklist[key]`, at most 200. A message that would add a 201st player is
+  rejected with `limit`; one that updates a listed player is still accepted.
+- Conflicts follow the rules above (`rev`, then `updatedAt`, then the larger sender). Adding a player who is
+  already listed from the interface is refused locally; a message with a higher `rev` for a listed player replaces
+  its name and reason, and keeps who added it.
+- **Removal.** `BLACKLIST_DELETE` removes the entry and leaves a tombstone `B:<key>` in the shared, bounded
+  tombstone list (500 entries, 30 days) with the revision of the removal (the entry's `rev` plus one). An upsert
+  whose `rev` does not exceed the tombstone's is dropped (`tombstoned`), so an old copy cannot bring a removed
+  player back. Adding the player again needs `rev = tombstone.rev + 1`; that is a legitimate new entry, and an admin
+  can remove it again. A delete for a player this client never saw is remembered too.
+- Sending goes through the outbound queue with the key `BL:<key>`, so a newer edit replaces a queued older one, and
+  nothing is sent during an encounter lockdown.
+
+**Snapshot.** Blacklist entries and `B:` tombstones are part of `SYNC_DATA`. Here is a second documented exception
+to "the author is the sender": a `BLACKLIST_UPSERT` item of a snapshot may carry `addedBy` (validated like a
+character name) and `addedAt` (a timestamp), so the original author and date are kept when a leader relays an
+entry. Both are only read from the items of a snapshot, which only a raid leader or admin can send (checked before
+decoding); a guild message has nowhere to carry them, and an item with an unusable `addedBy` or `addedAt` is skipped
+(`bad_origin`). The item is otherwise applied as if the relaying leader had sent it, with `updatedBy` set to the
+leader and the usual validation, authority and conflict rules. A `BLACKLIST_DELETE` item only counts when the
+sender of the snapshot is an admin, like a PvP reset. The blacklist part is capped separately, at the 200 most
+recently updated entries and the 200 newest removals, and shrinks together with the events and the PvP records
+(halved until the snapshot fits in 32 KB). The blacklist is not part of the text export, and an imported blacklist
+item is skipped.
+
 ## Deletions
 
-A `DELETE` removes the record and leaves a **tombstone** (`E:<eventId>` or `A:<eventId>:<assignmentId>`) with the
+A `DELETE` removes the record and leaves a **tombstone** (`E:<eventId>` or `A:<eventId>:<assignmentId>`; the
+blacklist has its own, see above) with the
 deleted revision plus one. An upsert whose `rev` does not exceed the tombstone's is dropped, so a stale message
 cannot bring deleted data back; on a tie the delete wins. A newer revision does resurrect the record. Tombstones
 are bounded (500) and expire after 30 days.
@@ -169,10 +217,11 @@ text export.
 ## Limits on stored data
 
 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
-and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 20 templates. Events are purged 90 days after their start.
+and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 200 blacklist entries, 20 templates. Events are purged 90 days after their start.
 
 ## Text import and export
 
 `NRAGE1:` followed by LibSerialize, LibDeflate and the print encoding of `{ items = { { t, p } ... } }`, the same
-raid items a snapshot carries (never PvP records: an imported `PVP_STATS` or `PVP_RESET` item is skipped). Import requires the manage-events role, accepts at most 32 KB of text, 256 KB decoded and
+raid items a snapshot carries (never PvP records or the blacklist: an imported `PVP_STATS`, `PVP_RESET` or
+`BLACKLIST_*` item is skipped). Import requires the manage-events role, accepts at most 32 KB of text, 256 KB decoded and
 3000 items, and applies each item like a received message, with the sender `import`.

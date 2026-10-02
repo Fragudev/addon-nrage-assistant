@@ -11,7 +11,7 @@ describe("Constants", function()
   end)
 
   it("is at schema version 7", function()
-    assert.are.equal(7, ns.Constants.SCHEMA_VERSION)
+    assert.are.equal(8, ns.Constants.SCHEMA_VERSION)
   end)
 
   it("defines PvP ranks with names and thresholds that keep going up", function()

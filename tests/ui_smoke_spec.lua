@@ -97,10 +97,12 @@ local function load_window()
     "Domain/ReadinessService",
     "Domain/ProfileService",
     "Domain/PublishService",
+    "Domain/BlacklistService",
     "UI/ViewModel",
     "Commands/RaidCommands",
     "Commands/LootCommands",
     "Commands/TemplateCommands",
+    "Commands/BlacklistCommands",
     "UI/Main",
     "UI/VotingFrame",
   }) do
@@ -190,7 +192,8 @@ local function build(rank)
       env.tooltip.shown = false
     end,
   }
-  ns.db = { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} }, pvpStats = {} } }
+  ns.db =
+    { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} }, pvpStats = {}, blacklist = {} } }
   ns.character = {
     profile = { fields = {} },
     consent = {},
@@ -224,6 +227,8 @@ local function build(rank)
     "SendLootCandidate",
     "SendLootVote",
     "SendLootAward",
+    "SendBlacklistUpsert",
+    "SendBlacklistDelete",
   }) do
     ns.comm[kind] = function()
       env.sent[#env.sent + 1] = kind
@@ -1000,5 +1005,135 @@ describe("Window smoke test", function()
     assert.is_truthy(env.open("roster"))
     env.ns.UI.OpenTab("loot")
     env.close()
+  end)
+end)
+
+describe("Blacklist tab", function()
+  local env
+
+  local function labels(root)
+    local found = {}
+    walk(root, function(widget)
+      if (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text then
+        found[#found + 1] = widget.props.text
+      end
+    end)
+    return table.concat(found, "\n")
+  end
+
+  local function add_entry(key, name, reason)
+    env.ns.db.global.blacklist[key] = {
+      name = name,
+      reason = reason,
+      addedBy = "Ann-Realm",
+      addedAt = 500,
+      rev = 1,
+      updatedAt = 500,
+      updatedBy = "Ann-Realm",
+    }
+  end
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("draws the form, and says so when the list is empty", function()
+    env = build("Member")
+    local tab = env.open("blacklist")
+    assert.is_truthy(env.find(tab, "EditBox", "Name"))
+    assert.is_truthy(env.find(tab, "EditBox", "Reason"))
+    assert.is_truthy(env.find(tab, "Button", "Add"))
+    assert.is_truthy(labels(tab):find("Nobody is on the blacklist.", 1, true))
+  end)
+
+  it("adds a player from the form and sends it", function()
+    env = build("Member")
+    local tab = env.open("blacklist")
+    env.find(tab, "EditBox", "Name"):SetText("Yonemon Gg")
+    env.find(tab, "EditBox", "Reason"):SetText("stole loot")
+    env.find(tab, "Button", "Add").callbacks.OnClick()
+
+    assert.are.equal("stole loot", env.ns.db.global.blacklist.yonemongg.reason)
+    assert.are.same({ "SendBlacklistUpsert" }, env.sent)
+    tab = env.open("blacklist")
+    assert.is_truthy(labels(tab):find("Yonemon Gg", 1, true))
+    assert.is_truthy(labels(tab):find("stole loot", 1, true))
+    assert.is_truthy(labels(tab):find("Leader-Realm, date:1000", 1, true))
+  end)
+
+  it("shows a validation error and sends nothing", function()
+    env = build("Member")
+    local tab = env.open("blacklist")
+    env.find(tab, "EditBox", "Name"):SetText("Ann")
+    env.find(tab, "Button", "Add").callbacks.OnClick()
+    tab = env.open("blacklist")
+    assert.is_truthy(labels(tab):find("enter a reason", 1, true))
+    assert.are.same({}, env.sent)
+    assert.is_nil(next(env.ns.db.global.blacklist))
+  end)
+
+  it("hides Remove from everyone but the guild master and officers", function()
+    for _, rank in ipairs({ "Member", "RL", "Council" }) do
+      env = build(rank)
+      add_entry("ann", "Ann", "ninja")
+      local tab = env.open("blacklist")
+      assert.is_truthy(labels(tab):find("ninja", 1, true))
+      assert.is_nil(env.find(tab, "Button", "Remove"), rank)
+      env.close()
+    end
+  end)
+
+  it("lets an officer remove a player", function()
+    env = build("Officer")
+    add_entry("ann", "Ann", "ninja")
+    add_entry("zed", "Zed", "afk")
+    local tab = env.open("blacklist")
+    env.find(tab, "Button", "Remove").callbacks.OnClick()
+    assert.is_nil(env.ns.db.global.blacklist.ann)
+    assert.is_truthy(env.ns.db.global.blacklist.zed)
+    assert.are.same({ "SendBlacklistDelete" }, env.sent)
+    assert.is_truthy(env.ns.db.global.sync.tombstones["B:ann"])
+  end)
+
+  it("sorts the list by name and escapes it", function()
+    env = build("GM")
+    add_entry("zed", "Zed", "afk")
+    add_entry("ann", "Ann", "|Hbad|h")
+    local text = labels(env.open("blacklist"))
+    assert.is_truthy(text:find("||Hbad||h", 1, true))
+    assert.is_true(text:find("Ann", 1, true) < text:find("Zed", 1, true))
+  end)
+
+  it("redraws when an entry arrives, but not more than once per interval, and only on its own tab", function()
+    env = build("Member")
+    local clock = 100
+    env.ns.Platform.Now = function()
+      return clock
+    end
+    env.open("blacklist")
+    env.timers = nil
+    env.widgets = {}
+    env.ns.UI.BlacklistChanged()
+    assert.is_true(#env.widgets > 0)
+    env.widgets = {}
+    env.ns.UI.BlacklistChanged()
+    env.ns.UI.BlacklistChanged()
+    assert.are.equal(0, #env.widgets)
+    assert.are.equal(1, #env.timers)
+    clock = clock + env.ns.Constants.BLACKLIST_REDRAW_SECONDS
+    env.timers[1]()
+    assert.is_true(#env.widgets > 0)
+
+    env.open("home")
+    env.widgets = {}
+    env.ns.UI.BlacklistChanged()
+    assert.are.equal(0, #env.widgets)
+  end)
+
+  it("does nothing when the window is closed", function()
+    env = build("Member")
+    assert.has_no.errors(function()
+      env.ns.UI.BlacklistChanged()
+    end)
   end)
 end)
