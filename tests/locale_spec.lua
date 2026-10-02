@@ -80,6 +80,10 @@ local function asked_for()
     for key in text:gmatch('[^%w_]L%(%s*"([^"]*)"%s*%)') do
       keys[key] = path
     end
+    -- A text with double quotes inside is written between single quotes.
+    for key in text:gmatch("[^%w_]L%(%s*'([^']*)'%s*%)") do
+      keys[key] = path
+    end
   end
   return keys
 end

@@ -84,6 +84,7 @@ local function load_window()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
     "Core/Validate",
     "Core/Args",
     "Domain/PvPService",

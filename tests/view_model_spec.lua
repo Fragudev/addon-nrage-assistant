@@ -1,7 +1,10 @@
-local function load_view_model()
+-- `locale` (optional) is the client locale code to load it for, e.g. "esES".
+local function load_view_model(locale)
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
+    "Locales/esES",
     "Core/Validate",
     "Domain/PvPService",
     "Domain/PermissionService",
@@ -14,6 +17,9 @@ local function load_view_model()
     "UI/ViewModel",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    if path == "Locales/esES" and locale then
+      ns.Locale.Use(locale)
+    end
   end
   return ns.ViewModel, ns.Constants
 end
@@ -1524,5 +1530,43 @@ describe("ViewModel readiness rules editor", function()
     }) do
       assert.is_string(ViewModel.RULE_ERRORS[reason], reason)
     end
+  end)
+end)
+
+describe("ViewModel in Spanish", function()
+  local Spanish = load_view_model("esES")
+
+  it("shows the tabs in Spanish", function()
+    local texts = {}
+    for _, tab in ipairs(Spanish.TABS) do
+      texts[tab.value] = tab.text
+    end
+    assert.are.equal("Inicio", texts.home)
+    assert.are.equal("Lista negra", texts.blacklist)
+    assert.are.equal("PvP", texts.pvp)
+  end)
+
+  it("translates the words of the states but keeps the data as it is", function()
+    assert.are.equal("planificado", Spanish.Word("planned"))
+    assert.are.equal("presente", Spanish.Word("present"))
+    assert.are.equal("something_new", Spanish.Word("something_new"))
+  end)
+
+  it("keeps the placeholders working in a translated sentence", function()
+    assert.are.equal("nivel 60 o más", Spanish.RuleSummary({ check = "level", min = 60 }))
+    local ranks = { { name = "Knight", kills = 100 }, { name = "Knight-Lieutenant", kills = 800 } }
+    local line = Spanish.PvPRankLine(512, ranks)
+    assert.are.equal("Rango: Knight (512 bajas con honor) - 288 para Knight-Lieutenant", line)
+  end)
+
+  it("translates the help lines and the error sentences", function()
+    assert.is_truthy(Spanish.HelpLines()[1]:find("abre la ventana", 1, true))
+    assert.is_truthy(Spanish.RULE_ERRORS.empty:find("deja al menos una regla", 1, true))
+  end)
+
+  it("stays in English for a client that is not Spanish", function()
+    local English = load_view_model("deDE")
+    assert.are.equal("Home", English.TABS[1].text)
+    assert.are.equal("planned", English.Word("planned"))
   end)
 end)
