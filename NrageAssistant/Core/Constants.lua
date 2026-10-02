@@ -100,8 +100,9 @@ ns.Constants = {
   LOOT_CANDIDATES_MAX = 40,
   LOOT_VOTES_MAX = 30,
   -- "open": council members see who voted for whom while the session is open. Votes are always
-  -- revealed once the session is closed. Secret votes until close would need a different message
-  -- flow (votes sent only to the leader), so this is reserved for a later decision by the guild.
+  -- revealed once the session is closed. The guild chose open votes (issue #23). "secret" only hides the counts in
+  -- the window until the session closes: the votes still travel over the guild channel, which is not confidential,
+  -- so it is not a real secret and would need a different message flow (votes sent only to the leader).
   VOTE_VISIBILITY = "open",
   -- The loot popup passes for you after this long without an answer (local only: nothing is sent).
   LOOT_RESPONSE_TIMEOUT_SECONDS = 60,
