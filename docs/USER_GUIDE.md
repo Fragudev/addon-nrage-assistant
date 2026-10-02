@@ -194,6 +194,9 @@ a total and today's count for each. Days follow the server's date in UTC, so the
 - If the client does not offer the honour counter either, the tab says so and counts nothing.
 - The counters are saved per character and stay on your client in this phase; nothing is sent to the guild. Daily
   counts are kept for 30 days.
+- Your **PvP rank** is at the top, with how many honourable kills you need for the next one. There are 14 ranks,
+  from Private to Grand Marshal; only honourable kills count towards them. Their names and thresholds are set in
+  `PVP_RANKS` in `Core/Constants.lua`, and the thresholds there are placeholders until the guild decides them.
 
 ## Reports
 
