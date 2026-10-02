@@ -1556,3 +1556,67 @@ describe("ViewModel in Spanish", function()
     assert.are.equal("planned", English.Word("planned"))
   end)
 end)
+
+describe("ViewModel.LootMinutes", function()
+  local function closed(id, updatedAt, itemName, award, votes)
+    return {
+      sessionId = id,
+      itemId = 1,
+      itemName = itemName,
+      status = "closed",
+      updatedAt = updatedAt,
+      candidates = {},
+      votes = votes or {},
+      award = award,
+    }
+  end
+
+  it("says there is nothing yet when no session is closed", function()
+    local event =
+      { title = "Molten Core", loot = { s1 = { sessionId = "s1", status = "open", candidates = {}, votes = {} } } }
+    assert.are.same({ "No closed loot sessions for 'Molten Core' yet." }, ViewModel.LootMinutes(event))
+    assert.are.same({ "No closed loot sessions for 'x' yet." }, ViewModel.LootMinutes({ title = "x" }))
+  end)
+
+  it("lists each closed session oldest first with the decision and the reason", function()
+    local event = {
+      title = "Molten Core",
+      loot = {
+        b = closed("b", 20, "Beta", nil),
+        a = closed("a", 10, "Alpha", { characterKey = "Ann-Realm", awardedBy = "Boss-Realm", reason = "Highest need" }),
+      },
+    }
+    local lines = ViewModel.LootMinutes(event)
+    assert.are.equal("Loot minutes for 'Molten Core':", lines[1])
+    assert.are.equal("  Alpha -> Ann-Realm (by Boss-Realm): Highest need", lines[2])
+    assert.are.equal("  Beta -> not awarded", lines[3])
+  end)
+
+  it("never says who voted for whom", function()
+    local event = {
+      title = "Raid",
+      loot = {
+        a = closed(
+          "a",
+          1,
+          "Alpha",
+          { characterKey = "Ann-Realm", awardedBy = "Boss-Realm", reason = "need" },
+          { ["Cid-Realm"] = { target = "Ann-Realm" } }
+        ),
+      },
+    }
+    assert.is_nil(table.concat(ViewModel.LootMinutes(event), "\n"):find("Cid-Realm", 1, true))
+  end)
+
+  it("escapes what the guild wrote", function()
+    local event = {
+      title = "|cffff0000Raid|r",
+      loot = {
+        a = closed("a", 1, "|HItem", { characterKey = "|r", awardedBy = "|c", reason = "|T" }),
+      },
+    }
+    for _, line in ipairs(ViewModel.LootMinutes(event)) do
+      assert.is_nil(line:find("[^|]|[^|]"), line)
+    end
+  end)
+end)
