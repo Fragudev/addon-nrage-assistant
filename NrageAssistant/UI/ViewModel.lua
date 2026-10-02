@@ -124,7 +124,7 @@ function ViewModel.PublishError(reason)
 end
 
 -- One event as lines: title, status and start, the attendance counts and the assignments. `index` is its
--- number in /nrage event. `formatDate(timestamp)` renders the start time. Everything shown is escaped.
+-- number in the list. `formatDate(timestamp)` renders the start time. Everything shown is escaped.
 function ViewModel.RaidEventLines(event, index, formatDate)
   local lines = {}
   local when = event.startAt and (" - " .. formatDate(event.startAt)) or ""
@@ -175,11 +175,11 @@ function ViewModel.RaidEventLines(event, index, formatDate)
   return lines
 end
 
--- Events with their attendance summary and assignments, in the order of /nrage event.
+-- Events with their attendance summary and assignments, in the order of the list.
 function ViewModel.Raid(events, formatDate)
   local list = ns.EventService.List({ events = events })
   if #list == 0 then
-    return { L("No events yet. A raid leader creates them with /nrage event new <title>.") }
+    return { L("No events yet. A raid leader creates them in the Raid tab.") }
   end
 
   local lines = {}
@@ -485,7 +485,7 @@ function ViewModel.Loot(events)
     end
   end
   if #lines == 0 then
-    lines[1] = L("No loot sessions yet. The council opens one after an encounter with /nrage loot <event> open <item>.")
+    lines[1] = L("No loot sessions yet. The council opens one in the Loot tab after an encounter.")
   end
   lines[#lines + 1] = L("Addon messages are not private: anyone with the addon can read votes.")
   return lines
@@ -505,7 +505,7 @@ function ViewModel.RaidActions(role)
   }
 end
 
--- Dropdown entries for the events, in the order of /nrage event: list[eventId] = label, plus the ids in order.
+-- Dropdown entries for the events, in the order of the list: list[eventId] = label, plus the ids in order.
 function ViewModel.EventChoices(events)
   local list, order = {}, {}
   for index, event in ipairs(ns.EventService.List({ events = events })) do

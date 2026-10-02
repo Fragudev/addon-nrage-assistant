@@ -1,19 +1,13 @@
 local _, ns = ...
 
--- /nrage template: keep the assignments of an event as a named template and apply it to another event.
--- Returns the lines to print. Applying a template sends each created assignment to the guild like any
+-- Assignment templates: keep the assignments of an event as a named template and apply it to another event.
+-- Each method returns the lines to show. Applying a template sends each created assignment to the guild like any
 -- other assignment; the templates themselves stay on this client.
 --   deps: events, templates, platform, comm
 local TemplateCommands = {}
 TemplateCommands.__index = TemplateCommands
 
-local USAGE = {
-  "usage: /nrage template [list]                  the saved templates",
-  "       /nrage template show <name>             the slots of a template",
-  "       /nrage template save <event> <name>     save the assignments of an event",
-  "       /nrage template apply <event> <name>    add a template's assignments to an event",
-  "       /nrage template delete <name>",
-}
+local L = ns.L
 
 function TemplateCommands.New(deps)
   return setmetatable({
@@ -37,54 +31,20 @@ function TemplateCommands:Context()
   }
 end
 
-function TemplateCommands:ResolveEvent(token)
-  local index = tonumber(token)
-  local event = index and index % 1 == 0 and ns.EventService.List({ events = self.events })[index] or nil
-  if not event then
-    return nil, "give the event number from /nrage event."
-  end
-  return event
-end
-
 local ERRORS = {
-  ["invalid:name"] = "give a plain-text name (up to 40 characters).",
-  empty = "that event has no assignments to save.",
-  limit = "you already have the maximum number of templates: delete one first.",
-  not_found = "not found.",
+  ["invalid:name"] = L("give a plain-text name (up to 40 characters)."),
+  empty = L("that event has no assignments to save."),
+  limit = L("you already have the maximum number of templates: delete one first."),
+  not_found = L("not found."),
 }
 
 local function error_line(ctx, reason)
   if reason == "forbidden" then
-    return ("not allowed: your guild rank gives the role '%s', which cannot manage assignments."):format(
+    return L("not allowed: your guild rank gives the role '%s', which cannot manage assignments."):format(
       tostring(ctx.role)
     )
   end
   return ERRORS[reason] or tostring(reason)
-end
-
-function TemplateCommands:List()
-  local names = ns.TemplateService.List(self.templates)
-  if #names == 0 then
-    return { "No templates yet. Save one with /nrage template save <event> <name>." }
-  end
-  local lines = { ("%d template(s):"):format(#names) }
-  for _, name in ipairs(names) do
-    lines[#lines + 1] = ("  %s - %d slot(s)"):format(name, #self.templates[name].slots)
-  end
-  return lines
-end
-
-function TemplateCommands:Show(name)
-  local template = self.templates[name]
-  if not template then
-    return { ("no template called '%s'."):format(name) }
-  end
-  local lines = { ("Template '%s':"):format(name) }
-  for _, slot in ipairs(template.slots) do
-    local task = slot.task and (" - " .. slot.task) or ""
-    lines[#lines + 1] = ("  %s: %s%s"):format(slot.encounter, slot.characterKey, task)
-  end
-  return lines
 end
 
 function TemplateCommands:SaveEvent(event, name)
@@ -93,7 +53,7 @@ function TemplateCommands:SaveEvent(event, name)
   if not template then
     return { error_line(ctx, reason) }
   end
-  return { ("saved '%s' with %d slot(s)."):format(template.name, #template.slots) }
+  return { L("saved '%s' with %d slot(s)."):format(template.name, #template.slots) }
 end
 
 function TemplateCommands:ApplyToEvent(event, name)
@@ -111,51 +71,17 @@ function TemplateCommands:ApplyToEvent(event, name)
     end
   end
   if unsent > 0 then
-    lines[#lines + 1] = ("saved here, but %d assignment(s) could not be sent to the guild."):format(unsent)
+    lines[#lines + 1] = L("saved here, but %d assignment(s) could not be sent to the guild."):format(unsent)
   end
   return lines
 end
 
-function TemplateCommands:Save(args)
-  local token, name = args:match("^(%S*)%s*(.-)$")
-  local event, problem = self:ResolveEvent(token)
-  if not event then
-    return { problem }
+function TemplateCommands:Delete(name)
+  local ok, reason = ns.TemplateService.Delete(self.templates, name)
+  if not ok then
+    return { error_line(self:Context(), reason) }
   end
-  return self:SaveEvent(event, name)
-end
-
-function TemplateCommands:Apply(args)
-  local token, name = args:match("^(%S*)%s*(.-)$")
-  local event, problem = self:ResolveEvent(token)
-  if not event then
-    return { problem }
-  end
-  return self:ApplyToEvent(event, name)
-end
-
-function TemplateCommands:Template(rest)
-  local sub, args = rest:match("^(%S*)%s*(.-)$")
-  if sub == "" or sub == "list" then
-    return self:List()
-  end
-  if sub == "show" then
-    return self:Show(args)
-  end
-  if sub == "save" then
-    return self:Save(args)
-  end
-  if sub == "apply" then
-    return self:Apply(args)
-  end
-  if sub == "delete" then
-    local ok, reason = ns.TemplateService.Delete(self.templates, args)
-    if not ok then
-      return { error_line(self:Context(), reason) }
-    end
-    return { ("deleted '%s'."):format(args) }
-  end
-  return USAGE
+  return { L("deleted '%s'."):format(name) }
 end
 
 ns.TemplateCommands = TemplateCommands
