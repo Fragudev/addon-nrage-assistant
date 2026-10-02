@@ -135,19 +135,11 @@ ns.Constants = {
   -- is the same kill (honour credit and killing blow are two events), and an entry waits that long before it
   -- is sent so the second event can still join it. At most PVP_FEED_MAX_PER_MINUTE entries are sent in any
   -- rolling minute (the rest are dropped, never queued); a victim is at most PVP_FEED_VICTIM_MAX bytes of text.
-  -- Received entries about the same victim within PVP_FEED_DEDUPE_SECONDS are one kill (several members get
-  -- honour for it) and list up to PVP_FEED_KILLERS_MAX killers; at most PVP_FEED_MAX entries are kept in
-  -- memory, never saved. One sender can show at most PVP_FEED_MAX_PER_MINUTE entries per minute.
+  -- At most PVP_FEED_MAX own entries are kept in memory, never saved.
   PVP_FEED_MERGE_SECONDS = 5,
   PVP_FEED_MAX_PER_MINUTE = 5,
   PVP_FEED_MAX = 50,
-  PVP_FEED_DEDUPE_SECONDS = 15,
-  PVP_FEED_KILLERS_MAX = 5,
   PVP_FEED_VICTIM_MAX = 40,
-  PVP_FEED_SENDERS_MAX = 200,
-  -- Defaults of the feed settings (db.global.settings.pvp): shared and shown in the open world, not in
-  -- battlegrounds, where it would flood.
-  PVP_FEED_DEFAULTS = { feedWorld = true, feedBg = false },
   -- PvP ranks, lowest first, as in the Classic honour system. `kills` is the total of honourable kills (open
   -- world plus battleground) a rank needs; killing blows do not count. Names and thresholds can be changed
   -- freely, and the list can be longer or shorter, as long as the thresholds keep going up. The rank is worked

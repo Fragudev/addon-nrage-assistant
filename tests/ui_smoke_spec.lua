@@ -464,25 +464,16 @@ describe("Window smoke test", function()
       }
     end
 
-    it("shows the two switches with the saved values", function()
+    it("has no switches: every kill is shared", function()
       feed_with({}, true)
       local pvp = open_feed()
-      local world = env.find(pvp, "CheckBox", "Feed in the open world")
-      local bg = env.find(pvp, "CheckBox", "Feed in battlegrounds")
-      assert.is_true(world.props.value)
-      assert.is_false(bg.props.value)
-      assert.are.same({ feedWorld = true, feedBg = false }, env.ns.db.global.settings.pvp)
-    end)
-
-    it("changes the settings from the switches", function()
-      feed_with({}, true)
-      local pvp = open_feed()
-      env.find(pvp, "CheckBox", "Feed in battlegrounds").callbacks.OnValueChanged(nil, nil, true)
-      assert.is_true(env.ns.db.global.settings.pvp.feedBg)
-      pvp = open_feed()
-      env.find(pvp, "CheckBox", "Feed in the open world").callbacks.OnValueChanged(nil, nil, false)
-      assert.is_false(env.ns.db.global.settings.pvp.feedWorld)
-      assert.is_true(env.ns.db.global.settings.pvp.feedBg)
+      local boxes = 0
+      walk(pvp, function(widget)
+        if widget.kind == "CheckBox" then
+          boxes = boxes + 1
+        end
+      end)
+      assert.are.equal(0, boxes)
     end)
 
     it("lists the recent kills with escaped names", function()

@@ -173,7 +173,7 @@ end
 ViewModel.PVP_PERIODS = { total = "Total", today = "Today" }
 ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
 
--- The sub-tabs of the PvP tab: the own counters, the guild ranking and the recent kills of the guild.
+-- The sub-tabs of the PvP tab: the own counters, the guild ranking and the own recent kills.
 function ViewModel.PvPSubTabs()
   return {
     { value = "mine", text = "My stats" },
@@ -184,17 +184,7 @@ end
 
 local FEED_PLACES = { world = "open world", bg = "battleground" }
 
--- "Ann killed Zed (open world)" for the chat line of a received kill. The names are escaped.
-function ViewModel.PvPFeedChatLine(entry)
-  local killer = entry.killers and entry.killers[1] or "?"
-  return ("%s killed %s (%s)"):format(
-    ViewModel.Escape(killer),
-    ViewModel.Escape(entry.victim),
-    FEED_PLACES[entry.where] or "?"
-  )
-end
-
--- The recent kills of the guild, newest first (the order of `entries`): "12:04  Ann, Bob killed Zed (open world,
+-- The own recent kills, newest first (the order of `entries`): "12:04  Ann, Bob killed Zed (open world,
 -- killing blow)". `options` = { available = boolean (the client can give a victim name), formatTime =
 -- function(seconds) -> text }. Names are escaped.
 function ViewModel.PvPFeed(entries, options)
@@ -204,7 +194,7 @@ function ViewModel.PvPFeed(entries, options)
     lines[2] = ""
   end
   if #entries == 0 then
-    lines[#lines + 1] = "No kills yet. Kills of members who run the addon show up here."
+    lines[#lines + 1] = "No kills yet. Your kills show up here."
     return lines
   end
   for _, entry in ipairs(entries) do

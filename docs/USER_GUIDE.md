@@ -221,16 +221,13 @@ zeroed when their client receives it, or at their next login. Nobody else can do
 
 ### Recent kills
 
-The **Recent kills** sub-tab is a short guild feed: who killed whom, newest first, for example
-`12:04  Ann, Bob killed Zed (open world, killing blow)`. It shows the last 50 kills since you logged in; nothing is
-saved. When a guild member kills a player, you also get a chat line such as `Nrage Assistant: Ann killed Zed (open
-world)`. Several members who get honour for the same kill are listed on one line.
+The **Recent kills** sub-tab is your own kill history, newest first, for example
+`12:04  Me killed Zed (open world, killing blow)`. It shows your last 50 kills since you logged in; nothing is
+saved. There are no switches: all your kills are always shared with the guild.
 
-- The two switches, **Feed in the open world** (on by default) and **Feed in battlegrounds** (off by default, it
-  would flood the chat), decide both whether you **share** your kills there and whether you **see** the kills of
-  others there. They are saved for the whole account.
-- Your own kills are sent to the guild about 5 seconds after they happen, at most 5 per minute, and never during an
-  encounter. This shares the names of the players you kill (see the privacy notes).
+- Your kills are sent to the guild about 5 seconds after they happen, at most 5 per minute, and never during an
+  encounter. This shares the names of the players you kill (see the privacy notes). The kills of other members are
+  not shown here.
 - The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
   available and nothing is shown or sent.
 
