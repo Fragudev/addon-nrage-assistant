@@ -1,0 +1,45 @@
+NrageAssistant/Commands/BlacklistCommands.lua
+  s_3a1049e925af91::t_a719c3e4022313 3-4,10-11,34-44,50,52,62,79,103
+NrageAssistant/Commands/LootCommands.lua
+  s_3a1049e925af91::t_6f0597d3e445b8 3-5,11,44,48,51-55,66,98,111,124,137,150
+NrageAssistant/Commands/RaidCommands.lua
+  s_3a1049e925af91::t_4ffc9f50588255 3-4,11-12,38,42,45-47,58,61-62,70,79,91,118,152,164
+NrageAssistant/Commands/TemplateCommands.lua
+  s_3a1049e925af91::t_01ed62e2d00cc7 3-4,10,35-38,43,56,74,79-82,84
+NrageAssistant/Locales/esES.lua
+  s_3a1049e925af91::t_08c9c2fd8ee069 50,88,185-187,206,307-355
+NrageAssistant/UI/Main.lua
+  s_3a1049e925af91::t_ddce05f835958e 386-388,405-418,534-541
+NrageAssistant/UI/ViewModel.lua
+  s_3a1049e925af91::t_4d51c53f69eae1 127,178,182,488,508
+docs/USER_GUIDE.md
+  s_3a1049e925af91::t_f422f134509b08 103,105
+tests/blacklist_commands_spec.lua
+  s_3a1049e925af91::t_9ed6cf646ea475 72,84-86,94-95,104,112,118,125,141,154,163,168,175-176,185,196
+tests/loot_commands_spec.lua
+  s_3a1049e925af91::t_5cad4685aa0c17 5,75-82,86-87,98-99,103-105,112,120,128,138,146-149,152,157,164-165,170,172-173,175-176,181,183-184,189,193-197,202,210,219-229,231,234-242,244,249,257,270,278
+tests/raid_commands_spec.lua
+  s_3a1049e925af91::t_b7dbe590a71dc7 5,131-202
+tests/report_spec.lua
+  s_3a1049e925af91::t_504c3b9387c978 5
+tests/template_commands_spec.lua
+  s_3a1049e925af91::t_de9f7227b7062a 5,78-80,82-86,89-95,97-100,102-105,108-110,114-115,125-126,128,134,136,143-145,151-154,158-161
+tests/ui_smoke_spec.lua
+  s_3a1049e925af91::t_7f61d431118152 270,1420-1458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00e3709250bed8e7776dd876f47f554ae15583c0",
+  "prompts": {},
+  "sessions": {
+    "s_3a1049e925af91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b8de4a-e96a-43bc-b513-78261550de6e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
