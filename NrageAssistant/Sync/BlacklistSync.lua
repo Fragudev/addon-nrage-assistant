@@ -3,7 +3,8 @@ local _, ns = ...
 -- Applies received blacklist changes to local data, and builds the payloads for them.
 --
 -- Authority: the sender's role comes from the receiver's own guild roster (`role`), never from the message.
--- BLACKLIST_UPSERT needs `blacklist_add` (every member), BLACKLIST_DELETE needs `blacklist_remove` (admin). The
+-- BLACKLIST_UPSERT needs `blacklist_add` (every member) and, for a player who is already listed, to come from the
+-- member who added the entry or from an admin; BLACKLIST_DELETE needs `blacklist_remove` (admin). The
 -- author is the sender as well: a new entry gets `addedBy = sender`, every write `updatedBy = sender`, and the
 -- payload has no field for either. The receiver works the key out from the name and drops a message whose key is
 -- another one.
@@ -64,6 +65,11 @@ local function applyUpsert(ctx, payload, sender, role, origin)
   local updatedAt = clampTimestamp(ctx, payload.updatedAt)
   local entry = ctx.blacklist[payload.key]
   if entry then
+    -- Only the member who added the entry, or an admin, may change a player who is already listed. Inside a
+    -- snapshot the sender is the leader who relays it, so a relay changes an entry only when the leader is an admin.
+    if not ns.BlacklistService.CanEdit(entry, sender, role) then
+      return false, "forbidden"
+    end
     if not Rules.Wins(payload.rev, updatedAt, sender, entry) then
       return false, "stale"
     end

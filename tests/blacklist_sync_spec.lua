@@ -104,37 +104,58 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
     assert.is_nil(next(ctx.blacklist))
   end)
 
-  it("keeps the original author when a later edit wins", function()
+  it("keeps the original author when an admin's later edit wins", function()
     local ctx = context()
     Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
-    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, reason = "afk" }), "Bob-Realm", "member"))
+    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, reason = "afk" }), "Boss-Realm", "admin"))
     local entry = ctx.blacklist.yonemongg
     assert.are.equal("afk", entry.reason)
     assert.are.equal("Ann-Realm", entry.addedBy)
-    assert.are.equal("Bob-Realm", entry.updatedBy)
+    assert.are.equal("Boss-Realm", entry.updatedBy)
+  end)
+
+  it("lets the member who added a player edit the entry", function()
+    local ctx = context()
+    Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
+    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, reason = "afk" }), "Ann-Realm", "member"))
+    assert.are.equal("afk", ctx.blacklist.yonemongg.reason)
+    assert.are.equal("Ann-Realm", ctx.blacklist.yonemongg.updatedBy)
+  end)
+
+  it("refuses an edit of a listed player from anyone else but an admin", function()
+    for _, role in ipairs({ "member", "rl", "council" }) do
+      local ctx = context()
+      Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
+      local before = { reason = ctx.blacklist.yonemongg.reason, rev = ctx.blacklist.yonemongg.rev }
+      local ok, reason = Sync.Apply(ctx, upsert({ rev = 9, reason = "harmless" }), "Bob-Realm", role)
+      assert.is_false(ok, role)
+      assert.are.equal("forbidden", reason, role)
+      assert.are.same(before, { reason = ctx.blacklist.yonemongg.reason, rev = ctx.blacklist.yonemongg.rev })
+    end
   end)
 
   it("follows the conflict order: rev, then updatedAt, then the larger sender", function()
+    -- Only the member who added the entry and admins can edit it, so the conflicts are between them.
     local ctx = context()
     Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 50, reason = "base" }), "Bob-Realm", "member")
 
     local ok, reason =
-      Sync.Apply(ctx, upsert({ rev = 1, updatedAt = NOW - 5, reason = "older rev" }), "Cid-Realm", "member")
+      Sync.Apply(ctx, upsert({ rev = 1, updatedAt = NOW - 5, reason = "older rev" }), "Bob-Realm", "member")
     assert.is_false(ok)
     assert.are.equal("stale", reason)
 
     assert.is_true(
-      Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "later time" }), "Ann-Realm", "member")
+      Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "later time" }), "Bob-Realm", "member")
     )
     assert.are.equal("later time", ctx.blacklist.yonemongg.reason)
 
     -- Same rev and time: the larger sender wins, the smaller one does not.
-    assert.is_false(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "small" }), "Aaa-Realm", "member"))
-    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "large" }), "Zed-Realm", "member"))
+    assert.is_false(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "small" }), "Aaa-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "large" }), "Zed-Realm", "admin"))
     assert.are.equal("large", ctx.blacklist.yonemongg.reason)
 
     assert.is_true(
-      Sync.Apply(ctx, upsert({ rev = 3, updatedAt = NOW - 90, reason = "newer rev" }), "Ann-Realm", "member")
+      Sync.Apply(ctx, upsert({ rev = 3, updatedAt = NOW - 90, reason = "newer rev" }), "Bob-Realm", "member")
     )
     assert.are.equal("newer rev", ctx.blacklist.yonemongg.reason)
   end)
@@ -172,8 +193,8 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
       Sync.Apply(
         ctx,
         message("BLACKLIST_UPSERT", upsert_payload({ key = "p1", name = "P1", rev = 2 })),
-        "Ann-Realm",
-        "member"
+        "Boss-Realm",
+        "admin"
       )
     )
     assert.are.equal(2, ctx.blacklist.p1.rev)
@@ -268,7 +289,7 @@ describe("BlacklistSync tombstones", function()
   it("gives the same result whatever order the messages arrive in", function()
     local messages = {
       { upsert({ rev = 1 }), "Ann-Realm", "member" },
-      { upsert({ rev = 3, reason = "again" }), "Bob-Realm", "member" },
+      { upsert({ rev = 3, reason = "again" }), "Ann-Realm", "member" },
       { delete({ rev = 2 }), "Boss-Realm", "admin" },
     }
     local orders = {
@@ -321,8 +342,11 @@ describe("BlacklistSync origin of a relayed entry", function()
   it("does not let an origin change an entry that is already listed", function()
     local ctx = context()
     Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
-    Sync.Apply(ctx, upsert({ rev = 2 }), "Lead-Realm", "rl", { addedBy = "Evil-Realm", addedAt = 1 })
+    local ok, reason = Sync.Apply(ctx, upsert({ rev = 2 }), "Lead-Realm", "rl", { addedBy = "Evil-Realm", addedAt = 1 })
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
     assert.are.equal("Ann-Realm", ctx.blacklist.yonemongg.addedBy)
+    assert.are.equal(1, ctx.blacklist.yonemongg.rev)
   end)
 end)
 

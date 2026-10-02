@@ -154,8 +154,13 @@ not know with `unknown_sender`.
 - Entries are stored in `db.global.blacklist[key]`, at most 200. A message that would add a 201st player is
   rejected with `limit`; one that updates a listed player is still accepted.
 - Conflicts follow the rules above (`rev`, then `updatedAt`, then the larger sender). Adding a player who is
-  already listed from the interface is refused locally; a message with a higher `rev` for a listed player replaces
-  its name and reason, and keeps who added it.
+  already listed changes only the reason, locally and on the wire, and only for the member who added the entry and
+  for admins (`blacklist_edit_any`); anyone else gets `forbidden` (`not_author` in the interface). A message with a
+  higher `rev` from one of them replaces its name and reason, and keeps who added it. Inside a snapshot the sender
+  is the relaying leader, so a relay changes a listed player only when that leader is an admin.
+  Known limit: if two members add the same player at nearly the same moment, each client keeps whichever entry it
+  received first and refuses the other as `forbidden`, so clients can briefly hold a different reason and author for
+  that player. Both list the player; an admin edit (a higher `rev`) makes them agree again.
 - **Removal.** `BLACKLIST_DELETE` removes the entry and leaves a tombstone `B:<key>` in the shared, bounded
   tombstone list (500 entries, 30 days) with the revision of the removal (the entry's `rev` plus one). An upsert
   whose `rev` does not exceed the tombstone's is dropped (`tombstoned`), so an old copy cannot bring a removed
