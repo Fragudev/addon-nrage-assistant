@@ -1,23 +1,16 @@
 local _, ns = ...
 
--- Voluntary publication of the local profile. Nothing leaves the client without consent, consent is
--- split per kind of data, and what is sent is exactly what Describe() previews.
---   profile    -> class, level, and the declared role/main fields
---   gear       -> item level
---   professions
---   notes      -> the declared notes field
--- Withdrawing consent stops future publications; it cannot recall what other clients already hold.
+-- Publication of the local profile to the guild. It is automatic and has no consent switch (issue #36): every
+-- member running the addon shares what the guild needs to organise raids, and what is sent is exactly what
+-- Describe() lists.
+--   shared:     class, level, item level, professions, and the declared role and main
+--   not shared: the declared notes, which stay on this computer
+-- The profile is sent after login and again whenever it changes (PublishIfChanged), at most once per
+-- PUBLISH_COOLDOWN_SECONDS. A publication cannot be recalled from the clients that already hold it.
 local PublishService = {}
 
-PublishService.CONSENT_KEYS = { "profile", "gear", "professions", "notes" }
-
-local CONSENT_SET = {}
-for _, key in ipairs(PublishService.CONSENT_KEYS) do
-  CONSENT_SET[key] = true
-end
-
--- Which declared field needs which consent.
-local FIELD_CONSENT = { role = "profile", main = "profile", notes = "notes" }
+-- The declared fields that are shared. Anything else, notes included, is never sent.
+local SHARED_FIELDS = { "role", "main" }
 
 local MAX_PROFESSIONS = 8
 
@@ -28,15 +21,6 @@ local function clean(text)
   end
   text = text:gsub("|", ""):gsub("%c", ""):match("^%s*(.-)%s*$")
   return text ~= "" and text or nil
-end
-
--- Returns true, or false plus "unknown_key".
-function PublishService.SetConsent(consent, key, enabled)
-  if not CONSENT_SET[key] then
-    return false, "unknown_key"
-  end
-  consent[key] = enabled and true or nil
-  return true
 end
 
 local function buildProfessions(list)
@@ -54,11 +38,11 @@ local function buildProfessions(list)
   return #result > 0 and result or nil
 end
 
-local function buildFields(fields, consent)
+local function buildFields(fields)
   local result = {}
-  for key, needed in pairs(FIELD_CONSENT) do
+  for _, key in ipairs(SHARED_FIELDS) do
     local field = fields and fields[key]
-    local value = field and consent[needed] and clean(field.value)
+    local value = field and clean(field.value)
     if value then
       result[key] = value
     end
@@ -66,63 +50,58 @@ local function buildFields(fields, consent)
   return next(result) and result or nil
 end
 
--- Returns the PROFILE payload for what the player consented to, or nil plus
--- "no_consent" | "missing_data". Unknown values are left out, never guessed.
-function PublishService.BuildPayload(profile, consent, rev)
-  if not consent.profile then
-    return nil, "no_consent"
-  end
+-- Returns the PROFILE payload, or nil plus "missing_data". Unknown values are left out, never guessed.
+function PublishService.BuildPayload(profile, rev)
   if type(profile.class) ~= "string" or type(profile.level) ~= "number" then
     return nil, "missing_data"
   end
 
   local payload = { rev = rev, class = profile.class, level = profile.level }
-  if consent.gear and type(profile.ilvl) == "number" then
+  if type(profile.ilvl) == "number" then
     payload.ilvl = profile.ilvl
   end
-  if consent.professions then
-    payload.professions = buildProfessions(profile.professions)
-  end
-  payload.fields = buildFields(profile.fields, consent)
+  payload.professions = buildProfessions(profile.professions)
+  payload.fields = buildFields(profile.fields)
   return payload
 end
 
--- Lines that show what would be shared and what stays private.
-function PublishService.Describe(profile, consent)
-  local payload, reason = PublishService.BuildPayload(profile, consent, 0)
+-- A string that is the same for two payloads that say the same thing, whatever their revision.
+local function fingerprint(payload)
+  local parts = { payload.class, tostring(payload.level), tostring(payload.ilvl or "") }
+  for _, profession in ipairs(payload.professions or {}) do
+    parts[#parts + 1] = ("%s=%d"):format(profession.name, profession.skill)
+  end
+  for _, key in ipairs(SHARED_FIELDS) do
+    parts[#parts + 1] = key .. ":" .. ((payload.fields or {})[key] or "")
+  end
+  return table.concat(parts, "|")
+end
+
+-- Lines that show what is shared and what stays private.
+function PublishService.Describe(profile)
+  local payload = PublishService.BuildPayload(profile, 0)
   if not payload then
-    if reason == "no_consent" then
-      return { "Nothing will be shared: profile consent is off. Use /nrage consent profile on." }
-    end
     return { "Nothing can be shared yet: class or level is unknown." }
   end
 
-  local lines = { ("Will share: %s, level %d"):format(payload.class, payload.level) }
+  local lines = { ("Shared with the guild: %s, level %d"):format(payload.class, payload.level) }
   if payload.ilvl then
-    lines[#lines + 1] = ("Will share: item level %d"):format(payload.ilvl)
+    lines[#lines + 1] = ("Shared with the guild: item level %d"):format(payload.ilvl)
   end
   for _, profession in ipairs(payload.professions or {}) do
-    lines[#lines + 1] = ("Will share: %s %d"):format(profession.name, profession.skill)
+    lines[#lines + 1] = ("Shared with the guild: %s %d"):format(profession.name, profession.skill)
   end
-  local keys = {}
-  for key in pairs(payload.fields or {}) do
-    keys[#keys + 1] = key
-  end
-  table.sort(keys)
-  for _, key in ipairs(keys) do
-    lines[#lines + 1] = ("Will share: %s = %s"):format(key, payload.fields[key])
-  end
-
-  for _, key in ipairs(PublishService.CONSENT_KEYS) do
-    if not consent[key] then
-      lines[#lines + 1] = ("Not shared: %s (no consent)"):format(key)
+  for _, key in ipairs(SHARED_FIELDS) do
+    if payload.fields and payload.fields[key] then
+      lines[#lines + 1] = ("Shared with the guild: %s = %s"):format(key, payload.fields[key])
     end
   end
+  lines[#lines + 1] = "Not shared: notes, enchants and buffs (they stay on this computer)."
   return lines
 end
 
--- Publishes through `comm`. `character` = { profile, consent, publish }.
--- Returns true, or false plus "no_consent" | "missing_data" | "cooldown" | a send failure reason.
+-- Publishes through `comm`. `character` = { profile, publish }.
+-- Returns true, or false plus "missing_data" | "cooldown" | a send failure reason.
 function PublishService.Publish(comm, character, platform)
   local constants = ns.Constants
   local now = platform.ServerTime()
@@ -134,7 +113,7 @@ function PublishService.Publish(comm, character, platform)
 
   -- Server time keeps revisions monotonic even if the saved data is ever reset.
   local rev = math.max((state.rev or 0) + 1, now)
-  local payload, reason = PublishService.BuildPayload(character.profile, character.consent, rev)
+  local payload, reason = PublishService.BuildPayload(character.profile, rev)
   if not payload then
     return false, reason
   end
@@ -145,7 +124,22 @@ function PublishService.Publish(comm, character, platform)
   end
   state.rev = rev
   state.at = now
+  state.fingerprint = fingerprint(payload)
   return true
+end
+
+-- Publishes only when what would be shared is not what was last sent. Returns true when it published, or false
+-- plus "unchanged" | what Publish returns. A change that arrives inside the cooldown is not lost: it is still
+-- different from the last one sent, so the next call publishes it.
+function PublishService.PublishIfChanged(comm, character, platform)
+  local payload, reason = PublishService.BuildPayload(character.profile, 0)
+  if not payload then
+    return false, reason
+  end
+  if character.publish.fingerprint == fingerprint(payload) then
+    return false, "unchanged"
+  end
+  return PublishService.Publish(comm, character, platform)
 end
 
 ns.PublishService = PublishService

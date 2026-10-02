@@ -18,7 +18,7 @@ secret store.
 | Data | Where it comes from |
 |---|---|
 | Your sheet: class, level, item level, professions, guid, and the fields you declared (role, main, notes) | read from the game, or typed by you |
-| Your consent choices and readiness confirmations | you |
+| Your readiness confirmations | you |
 | Profiles received from other members | the guild channel |
 | Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
 | PvP counters received from other members | the guild channel |
@@ -30,20 +30,23 @@ secret store.
 
 Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
 
-## What is shared, and only with your consent
+## Your sheet is shared automatically
 
-Publishing your sheet is always an explicit action (`/nrage publish confirm`) after a preview of exactly what
-goes out. Consent is per kind of data:
+**Your sheet is shared with the guild without a consent switch** (decision in issue #36). Every guild member
+running the addon receives it after you log in and again whenever it changes, at most once every 30 seconds, and you
+receive theirs. It holds:
 
-| Consent | Shared |
+| Shared | |
 |---|---|
-| `profile` | class, level, declared role and main |
-| `gear` | item level |
-| `professions` | professions and skill |
-| `notes` | declared notes |
+| class and level | always |
+| item level | when known |
+| professions and skill | when known |
+| declared role and main | when you set them |
 
-Never shared: your guid, your inventory, chat, or anything you did not consent to. Text you declare has escape
-characters (`|`) and control characters stripped before it is sent.
+Never shared: your **declared notes** (they stay on this computer), the enchants and buffs the readiness checks read
+from your character, your guid, your inventory and chat. `/nrage publish` lists what is shared, and `/nrage publish now`
+sends it at once. Text you declare has escape characters (`|`) and control characters stripped before it is sent. Like
+every addon message the sheet is **not encrypted**, and the only way not to share it is not to run the addon.
 
 **PvP counters are shared automatically, without a consent switch.** Every guild member running the addon
 receives your honourable kills and killing blows (open world and battleground, totals and today's count), and you
@@ -74,7 +77,7 @@ visible to everyone** while a session is open.
 
 ## Taking data back
 
-- Turning a consent off stops future publications. It **cannot recall** what other clients already received.
+- A sheet that was already published **cannot be recalled** from the clients that received it.
 - Deleting an event or an assignment sends a tombstone so other clients delete it too, but a client that never
   receives it keeps its copy.
 - A tool to view, export and delete your own data is planned (tracked as an issue).

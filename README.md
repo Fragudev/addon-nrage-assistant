@@ -29,7 +29,7 @@ Type `/nrage` to open the window and `/nrage help` for the commands. The full gu
 | Command | Description |
 |---|---|
 | `/nrage` | open the window |
-| `/nrage profile`, `consent`, `publish` | your sheet and what you agree to share |
+| `/nrage profile`, `publish` | your sheet and what is shared with the guild (automatically) |
 | `/nrage ready` | readiness checklist |
 | `/nrage event`, `attendance`, `assign`, `template` | raid events, attendance, assignments and templates |
 | `/nrage loot` | loot council |

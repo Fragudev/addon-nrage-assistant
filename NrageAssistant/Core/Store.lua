@@ -4,7 +4,7 @@ local _, ns = ...
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
 --                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {},
 --                 readinessRules = { rev, updatedAt, updatedBy, rules } }
---   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {},
+--   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
 local Store = {}
 
@@ -102,7 +102,6 @@ function Store.GetChar(db, identityKey)
   local char = ensureTable(db.chars, identityKey)
   ensureTable(char, "profile")
   ensureTable(char, "readiness")
-  ensureTable(char, "consent")
   ensureTable(char, "publish")
   ensureTable(char, "pvp")
   local sync = ensureTable(char, "pvpSync")

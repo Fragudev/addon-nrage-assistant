@@ -66,7 +66,7 @@ describe("Store.GetChar", function()
     local char = Store.GetChar(db, "Nrager-ClassicBetaPvP")
     char.profile.level = 60
     assert.is_table(char.readiness)
-    assert.is_table(char.consent)
+    assert.is_nil(char.consent)
     assert.is_table(char.publish)
     assert.is_table(char.pvp)
     assert.are.equal(60, Store.GetChar(db, "Nrager-ClassicBetaPvP").profile.level)

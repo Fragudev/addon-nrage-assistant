@@ -58,7 +58,6 @@ function ViewModel.Roster(roster, now)
 end
 
 local PUBLISH_ERRORS = {
-  no_consent = "profile consent is off. Use /nrage consent profile on.",
   missing_data = "class or level is unknown, nothing to share yet.",
   cooldown = "you published a moment ago, wait a little.",
   full = "the send queue is full, try again shortly.",
@@ -1110,8 +1109,7 @@ function ViewModel.HelpLines()
     "/nrage role          your guild rank, addon role and what it allows",
     "/nrage profile       show your profile (profile set <role|main|notes> <text>)",
     "/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)",
-    "/nrage consent       what you agree to share (consent <key> on|off)",
-    "/nrage publish       preview, then 'publish confirm' to share your profile",
+    "/nrage publish       what is shared with the guild ('publish now' sends it at once)",
     "/nrage event         raid events (event new <title> | rename | status | start | delete)",
     "/nrage attendance    attendance for an event (attendance <n> <name> <state>)",
     '/nrage assign        assignments for an event (assign <n> add <name> <encounter>; "quotes" for names with spaces)',
