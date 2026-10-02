@@ -53,7 +53,7 @@ end
 
 -- Why a declared profile field was not saved.
 ViewModel.PROFILE_SET_ERRORS = {
-  unknown_field = L("unknown field. Allowed: role, main, notes."),
+  unknown_field = L("unknown field. Allowed: role, role2, main, notes."),
   too_long = L("value is too long."),
   invalid_value = L("invalid value."),
 }

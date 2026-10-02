@@ -13,7 +13,7 @@ ns.Constants = {
   RULESET_REALM_MARKER = "PvP",
 
   -- Free-text profile fields a player can declare by hand (source = "declared").
-  MANUAL_FIELDS = { role = true, main = true, notes = true },
+  MANUAL_FIELDS = { role = true, role2 = true, main = true, notes = true },
   MAX_FIELD_LENGTH = 200,
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
