@@ -1,0 +1,19 @@
+NrageAssistant/Locales/esES.lua
+  s_10bbffc3f69321::t_0238016992e402 253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5807ae501ee5778c69fd462c925902dbeabeb5d",
+  "prompts": {},
+  "sessions": {
+    "s_10bbffc3f69321": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7218ad19-5f83-4f31-883a-b1d86462f2f6",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
