@@ -4,17 +4,43 @@ local _, ns = ...
 -- so it is unit tested. Received data is escaped again here as a second line of defence.
 local ViewModel = {}
 
+local L = ns.L
+
 -- "|" starts colour codes, links and textures in the client's text renderer.
 function ViewModel.Escape(text)
   return (tostring(text):gsub("|", "||"))
 end
 
+-- How the states that the lists show are written (event status, attendance, session status, loot response,
+-- readiness). The code keeps comparing and sending the English words; only what is shown changes.
+local WORDS = {
+  planned = L("planned"),
+  open = L("open"),
+  closed = L("closed"),
+  cancelled = L("cancelled"),
+  invited = L("invited"),
+  confirmed = L("confirmed"),
+  present = L("present"),
+  late = L("late"),
+  leftEarly = L("leftEarly"),
+  absent = L("absent"),
+  excused = L("excused"),
+  unknown = L("unknown"),
+  main = L("main"),
+  off = L("off"),
+  other = L("other"),
+}
+
+function ViewModel.Word(value)
+  return WORDS[value] or value
+end
+
 -- args: version, syncLines (Comm:Status()), readinessText (summary.text)
 function ViewModel.Home(args)
   local lines = { ("Nrage Assistant %s"):format(args.version), "" }
-  lines[#lines + 1] = "Your readiness: " .. args.readinessText
+  lines[#lines + 1] = L("Your readiness: ") .. args.readinessText
   lines[#lines + 1] = ""
-  lines[#lines + 1] = "Sync:"
+  lines[#lines + 1] = L("Sync:")
   for _, line in ipairs(args.syncLines) do
     lines[#lines + 1] = "  " .. ViewModel.Escape(line)
   end
@@ -35,22 +61,22 @@ function ViewModel.Roster(roster, now)
   table.sort(names)
 
   if #names == 0 then
-    return { "No profiles received yet. Members appear here once they publish theirs." }
+    return { L("No profiles received yet. Members appear here once they publish theirs.") }
   end
 
-  local lines = { ("%d profile(s) received:"):format(#names) }
+  local lines = { L("%d profile(s) received:"):format(#names) }
   for _, name in ipairs(names) do
     local entry = roster[name]
     local age = now - (entry.receivedAt or 0)
-    local label = age > ns.Constants.ROSTER_STALE_SECONDS and "stale" or "received"
+    local label = age > ns.Constants.ROSTER_STALE_SECONDS and L("stale") or L("received")
 
     local text = ("%s - %s"):format(ViewModel.Escape(name), classText(entry))
     if entry.ilvl then
-      text = text .. (", ilvl %s"):format(ViewModel.Escape(entry.ilvl))
+      text = text .. L(", ilvl %s"):format(ViewModel.Escape(entry.ilvl))
     end
     local role = entry.fields and entry.fields.role
     if role then
-      text = text .. (", role %s"):format(ViewModel.Escape(role))
+      text = text .. L(", role %s"):format(ViewModel.Escape(role))
     end
     lines[#lines + 1] = ("  %s [%s]"):format(text, label)
   end
@@ -58,11 +84,11 @@ function ViewModel.Roster(roster, now)
 end
 
 local PUBLISH_ERRORS = {
-  missing_data = "class or level is unknown, nothing to share yet.",
-  cooldown = "you published a moment ago, wait a little.",
-  full = "the send queue is full, try again shortly.",
-  too_large = "the profile is too large to send.",
-  encode_failed = "the profile could not be encoded.",
+  missing_data = L("class or level is unknown, nothing to share yet."),
+  cooldown = L("you published a moment ago, wait a little."),
+  full = L("the send queue is full, try again shortly."),
+  too_large = L("the profile is too large to send."),
+  encode_failed = L("the profile could not be encoded."),
 }
 
 function ViewModel.PublishError(reason)
@@ -77,7 +103,7 @@ function ViewModel.RaidEventLines(event, index, formatDate)
   lines[#lines + 1] = ("%d. %s [%s]%s"):format(
     index,
     ViewModel.Escape(event.title),
-    ViewModel.Escape(event.status),
+    ViewModel.Escape(ViewModel.Word(event.status)),
     when
   )
 
@@ -91,13 +117,13 @@ function ViewModel.RaidEventLines(event, index, formatDate)
   end
   table.sort(states)
   if #states == 0 then
-    lines[#lines + 1] = "    Attendance: none recorded"
+    lines[#lines + 1] = "    " .. L("Attendance: none recorded")
   else
     local parts = {}
     for _, state in ipairs(states) do
-      parts[#parts + 1] = ("%d %s"):format(counts[state], ViewModel.Escape(state))
+      parts[#parts + 1] = ("%d %s"):format(counts[state], ViewModel.Escape(ViewModel.Word(state)))
     end
-    lines[#lines + 1] = "    Attendance: " .. table.concat(parts, ", ")
+    lines[#lines + 1] = "    " .. L("Attendance: ") .. table.concat(parts, ", ")
   end
 
   local assignments = {}
@@ -125,7 +151,7 @@ end
 function ViewModel.Raid(events, formatDate)
   local list = ns.EventService.List({ events = events })
   if #list == 0 then
-    return { "No events yet. A raid leader creates them with /nrage event new <title>." }
+    return { L("No events yet. A raid leader creates them with /nrage event new <title>.") }
   end
 
   local lines = {}
@@ -141,16 +167,16 @@ end
 -- The sub-tabs of the Raid tab for a role (ViewModel.RaidActions): everyone gets the summary, and each
 -- group of controls gets its own tab only when the role may use it.
 function ViewModel.RaidSubTabs(actions)
-  local tabs = { { value = "summary", text = "Summary" } }
+  local tabs = { { value = "summary", text = L("Summary") } }
   if actions.events then
-    tabs[#tabs + 1] = { value = "details", text = "Details" }
+    tabs[#tabs + 1] = { value = "details", text = L("Details") }
   end
   if actions.attendance then
-    tabs[#tabs + 1] = { value = "attendance", text = "Attendance" }
+    tabs[#tabs + 1] = { value = "attendance", text = L("Attendance") }
   end
   if actions.assignments then
-    tabs[#tabs + 1] = { value = "assignments", text = "Assignments" }
-    tabs[#tabs + 1] = { value = "templates", text = "Templates" }
+    tabs[#tabs + 1] = { value = "assignments", text = L("Assignments") }
+    tabs[#tabs + 1] = { value = "templates", text = L("Templates") }
   end
   return tabs
 end
@@ -158,30 +184,30 @@ end
 -- "Rank: Knight (512 honourable kills) - 288 to Knight-Lieutenant", or the top rank, or no rank yet.
 function ViewModel.PvPRankLine(kills, ranks)
   local rank = ns.PvPService.RankFor(kills, ranks)
-  local current = rank.name and ("%s (%d honourable kills)"):format(rank.name, kills) or "none yet"
+  local current = rank.name and L("%s (%d honourable kills)"):format(rank.name, kills) or L("none yet")
   if rank.next then
-    return ("Rank: %s - %d to %s"):format(current, rank.next.remaining, rank.next.name)
+    return L("Rank: %s - %d to %s"):format(current, rank.next.remaining, rank.next.name)
   end
   if rank.name then
-    return ("Rank: %s, the highest rank"):format(current)
+    return L("Rank: %s, the highest rank"):format(current)
   end
-  return "Rank: none (no ranks are configured)"
+  return L("Rank: none (no ranks are configured)")
 end
 
 -- The period selector of the ranking.
-ViewModel.PVP_PERIODS = { total = "Total", today = "Today" }
+ViewModel.PVP_PERIODS = { total = L("Total"), today = L("Today") }
 ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
 
 -- The sub-tabs of the PvP tab: the own counters, the guild ranking and the own recent kills.
 function ViewModel.PvPSubTabs()
   return {
-    { value = "mine", text = "My stats" },
-    { value = "ranking", text = "Ranking" },
-    { value = "feed", text = "Recent kills" },
+    { value = "mine", text = L("My stats") },
+    { value = "ranking", text = L("Ranking") },
+    { value = "feed", text = L("Recent kills") },
   }
 end
 
-local FEED_PLACES = { world = "open world", bg = "battleground" }
+local FEED_PLACES = { world = L("open world"), bg = L("battleground") }
 
 -- The own recent kills, newest first (the order of `entries`): "12:04  Ann, Bob killed Zed (open world,
 -- killing blow)". `options` = { available = boolean (the client can give a victim name), formatTime =
@@ -189,11 +215,11 @@ local FEED_PLACES = { world = "open world", bg = "battleground" }
 function ViewModel.PvPFeed(entries, options)
   local lines = {}
   if not options.available then
-    lines[1] = "The kill feed is not available on this client: the name of a killed player cannot be read."
+    lines[1] = L("The kill feed is not available on this client: the name of a killed player cannot be read.")
     lines[2] = ""
   end
   if #entries == 0 then
-    lines[#lines + 1] = "No kills yet. Your kills show up here."
+    lines[#lines + 1] = L("No kills yet. Your kills show up here.")
     return lines
   end
   for _, entry in ipairs(entries) do
@@ -203,10 +229,10 @@ function ViewModel.PvPFeed(entries, options)
     end
     local place = FEED_PLACES[entry.where] or "?"
     if entry.blow then
-      place = place .. ", killing blow"
+      place = place .. L(", killing blow")
     end
     local time = options.formatTime and options.formatTime(entry.time) or "--:--"
-    lines[#lines + 1] = ("%s  %s killed %s (%s)"):format(
+    lines[#lines + 1] = L("%s  %s killed %s (%s)"):format(
       ViewModel.Escape(time),
       table.concat(names, ", "),
       ViewModel.Escape(entry.victim),
@@ -218,13 +244,13 @@ end
 
 local function ageText(seconds)
   if seconds < 60 then
-    return "just now"
+    return L("just now")
   elseif seconds < 3600 then
-    return ("%d min ago"):format(math.floor(seconds / 60))
+    return L("%d min ago"):format(math.floor(seconds / 60))
   elseif seconds < 86400 then
-    return ("%d h ago"):format(math.floor(seconds / 3600))
+    return L("%d h ago"):format(math.floor(seconds / 3600))
   end
-  return ("%d d ago"):format(math.floor(seconds / 86400))
+  return L("%d d ago"):format(math.floor(seconds / 86400))
 end
 
 -- `honor` and `blows` are the counters shown (all time or today); `rankKills` is the all-time total of
@@ -243,7 +269,9 @@ local function rankRow(name, honor, blows, rankKills, updatedAt, mine, options, 
     total = total,
     blows = blows and (blows.world + blows.bg) or nil,
     updatedAt = updatedAt,
-    updated = (mine and "now") or (updatedAt and options.now and ageText(math.max(0, options.now - updatedAt))) or "-",
+    updated = (mine and L("now"))
+      or (updatedAt and options.now and ageText(math.max(0, options.now - updatedAt)))
+      or "-",
     mine = mine,
   }
 end
@@ -358,19 +386,19 @@ function ViewModel.PvPStats(stats, options)
 
   local function section(title, all, day)
     lines[#lines + 1] = title
-    lines[#lines + 1] = ("  Open world: %d"):format(all.world)
-    lines[#lines + 1] = ("  Battleground: %d"):format(all.bg)
-    lines[#lines + 1] = ("  Total: %d"):format(all.total)
-    lines[#lines + 1] = ("  Today: %d (open world %d, battleground %d)"):format(day.total, day.world, day.bg)
+    lines[#lines + 1] = "  " .. L("Open world: %d"):format(all.world)
+    lines[#lines + 1] = "  " .. L("Battleground: %d"):format(all.bg)
+    lines[#lines + 1] = "  " .. L("Total: %d"):format(all.total)
+    lines[#lines + 1] = "  " .. L("Today: %d (open world %d, battleground %d)"):format(day.total, day.world, day.bg)
   end
 
-  section("Honourable kills", totals.honor, today.honor)
+  section(L("Honourable kills"), totals.honor, today.honor)
   if not options.honorAvailable then
-    lines[#lines + 1] = "Honourable kills are not available on this client."
+    lines[#lines + 1] = L("Honourable kills are not available on this client.")
   end
   if options.blowsAvailable then
     lines[#lines + 1] = ""
-    section("Killing blows", totals.blows, today.blows)
+    section(L("Killing blows"), totals.blows, today.blows)
   end
   return lines
 end
@@ -386,12 +414,12 @@ function ViewModel.Loot(events)
       for _, session in ipairs(sessions) do
         local outcome
         if session.award then
-          outcome = ("awarded to %s - %s"):format(
+          outcome = L("awarded to %s - %s"):format(
             ViewModel.Escape(session.award.characterKey),
             ViewModel.Escape(session.award.reason)
           )
         elseif session.status == "closed" then
-          outcome = "closed, not awarded"
+          outcome = L("closed, not awarded")
         else
           local candidates, votes = 0, 0
           for _ in pairs(session.candidates) do
@@ -400,11 +428,11 @@ function ViewModel.Loot(events)
           for _ in pairs(session.votes) do
             votes = votes + 1
           end
-          outcome = ("%d candidate(s), %d vote(s) cast"):format(candidates, votes)
+          outcome = L("%d candidate(s), %d vote(s) cast"):format(candidates, votes)
         end
         lines[#lines + 1] = ("  %s [%s] - %s"):format(
           ViewModel.Escape(session.itemName),
-          ViewModel.Escape(session.status),
+          ViewModel.Escape(ViewModel.Word(session.status)),
           outcome
         )
       end
@@ -412,9 +440,9 @@ function ViewModel.Loot(events)
     end
   end
   if #lines == 0 then
-    lines[1] = "No loot sessions yet. The council opens one after an encounter with /nrage loot <event> open <item>."
+    lines[1] = L("No loot sessions yet. The council opens one after an encounter with /nrage loot <event> open <item>.")
   end
-  lines[#lines + 1] = "Addon messages are not private: anyone with the addon can read votes."
+  lines[#lines + 1] = L("Addon messages are not private: anyone with the addon can read votes.")
   return lines
 end
 
@@ -436,7 +464,11 @@ end
 function ViewModel.EventChoices(events)
   local list, order = {}, {}
   for index, event in ipairs(ns.EventService.List({ events = events })) do
-    list[event.eventId] = ("%d. %s [%s]"):format(index, ViewModel.Escape(event.title), ViewModel.Escape(event.status))
+    list[event.eventId] = ("%d. %s [%s]"):format(
+      index,
+      ViewModel.Escape(event.title),
+      ViewModel.Escape(ViewModel.Word(event.status))
+    )
     order[#order + 1] = event.eventId
   end
   return list, order
@@ -491,7 +523,9 @@ ViewModel.LOOT_NEEDS = { "main", "off", "other" }
 -- One loot session as lines: item, candidates, votes and decision. Vote counts follow the session's
 -- visibility policy (hidden while open unless configured otherwise); everything is escaped.
 function ViewModel.LootSession(session)
-  local lines = { ("%s [%s]"):format(ViewModel.Escape(session.itemName), ViewModel.Escape(session.status)) }
+  local lines = {
+    ("%s [%s]"):format(ViewModel.Escape(session.itemName), ViewModel.Escape(ViewModel.Word(session.status))),
+  }
 
   local keys = {}
   for key in pairs(session.candidates) do
@@ -499,7 +533,7 @@ function ViewModel.LootSession(session)
   end
   table.sort(keys)
   if #keys == 0 then
-    lines[#lines + 1] = "  no candidates yet"
+    lines[#lines + 1] = "  " .. L("no candidates yet")
   end
   for _, key in ipairs(keys) do
     local candidate = session.candidates[key]
@@ -507,7 +541,7 @@ function ViewModel.LootSession(session)
     lines[#lines + 1] = ("  %s: %s, %s%s"):format(
       ViewModel.Escape(key),
       ViewModel.Escape(candidate.spec),
-      ViewModel.Escape(candidate.need),
+      ViewModel.Escape(ViewModel.Word(candidate.need)),
       upgrade
     )
   end
@@ -517,23 +551,24 @@ function ViewModel.LootSession(session)
     for _, entry in ipairs(ns.LootService.Tally(session)) do
       parts[#parts + 1] = ("%s %d"):format(ViewModel.Escape(entry.characterKey), entry.count)
     end
-    lines[#lines + 1] = "  " .. (#parts > 0 and ("votes: " .. table.concat(parts, ", ")) or "no votes yet")
+    lines[#lines + 1] = "  " .. (#parts > 0 and (L("votes: ") .. table.concat(parts, ", ")) or L("no votes yet"))
   else
     local voters = 0
     for _ in pairs(session.votes) do
       voters = voters + 1
     end
-    lines[#lines + 1] = ("  %d vote(s) cast (hidden until the session closes)"):format(voters)
+    lines[#lines + 1] = "  " .. L("%d vote(s) cast (hidden until the session closes)"):format(voters)
   end
 
   if session.award then
-    lines[#lines + 1] = ("  awarded to %s by %s: %s"):format(
-      ViewModel.Escape(session.award.characterKey),
-      ViewModel.Escape(session.award.awardedBy),
-      ViewModel.Escape(session.award.reason)
-    )
+    lines[#lines + 1] = "  "
+      .. L("awarded to %s by %s: %s"):format(
+        ViewModel.Escape(session.award.characterKey),
+        ViewModel.Escape(session.award.awardedBy),
+        ViewModel.Escape(session.award.reason)
+      )
   elseif session.status == "closed" then
-    lines[#lines + 1] = "  closed, not awarded"
+    lines[#lines + 1] = "  " .. L("closed, not awarded")
   end
   return lines
 end
@@ -550,7 +585,7 @@ function ViewModel.CandidateChoices(session)
     list[key] = ("%s (%s, %s)"):format(
       ViewModel.Escape(key),
       ViewModel.Escape(candidate.spec),
-      ViewModel.Escape(candidate.need)
+      ViewModel.Escape(ViewModel.Word(candidate.need))
     )
   end
   return list, order
@@ -560,9 +595,9 @@ end
 ViewModel.READY_STATUSES = { "met", "missing", "waived", "unknown" }
 
 ViewModel.READY_SET_ERRORS = {
-  unknown_rule = "unknown item.",
-  not_manual = "that item is measured automatically and cannot be set by hand.",
-  invalid_status = "status must be met, missing, waived or unknown.",
+  unknown_rule = L("unknown item."),
+  not_manual = L("that item is measured automatically and cannot be set by hand."),
+  invalid_status = L("status must be met, missing, waived or unknown."),
 }
 
 -- The items the player confirms by hand, with their current status: { ruleId, label, status } in rule order.
@@ -606,16 +641,16 @@ function ViewModel.MinimapTooltip(args)
   local event = ViewModel.NextEvent(args.events, args.now)
   if event then
     local when = event.startAt and (" - " .. args.formatDate(event.startAt)) or ""
-    lines[#lines + 1] = ("Next event: %s%s"):format(ViewModel.Escape(event.title), when)
+    lines[#lines + 1] = L("Next event: %s%s"):format(ViewModel.Escape(event.title), when)
   else
-    lines[#lines + 1] = "Next event: none planned"
+    lines[#lines + 1] = L("Next event: none planned")
   end
-  lines[#lines + 1] = "Readiness: " .. args.readinessText
+  lines[#lines + 1] = L("Readiness: ") .. args.readinessText
   if args.pending == 0 then
-    lines[#lines + 1] = "Sync queue: empty"
+    lines[#lines + 1] = L("Sync queue: empty")
   else
-    local held = args.paused and " (held back: encounter in progress)" or ""
-    lines[#lines + 1] = ("Sync queue: %d message(s) waiting%s"):format(args.pending, held)
+    local held = args.paused and L(" (held back: encounter in progress)") or ""
+    lines[#lines + 1] = L("Sync queue: %d message(s) waiting%s"):format(args.pending, held)
   end
   return lines
 end
@@ -626,31 +661,31 @@ function ViewModel.MinimapMenu()
   for _, tab in ipairs(ViewModel.TABS) do
     entries[#entries + 1] = { text = tab.text, action = "tab", value = tab.value }
   end
-  entries[#entries + 1] = { text = "Request a sync", action = "sync" }
+  entries[#entries + 1] = { text = L("Request a sync"), action = "sync" }
   return entries
 end
 
 ViewModel.SYNC_REQUEST_ERRORS = {
-  cooldown = "you asked a moment ago, wait a little.",
-  full = "the send queue is full, try again shortly.",
+  cooldown = L("you asked a moment ago, wait a little."),
+  full = L("the send queue is full, try again shortly."),
 }
 
 -- The line to print after asking the guild for the latest raid data.
 function ViewModel.SyncRequestResult(ok, reason)
   if ok then
-    return "asked the guild for the latest raid data; leaders answer by whisper."
+    return L("asked the guild for the latest raid data; leaders answer by whisper.")
   end
-  return "not requested: " .. (ViewModel.SYNC_REQUEST_ERRORS[reason] or tostring(reason))
+  return L("not requested: ") .. (ViewModel.SYNC_REQUEST_ERRORS[reason] or tostring(reason))
 end
 
 -- Lines for the minimap tooltip when the silent self test found failures (Diagnostics.Failures).
 function ViewModel.SelfTestFailures(failures)
-  local lines = { ("Self test: %d check(s) failed"):format(#failures) }
+  local lines = { L("Self test: %d check(s) failed"):format(#failures) }
   for _, entry in ipairs(failures) do
     local detail = entry.detail and (" - " .. ViewModel.Escape(entry.detail)) or ""
     lines[#lines + 1] = ("  [%s] %s%s"):format(ViewModel.Escape(entry.status), ViewModel.Escape(entry.name), detail)
   end
-  lines[#lines + 1] = "Type /nrage debug selftest for the full result."
+  lines[#lines + 1] = L("Type /nrage debug selftest for the full result.")
   return lines
 end
 
@@ -696,7 +731,7 @@ function ViewModel.DefaultSpec(profile)
   return "unknown"
 end
 
-ViewModel.LOOT_NEED_LABELS = { main = "Main spec", off = "Off spec", other = "Other" }
+ViewModel.LOOT_NEED_LABELS = { main = L("Main spec"), off = L("Off spec"), other = L("Other") }
 
 -- The items the voting window can switch between: every open session, plus the selected one even if it has
 -- closed (so the decision stays visible). Entries are { eventId, sessionId, itemName, eventTitle, selected },
@@ -727,14 +762,14 @@ end
 -- One line on where a session stands.
 function ViewModel.VotingStatus(session)
   if session.award then
-    return ("Awarded to %s by %s: %s"):format(
+    return L("Awarded to %s by %s: %s"):format(
       ViewModel.Escape(session.award.characterKey),
       ViewModel.Escape(session.award.awardedBy),
       ViewModel.Escape(session.award.reason)
     )
   end
   if session.status == "closed" then
-    return "Closed without an award"
+    return L("Closed without an award")
   end
   local candidates, votes = 0, 0
   for _ in pairs(session.candidates) do
@@ -743,7 +778,7 @@ function ViewModel.VotingStatus(session)
   for _ in pairs(session.votes) do
     votes = votes + 1
   end
-  return ("Voting is open: %d candidate(s), %d vote(s) cast"):format(candidates, votes)
+  return L("Voting is open: %d candidate(s), %d vote(s) cast"):format(candidates, votes)
 end
 
 -- "ilvl 213 - Two-Hand" from Platform.GetItemDetails, or nil when the client told us nothing.
@@ -753,7 +788,7 @@ function ViewModel.ItemDetailsLine(details)
   end
   local parts = {}
   if details.level then
-    parts[#parts + 1] = ("ilvl %d"):format(details.level)
+    parts[#parts + 1] = L("ilvl %d"):format(details.level)
   end
   if details.slot then
     parts[#parts + 1] = ViewModel.Escape(details.slot)
@@ -890,28 +925,28 @@ end
 function ViewModel.BlacklistAlertLine(match)
   local reason = ViewModel.Escape(match.entry.reason)
   if match.approximate then
-    return ("%s may be %s, who is on the blacklist: %s"):format(
+    return L("%s may be %s, who is on the blacklist: %s"):format(
       ViewModel.Escape(match.member),
       ViewModel.Escape(match.entry.name),
       reason
     )
   end
-  return ("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
+  return L("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
 end
 
 ViewModel.TABS = {
-  { value = "home", text = "Home" },
-  { value = "profile", text = "Profile" },
-  { value = "ready", text = "Readiness" },
-  { value = "raid", text = "Raid" },
-  { value = "loot", text = "Loot" },
+  { value = "home", text = L("Home") },
+  { value = "profile", text = L("Profile") },
+  { value = "ready", text = L("Readiness") },
+  { value = "raid", text = L("Raid") },
+  { value = "loot", text = L("Loot") },
   { value = "pvp", text = "PvP" },
-  { value = "blacklist", text = "Blacklist" },
-  { value = "roster", text = "Roster" },
+  { value = "blacklist", text = L("Blacklist") },
+  { value = "roster", text = L("Roster") },
 }
 
 -- The admin-only tab where the guild's readiness rules are edited.
-ViewModel.RULES_TAB = { value = "rules", text = "Rules" }
+ViewModel.RULES_TAB = { value = "rules", text = L("Rules") }
 
 -- The tabs for a player with `role`: everyone's, plus the rules editor for who may edit the rules.
 function ViewModel.TabsFor(role)
@@ -928,22 +963,22 @@ end
 -- The kinds of rule an admin can add, in the order of the dropdown, and what each one needs typed in "Details".
 ViewModel.RULE_CHECKS = { "level", "ilvl", "enchants", "buff", "profession", "field", "confirm" }
 ViewModel.RULE_CHECK_TEXT = {
-  level = "Minimum level",
-  ilvl = "Minimum item level",
-  enchants = "Enchanted slots",
-  buff = "Active buff (flask, food...)",
-  profession = "Profession",
-  field = "Declared profile field",
-  confirm = "Confirmed by hand",
+  level = L("Minimum level"),
+  ilvl = L("Minimum item level"),
+  enchants = L("Enchanted slots"),
+  buff = L("Active buff (flask, food...)"),
+  profession = L("Profession"),
+  field = L("Declared profile field"),
+  confirm = L("Confirmed by hand"),
 }
 ViewModel.RULE_DETAIL_HINTS = {
-  level = "a number, e.g. 60",
-  ilvl = "a number, e.g. 60",
-  enchants = "slots by name or number: mainhand, chest, back, 16",
-  buff = "spell ids and/or names, separated by commas",
-  profession = "name and minimum skill, e.g. Alchemy 300",
+  level = L("a number, e.g. 60"),
+  ilvl = L("a number, e.g. 60"),
+  enchants = L("slots by name or number: mainhand, chest, back, 16"),
+  buff = L("spell ids and/or names, separated by commas"),
+  profession = L("name and minimum skill, e.g. Alchemy 300"),
   field = "role",
-  confirm = "nothing needed",
+  confirm = L("nothing needed"),
 }
 
 -- Equipment slot names an admin may type instead of the number (the slots that can carry an enchant).
@@ -962,18 +997,18 @@ ViewModel.ENCHANT_SLOTS = {
 }
 
 ViewModel.RULE_ERRORS = {
-  forbidden = "only the guild master and officers can change the rules.",
-  empty = "keep at least one rule.",
-  too_many = "there is room for 30 rules at most.",
-  bad_id = "that rule name cannot be used.",
-  bad_label = "the name is empty, too long or has unsupported characters.",
-  bad_category = "that rule category cannot be used.",
-  bad_check = "that kind of rule is not supported.",
-  bad_details = "the details do not fit this kind of rule (see the hint under Details).",
-  duplicate_id = "two rules would have the same name.",
-  bad_rules = "those rules are not valid.",
-  last_rule = "keep at least one rule; add another before removing this one.",
-  unknown_rule = "that rule no longer exists.",
+  forbidden = L("only the guild master and officers can change the rules."),
+  empty = L("keep at least one rule."),
+  too_many = L("there is room for 30 rules at most."),
+  bad_id = L("that rule name cannot be used."),
+  bad_label = L("the name is empty, too long or has unsupported characters."),
+  bad_category = L("that rule category cannot be used."),
+  bad_check = L("that kind of rule is not supported."),
+  bad_details = L("the details do not fit this kind of rule (see the hint under Details)."),
+  duplicate_id = L("two rules would have the same name."),
+  bad_rules = L("those rules are not valid."),
+  last_rule = L("keep at least one rule; add another before removing this one."),
+  unknown_rule = L("that rule no longer exists."),
 }
 
 local function trim(text)
@@ -1081,11 +1116,11 @@ end
 function ViewModel.RuleSummary(rule)
   local check = rule.check
   if check == "level" or check == "ilvl" then
-    return ("%s %d or more"):format(check == "level" and "level" or "item level", rule.min)
+    return L("%s %d or more"):format(check == "level" and L("level") or L("item level"), rule.min)
   elseif check == "profession" then
-    return rule.min and ("%s %d or more"):format(rule.profession, rule.min) or rule.profession
+    return rule.min and L("%s %d or more"):format(rule.profession, rule.min) or rule.profession
   elseif check == "enchants" then
-    return "enchanted slots: " .. table.concat(rule.slots, ", ")
+    return L("enchanted slots: ") .. table.concat(rule.slots, ", ")
   elseif check == "buff" then
     local parts = {}
     for _, id in ipairs(rule.spellIds or {}) do
@@ -1094,35 +1129,35 @@ function ViewModel.RuleSummary(rule)
     for _, name in ipairs(rule.names or {}) do
       parts[#parts + 1] = name
     end
-    return "any buff of: " .. table.concat(parts, ", ")
+    return L("any buff of: ") .. table.concat(parts, ", ")
   elseif check == "field" then
-    return "declared: " .. rule.field
+    return L("declared: ") .. rule.field
   end
-  return "confirmed by the player"
+  return L("confirmed by the player")
 end
 
 function ViewModel.HelpLines()
   return {
-    "/nrage               open the window",
-    "/nrage help          this list",
-    "/nrage version       addon version",
-    "/nrage role          your guild rank, addon role and what it allows",
-    "/nrage profile       show your profile (profile set <role|main|notes> <text>)",
-    "/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)",
-    "/nrage publish       what is shared with the guild ('publish now' sends it at once)",
-    "/nrage event         raid events (event new <title> | rename | status | start | delete)",
-    "/nrage attendance    attendance for an event (attendance <n> <name> <state>)",
-    '/nrage assign        assignments for an event (assign <n> add <name> <encounter>; "quotes" for names with spaces)',
-    "/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)",
-    "/nrage template      save an event's assignments as a template and apply it to another event",
-    "/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)",
-    "/nrage export        copy all raid events, attendance and assignments as text",
-    "/nrage import        paste an export to merge it into your data (RL/admin only)",
-    "/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)",
-    "/nrage pvp           admin only: pvp reset <name> zeroes a member's PvP counters",
-    "/nrage blacklist     guild blacklist (blacklist add <name> | <reason>; blacklist remove <name> is admin only)",
-    "/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)",
-    "/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)",
+    L("/nrage               open the window"),
+    L("/nrage help          this list"),
+    L("/nrage version       addon version"),
+    L("/nrage role          your guild rank, addon role and what it allows"),
+    L("/nrage profile       show your profile (profile set <role|main|notes> <text>)"),
+    L("/nrage ready         readiness checklist (ready set <item> <met|missing|waived|unknown>)"),
+    L("/nrage publish       what is shared with the guild ('publish now' sends it at once)"),
+    L("/nrage event         raid events (event new <title> | rename | status | start | delete)"),
+    L("/nrage attendance    attendance for an event (attendance <n> <name> <state>)"),
+    L('/nrage assign        assignments for an event (assign <n> add <name> <encounter>; "quotes" for spaced names)'),
+    L("/nrage loot          loot council: sessions, candidates, votes, awards (loot for the full usage)"),
+    L("/nrage template      save an event's assignments as a template and apply it to another event"),
+    L("/nrage report        attendance and loot reports (report attendance | report loot, optionally an event)"),
+    L("/nrage export        copy all raid events, attendance and assignments as text"),
+    L("/nrage import        paste an export to merge it into your data (RL/admin only)"),
+    L("/nrage debug         diagnostics (debug selftest | info | identity | roster | lockdown | pvp)"),
+    L("/nrage pvp           admin only: pvp reset <name> zeroes a member's PvP counters"),
+    L("/nrage blacklist     guild blacklist (blacklist add <name> | <reason>; blacklist remove <name> is admin only)"),
+    L("/nrage minimap       show, hide or reset the minimap button (minimap show | hide | reset)"),
+    L("/nrage sync          sync state and peers (sync request: ask leaders for the latest raid data)"),
   }
 end
 
