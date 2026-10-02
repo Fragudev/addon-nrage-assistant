@@ -189,10 +189,26 @@ ns.Constants = {
   QUEUE_TTL_SECONDS = 120,
   QUEUE_MAX_JITTER_SECONDS = 5,
 
-  -- Starting checklist. It only holds items that need no guild-specific numbers: level, item level
-  -- and profession rules ({ check = "level" | "ilvl", min = N } / { check = "profession", ... })
-  -- are supported by ReadinessService but wait for the guild to decide their thresholds.
+  -- Starting checklist (guild decision #32). Level 60 is required; the item level minimum is a
+  -- placeholder of 1 (nothing is excluded) until the guild sets a real threshold. Profession rules
+  -- ({ check = "profession", profession = "...", min = N }) are supported but not yet used.
   DEFAULT_RULES = {
+    {
+      id = "level",
+      label = "Level 60",
+      category = "level",
+      evidenceMode = "observed",
+      check = "level",
+      min = 60,
+    },
+    {
+      id = "ilvl",
+      label = "Item level",
+      category = "gear",
+      evidenceMode = "observed",
+      check = "ilvl",
+      min = 1,
+    },
     {
       id = "role",
       label = "Role declared",
