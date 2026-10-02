@@ -29,6 +29,11 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
 
 ## Assumed, not measured yet
 
+- Automatic readiness checks read the equipped enchants from `GetInventoryItemLink("player", slot)` (the second
+  field of the `item:` link) and the active buffs from `UnitBuff("player", index)` (name first, spell id tenth).
+  Both are untested on Forever. A value that is secret or unreadable leaves the slot or buff out (unknown, never
+  met). `/nrage profile` shows what was read, with its source.
+
 - The libraries (Ace3 parts, LibSerialize, LibDeflate) load on the Forever build.
 - The `sender` of `CHAT_MSG_ADDON` is the full name, with or without the realm suffix. If it turns out to be the
   first word only, like `UnitName`, permission lookups by sender will not work. `/nrage debug senders` (after

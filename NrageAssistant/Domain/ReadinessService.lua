@@ -45,7 +45,56 @@ local function hasProfession(rule, professions)
   return result(rule, "missing", rule.profession .. " not learned", "observed")
 end
 
+-- Required slots are enchanted. Rule: { check = "enchants", slots = { 16, 5, ... } }.
+local function hasEnchants(rule, enchants)
+  if enchants == nil then
+    return result(rule, "unknown", "no enchant data")
+  end
+  local missing, unknown = {}, 0
+  for _, slot in ipairs(rule.slots or {}) do
+    local enchantId = enchants[slot]
+    if enchantId == nil then
+      unknown = unknown + 1
+    elseif enchantId == 0 then
+      missing[#missing + 1] = tostring(slot)
+    end
+  end
+  if #missing > 0 then
+    return result(rule, "missing", "not enchanted: slot " .. table.concat(missing, ", "), "observed")
+  end
+  if unknown > 0 then
+    return result(rule, "unknown", ("%d slot(s) unreadable or empty"):format(unknown))
+  end
+  return result(rule, "met", "all required slots enchanted", "observed")
+end
+
+-- One of the listed buffs is active. Rule: { check = "buff", spellIds = { ... } } and/or names = { ... }.
+local function hasBuff(rule, buffs)
+  if buffs == nil then
+    return result(rule, "unknown", "no buff data")
+  end
+  local wantedIds, wantedNames = {}, {}
+  for _, id in ipairs(rule.spellIds or {}) do
+    wantedIds[id] = true
+  end
+  for _, name in ipairs(rule.names or {}) do
+    wantedNames[name:lower()] = true
+  end
+  for _, buff in ipairs(buffs) do
+    if wantedIds[buff.spellId] or wantedNames[buff.name:lower()] then
+      return result(rule, "met", buff.name, "observed")
+    end
+  end
+  return result(rule, "missing", "no matching buff active", "observed")
+end
+
 local CHECKS = {
+  enchants = function(rule, profile)
+    return hasEnchants(rule, profile.enchants)
+  end,
+  buff = function(rule, profile)
+    return hasBuff(rule, profile.buffs)
+  end,
   level = function(rule, profile)
     return atLeast(rule, profile.level, "level")
   end,

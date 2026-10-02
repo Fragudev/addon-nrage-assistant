@@ -161,6 +161,8 @@ local function build(rank)
     GetProfessions = function()
       return {}
     end,
+    GetEquippedEnchants = function() end,
+    GetActiveBuffs = function() end,
     IsChatMessagingLockedDown = function()
       return false
     end,

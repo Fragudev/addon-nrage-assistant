@@ -145,3 +145,48 @@ describe("ReadinessService.Describe", function()
     assert.are.equal("  [unknown] Food - not confirmed", lines[2])
   end)
 end)
+
+describe("Automatic enchant and buff checks", function()
+  local Service = load_service()
+  local enchantRule = { id = "enchants", label = "Enchants", check = "enchants", slots = { 16, 5 } }
+  local buffRule = { id = "flask", label = "Flask", check = "buff", spellIds = { 17538 }, names = { "Well Fed" } }
+
+  it("enchants are unknown without data", function()
+    assert.are.equal("unknown", Service.EvaluateRule(enchantRule, {}, {}).status)
+  end)
+
+  it("enchants are met only when every required slot is enchanted", function()
+    local met = Service.EvaluateRule(enchantRule, { enchants = { [16] = 100, [5] = 200 } }, {})
+    assert.are.equal("met", met.status)
+    local missing = Service.EvaluateRule(enchantRule, { enchants = { [16] = 100, [5] = 0 } }, {})
+    assert.are.equal("missing", missing.status)
+    assert.is_truthy(missing.detail:find("5", 1, true))
+  end)
+
+  it("an unreadable or empty required slot is unknown, never met", function()
+    assert.are.equal("unknown", Service.EvaluateRule(enchantRule, { enchants = { [16] = 100 } }, {}).status)
+  end)
+
+  it("a known missing enchant wins over an unknown slot", function()
+    assert.are.equal("missing", Service.EvaluateRule(enchantRule, { enchants = { [16] = 0 } }, {}).status)
+  end)
+
+  it("buffs match by spell id or by name, case-insensitively", function()
+    assert.are.equal(
+      "met",
+      Service.EvaluateRule(buffRule, { buffs = { { name = "Other", spellId = 17538 } } }, {}).status
+    )
+    assert.are.equal(
+      "met",
+      Service.EvaluateRule(buffRule, { buffs = { { name = "well fed", spellId = 1 } } }, {}).status
+    )
+  end)
+
+  it("no matching buff is missing, and no buff data is unknown", function()
+    assert.are.equal(
+      "missing",
+      Service.EvaluateRule(buffRule, { buffs = { { name = "Other", spellId = 1 } } }, {}).status
+    )
+    assert.are.equal("unknown", Service.EvaluateRule(buffRule, {}, {}).status)
+  end)
+end)
