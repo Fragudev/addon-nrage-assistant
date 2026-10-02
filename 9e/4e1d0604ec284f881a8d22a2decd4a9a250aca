@@ -1,0 +1,39 @@
+NrageAssistant/Core/Constants.lua
+  s_e67cc5fef4db70::t_4fe62f150d1461 138
+NrageAssistant/Core/Init.lua
+  s_e67cc5fef4db70::t_ad7685104c68b3 103-104
+NrageAssistant/Core/Store.lua
+  s_e67cc5fef4db70::t_49c005b8522ff2 56-57
+NrageAssistant/Domain/PvPFeed.lua
+  s_e67cc5fef4db70::t_c7a0732aaea0df 3-5,12-16,20,25,55,66-67,127-128
+NrageAssistant/UI/Main.lua
+  s_e67cc5fef4db70::t_8b96adf84927d0 803
+NrageAssistant/UI/ViewModel.lua
+  s_e67cc5fef4db70::t_fbde7970714eb2 176,187,197
+docs/PRIVACY.md
+  s_e67cc5fef4db70::t_25ded1a28662bc 56-57
+docs/PROTOCOL.md
+  s_e67cc5fef4db70::t_59bca325b91d47 119-120,124-125,128
+docs/USER_GUIDE.md
+  s_e67cc5fef4db70::t_347fa50b66f2f4 224-230
+tests/pvp_feed_spec.lua
+  s_e67cc5fef4db70::t_41af8980f37208 13-14,191,196,198,221
+tests/ui_smoke_spec.lua
+  s_e67cc5fef4db70::t_267a0178fb3a75 467,470-476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9e4e1d0604ec284f881a8d22a2decd4a9a250aca",
+  "prompts": {},
+  "sessions": {
+    "s_e67cc5fef4db70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4f77b04-b1ee-4fdb-87cc-0817bee7851f",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
