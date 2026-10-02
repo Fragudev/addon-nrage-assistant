@@ -1,0 +1,89 @@
+.luacheckrc
+  s_07ab269e5c3375::t_134c22fb0a8dc3 27,29-36
+NrageAssistant/Commands/BlacklistCommands.lua
+  s_07ab269e5c3375::t_78d61b531e98d8 1-136
+NrageAssistant/Commands/Slash.lua
+  s_07ab269e5c3375::t_05259d4703c511 318-334,337
+NrageAssistant/Core/Constants.lua
+  s_07ab269e5c3375::t_0ba29f4c3d0883 5,21,167-175
+NrageAssistant/Core/Init.lua
+  s_07ab269e5c3375::t_777785e106eb26 157-207,232
+NrageAssistant/Core/Platform.lua
+  s_07ab269e5c3375::t_2884dfe6549206 349-411
+NrageAssistant/Core/Store.lua
+  s_07ab269e5c3375::t_f16f72f681ce65 5,61-65
+NrageAssistant/Core/Validate.lua
+  s_07ab269e5c3375::t_b7c0e5b2dcd5fe 26-31
+NrageAssistant/Domain/BlacklistService.lua
+  s_07ab269e5c3375::t_bec6f8df5a8482 1-197
+NrageAssistant/Domain/BlacklistWatcher.lua
+  s_07ab269e5c3375::t_7c0944712f328d 1-61
+NrageAssistant/Domain/PermissionService.lua
+  s_07ab269e5c3375::t_60dbffaeb27f2d 20-23,37-39
+NrageAssistant/NrageAssistant.toc
+  s_07ab269e5c3375::t_41759ea3392d55 39-40,49,61
+NrageAssistant/Sync/BlacklistSync.lua
+  s_07ab269e5c3375::t_9f9695227bb8b4 1-204
+NrageAssistant/Sync/Comm.lua
+  s_07ab269e5c3375::t_bd1192d74d54e5 12,32-33,227-229,276-277,279-288,352,358-360,399-409,499-512,619-625
+NrageAssistant/Sync/Protocol.lua
+  s_07ab269e5c3375::t_90bfacd428edb4 316-346,378-379
+NrageAssistant/Sync/Transfer.lua
+  s_07ab269e5c3375::t_d8942a31ce2ebb 118-121,144-148,169-182,185-187,189,203-215
+NrageAssistant/UI/Main.lua
+  s_07ab269e5c3375::t_e656ffa853a97c 125-149,872-926,934,951
+NrageAssistant/UI/ViewModel.lua
+  s_07ab269e5c3375::t_a5ae0e12ee4d4d 881-912,920,944
+docs/API_NOTES.md
+  s_07ab269e5c3375::t_cde7f6b0fe6a3b 66-82,96
+docs/PRIVACY.md
+  s_07ab269e5c3375::t_497590c701a8a9 26,62-71
+docs/PROTOCOL.md
+  s_07ab269e5c3375::t_6e505c2a6515f3 56-57,60,134-178,181-182,220,225-226
+docs/USER_GUIDE.md
+  s_07ab269e5c3375::t_3effb3118ce1c0 38,41,237-264,298
+tests/blacklist_commands_spec.lua
+  s_07ab269e5c3375::t_9e563624f8ab80 1-228
+tests/blacklist_service_spec.lua
+  s_07ab269e5c3375::t_32abe2f91df8da 1-274
+tests/blacklist_sync_spec.lua
+  s_07ab269e5c3375::t_a0a00297c62417 1-381
+tests/blacklist_watcher_spec.lua
+  s_07ab269e5c3375::t_ac05b5434c0050 1-168
+tests/comm_spec.lua
+  s_07ab269e5c3375::t_50dba5329524ce 17,26,53-54,109-112,1280-1467
+tests/constants_spec.lua
+  s_07ab269e5c3375::t_824abf9bc4f9fd 14
+tests/permission_service_spec.lua
+  s_07ab269e5c3375::t_c99c4927f3009f 4,92-103
+tests/platform_spec.lua
+  s_07ab269e5c3375::t_2228d1e1105efb 573-749
+tests/protocol_spec.lua
+  s_07ab269e5c3375::t_10758aeca66811 5,7,659-736
+tests/store_spec.lua
+  s_07ab269e5c3375::t_9b2e15ef4406c5 28,36,50,57,92,120,147,207,216,228-259
+tests/stubs/wow_api.lua
+  s_07ab269e5c3375::t_4797b6504cd0e9 34-52
+tests/transfer_spec.lua
+  s_07ab269e5c3375::t_6887af9b5fe252 16,22,547-700
+tests/ui_smoke_spec.lua
+  s_07ab269e5c3375::t_d7d9fb071a5466 100,105,195-196,230-231,1010-1139
+tests/view_model_spec.lua
+  s_07ab269e5c3375::t_80fcfb8a161843 12,118-144,1338-1425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a201e3fea5ecae08d1fa60c84742c84c13b578d",
+  "prompts": {},
+  "sessions": {
+    "s_07ab269e5c3375": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3aca999b-aa59-45a0-9537-8159c1b07941",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
