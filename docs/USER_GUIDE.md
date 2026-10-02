@@ -123,7 +123,130 @@ A newly created event is opened at once, and any template whose name matches the
 example a template called *Molten Core* for an event *Molten Core night*) is offered as a button. Nothing is applied
 until you click it, and a template the event already has in full is not offered.
 
-### Sync
+### Reports
+
+The **Reports** sub-tab shows the attendance and loot reports of the selected event, or of every event (*Scope*).
+
+Attendance counts `present`, `late` and `leftEarly` as attended and `absent` as missed, and prints the rate with
+its denominator (`2/3 (67%)`). `invited`, `confirmed`, `unknown` and `excused` stay out of the rate but are
+listed, so unknown data never improves or worsens anyone's numbers. Planned and cancelled events do not count.
+
+### Moving data around
+
+- **Export** shows a text (starting with `NRAGE1:`) with all events, attendance, assignments, loot awards and
+  deletions. Select it and copy it anywhere.
+- **Import** takes such a text and merges it into your data. Only raid leaders and admins see it. Pasted text is
+  checked exactly like data received over the guild channel: it never overwrites newer edits, and importing the same
+  text twice changes nothing. Imported data stays on your client.
+
+## Loot council
+
+Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
+the addon refuses, because the session could not be announced.
+
+When a session opens, everyone in the guild with the addon gets the **Nrage Loot** popup with the item and the
+buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared role (or your
+class) as the spec; nothing is sent before that. The popup never appears during an encounter lockdown (it waits),
+it does not pop up for sessions that were already open when you logged in, and closing it counts as passing.
+An item you do not answer is passed on after 60 seconds (only on your screen; nothing is sent).
+The Loot tab remains for choosing a different spec or adding an upgrade.
+
+GM, Officer and RL ranks also get the **Nrage Loot Council** voting window, which opens by itself when a session
+opens. It lists the candidates (name, rank, response, upgrade and votes) with *Vote* and *Award* buttons, a
+reason field for the award, *Close without awarding*, and a row of items (icon, name and the usual item tooltip
+on hover) to switch between them. Click a column title to sort by it (again to reverse), and use *Show* to see
+only main spec, off spec or other. *Award* asks you to click *Confirm* before it gives the item away. Votes follow
+the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
+*Open the voting window* button to bring it back. Hovering a name lists what that person has already won. The
+item's level and slot show under its name when the client knows them. It does not show equipped gear yet.
+Windows remember where you leave them and how big they are.
+
+The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,
+votes and decision. Anyone can apply to an open session with a spec and the *Apply: main / off / other* buttons
+(the upgrade field is optional). Council and admins also get *Vote*, *Award* (with a reason) and *Close without
+awarding*, and a field to paste or shift-click an item link to open a session. Controls your role does not allow
+are not shown. Raid leaders, council and admins can change their vote; awarding closes the session.
+
+Votes are visible to everyone while a session is open; whether they should be secret until it closes is still to
+be decided by the guild. A late joiner receives the minutes (awards and open sessions), not the votes of past
+sessions.
+
+## PvP
+
+The **PvP** tab (*My stats*) counts your kills automatically, split into **open world** and **battleground**, with
+a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
+
+- **Honourable kills** are read from the game's own honour counter, so group credit counts whenever you receive
+  honour. Kills made before you logged in or reloaded are not counted again.
+- **Killing blows** would come from the combat log, which the client protects: asking for it makes the client
+  show a "blocked action" warning at login. They are off for now, so the killing blows section is not shown.
+- If the client does not offer the honour counter either, the tab says so and counts nothing.
+- The counters are saved per character. Daily counts are kept for 30 days.
+- They are also **shared with the guild automatically**: about a minute after a kill, every guild member running
+  the addon receives your counters, and you receive theirs. There is nothing to switch on, and nothing is sent
+  during an encounter. The counters are not encrypted (see the privacy notes).
+- Your **PvP rank** is at the top, with how many honourable kills you need for the next one. There are 14 ranks,
+  from Private to Grand Marshal; only honourable kills count towards them. Their names and thresholds are set in
+  `PVP_RANKS` in `Core/Constants.lua`, and the thresholds there are placeholders until the guild decides them.
+
+### Ranking
+
+The **Ranking** sub-tab lists the guild members whose counters you have received, plus you (your row is green and
+always uses your own counters). Columns: name, PvP rank, honourable kills in the open world, in battlegrounds and
+in total, killing blows (only shown when you or somebody else can count them) and when the record was last
+updated. The default order is total honourable kills, highest first; click a column title to sort by it and click
+it again to reverse. Members who are no longer in the guild are not listed, and at most 100 rows are drawn.
+
+The **Show** selector switches between **Total** (all time, the default) and **Today**. Today follows the server
+day in UTC: members who have not sent anything today show zero, and the rank column still shows the all-time rank.
+
+A member who logs in late gets the ranking from the snapshot a raid leader or admin whispers. The numbers can lag
+a minute behind, and a modified addon could report more than it earned: the addon only checks that totals never
+go down and do not grow faster than about 300 honourable kills an hour.
+
+Admins see an *Admin* section under the ranking, where they pick a member and press *Reset PvP counters* (and
+*Confirm*). It acts at once, says the revision it used, and zeroes the member on every client; the member's own
+counters are zeroed when their client receives it, or at their next login. Nobody else can do this.
+
+### Recent kills
+
+The **Recent kills** sub-tab is your own kill history, newest first, for example
+`12:04  Me killed Zed (open world, killing blow)`. It shows your last 50 kills since you logged in; nothing is
+saved. There are no switches: all your kills are always shared with the guild.
+
+- Your kills are sent to the guild about 5 seconds after they happen, at most 5 per minute, and never during an
+  encounter. This shares the names of the players you kill (see the privacy notes). The kills of other members are
+  not shown here.
+- The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
+  available and nothing is shown or sent.
+
+## Blacklist
+
+The **Blacklist** tab is a guild-wide list of players the guild wants to be warned about. It is shared with every
+member running the addon (see the privacy notes: names and the reason you type go to the whole guild, unencrypted).
+
+- **Anyone can add** a player: type the **Name** (a name with several words is fine, a realm suffix is dropped) and a
+  **Reason** of up to 100 characters, then press **Add**. Adding a player who is already listed changes the reason, but only the member who added
+  the entry and the guild master and officers can do it; for anyone else it is refused.
+- **Only the guild master and officers can remove** an entry. The **Remove** button only shows for them, and every
+  client checks the sender's rank again, so a removal from anyone else is ignored. Once a player has been removed,
+  anyone can add them again.
+- The list is sorted by name and shows the reason, who added the player and when. It holds up to 200 players, and a
+  member who logs in late gets it from a raid leader or admin, like the raid data. It is not part of the export.
+
+**The alert.** When a blacklisted player is in your party or raid, the addon warns you: a chat line
+`Nrage Assistant: <name> is on the blacklist: <reason>`, a raid warning in the middle of the screen and a sound.
+Each player warns **once per group**: you are warned when you join a group that has them, when they join yours,
+when you log in with them in your group, and when an entry about someone already in your group reaches you from the
+guild. The memory is cleared when you leave the group, so the next group warns again. You are never warned about
+yourself.
+
+The game gives the addon only the **first word** of a multi-word character name for group members (`Yonemon` for
+`Yonemon Gg`). When a group member has a single-word name that equals the first word of a listed multi-word name,
+the alert still fires and says so: `Yonemon may be Yonemon Gg, who is on the blacklist: <reason>`. A false alarm is
+better than a warning that never comes; check who it is before acting on it.
+
+## Sync
 
 The **Home** tab shows the sync state. While an encounter is in progress the game blocks addon messages, so
 everything you change waits in a queue and is sent when the encounter ends: the addon says
