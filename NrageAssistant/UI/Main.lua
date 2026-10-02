@@ -286,22 +286,43 @@ local function DrawProfile(container)
 
   AddHeading(container, L("Your declared details"))
   local declared = character.profile.fields or {}
+  local function Save(key, value)
+    local ok, reason = ns.ProfileService.SetField(ns.Platform, character.profile, key, value)
+    if ok then
+      if ns.comm then
+        ns.PublishService.PublishIfChanged(ns.comm, character, ns.Platform)
+      end
+      statusMessage = L("Saved.")
+    else
+      statusMessage = L("Not saved: ") .. (ns.ViewModel.PROFILE_SET_ERRORS[reason] or tostring(reason))
+    end
+    Redraw()
+  end
+
+  -- A legacy free text role that is not an allowed one stays unselected until the player picks one.
+  local function AddRoleDropdown(key, label, optional)
+    local roles, order = {}, {}
+    if optional then
+      roles[""] = L("None")
+      order[1] = ""
+    end
+    for _, role in ipairs(ns.ProfileService.ROLES) do
+      roles[role] = role
+      order[#order + 1] = role
+    end
+    local current = ns.ProfileService.NormalizeRole(declared[key] and declared[key].value)
+    AddDropdown(container, label, roles, order, current or (optional and "" or nil), 0.5, function(choice)
+      Save(key, choice)
+    end)
+  end
+  AddRoleDropdown("role", L("Main spec"), false)
+  AddRoleDropdown("role2", L("Second spec"), true)
   for _, field in ipairs({
-    { key = "role", label = L("Role (tank, healer, dps...)") },
     { key = "main", label = L("Main character") },
     { key = "notes", label = L("Notes (these stay on this computer)") },
   }) do
     AddTextInput(container, field.label, declared[field.key] and declared[field.key].value or "", 1, function(value)
-      local ok, reason = ns.ProfileService.SetField(ns.Platform, character.profile, field.key, value)
-      if ok then
-        if ns.comm then
-          ns.PublishService.PublishIfChanged(ns.comm, character, ns.Platform)
-        end
-        statusMessage = L("Saved.")
-      else
-        statusMessage = L("Not saved: ") .. (ns.ViewModel.PROFILE_SET_ERRORS[reason] or tostring(reason))
-      end
-      Redraw()
+      Save(field.key, value)
     end)
   end
 

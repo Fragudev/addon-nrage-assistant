@@ -105,9 +105,9 @@ describe("ProfileService.Refresh", function()
   it("does not touch manual fields", function()
     local profile = {}
     ProfileService.Refresh(fake_platform(), profile)
-    ProfileService.SetField(fake_platform(), profile, "role", "tank")
+    ProfileService.SetField(fake_platform(), profile, "role", "Tank")
     ProfileService.Refresh(fake_platform(), profile)
-    assert.are.equal("tank", profile.fields.role.value)
+    assert.are.equal("Tank", profile.fields.role.value)
   end)
 end)
 
@@ -116,8 +116,36 @@ describe("ProfileService.SetField", function()
 
   it("declares a manual field with source and time", function()
     local profile = {}
-    assert.is_true(ProfileService.SetField(fake_platform(), profile, "role", "  healer  "))
-    assert.are.same({ value = "healer", source = "declared", at = 1000 }, profile.fields.role)
+    assert.is_true(ProfileService.SetField(fake_platform(), profile, "main", "  Alt  "))
+    assert.are.same({ value = "Alt", source = "declared", at = 1000 }, profile.fields.main)
+  end)
+
+  it("accepts a second spec with the same allowed roles", function()
+    local profile = {}
+    assert.is_true(ProfileService.SetField(fake_platform(), profile, "role2", "Dps"))
+    assert.are.equal("Dps", profile.fields.role2.value)
+    assert.is_false(ProfileService.SetField(fake_platform(), profile, "role2", "wizard"))
+  end)
+
+  it("accepts only Tank, Dps and Heal as the role", function()
+    for _, role in ipairs({ "Tank", "Dps", "Heal" }) do
+      local profile = {}
+      assert.is_true(ProfileService.SetField(fake_platform(), profile, "role", role))
+      assert.are.equal(role, profile.fields.role.value)
+    end
+    local profile = {}
+    local ok, reason = ProfileService.SetField(fake_platform(), profile, "role", "wizard")
+    assert.is_false(ok)
+    assert.are.equal("invalid_value", reason)
+    assert.is_nil(profile.fields)
+  end)
+
+  it("maps unambiguous legacy role spellings to the allowed roles", function()
+    assert.are.equal("Heal", ProfileService.NormalizeRole("  healer "))
+    assert.are.equal("Tank", ProfileService.NormalizeRole("tank"))
+    assert.are.equal("Dps", ProfileService.NormalizeRole("DPS"))
+    assert.is_nil(ProfileService.NormalizeRole("wizard"))
+    assert.is_nil(ProfileService.NormalizeRole(nil))
   end)
 
   it("clears a field when the value is empty", function()
@@ -150,11 +178,11 @@ describe("ProfileService.Describe", function()
   it("labels each value with its source", function()
     local profile = {}
     ProfileService.Refresh(fake_platform(), profile)
-    ProfileService.SetField(fake_platform(), profile, "role", "tank")
+    ProfileService.SetField(fake_platform(), profile, "role", "Tank")
     local text = table.concat(ProfileService.Describe(profile), "\n")
     assert.is_truthy(text:find("Level: 60 [verified]", 1, true))
     assert.is_truthy(text:find("Professions: Mining (300) [verified]", 1, true))
-    assert.is_truthy(text:find("role: tank [declared]", 1, true))
+    assert.is_truthy(text:find("role: Tank [declared]", 1, true))
   end)
 
   it("shows unknown instead of guessing", function()

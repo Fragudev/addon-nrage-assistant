@@ -49,8 +49,22 @@ function ProfileService.Refresh(platform, profile)
   ensureTable(profile, "fields")
 end
 
+-- The roles a player can declare, in display order. `role` is the main spec, `role2` the optional second one.
+ProfileService.ROLES = { "Tank", "Dps", "Heal" }
+
+local ROLE_ALIASES = { tank = "Tank", dps = "Dps", heal = "Heal", healer = "Heal" }
+
+-- The canonical role for a declared value (any case, surrounding spaces ignored), or nil when it is not
+-- one of the allowed roles or an unambiguous spelling of one (e.g. "healer" from the old free text box).
+function ProfileService.NormalizeRole(value)
+  if type(value) ~= "string" then
+    return nil
+  end
+  return ROLE_ALIASES[value:match("^%s*(.-)%s*$"):lower()]
+end
+
 -- Returns true, or false plus "unknown_field" | "too_long" | "invalid_value".
--- An empty value clears the field.
+-- An empty value clears the field. The roles only accept Tank, Dps or Heal.
 function ProfileService.SetField(platform, profile, key, value)
   local constants = ns.Constants
   if not constants.MANUAL_FIELDS[key] then
@@ -63,6 +77,13 @@ function ProfileService.SetField(platform, profile, key, value)
   value = value:match("^%s*(.-)%s*$")
   if #value > constants.MAX_FIELD_LENGTH then
     return false, "too_long"
+  end
+
+  if (key == "role" or key == "role2") and value ~= "" then
+    value = ProfileService.NormalizeRole(value)
+    if not value then
+      return false, "invalid_value"
+    end
   end
 
   local fields = ensureTable(profile, "fields")
