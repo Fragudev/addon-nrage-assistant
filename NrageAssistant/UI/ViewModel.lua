@@ -983,8 +983,8 @@ end
 
 local function splitList(text)
   local items = {}
-  for item in text:gmatch("[^,]+") do
-    item = trim(item)
+  for piece in text:gmatch("[^,]+") do
+    local item = trim(piece)
     if item ~= "" then
       items[#items + 1] = item
     end
