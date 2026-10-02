@@ -1,0 +1,65 @@
+NrageAssistant/Core/Constants.lua
+  s_07ab269e5c3375::t_77fddc1fd6fbc1 5,21,129-145
+NrageAssistant/Core/Init.lua
+  s_07ab269e5c3375::t_4f458283e9f943 49,103-129,135-136,142-143,147-152
+NrageAssistant/Core/Platform.lua
+  s_07ab269e5c3375::t_18ee75c69b49ce 219-223,333-348,351-354,360,365,374-454
+NrageAssistant/Core/Store.lua
+  s_07ab269e5c3375::t_dad71905bed6e8 4,56-60
+NrageAssistant/Domain/PvPFeed.lua
+  s_07ab269e5c3375::t_db31153fedc5d2 1-267
+NrageAssistant/Domain/PvPTracker.lua
+  s_07ab269e5c3375::t_f232bf845be381 13,89-90,93,106-109,112
+NrageAssistant/NrageAssistant.toc
+  s_07ab269e5c3375::t_252b766f2e3946 38
+NrageAssistant/Sync/Comm.lua
+  s_07ab269e5c3375::t_974fe77c5dc219 11-12,31,219-221,380-392,437-445
+NrageAssistant/Sync/Protocol.lua
+  s_07ab269e5c3375::t_e46ee5a2315f24 301-315,346
+NrageAssistant/UI/Main.lua
+  s_07ab269e5c3375::t_bc590e9c26cc5f 778-810,824-827
+NrageAssistant/UI/ViewModel.lua
+  s_07ab269e5c3375::t_7c5a7ad079f903 176,178-227
+docs/API_NOTES.md
+  s_07ab269e5c3375::t_75fbce47f7870f 57,59-62,77
+docs/PRIVACY.md
+  s_07ab269e5c3375::t_88a088d185744f 25,53-60
+docs/PROTOCOL.md
+  s_07ab269e5c3375::t_4418a30108f8aa 55,112-131
+docs/USER_GUIDE.md
+  s_07ab269e5c3375::t_a859cf5a9e344a 222-236
+tests/comm_spec.lua
+  s_07ab269e5c3375::t_2ed88372d7bf90 50,99-101,1207-1271
+tests/constants_spec.lua
+  s_07ab269e5c3375::t_f307a1cf52224c 13-14
+tests/platform_spec.lua
+  s_07ab269e5c3375::t_20c3d1908b8ae0 419,447-572
+tests/protocol_spec.lua
+  s_07ab269e5c3375::t_98add76cae7b5e 597-660
+tests/pvp_feed_spec.lua
+  s_07ab269e5c3375::t_af2b94f2abf006 1-390
+tests/pvp_tracker_spec.lua
+  s_07ab269e5c3375::t_8bd0748fff804d 248-256
+tests/store_spec.lua
+  s_07ab269e5c3375::t_8ecd7fa995881c 28,36,50,57,92,120-121,133,147,200-227
+tests/ui_smoke_spec.lua
+  s_07ab269e5c3375::t_23dd02922ea7eb 90,146-148,293-297,434-501
+tests/view_model_spec.lua
+  s_07ab269e5c3375::t_011d7d954e70e1 954-959,1251-1313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4b5efd8d92777e221e8e0edd1af6ba0c0fb9be49",
+  "prompts": {},
+  "sessions": {
+    "s_07ab269e5c3375": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3aca999b-aa59-45a0-9537-8159c1b07941",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
