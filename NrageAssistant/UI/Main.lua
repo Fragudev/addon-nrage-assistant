@@ -4,6 +4,8 @@ local _, ns = ...
 -- so nothing here needs unit tests beyond loading cleanly. Client only.
 local UI = {}
 
+local L = ns.L
+
 -- The loot screens that want to know when loot changes, here or on a received message. Each registers its
 -- refresh function; UI.LootChanged calls them all.
 UI.lootListeners = {}
@@ -186,7 +188,7 @@ end
 local function DrawHome(container)
   local lines = ns.ViewModel.Home({
     version = ns.GetVersion(),
-    syncLines = ns.comm and ns.comm:Status() or { "sync not started" },
+    syncLines = ns.comm and ns.comm:Status() or { L("sync not started") },
     readinessText = ReadinessSummary().text,
   })
   AddLogoHeader(container, table.remove(lines, 1))
@@ -197,21 +199,22 @@ local function DrawProfile(container)
   local AceGUI = LibStub("AceGUI-3.0")
   local character = ns.character
 
-  AddHeading(container, "Your profile")
+  AddHeading(container, L("Your profile"))
   AddLines(container, EscapeAll(ns.ProfileService.Describe(character.profile)))
 
-  AddHeading(container, "Shared with the guild")
+  AddHeading(container, L("Shared with the guild"))
   AddLines(container, EscapeAll(ns.PublishService.Describe(character.profile)))
   AddLines(container, {
-    "Your profile is shared automatically after login and whenever it changes.",
-    "Addon messages are not private: any guild member with the addon can read them.",
+    L("Your profile is shared automatically after login and whenever it changes."),
+    L("Addon messages are not private: any guild member with the addon can read them."),
   })
 
   local button = AceGUI:Create("Button")
-  button:SetText("Publish now")
+  button:SetText(L("Publish now"))
   button:SetCallback("OnClick", function()
     local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
-    statusMessage = ok and "Profile published to the guild." or ("Not published: " .. ns.ViewModel.PublishError(reason))
+    statusMessage = ok and L("Profile published to the guild.")
+      or (L("Not published: ") .. ns.ViewModel.PublishError(reason))
     Redraw()
   end)
   container:AddChild(button)
@@ -315,7 +318,7 @@ local function DrawReady(container)
 
   local items = ns.ViewModel.ManualItems(rules, results)
   if #items > 0 then
-    AddHeading(container, "Confirm by hand")
+    AddHeading(container, L("Confirm by hand"))
   end
   local statuses = {}
   for _, status in ipairs(ns.ViewModel.READY_STATUSES) do
@@ -331,19 +334,19 @@ local function DrawReady(container)
 end
 
 local function DrawEventEditor(container, raid, event)
-  AddTextInput(container, "Title (Enter to rename)", event.title, 1, function(value)
+  AddTextInput(container, L("Title (Enter to rename)"), event.title, 1, function(value)
     Report(raid:RenameEvent(event, value))
   end)
 
   local statuses = {}
   for _, status in ipairs(ns.ViewModel.EVENT_STATUSES) do
-    statuses[status] = status
+    statuses[status] = ns.ViewModel.Word(status)
   end
-  AddDropdown(container, "Status", statuses, ns.ViewModel.EVENT_STATUSES, event.status, 0.4, function(key)
+  AddDropdown(container, L("Status"), statuses, ns.ViewModel.EVENT_STATUSES, event.status, 0.4, function(key)
     Report(raid:SetEventStatus(event, key))
   end)
   local start = event.startAt and ns.Platform.FormatDate(event.startAt) or ""
-  AddTextInput(container, "Start, local time (YYYY-MM-DD HH:MM)", start, 0.6, function(value)
+  AddTextInput(container, L("Start, local time (YYYY-MM-DD HH:MM)"), start, 0.6, function(value)
     Report(raid:SetEventStart(event, value))
   end)
 end
@@ -355,14 +358,14 @@ local attendanceNewState = "present"
 local function DrawAttendance(container, raid, event, members)
   local states = {}
   for _, state in ipairs(ns.ViewModel.ATTENDANCE_STATES) do
-    states[state] = state
+    states[state] = ns.ViewModel.Word(state)
   end
   local recorded, matches, matched =
     ns.ViewModel.AttendanceView(event, members, attendanceFilter, ATTENDANCE_MATCHES_MAX)
 
-  AddHeading(container, ("Recorded (%d)"):format(#recorded))
+  AddHeading(container, L("Recorded (%d)"):format(#recorded))
   if #recorded == 0 then
-    AddLines(container, { "Nobody yet. Search for a member below to add them." })
+    AddLines(container, { L("Nobody yet. Search for a member below to add them.") })
   end
   for _, row in ipairs(recorded) do
     AddDropdown(container, row.label, states, ns.ViewModel.ATTENDANCE_STATES, row.state, 0.5, function(key)
@@ -370,19 +373,19 @@ local function DrawAttendance(container, raid, event, members)
     end)
   end
 
-  AddHeading(container, "Add a member")
-  AddTextInput(container, "Type part of a name and press Enter", attendanceFilter, 0.6, function(value)
+  AddHeading(container, L("Add a member"))
+  AddTextInput(container, L("Type part of a name and press Enter"), attendanceFilter, 0.6, function(value)
     attendanceFilter = value
     Redraw()
   end)
-  AddDropdown(container, "Record as", states, ns.ViewModel.ATTENDANCE_STATES, attendanceNewState, 0.4, function(key)
+  AddDropdown(container, L("Record as"), states, ns.ViewModel.ATTENDANCE_STATES, attendanceNewState, 0.4, function(key)
     attendanceNewState = key
   end)
   if attendanceFilter == "" then
     return
   end
   if matched == 0 then
-    AddLines(container, { "No unrecorded member matches. The guild roster may still be loading." })
+    AddLines(container, { L("No unrecorded member matches. The guild roster may still be loading.") })
   end
   for _, match in ipairs(matches) do
     AddButton(container, match.label, 0.5, function()
@@ -391,14 +394,14 @@ local function DrawAttendance(container, raid, event, members)
     end)
   end
   if matched > #matches then
-    AddLines(container, { ("%d more match: type more of the name to narrow the list."):format(matched - #matches) })
+    AddLines(container, { L("%d more match: type more of the name to narrow the list."):format(matched - #matches) })
   end
 end
 
 local function DrawAssignments(container, raid, event, members)
   local assignments = ns.RaidCommands.SortedAssignments(event)
   if #assignments == 0 then
-    AddLines(container, { "No assignments yet." })
+    AddLines(container, { L("No assignments yet.") })
   end
   for _, assignment in ipairs(assignments) do
     local task = assignment.task and (" - " .. assignment.task) or ""
@@ -407,7 +410,7 @@ local function DrawAssignments(container, raid, event, members)
     text:SetText(label)
     text:SetRelativeWidth(0.75)
     container:AddChild(text)
-    AddButton(container, "Remove", 0.25, function()
+    AddButton(container, L("Remove"), 0.25, function()
       Report(raid:RemoveAssignment(event, assignment))
     end)
   end
@@ -417,13 +420,13 @@ local function DrawAssignments(container, raid, event, members)
     list[name] = ns.ViewModel.Escape(name)
   end
   local newMember
-  AddDropdown(container, "Member", list, members, nil, 0.45, function(key)
+  AddDropdown(container, L("Member"), list, members, nil, 0.45, function(key)
     newMember = key
   end)
-  local encounter = AddField(container, "Encounter", 0.3)
-  AddButton(container, "Add", 0.25, function()
+  local encounter = AddField(container, L("Encounter"), 0.3)
+  AddButton(container, L("Add"), 0.25, function()
     if not newMember then
-      actionMessage = "Pick a member first."
+      actionMessage = L("Pick a member first.")
       Redraw()
       return
     end
@@ -440,9 +443,9 @@ local function DrawTemplates(container, templates, event)
 
   local suggested = ns.TemplateService.Suggest(ns.db.global.templates, event)
   if #suggested > 0 then
-    AddLines(container, { "Suggested for this event (nothing is applied until you click):" })
+    AddLines(container, { L("Suggested for this event (nothing is applied until you click):") })
     for _, name in ipairs(suggested) do
-      AddButton(container, "Apply: " .. ns.ViewModel.Escape(name), 1, function()
+      AddButton(container, L("Apply: ") .. ns.ViewModel.Escape(name), 1, function()
         Report(templates:ApplyToEvent(event, name))
       end)
     end
@@ -450,21 +453,21 @@ local function DrawTemplates(container, templates, event)
 
   local chosen
   if #names > 0 then
-    AddDropdown(container, "Saved templates", list, names, nil, 0.6, function(key)
+    AddDropdown(container, L("Saved templates"), list, names, nil, 0.6, function(key)
       chosen = key
     end)
-    AddButton(container, "Apply to this event", 0.4, function()
+    AddButton(container, L("Apply to this event"), 0.4, function()
       if not chosen then
-        actionMessage = "Pick a template first."
+        actionMessage = L("Pick a template first.")
         Redraw()
         return
       end
       Report(templates:ApplyToEvent(event, chosen))
     end)
   else
-    AddLines(container, { "No templates saved yet." })
+    AddLines(container, { L("No templates saved yet.") })
   end
-  AddTextInput(container, "Save this event's assignments as (Enter to save)", "", 1, function(value)
+  AddTextInput(container, L("Save this event's assignments as (Enter to save)"), "", 1, function(value)
     Report(templates:SaveEvent(event, value))
   end)
 end
@@ -527,7 +530,7 @@ local function DrawRaid(container)
   container:AddChild(left)
 
   if actions.events then
-    AddTextInput(left, "New event (Enter to create)", "", 1, function(value)
+    AddTextInput(left, L("New event (Enter to create)"), "", 1, function(value)
       local before = {}
       for eventId in pairs(ns.db.global.events) do
         before[eventId] = true
@@ -566,10 +569,10 @@ end
 -- Loot tab. Anyone can apply to an open session; opening, voting and awarding only show for the roles
 -- that may (ViewModel.LootActions). Each control calls the same LootCommands method as the slash command.
 local function DrawLootApply(container, loot, event, session)
-  local spec = AddField(container, "Spec", 0.3)
-  local upgrade = AddField(container, "Upgrade (optional)", 0.7)
+  local spec = AddField(container, L("Spec"), 0.3)
+  local upgrade = AddField(container, L("Upgrade (optional)"), 0.7)
   for _, need in ipairs(ns.ViewModel.LOOT_NEEDS) do
-    AddButton(container, "Apply: " .. need, 0.33, function()
+    AddButton(container, L("Apply: ") .. ns.ViewModel.Word(need), 0.33, function()
       local text = upgrade:GetText()
       Report(loot:Apply(event, session, {
         spec = spec:GetText(),
@@ -586,14 +589,14 @@ local function DrawLootCouncil(container, loot, event, session, actions)
     return
   end
   local chosen
-  AddDropdown(container, "Candidate", list, order, nil, 1, function(key)
+  AddDropdown(container, L("Candidate"), list, order, nil, 1, function(key)
     chosen = key
   end)
 
   local function withCandidate(action)
     return function()
       if not chosen then
-        actionMessage = "Pick a candidate first."
+        actionMessage = L("Pick a candidate first.")
         Redraw()
         return
       end
@@ -604,7 +607,7 @@ local function DrawLootCouncil(container, loot, event, session, actions)
   if actions.vote then
     AddButton(
       container,
-      "Vote",
+      L("Vote"),
       0.3,
       withCandidate(function()
         Report(loot:VoteFor(event, session, chosen))
@@ -612,16 +615,16 @@ local function DrawLootCouncil(container, loot, event, session, actions)
     )
   end
   if actions.award then
-    local reason = AddField(container, "Reason for the award", 0.7)
+    local reason = AddField(container, L("Reason for the award"), 0.7)
     AddButton(
       container,
-      "Award",
+      L("Award"),
       0.3,
       withCandidate(function()
         Report(loot:AwardTo(event, session, chosen, reason:GetText()))
       end)
     )
-    AddButton(container, "Close without awarding", 0.7, function()
+    AddButton(container, L("Close without awarding"), 0.7, function()
       Report(loot:CloseSession(event, session))
     end)
   end
@@ -663,24 +666,24 @@ local function DrawLoot(container)
   if actionMessage then
     AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
   end
-  AddDropdown(container, "Event", list, order, selectedEventId, 1, function(key)
+  AddDropdown(container, L("Event"), list, order, selectedEventId, 1, function(key)
     selectedEventId = key
     Redraw()
   end)
 
   if actions.vote then
-    AddButton(container, "Open the voting window", 0.4, function()
+    AddButton(container, L("Open the voting window"), 0.4, function()
       ns.VotingFrame.Show()
     end)
   end
 
   if actions.open then
-    AddHeading(container, "Open a session")
-    local item = AddField(container, "Item link (shift-click the item into this box)", 0.7)
-    AddButton(container, "Open", 0.3, function()
+    AddHeading(container, L("Open a session"))
+    local item = AddField(container, L("Item link (shift-click the item into this box)"), 0.7)
+    AddButton(container, L("Open"), 0.3, function()
       local parsed = ns.LootCommands.ParseItem(item:GetText())
       if not parsed then
-        actionMessage = "Paste or shift-click an item link first."
+        actionMessage = L("Paste or shift-click an item link first.")
         Redraw()
         return
       end
@@ -689,14 +692,14 @@ local function DrawLoot(container)
   end
 
   local sessions = ns.LootService.Sessions(event)
-  AddHeading(container, "Sessions")
+  AddHeading(container, L("Sessions"))
   if #sessions == 0 then
-    AddLines(container, { "No loot sessions for this event yet." })
+    AddLines(container, { L("No loot sessions for this event yet.") })
   end
   for _, session in ipairs(sessions) do
     DrawLootSession(container, loot, event, session, actions)
   end
-  AddLines(container, { "", "Addon messages are not private: anyone with the addon can read votes." })
+  AddLines(container, { "", L("Addon messages are not private: anyone with the addon can read votes.") })
 end
 
 local pvpSubTab = "mine"
@@ -712,13 +715,13 @@ local RANKING_COLUMNS = {
 }
 local RANKING_ORDER = { "name", "rank", "world", "bg", "total", "blows", "updated" }
 local RANKING_TITLES = {
-  name = "Name",
-  rank = "Rank",
-  world = "World",
-  bg = "BG",
-  total = "Total",
-  blows = "Blows",
-  updated = "Updated",
+  name = L("Name"),
+  rank = L("Rank"),
+  world = L("World"),
+  bg = L("BG"),
+  total = L("Total"),
+  blows = L("Blows"),
+  updated = L("Updated"),
 }
 
 local function AddCell(container, text, width, color)
@@ -762,12 +765,20 @@ local function DrawPvPRanking(container)
   })
   local widths = columns.blows and RANKING_COLUMNS.withBlows or RANKING_COLUMNS.withoutBlows
 
-  AddDropdown(container, "Show", ns.ViewModel.PVP_PERIODS, ns.ViewModel.PVP_PERIOD_ORDER, pvpPeriod, 0.3, function(key)
-    pvpPeriod = key
-    Redraw()
-  end)
-  local hint = pvpPeriod == "today" and "Today's kills (server day, UTC); the rank is the all-time one. " or ""
-  AddLines(container, { hint .. "Click a column title to sort by it. Your row is green.", "" })
+  AddDropdown(
+    container,
+    L("Show"),
+    ns.ViewModel.PVP_PERIODS,
+    ns.ViewModel.PVP_PERIOD_ORDER,
+    pvpPeriod,
+    0.3,
+    function(key)
+      pvpPeriod = key
+      Redraw()
+    end
+  )
+  local hint = pvpPeriod == "today" and L("Today's kills (server day, UTC); the rank is the all-time one. ") or ""
+  AddLines(container, { hint .. L("Click a column title to sort by it. Your row is green."), "" })
   for _, key in ipairs(RANKING_ORDER) do
     if widths[key] then
       AddRankingHeader(container, key, widths[key])
@@ -794,9 +805,9 @@ local function DrawPvPRanking(container)
     end
   end
   if shown < #rows then
-    AddLines(container, { "", ("Showing the first %d of %d members."):format(shown, #rows) })
+    AddLines(container, { "", L("Showing the first %d of %d members."):format(shown, #rows) })
   end
-  AddLines(container, { "", "Counters come from members who run the addon, about a minute after a kill." })
+  AddLines(container, { "", L("Counters come from members who run the addon, about a minute after a kill.") })
 end
 
 -- Recent kills sub-tab: the own kills since login, not saved. Every kill is shared with the guild.
@@ -868,11 +879,11 @@ local function DrawBlacklist(container)
   if actionMessage then
     AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
   end
-  AddHeading(container, "Add a player")
-  local name = AddField(container, "Name", 0.3)
-  local reason = AddField(container, "Reason", 0.5)
+  AddHeading(container, L("Add a player"))
+  local name = AddField(container, L("Name"), 0.3)
+  local reason = AddField(container, L("Reason"), 0.5)
   reason:SetMaxLetters(ns.Constants.BLACKLIST_REASON_MAX)
-  AddButton(container, "Add", 0.2, function()
+  AddButton(container, L("Add"), 0.2, function()
     Report(commands:Add(name:GetText(), reason:GetText()))
   end)
 
@@ -880,9 +891,9 @@ local function DrawBlacklist(container)
     canRemove = ns.PermissionService.Can(role, "blacklist_remove"),
     formatDate = ns.Platform.FormatDate,
   })
-  AddHeading(container, ("Blacklist (%d)"):format(#rows))
+  AddHeading(container, L("Blacklist (%d)"):format(#rows))
   if #rows == 0 then
-    AddLines(container, { "Nobody is on the blacklist." })
+    AddLines(container, { L("Nobody is on the blacklist.") })
     return
   end
   for _, row in ipairs(rows) do
@@ -890,15 +901,15 @@ local function DrawBlacklist(container)
     AddCell(container, row.reason, BLACKLIST_COLUMNS.reason)
     AddCell(container, ("%s, %s"):format(row.addedBy, row.added), BLACKLIST_COLUMNS.added)
     if row.canRemove then
-      AddButton(container, "Remove", BLACKLIST_COLUMNS.remove, function()
+      AddButton(container, L("Remove"), BLACKLIST_COLUMNS.remove, function()
         Report(commands:Remove(row.key))
       end)
     end
   end
   AddLines(container, {
     "",
-    "Everyone can add a player. Only the guild master and officers can remove one.",
-    "You are warned once when a listed player is in your group.",
+    L("Everyone can add a player. Only the guild master and officers can remove one."),
+    L("You are warned once when a listed player is in your group."),
   })
 end
 
@@ -910,9 +921,9 @@ local function SaveRules(rules)
   -- On success the second value is the revision, otherwise the reason.
   local ok, outcome = ns.comm:SetReadinessRules(rules)
   if ok then
-    Report({ ("Rules saved as revision %d and sent to the guild."):format(outcome) })
+    Report({ L("Rules saved as revision %d and sent to the guild."):format(outcome) })
   else
-    Report({ "Not saved: " .. (ns.ViewModel.RULE_ERRORS[outcome] or tostring(outcome)) })
+    Report({ L("Not saved: ") .. (ns.ViewModel.RULE_ERRORS[outcome] or tostring(outcome)) })
   end
 end
 
@@ -921,7 +932,7 @@ local RULE_COLUMNS = { label = 0.3, summary = 0.5, remove = 0.2 }
 local function DrawRules(container)
   local role = ns.PermissionService.OwnRole(ns.Platform)
   if not ns.PermissionService.Can(role, "rules_edit") then
-    AddLines(container, { "Only the guild master and officers can edit the readiness rules." })
+    AddLines(container, { L("Only the guild master and officers can edit the readiness rules.") })
     return
   end
 
@@ -932,46 +943,46 @@ local function DrawRules(container)
     AddLines(container, { viewModel.Escape(actionMessage), "" })
   end
   AddLines(container, EscapeAll({ ns.ReadinessRules.Describe(ns.db.global.readinessRules)[1] }))
-  AddHeading(container, ("Rules (%d)"):format(#rules))
+  AddHeading(container, L("Rules (%d)"):format(#rules))
   for _, rule in ipairs(rules) do
     AddCell(container, viewModel.Escape(rule.label), RULE_COLUMNS.label)
     AddCell(container, viewModel.Escape(viewModel.RuleSummary(rule)), RULE_COLUMNS.summary)
-    AddButton(container, "Remove", RULE_COLUMNS.remove, function()
+    AddButton(container, L("Remove"), RULE_COLUMNS.remove, function()
       local list, reason = viewModel.WithoutRule(rules, rule.id)
       if not list then
-        Report({ "Not saved: " .. viewModel.RULE_ERRORS[reason] })
+        Report({ L("Not saved: ") .. viewModel.RULE_ERRORS[reason] })
         return
       end
       SaveRules(list)
     end)
   end
 
-  AddHeading(container, "Add a rule")
+  AddHeading(container, L("Add a rule"))
   local kinds = {}
   for _, check in ipairs(viewModel.RULE_CHECKS) do
     kinds[check] = viewModel.RULE_CHECK_TEXT[check]
   end
-  AddDropdown(container, "Kind", kinds, viewModel.RULE_CHECKS, ruleDraftCheck, 0.3, function(key)
+  AddDropdown(container, L("Kind"), kinds, viewModel.RULE_CHECKS, ruleDraftCheck, 0.3, function(key)
     ruleDraftCheck = key
     Redraw()
   end)
-  local label = AddField(container, "Name", 0.3)
-  local details = AddField(container, "Details: " .. viewModel.RULE_DETAIL_HINTS[ruleDraftCheck], 0.4)
-  AddButton(container, "Add rule", 0.3, function()
+  local label = AddField(container, L("Name"), 0.3)
+  local details = AddField(container, L("Details: ") .. viewModel.RULE_DETAIL_HINTS[ruleDraftCheck], 0.4)
+  AddButton(container, L("Add rule"), 0.3, function()
     local rule, reason = viewModel.RuleFromInput(ruleDraftCheck, label:GetText(), details:GetText(), rules)
     if not rule then
-      Report({ "Not saved: " .. viewModel.RULE_ERRORS[reason] })
+      Report({ L("Not saved: ") .. viewModel.RULE_ERRORS[reason] })
       return
     end
     SaveRules(viewModel.WithRule(rules, rule))
   end)
-  AddButton(container, "Use the starting list", 0.3, function()
+  AddButton(container, L("Use the starting list"), 0.3, function()
     SaveRules(ns.Constants.DEFAULT_RULES)
   end)
   AddLines(container, {
     "",
-    "These rules are the same for the whole guild and are measured on each player's own game.",
-    "Level, item level, professions, enchants and buffs are checked automatically; the rest are confirmed by hand.",
+    L("These rules are the same for the whole guild and are measured on each player's own game."),
+    L("Level, item level, professions, enchants and buffs are checked automatically; the rest are confirmed by hand."),
   })
 end
 
@@ -1021,13 +1032,13 @@ local function TransferLibs()
 end
 
 local IMPORT_ERRORS = {
-  forbidden = "your guild rank does not allow importing raid data.",
-  not_string = "nothing to import.",
-  bad_header = "that does not look like a Nrage export (it should start with NRAGE1:).",
-  too_large = "that text is too large to import.",
-  bad_encoding = "the text is damaged (bad encoding).",
-  bad_compression = "the text is damaged (bad compression).",
-  bad_payload = "the text is damaged or not a Nrage export.",
+  forbidden = L("your guild rank does not allow importing raid data."),
+  not_string = L("nothing to import."),
+  bad_header = L("that does not look like a Nrage export (it should start with NRAGE1:)."),
+  too_large = L("that text is too large to import."),
+  bad_encoding = L("the text is damaged (bad encoding)."),
+  bad_compression = L("the text is damaged (bad compression)."),
+  bad_payload = L("the text is damaged or not a Nrage export."),
 }
 
 function UI.ShowTransfer(mode)
@@ -1039,7 +1050,7 @@ function UI.ShowTransfer(mode)
   local AceGUI = LibStub("AceGUI-3.0")
   local window = AceGUI:Create("Frame")
   transferFrame = window
-  window:SetTitle(mode == "export" and "Nrage export" or "Nrage import")
+  window:SetTitle(mode == "export" and L("Nrage export") or L("Nrage import"))
   window:SetWidth(520)
   window:SetHeight(360)
   window:SetLayout("Fill")
@@ -1052,17 +1063,17 @@ function UI.ShowTransfer(mode)
 
   if mode == "export" then
     local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
-    box:SetLabel("Select all and copy (Ctrl+C):")
+    box:SetLabel(L("Select all and copy (Ctrl+C):"))
     box:DisableButton(true)
-    box:SetText(text or ("Export failed: " .. tostring(reason)))
+    box:SetText(text or (L("Export failed: ") .. tostring(reason)))
     if box.editBox then
       box.editBox:HighlightText()
     end
     return
   end
 
-  box:SetLabel("Paste an export here, then press Import:")
-  box:SetButtonText("Import")
+  box:SetLabel(L("Paste an export here, then press Import:"))
+  box:SetButtonText(L("Import"))
   box:SetCallback("OnEnterPressed", function(_, _, text)
     local ctx = {
       events = ns.db.global.events,
@@ -1072,9 +1083,9 @@ function UI.ShowTransfer(mode)
     local role = ns.PermissionService.OwnRole(ns.Platform)
     local summary, reason = ns.Transfer.Import(TransferLibs(), text, ctx, role)
     if summary then
-      print("Nrage Assistant: " .. ns.Transfer.Describe(summary) .. ". Imported data stays on this client only.")
+      print("Nrage Assistant: " .. ns.Transfer.Describe(summary) .. L(". Imported data stays on this client only."))
     else
-      print("Nrage Assistant: import failed: " .. (IMPORT_ERRORS[reason] or tostring(reason)))
+      print("Nrage Assistant: " .. L("import failed: ") .. (IMPORT_ERRORS[reason] or tostring(reason)))
     end
   end)
 end

@@ -6,6 +6,8 @@ local _, ns = ...
 -- What each row says comes from ViewModel; Controller holds the decisions about when to open. Client only.
 local VotingFrame = {}
 
+local L = ns.L
+
 local RETRY_SECONDS = 5
 -- Candidacies and votes arrive in bursts; the window is redrawn at most this often because of them.
 local MIN_REDRAW_SECONDS = 0.2
@@ -173,7 +175,7 @@ local function addNameLabel(parent, row, width)
     GameTooltip:AddLine(row.label)
     local won = ns.ViewModel.WonItems(events(), row.name, WON_ITEMS_MAX)
     if #won == 0 then
-      GameTooltip:AddLine("Has not won anything yet.", 0.7, 0.7, 0.7)
+      GameTooltip:AddLine(L("Has not won anything yet."), 0.7, 0.7, 0.7)
     end
     for _, item in ipairs(won) do
       GameTooltip:AddLine(
@@ -191,15 +193,15 @@ local function addNameLabel(parent, row, width)
   parent:AddChild(label)
 end
 
-local FILTER_LIST = { all = "All", main = "Main spec", off = "Off spec", other = "Other" }
+local FILTER_LIST = { all = L("All"), main = L("Main spec"), off = L("Off spec"), other = L("Other") }
 local FILTER_ORDER = { "all", "main", "off", "other" }
 local HEADERS = { "name", "rank", "response", nil, "votes" }
-local HEADER_TITLES = { name = "Name", rank = "Rank", response = "Response", votes = "Votes" }
+local HEADER_TITLES = { name = L("Name"), rank = L("Rank"), response = L("Response"), votes = L("Votes") }
 
 local function addHeader(parent, index)
   local key = HEADERS[index]
   if not key then
-    addLabel(parent, index == 4 and "|cffffd100Upgrade|r" or " ", COLUMNS[index])
+    addLabel(parent, index == 4 and ("|cffffd100%s|r"):format(L("Upgrade")) or " ", COLUMNS[index])
     return
   end
   local mark = sort.key == key and (sort.descending and " v" or " ^") or ""
@@ -220,14 +222,14 @@ local function drawTable(scroll, event, session, actions)
 
   if open and actions.award then
     reason = AceGUI:Create("EditBox")
-    reason:SetLabel("Reason for the award (used by the Award buttons)")
+    reason:SetLabel(L("Reason for the award (used by the Award buttons)"))
     reason:SetFullWidth(true)
     reason:SetText(awardReason)
     scroll:AddChild(reason)
   end
 
   local filter = AceGUI:Create("Dropdown")
-  filter:SetLabel("Show")
+  filter:SetLabel(L("Show"))
   filter:SetList(FILTER_LIST, FILTER_ORDER)
   filter:SetValue(needFilter or "all")
   filter:SetRelativeWidth(0.4)
@@ -236,7 +238,7 @@ local function drawTable(scroll, event, session, actions)
     draw()
   end)
   scroll:AddChild(filter)
-  addLabel(scroll, "Click a column title to sort by it.", 0.55)
+  addLabel(scroll, L("Click a column title to sort by it."), 0.55)
 
   for index = 1, #COLUMNS do
     addHeader(scroll, index)
@@ -245,7 +247,7 @@ local function drawTable(scroll, event, session, actions)
   local rows =
     ns.ViewModel.VotingRows(session, ns.Platform.GetIdentityKey(), rankOf, { sort = sort, need = needFilter })
   if #rows == 0 then
-    addLabel(scroll, needFilter and "Nobody answered that way." or "No candidates yet.")
+    addLabel(scroll, needFilter and L("Nobody answered that way.") or L("No candidates yet."))
   end
   for _, row in ipairs(rows) do
     addNameLabel(scroll, row, COLUMNS[1])
@@ -254,7 +256,7 @@ local function drawTable(scroll, event, session, actions)
     addLabel(scroll, row.upgrade == "" and " " or row.upgrade, COLUMNS[4])
     addLabel(scroll, row.votes and tostring(row.votes) or "?", COLUMNS[5])
     if open and actions.vote then
-      addButton(scroll, row.mine and "Voted" or "Vote", COLUMNS[6], function()
+      addButton(scroll, row.mine and L("Voted") or L("Vote"), COLUMNS[6], function()
         awardConfirm = nil
         run(loot():VoteFor(event, session, row.name))
       end)
@@ -263,11 +265,11 @@ local function drawTable(scroll, event, session, actions)
     end
     if open and actions.award then
       local confirming = awardConfirm and awardConfirm.sessionId == session.sessionId and awardConfirm.name == row.name
-      addButton(scroll, confirming and "Confirm" or "Award", COLUMNS[7], function()
+      addButton(scroll, confirming and L("Confirm") or L("Award"), COLUMNS[7], function()
         if not confirming then
           awardReason = reason and reason:GetText() or ""
           awardConfirm = { sessionId = session.sessionId, name = row.name }
-          lastMessage = ("Award %s to %s? Click Confirm to give it away."):format(session.itemName, row.name)
+          lastMessage = L("Award %s to %s? Click Confirm to give it away."):format(session.itemName, row.name)
           draw()
           return
         end
@@ -295,7 +297,7 @@ draw = function()
   local actions = ns.ViewModel.LootActions(ns.PermissionService.OwnRole(ns.Platform))
   local sessions = ns.ViewModel.VotingSessions(events(), selectedId)
   if #sessions == 0 then
-    addLabel(scroll, "No loot sessions are open.")
+    addLabel(scroll, L("No loot sessions are open."))
     return
   end
   local found = false
@@ -337,13 +339,13 @@ draw = function()
     addLabel(scroll, ns.ViewModel.Escape(lastMessage))
   end
   if session.status == "open" and actions.award then
-    addButton(scroll, "Close without awarding", 0.4, function()
+    addButton(scroll, L("Close without awarding"), 0.4, function()
       run(loot():CloseSession(event, session))
     end)
   end
   drawTable(scroll, event, session, actions)
   addLabel(scroll, "")
-  addLabel(scroll, "Addon messages are not private: anyone with the addon can read votes.")
+  addLabel(scroll, L("Addon messages are not private: anyone with the addon can read votes."))
 end
 
 local function ensureFrame()
@@ -351,8 +353,8 @@ local function ensureFrame()
     return
   end
   frame = LibStub("AceGUI-3.0"):Create("Frame")
-  frame:SetTitle("Nrage Loot Council")
-  frame:SetStatusText("Votes follow the guild's visibility setting.")
+  frame:SetTitle(L("Nrage Loot Council"))
+  frame:SetStatusText(L("Votes follow the guild's visibility setting."))
   ns.UI.ApplyWindowStatus(frame, "voting", WIDTH, HEIGHT)
   frame:SetLayout("Fill")
   frame:SetCallback("OnClose", function()

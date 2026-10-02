@@ -6,6 +6,8 @@ local _, ns = ...
 -- What to show comes from ViewModel.PendingLoot; this file only builds the frame. Client only.
 local LootPopup = {}
 
+local L = ns.L
+
 local RETRY_SECONDS = 5
 local ROW_HEIGHT = 58
 local WIDTH = 440
@@ -112,7 +114,7 @@ function Controller:Tick()
     return
   end
   if self.deps.status then
-    self.deps.status(("Passing on the next item in %d s unless you answer."):format(math.ceil(soonest)))
+    self.deps.status(L("Passing on the next item in %d s unless you answer."):format(math.ceil(soonest)))
   end
   self:StartCountdown(entries)
 end
@@ -134,9 +136,9 @@ local function close()
 end
 
 local NEED_BUTTONS = {
-  { text = "Main spec", need = "main" },
-  { text = "Off spec", need = "off" },
-  { text = "Other", need = "other" },
+  { text = L("Main spec"), need = "main" },
+  { text = L("Off spec"), need = "off" },
+  { text = L("Other"), need = "other" },
 }
 
 local function answer(entry, need)
@@ -163,7 +165,7 @@ local function build(entries)
   close()
   frame = AceGUI:Create("Frame")
   frame:SetTitle("Nrage Loot")
-  frame:SetStatusText("Nothing is sent until you click a button.")
+  frame:SetStatusText(L("Nothing is sent until you click a button."))
   local height = math.min(120 + #entries * ROW_HEIGHT, 520)
   ns.UI.ApplyWindowStatus(frame, "popup", WIDTH, height)
   -- Only the position is remembered: the height follows the number of items.
@@ -196,7 +198,7 @@ local function build(entries)
       row:AddChild(button)
     end
     local pass = AceGUI:Create("Button")
-    pass:SetText("Pass")
+    pass:SetText(L("Pass"))
     pass:SetRelativeWidth(0.25)
     pass:SetCallback("OnClick", function()
       controller:Dismiss(entry.sessionId)

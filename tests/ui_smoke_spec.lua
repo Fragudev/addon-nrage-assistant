@@ -80,11 +80,13 @@ local function find_all(root, predicate)
   return found
 end
 
-local function load_window()
+-- `locale` (optional) is the client locale code the window is built for, e.g. "esES".
+local function load_window(locale)
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
     "Core/Locale",
+    "Locales/esES",
     "Core/Validate",
     "Core/Args",
     "Domain/PvPService",
@@ -109,12 +111,15 @@ local function load_window()
     "UI/VotingFrame",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    if path == "Locales/esES" and locale then
+      ns.Locale.Use(locale)
+    end
   end
   return ns
 end
 
-local function build(rank)
-  local ns = load_window()
+local function build(rank, locale)
+  local ns = load_window(locale)
   local env = { ns = ns, widgets = {}, sent = {}, counter = 0, changes = 0 }
 
   _G.LibStub = function()
@@ -1251,5 +1256,36 @@ describe("Rules tab", function()
     tab = env.open("rules")
     assert.is_truthy(labels(tab):find("keep at least one rule", 1, true))
     assert.are.equal(1, #env.ns.db.global.readinessRules.rules)
+  end)
+end)
+
+describe("Window in Spanish", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("draws every tab, for an admin, without a formatting error", function()
+    env = build("GM", "esES")
+    local tabs = env.ns.ViewModel.TabsFor("admin")
+    for _, tab in ipairs(tabs) do
+      assert.is_truthy(env.open(tab.value), tab.value)
+    end
+  end)
+
+  it("shows the Spanish texts", function()
+    env = build("GM", "esES")
+    local tab = env.open("rules")
+    assert.is_truthy(env.find(tab, "Button", "Añadir regla"))
+    assert.is_truthy(env.find(tab, "Button", "Usar la lista inicial"))
+    tab = env.open("blacklist")
+    assert.is_truthy(env.find(tab, "EditBox", "Motivo"))
+  end)
+
+  it("keeps the window in English for a client that is not Spanish", function()
+    env = build("GM", "frFR")
+    local tab = env.open("rules")
+    assert.is_truthy(env.find(tab, "Button", "Add rule"))
   end)
 end)
