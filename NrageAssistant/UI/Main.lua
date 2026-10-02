@@ -125,7 +125,7 @@ end
 -- Called when the guild's readiness rules changed: the checklist is drawn again if it is on screen. They are rare
 -- (one message per change), so there is no throttling.
 function UI.RulesChanged()
-  if frame and currentTab == "ready" then
+  if frame and (currentTab == "ready" or currentTab == "rules") then
     Redraw()
   end
 end
@@ -911,6 +911,79 @@ local function DrawBlacklist(container)
   })
 end
 
+-- Rules tab (admins only): the guild's readiness rules, one row each with Remove, a form to add one, and a button
+-- to go back to the starting list. Every change is a whole new set sent to the guild (Comm:SetReadinessRules).
+local ruleDraftCheck = "level"
+
+local function SaveRules(rules)
+  -- On success the second value is the revision, otherwise the reason.
+  local ok, outcome = ns.comm:SetReadinessRules(rules)
+  if ok then
+    Report({ ("Rules saved as revision %d and sent to the guild."):format(outcome) })
+  else
+    Report({ "Not saved: " .. (ns.ViewModel.RULE_ERRORS[outcome] or tostring(outcome)) })
+  end
+end
+
+local RULE_COLUMNS = { label = 0.3, summary = 0.5, remove = 0.2 }
+
+local function DrawRules(container)
+  local role = ns.PermissionService.OwnRole(ns.Platform)
+  if not ns.PermissionService.Can(role, "rules_edit") then
+    AddLines(container, { "Only the guild master and officers can edit the readiness rules." })
+    return
+  end
+
+  local rules = ns.ReadinessRules.Current()
+  local viewModel = ns.ViewModel
+
+  if actionMessage then
+    AddLines(container, { viewModel.Escape(actionMessage), "" })
+  end
+  AddLines(container, EscapeAll({ ns.ReadinessRules.Describe(ns.db.global.readinessRules)[1] }))
+  AddHeading(container, ("Rules (%d)"):format(#rules))
+  for _, rule in ipairs(rules) do
+    AddCell(container, viewModel.Escape(rule.label), RULE_COLUMNS.label)
+    AddCell(container, viewModel.Escape(viewModel.RuleSummary(rule)), RULE_COLUMNS.summary)
+    AddButton(container, "Remove", RULE_COLUMNS.remove, function()
+      local list, reason = viewModel.WithoutRule(rules, rule.id)
+      if not list then
+        Report({ "Not saved: " .. viewModel.RULE_ERRORS[reason] })
+        return
+      end
+      SaveRules(list)
+    end)
+  end
+
+  AddHeading(container, "Add a rule")
+  local kinds = {}
+  for _, check in ipairs(viewModel.RULE_CHECKS) do
+    kinds[check] = viewModel.RULE_CHECK_TEXT[check]
+  end
+  AddDropdown(container, "Kind", kinds, viewModel.RULE_CHECKS, ruleDraftCheck, 0.3, function(key)
+    ruleDraftCheck = key
+    Redraw()
+  end)
+  local label = AddField(container, "Name", 0.3)
+  local details = AddField(container, "Details: " .. viewModel.RULE_DETAIL_HINTS[ruleDraftCheck], 0.4)
+  AddButton(container, "Add rule", 0.3, function()
+    local rule, reason = viewModel.RuleFromInput(ruleDraftCheck, label:GetText(), details:GetText(), rules)
+    if not rule then
+      Report({ "Not saved: " .. viewModel.RULE_ERRORS[reason] })
+      return
+    end
+    SaveRules(viewModel.WithRule(rules, rule))
+  end)
+  AddButton(container, "Use the starting list", 0.3, function()
+    SaveRules(ns.Constants.DEFAULT_RULES)
+  end)
+  AddLines(container, {
+    "",
+    "These rules are the same for the whole guild and are measured on each player's own game.",
+    "Level, item level, professions, enchants and buffs are checked automatically; the rest are confirmed by hand.",
+  })
+end
+
 local DRAWERS = {
   home = DrawHome,
   profile = DrawProfile,
@@ -920,6 +993,7 @@ local DRAWERS = {
   pvp = DrawPvP,
   blacklist = DrawBlacklist,
   roster = DrawRoster,
+  rules = DrawRules,
 }
 
 local function OnTabSelected(container, _, group)
@@ -935,7 +1009,7 @@ local function OnTabSelected(container, _, group)
 
   local AceGUI = LibStub("AceGUI-3.0")
   local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout((group == "raid" or group == "blacklist") and "Flow" or "List")
+  scroll:SetLayout((group == "raid" or group == "blacklist" or group == "rules") and "Flow" or "List")
   container:SetLayout("Fill")
   container:AddChild(scroll)
   DRAWERS[group](scroll)
@@ -1035,7 +1109,7 @@ function UI.Toggle()
 
   tabs = AceGUI:Create("TabGroup")
   tabs:SetLayout("Fill")
-  tabs:SetTabs(ns.ViewModel.TABS)
+  tabs:SetTabs(ns.ViewModel.TabsFor(ns.PermissionService.OwnRole(ns.Platform)))
   tabs:SetCallback("OnGroupSelected", OnTabSelected)
   frame:AddChild(tabs)
   tabs:SelectTab(currentTab)

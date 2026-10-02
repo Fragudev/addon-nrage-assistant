@@ -195,8 +195,17 @@ local function build(rank)
       env.tooltip.shown = false
     end,
   }
-  ns.db =
-    { global = { events = {}, roster = {}, templates = {}, sync = { tombstones = {} }, pvpStats = {}, blacklist = {} } }
+  ns.db = {
+    global = {
+      events = {},
+      roster = {},
+      templates = {},
+      sync = { tombstones = {} },
+      pvpStats = {},
+      blacklist = {},
+      readinessRules = {},
+    },
+  }
   ns.character = {
     profile = { fields = {} },
     consent = {},
@@ -221,6 +230,18 @@ local function build(rank)
       return { "sync ready" }
     end,
   }
+  -- The admin's way to set the rules: what Comm does, without the sending.
+  ns.comm.SetReadinessRules = function(_, rules)
+    local clean, reason = ns.ReadinessRules.Validate(rules)
+    if not clean then
+      return false, reason
+    end
+    local record = ns.db.global.readinessRules
+    record.rev = (record.rev or 0) + 1
+    record.rules = clean
+    env.sent[#env.sent + 1] = "SetReadinessRules"
+    return true, record.rev
+  end
   for _, kind in ipairs({
     "SendEvent",
     "SendAttendance",
@@ -1129,5 +1150,106 @@ describe("Blacklist tab", function()
     assert.has_no.errors(function()
       env.ns.UI.BlacklistChanged()
     end)
+  end)
+end)
+
+local function vim_has(list, value)
+  for _, item in ipairs(list) do
+    if item == value then
+      return true
+    end
+  end
+  return false
+end
+
+describe("Rules tab", function()
+  local env
+
+  local function labels(root)
+    local found = {}
+    walk(root, function(widget)
+      if (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text then
+        found[#found + 1] = widget.props.text
+      end
+    end)
+    return table.concat(found, "\n")
+  end
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  local function tab_values()
+    local tabs = env.find(env.widgets[1], "TabGroup")
+    local values = {}
+    for _, tab in ipairs(tabs.props.tabs) do
+      values[#values + 1] = tab.value
+    end
+    return values
+  end
+
+  it("is offered only to the guild master and officers", function()
+    for _, rank in ipairs({ "Member", "RL", "Council" }) do
+      env = build(rank)
+      env.open("home")
+      assert.is_false(vim_has(tab_values(), "rules"), rank)
+      pcall(env.close)
+    end
+    env = build("GM")
+    env.open("home")
+    assert.is_true(vim_has(tab_values(), "rules"))
+  end)
+
+  it("says it is for admins when anyone else gets there", function()
+    env = build("Member")
+    local tab = env.open("rules")
+    assert.is_truthy(labels(tab):find("Only the guild master and officers", 1, true))
+    assert.is_nil(env.find(tab, "Button", "Add rule"))
+  end)
+
+  it("lists the rules in force and the form to add one", function()
+    env = build("GM")
+    local tab = env.open("rules")
+    assert.is_truthy(labels(tab):find("Starting rules", 1, true))
+    assert.is_truthy(labels(tab):find("level 60 or more", 1, true))
+    assert.is_truthy(env.find(tab, "Button", "Add rule"))
+    assert.is_truthy(env.find(tab, "Button", "Use the starting list"))
+    assert.is_truthy(env.find(tab, "EditBox", "Name"))
+  end)
+
+  it("adds a rule from the form, as a new set for the guild", function()
+    env = build("GM")
+    local tab = env.open("rules")
+    env.find(tab, "EditBox", "Name"):SetText("Item level 100")
+    env.find(tab, "EditBox", "Details: a number, e.g. 60"):SetText("100")
+    env.find(tab, "Button", "Add rule").callbacks.OnClick()
+    assert.are.same({ "SetReadinessRules" }, env.sent)
+    local rules = env.ns.db.global.readinessRules.rules
+    assert.are.equal(#env.ns.Constants.DEFAULT_RULES + 1, #rules)
+    assert.are.equal("item_level_100", rules[#rules].id)
+    tab = env.open("rules")
+    assert.is_truthy(labels(tab):find("revision 1", 1, true))
+  end)
+
+  it("shows why a rule was not saved and sends nothing", function()
+    env = build("GM")
+    local tab = env.open("rules")
+    env.find(tab, "EditBox", "Name"):SetText("Level")
+    env.find(tab, "EditBox", "Details: a number, e.g. 60"):SetText("abc")
+    env.find(tab, "Button", "Add rule").callbacks.OnClick()
+    tab = env.open("rules")
+    assert.is_truthy(labels(tab):find("Not saved", 1, true))
+    assert.are.same({}, env.sent)
+  end)
+
+  it("removes a rule, but not the last one", function()
+    env = build("GM")
+    env.ns.db.global.readinessRules.rules = { { id = "a", label = "A", check = "confirm" } }
+    env.ns.db.global.readinessRules.rev = 1
+    local tab = env.open("rules")
+    env.find(tab, "Button", "Remove").callbacks.OnClick()
+    tab = env.open("rules")
+    assert.is_truthy(labels(tab):find("keep at least one rule", 1, true))
+    assert.are.equal(1, #env.ns.db.global.readinessRules.rules)
   end)
 end)

@@ -911,6 +911,197 @@ ViewModel.TABS = {
   { value = "roster", text = "Roster" },
 }
 
+-- The admin-only tab where the guild's readiness rules are edited.
+ViewModel.RULES_TAB = { value = "rules", text = "Rules" }
+
+-- The tabs for a player with `role`: everyone's, plus the rules editor for who may edit the rules.
+function ViewModel.TabsFor(role)
+  local tabs = {}
+  for index, tab in ipairs(ViewModel.TABS) do
+    tabs[index] = tab
+  end
+  if ns.PermissionService.Can(role, "rules_edit") then
+    tabs[#tabs + 1] = ViewModel.RULES_TAB
+  end
+  return tabs
+end
+
+-- The kinds of rule an admin can add, in the order of the dropdown, and what each one needs typed in "Details".
+ViewModel.RULE_CHECKS = { "level", "ilvl", "enchants", "buff", "profession", "field", "confirm" }
+ViewModel.RULE_CHECK_TEXT = {
+  level = "Minimum level",
+  ilvl = "Minimum item level",
+  enchants = "Enchanted slots",
+  buff = "Active buff (flask, food...)",
+  profession = "Profession",
+  field = "Declared profile field",
+  confirm = "Confirmed by hand",
+}
+ViewModel.RULE_DETAIL_HINTS = {
+  level = "a number, e.g. 60",
+  ilvl = "a number, e.g. 60",
+  enchants = "slots by name or number: mainhand, chest, back, 16",
+  buff = "spell ids and/or names, separated by commas",
+  profession = "name and minimum skill, e.g. Alchemy 300",
+  field = "role",
+  confirm = "nothing needed",
+}
+
+-- Equipment slot names an admin may type instead of the number (the slots that can carry an enchant).
+ViewModel.ENCHANT_SLOTS = {
+  head = 1,
+  shoulders = 3,
+  chest = 5,
+  wrist = 9,
+  hands = 10,
+  legs = 7,
+  feet = 8,
+  back = 15,
+  mainhand = 16,
+  offhand = 17,
+  ranged = 18,
+}
+
+ViewModel.RULE_ERRORS = {
+  forbidden = "only the guild master and officers can change the rules.",
+  empty = "keep at least one rule.",
+  too_many = "there is room for 30 rules at most.",
+  bad_id = "that rule name cannot be used.",
+  bad_label = "the name is empty, too long or has unsupported characters.",
+  bad_category = "that rule category cannot be used.",
+  bad_check = "that kind of rule is not supported.",
+  bad_details = "the details do not fit this kind of rule (see the hint under Details).",
+  duplicate_id = "two rules would have the same name.",
+  bad_rules = "those rules are not valid.",
+  last_rule = "keep at least one rule; add another before removing this one.",
+  unknown_rule = "that rule no longer exists.",
+}
+
+local function trim(text)
+  return (tostring(text or ""):match("^%s*(.-)%s*$"))
+end
+
+local function splitList(text)
+  local items = {}
+  for item in text:gmatch("[^,]+") do
+    item = trim(item)
+    if item ~= "" then
+      items[#items + 1] = item
+    end
+  end
+  return items
+end
+
+-- A name for the rule, from its label, that no other rule in `rules` has.
+local function uniqueRuleId(label, rules)
+  local base = label:lower():gsub("[^%w]+", "_"):gsub("^_+", ""):gsub("_+$", "")
+  base = base:sub(1, 24)
+  if base == "" then
+    base = "rule"
+  end
+  local taken = {}
+  for _, rule in ipairs(rules) do
+    taken[rule.id] = true
+  end
+  local id, counter = base, 1
+  while taken[id] do
+    counter = counter + 1
+    id = base .. "_" .. counter
+  end
+  return id
+end
+
+-- Reads what the admin typed into the rule it describes. Returns the rule (already clean, ready to add to `rules`),
+-- or nil plus a reason from RULE_ERRORS.
+function ViewModel.RuleFromInput(check, label, details, rules)
+  label, details = trim(label), trim(details)
+  if label == "" then
+    return nil, "bad_label"
+  end
+  local rule = { id = uniqueRuleId(label, rules), label = label, check = check }
+
+  if check == "level" or check == "ilvl" then
+    rule.min = tonumber(details)
+  elseif check == "profession" then
+    local name, skill = details:match("^(.-)%s+(%d+)$")
+    rule.profession = name or details
+    rule.min = skill and tonumber(skill) or nil
+  elseif check == "enchants" then
+    rule.slots = {}
+    for _, token in ipairs(splitList(details)) do
+      local slot = tonumber(token) or ViewModel.ENCHANT_SLOTS[token:lower():gsub("%s", "")]
+      if not slot then
+        return nil, "bad_details"
+      end
+      rule.slots[#rule.slots + 1] = slot
+    end
+  elseif check == "buff" then
+    for _, token in ipairs(splitList(details)) do
+      local id = tonumber(token)
+      local key = id and "spellIds" or "names"
+      rule[key] = rule[key] or {}
+      rule[key][#rule[key] + 1] = id or token
+    end
+  elseif check == "field" then
+    rule.field = details:lower()
+  end
+
+  return ns.ReadinessRules.ValidateRule(rule)
+end
+
+-- A copy of `rules` with `rule` added, or without the rule called `id`.
+function ViewModel.WithRule(rules, rule)
+  local list = {}
+  for index, existing in ipairs(rules) do
+    list[index] = existing
+  end
+  list[#list + 1] = rule
+  return list
+end
+
+-- Returns the new list, or nil plus "unknown_rule" | "last_rule".
+function ViewModel.WithoutRule(rules, id)
+  local list, found = {}, false
+  for _, rule in ipairs(rules) do
+    if rule.id == id then
+      found = true
+    else
+      list[#list + 1] = rule
+    end
+  end
+  if not found then
+    return nil, "unknown_rule"
+  end
+  if #list == 0 then
+    return nil, "last_rule"
+  end
+  return list
+end
+
+-- What a rule asks for, in a few words, for the list in the editor.
+function ViewModel.RuleSummary(rule)
+  local check = rule.check
+  if check == "level" or check == "ilvl" then
+    return ("%s %d or more"):format(check == "level" and "level" or "item level", rule.min)
+  elseif check == "profession" then
+    return rule.min and ("%s %d or more"):format(rule.profession, rule.min) or rule.profession
+  elseif check == "enchants" then
+    return "enchanted slots: " .. table.concat(rule.slots, ", ")
+  elseif check == "buff" then
+    local parts = {}
+    for _, id in ipairs(rule.spellIds or {}) do
+      parts[#parts + 1] = tostring(id)
+    end
+    for _, name in ipairs(rule.names or {}) do
+      parts[#parts + 1] = name
+    end
+    return "any buff of: " .. table.concat(parts, ", ")
+  elseif check == "field" then
+    return "declared: " .. rule.field
+  end
+  return "confirmed by the player"
+end
+
 function ViewModel.HelpLines()
   return {
     "/nrage               open the window",
