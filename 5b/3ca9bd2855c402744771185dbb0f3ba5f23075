@@ -1,0 +1,33 @@
+.luacheckrc
+  s_07ab269e5c3375::t_338040ea060423 27-30
+NrageAssistant/Commands/Slash.lua
+  s_07ab269e5c3375::t_8c1917ba95b12d 313-314,329
+NrageAssistant/Core/PvPProbe.lua
+  s_07ab269e5c3375::t_d6fe534bc66f39 1-229
+NrageAssistant/Core/PvPProbeLog.lua
+  s_07ab269e5c3375::t_c397f00d0cb0cf 1-149
+NrageAssistant/NrageAssistant.toc
+  s_07ab269e5c3375::t_ae5d81dd3d2c79 20-21
+NrageAssistant/UI/ViewModel.lua
+  s_07ab269e5c3375::t_3d872cb874e966 677
+docs/API_NOTES.md
+  s_07ab269e5c3375::t_b5e84a44750034 42-60,72
+tests/pvp_probe_log_spec.lua
+  s_07ab269e5c3375::t_21c75267ca89b9 1-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b3ca9bd2855c402744771185dbb0f3ba5f23075",
+  "prompts": {},
+  "sessions": {
+    "s_07ab269e5c3375": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3aca999b-aa59-45a0-9537-8159c1b07941",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
