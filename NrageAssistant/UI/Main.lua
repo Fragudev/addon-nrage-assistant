@@ -749,6 +749,9 @@ local function DrawLootSession(container, loot, event, session, actions)
   end
 end
 
+-- The minutes of the event are shown under the sessions after a click on the button.
+local lootMinutesShown = false
+
 local function DrawLoot(container)
   -- Without a sync transport nothing could be sent, so the tab stays read-only.
   local actions = ns.ViewModel.LootActions(ns.comm and ns.PermissionService.OwnRole(ns.Platform) or nil)
@@ -805,6 +808,14 @@ local function DrawLoot(container)
     DrawLootSession(container, loot, event, session, actions)
   end
   AddLines(container, { "", L("Addon messages are not private: anyone with the addon can read votes.") })
+
+  AddButton(container, lootMinutesShown and L("Hide the minutes") or L("Show the minutes"), 0.4, function()
+    lootMinutesShown = not lootMinutesShown
+    Redraw()
+  end)
+  if lootMinutesShown then
+    AddLines(container, ns.ViewModel.LootMinutes(event))
+  end
 end
 
 local pvpSubTab = "mine"

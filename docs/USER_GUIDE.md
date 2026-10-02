@@ -165,7 +165,8 @@ The **Loot** tab does all of this from the window. Pick the event, and each sess
 votes and decision. Anyone can apply to an open session with a spec and the *Apply: main / off / other* buttons
 (the upgrade field is optional). Council and admins also get *Vote*, *Award* (with a reason) and *Close without
 awarding*, and a field to paste or shift-click an item link to open a session. Controls your role does not allow
-are not shown. Raid leaders, council and admins can change their vote; awarding closes the session.
+are not shown. At the bottom, *Show the minutes* lists every closed session of the event with what was decided and
+why (never who voted for whom). Raid leaders, council and admins can change their vote; awarding closes the session.
 
 Votes are visible to everyone while a session is open; whether they should be secret until it closes is still to
 be decided by the guild. A late joiner receives the minutes (awards and open sessions), not the votes of past

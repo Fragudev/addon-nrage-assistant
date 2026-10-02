@@ -568,6 +568,31 @@ end
 
 ViewModel.LOOT_NEEDS = { "main", "off", "other" }
 
+-- The minutes of an event: every closed session, oldest first, with what was decided and why. Only the decision is
+-- listed, never who voted for whom. Text is escaped.
+function ViewModel.LootMinutes(event)
+  local minutes = ns.LootService.Acta(event)
+  local title = ViewModel.Escape(event.title)
+  if #minutes == 0 then
+    return { L("No closed loot sessions for '%s' yet."):format(title) }
+  end
+  local lines = { L("Loot minutes for '%s':"):format(title) }
+  for _, entry in ipairs(minutes) do
+    if entry.awardedTo then
+      lines[#lines + 1] = "  "
+        .. L("%s -> %s (by %s): %s"):format(
+          ViewModel.Escape(entry.itemName),
+          ViewModel.Escape(entry.awardedTo),
+          ViewModel.Escape(entry.awardedBy),
+          ViewModel.Escape(entry.reason)
+        )
+    else
+      lines[#lines + 1] = "  " .. L("%s -> not awarded"):format(ViewModel.Escape(entry.itemName))
+    end
+  end
+  return lines
+end
+
 -- One loot session as lines: item, candidates, votes and decision. Vote counts follow the session's
 -- visibility policy (hidden while open unless configured otherwise); everything is escaped.
 function ViewModel.LootSession(session)

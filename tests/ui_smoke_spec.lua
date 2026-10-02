@@ -1186,6 +1186,70 @@ local function vim_has(list, value)
   return false
 end
 
+describe("Loot minutes button", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  local function event_with_a_decision()
+    return {
+      eventId = "ev-1",
+      title = "Raid",
+      status = "open",
+      attendance = {},
+      assignments = {},
+      loot = {
+        s1 = {
+          sessionId = "s1",
+          itemId = 19019,
+          itemName = "Thunderfury",
+          status = "closed",
+          updatedAt = 5,
+          candidates = {},
+          votes = {},
+          award = { characterKey = "Ann-Realm", awardedBy = "Boss-Realm", reason = "Highest need" },
+        },
+      },
+    }
+  end
+
+  local function labels(root)
+    local found = {}
+    walk(root, function(widget)
+      if (widget.kind == "Label" or widget.kind == "InteractiveLabel") and widget.props.text then
+        found[#found + 1] = widget.props.text
+      end
+    end)
+    return table.concat(found, "\n")
+  end
+
+  it("shows the minutes of the event after a click, and hides them after another", function()
+    env = build("Member")
+    env.ns.db.global.events["ev-1"] = event_with_a_decision()
+    local loot = env.open("loot")
+    assert.is_nil(labels(loot):find("Loot minutes", 1, true))
+    env.find(loot, "Button", "Show the minutes").callbacks.OnClick()
+    loot = env.open("loot")
+    local text = labels(loot)
+    assert.is_truthy(text:find("Loot minutes for 'Raid':", 1, true))
+    assert.is_truthy(text:find("Thunderfury -> Ann-Realm (by Boss-Realm): Highest need", 1, true))
+    env.find(loot, "Button", "Hide the minutes").callbacks.OnClick()
+    assert.is_nil(labels(env.open("loot")):find("Loot minutes", 1, true))
+  end)
+
+  it("is in Spanish on a Spanish client", function()
+    env = build("Member", "esES")
+    env.ns.db.global.events["ev-1"] = event_with_a_decision()
+    local loot = env.open("loot")
+    env.find(loot, "Button", "Mostrar el acta").callbacks.OnClick()
+    local text = labels(env.open("loot"))
+    assert.is_truthy(text:find("Acta del loot de 'Raid':", 1, true))
+    assert.is_truthy(text:find("Thunderfury -> Ann-Realm (por Boss-Realm): Highest need", 1, true))
+  end)
+end)
+
 describe("Rules tab", function()
   local env
 
