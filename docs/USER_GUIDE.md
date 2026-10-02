@@ -13,6 +13,12 @@ ruleset**; on any other character the addon switches itself off and says why onc
 3. Type `/nrage` to open the window, or `/nrage help` for the list of commands.
 4. Something looks wrong? Run `/nrage debug selftest` and `/nrage debug info`, and send the output to an officer.
 
+## Language
+
+The addon speaks Spanish when your game client is in Spanish (Spain or Latin America) and English for every other
+client language. There is no setting: it follows the client. Output meant for developers (`/nrage debug ...`) is
+always in English, and so is what goes over the wire, so players on different languages see the same data.
+
 ## The minimap button
 
 The guild logo sits in a gold ring on the edge of the minimap, like most addons' buttons.

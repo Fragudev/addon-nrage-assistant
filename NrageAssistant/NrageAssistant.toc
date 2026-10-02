@@ -12,6 +12,8 @@ embeds.xml
 
 Core\Constants.lua
 Core\Platform.lua
+Core\Locale.lua
+Locales\esES.lua
 Core\Validate.lua
 Core\Args.lua
 Core\AccessGuard.lua

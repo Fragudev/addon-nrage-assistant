@@ -6,6 +6,8 @@ local _, ns = ...
 -- are tested; Create/Refresh build and update the real frame and only run in the client.
 local MinimapButton = {}
 
+local L = ns.L
+
 -- Degrees, kept in [0, 360). Anything that is not a number falls back to the default position.
 function MinimapButton.NormalizeAngle(angle)
   if type(angle) ~= "number" or angle ~= angle or angle == math.huge or angle == -math.huge then
@@ -48,11 +50,11 @@ function MinimapButton.Command(db, action)
     settings.hide = false
     settings.angle = ns.Constants.MINIMAP_DEFAULT_ANGLE
   elseif action ~= "" then
-    return "usage: /nrage minimap [show | hide | reset]"
+    return L("usage: /nrage minimap [show | hide | reset]")
   end
   MinimapButton.Refresh()
-  return settings.hide and "minimap button hidden. Type /nrage minimap show to bring it back."
-    or "minimap button shown. Drag it to move it around the minimap."
+  return settings.hide and L("minimap button hidden. Type /nrage minimap show to bring it back.")
+    or L("minimap button shown. Drag it to move it around the minimap.")
 end
 
 local button, warning
@@ -103,9 +105,9 @@ local function showTooltip(self)
       GameTooltip:AddLine(line, 1, 0.4, 0.3)
     end
   end
-  GameTooltip:AddLine("Left click: open the window", 0.6, 0.6, 0.6)
-  GameTooltip:AddLine("Right click: shortcuts and sync", 0.6, 0.6, 0.6)
-  GameTooltip:AddLine("Drag: move this button", 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(L("Left click: open the window"), 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(L("Right click: shortcuts and sync"), 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(L("Drag: move this button"), 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end
 

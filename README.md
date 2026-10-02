@@ -77,6 +77,15 @@ tools/package.sh dev
 
 Every pull request runs lint, the tests with a minimum of 80% line coverage, a StyLua format check and a package build that verifies every file referenced by the TOC, `embeds.xml` and the icon is in the zip. Pull request titles must follow [Conventional Commits](https://www.conventionalcommits.org/). Dependabot keeps the workflow actions up to date. Domain logic is tested outside the game against fakes of the client API, which all goes through `NrageAssistant/Core/Platform.lua`. Work happens on `feature/*` branches with one pull request each.
 
+### Translations
+
+What the player reads goes through `L("English text")` (`NrageAssistant/Core/Locale.lua`): the code writes the English
+text and `NrageAssistant/Locales/esES.lua` maps it to Spanish; a text with no entry is shown in English. Spanish is used when
+the client is `esES` or `esMX`, English otherwise. Keep placeholders (`%d`, `%s`) in the same order, put one string literal
+inside each `L(...)`, and never translate a value that is compared or sent (a status, a role, a command word). A test
+fails when the code asks for a text the catalog does not have, when the catalog has one nothing asks for, or when
+the placeholders differ.
+
 ## Releasing
 
 Push a tag starting with `v`; the **Release** workflow runs the full CI first and, only if it passes, stamps the version into the TOC, zips `NrageAssistant/` and publishes a GitHub release.
