@@ -1,0 +1,25 @@
+NrageAssistant/Core/Constants.lua
+  s_07ab269e5c3375::t_061f41d0b1a815 111-115
+NrageAssistant/Core/Init.lua
+  s_07ab269e5c3375::t_d7517ca28d3a7a 47,134-137
+docs/API_NOTES.md
+  s_07ab269e5c3375::t_b1f7eb9d96ca50 53
+docs/USER_GUIDE.md
+  s_07ab269e5c3375::t_74340b8b557112 192-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9bc50be6855ca6f4b0b836be8d8aa2501cb5423",
+  "prompts": {},
+  "sessions": {
+    "s_07ab269e5c3375": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3aca999b-aa59-45a0-9537-8159c1b07941",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
