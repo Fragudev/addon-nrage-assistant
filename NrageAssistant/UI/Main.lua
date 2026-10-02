@@ -200,24 +200,15 @@ local function DrawProfile(container)
   AddHeading(container, "Your profile")
   AddLines(container, EscapeAll(ns.ProfileService.Describe(character.profile)))
 
-  AddHeading(container, "What you agree to share")
-  for _, key in ipairs(ns.PublishService.CONSENT_KEYS) do
-    local box = AceGUI:Create("CheckBox")
-    box:SetLabel(key)
-    box:SetValue(character.consent[key] and true or false)
-    box:SetCallback("OnValueChanged", function(_, _, value)
-      ns.PublishService.SetConsent(character.consent, key, value)
-      Redraw()
-    end)
-    container:AddChild(box)
-  end
-
-  AddHeading(container, "Preview of what would be published")
-  AddLines(container, EscapeAll(ns.PublishService.Describe(character.profile, character.consent)))
-  AddLines(container, { "Addon messages are not private: any guild member with the addon can read them." })
+  AddHeading(container, "Shared with the guild")
+  AddLines(container, EscapeAll(ns.PublishService.Describe(character.profile)))
+  AddLines(container, {
+    "Your profile is shared automatically after login and whenever it changes.",
+    "Addon messages are not private: any guild member with the addon can read them.",
+  })
 
   local button = AceGUI:Create("Button")
-  button:SetText("Publish")
+  button:SetText("Publish now")
   button:SetCallback("OnClick", function()
     local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
     statusMessage = ok and "Profile published to the guild." or ("Not published: " .. ns.ViewModel.PublishError(reason))

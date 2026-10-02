@@ -208,7 +208,6 @@ local function build(rank)
   }
   ns.character = {
     profile = { fields = {} },
-    consent = {},
     readiness = {},
     publish = {},
     pvp = { honor = { world = 4, bg = 6 }, blows = { world = 1, bg = 2 }, daily = {} },

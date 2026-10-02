@@ -199,6 +199,19 @@ local function StartBlacklist()
   pcall(watcher.Check, watcher)
 end
 
+-- The profile is shared with the guild without a switch (issue #36): once after login, when the roster has had time
+-- to load, and again whenever what would be shared differs from what was last sent.
+local function StartAutoPublish()
+  local function check()
+    if ns.active and ns.character and ns.comm then
+      ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+      ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
+    end
+  end
+  C_Timer.After(math.random(Constants.SYNC_LOGIN_REQUEST_DELAY_MIN, Constants.SYNC_LOGIN_REQUEST_DELAY_MAX) + 1, check)
+  C_Timer.NewTicker(Constants.PUBLISH_CHECK_SECONDS, check)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -224,6 +237,7 @@ local function Activate()
   ns.VotingFrame.Start()
   StartPvP()
   StartBlacklist()
+  StartAutoPublish()
   ScheduleSelfTest()
   print(("%s %s loaded. Type /nrage for help."):format(PREFIX, ns.GetVersion()))
 end

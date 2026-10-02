@@ -40,6 +40,9 @@ local function ProfileCommand(rest)
   end
 
   ns.ProfileService.Refresh(ns.Platform, profile)
+  if sub == "set" and ns.comm then
+    ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
+  end
   say("profile:")
   for _, line in ipairs(ns.ProfileService.Describe(profile)) do
     print("  " .. line)
@@ -82,31 +85,6 @@ local function ReadyCommand(rest)
   end
 end
 
-local function ConsentCommand(rest)
-  if not ns.active or not ns.character then
-    say("consent is unavailable while the addon is disabled.")
-    return
-  end
-
-  local consent = ns.character.consent
-  local key, value = rest:match("^(%S*)%s*(%S*)")
-  if key ~= "" then
-    if value ~= "on" and value ~= "off" then
-      say("usage: /nrage consent <profile|gear|professions|notes> <on|off>")
-      return
-    end
-    if not ns.PublishService.SetConsent(consent, key, value == "on") then
-      say("unknown item. Allowed: profile, gear, professions, notes.")
-      return
-    end
-  end
-
-  say("sharing consent:")
-  for _, name in ipairs(ns.PublishService.CONSENT_KEYS) do
-    print(("  %s: %s"):format(name, consent[name] and "on" or "off"))
-  end
-end
-
 local function PublishCommand(rest)
   if not ns.active or not ns.character or not ns.comm then
     say("publishing is unavailable while the addon is disabled.")
@@ -114,19 +92,19 @@ local function PublishCommand(rest)
   end
 
   local character = ns.character
-  if rest == "confirm" then
-    ns.ProfileService.Refresh(ns.Platform, character.profile)
+  ns.ProfileService.Refresh(ns.Platform, character.profile)
+  if rest == "now" then
     local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
     say(ok and "profile published to the guild." or ("not published: " .. ns.ViewModel.PublishError(reason)))
     return
   end
 
-  ns.ProfileService.Refresh(ns.Platform, character.profile)
-  for _, line in ipairs(ns.PublishService.Describe(character.profile, character.consent)) do
+  for _, line in ipairs(ns.PublishService.Describe(character.profile)) do
     print(line)
   end
+  say("Your profile is shared automatically after login and whenever it changes.")
+  say("/nrage publish now sends it at once.")
   say("Addon messages are not private: any guild member with the addon can read them.")
-  say("Type /nrage publish confirm to send.")
 end
 
 local function SyncCommand(rest)
@@ -364,7 +342,6 @@ local COMMANDS = {
   profile = ProfileCommand,
   ready = ReadyCommand,
   sync = SyncCommand,
-  consent = ConsentCommand,
   publish = PublishCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")

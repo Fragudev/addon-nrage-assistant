@@ -107,7 +107,7 @@ end)
 
 describe("ViewModel misc", function()
   it("turns a publish failure reason into a sentence", function()
-    assert.is_truthy(ViewModel.PublishError("no_consent"):find("consent", 1, true))
+    assert.is_truthy(ViewModel.PublishError("cooldown"):find("moment ago", 1, true))
     assert.are.equal("something_new", ViewModel.PublishError("something_new"))
   end)
 
@@ -151,7 +151,6 @@ describe("ViewModel misc", function()
       "role",
       "profile",
       "ready",
-      "consent",
       "publish",
       "event",
       "attendance",

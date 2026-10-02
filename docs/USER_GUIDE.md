@@ -52,18 +52,12 @@ cannot give is shown as `unknown`; it is never guessed.
 
 ### Sharing your sheet
 
-Nothing leaves your client until you agree to it, and you can agree to each kind of data separately:
+Your sheet is shared with the guild automatically, with no switch: after you log in, and again whenever it changes.
+It holds your class, level, item level, professions and skill, and your declared role and main. Your declared
+**notes stay on this computer**, and so do the enchants and buffs that the readiness checks read from your character.
 
-| Consent | Shares |
-|---|---|
-| `profile` | class, level, and your declared role and main |
-| `gear` | item level |
-| `professions` | your professions and skill |
-| `notes` | your declared notes |
-
-- `/nrage consent` shows your choices; `/nrage consent <profile|gear|professions|notes> <on|off>` changes one.
-- `/nrage publish` previews exactly what would be shared and what stays private. `/nrage publish confirm` sends it.
-- Turning consent off stops future publications; it cannot take back what other clients already received.
+- `/nrage publish` lists exactly what is shared and what stays private. `/nrage publish now` sends it at once.
+- What other clients already received cannot be taken back.
 
 **Addon messages are not private.** Anyone in the guild running the addon can read what you publish.
 See [PRIVACY.md](PRIVACY.md).

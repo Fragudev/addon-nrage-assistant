@@ -58,7 +58,6 @@ describe("Addon load", function()
   it("lists the commands for /nrage help", function()
     local text = run("help")
     assert.is_truthy(text:find("/nrage publish", 1, true))
-    assert.is_truthy(text:find("/nrage consent", 1, true))
   end)
 
   it("points to help for an unknown command", function()
@@ -72,7 +71,6 @@ describe("Addon load", function()
       "profile",
       "ready",
       "sync",
-      "consent",
       "publish",
       "event",
       "attendance",

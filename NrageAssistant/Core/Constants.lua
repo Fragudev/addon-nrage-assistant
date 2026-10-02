@@ -32,6 +32,8 @@ ns.Constants = {
 
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
+  -- How often the profile is read again to see whether it changed and has to be published.
+  PUBLISH_CHECK_SECONDS = 300,
 
   -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder
   -- ranks until Nrage defines its own; a rank that is not listed here is treated as "member".
