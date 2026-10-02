@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
---   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap },
+--   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
 --                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {} }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, consent = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
@@ -52,6 +52,11 @@ local MIGRATIONS = {
     local global = ensureTable(db, "global")
     ensureTable(global, "pvpStats")
     ensureTable(global, "pvpResets")
+  end,
+  -- v7: account-wide PvP settings (db.global.settings.pvp, see PvPFeed.Settings): the guild kill feed per
+  -- place. Missing fields get their defaults when read.
+  [7] = function(db)
+    ensureTable(ensureTable(ensureTable(db, "global"), "settings"), "pvp")
   end,
 }
 

@@ -22,6 +22,7 @@ secret store.
 | Profiles received from other members | the guild channel |
 | Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
 | PvP counters received from other members | the guild channel |
+| Recent guild kills (killer, victim, place), in memory only | the guild channel, and your own kills |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates | you; never shared |
@@ -48,6 +49,14 @@ receives your honourable kills and killing blows (open world and battleground, t
 receive theirs; that is what the ranking shows. Nothing else about the fights is shared: no victim names, places or
 times of single kills. Like every addon message they are **not encrypted**, so anyone able to read the addon
 channel can read them. An admin can reset a member's counters.
+
+**The kill feed shares the names of the players you kill.** When you kill a player, the guild members running the
+addon receive the victim's name, whether it was in the open world or a battleground, and whether you landed the
+killing blow, together with your name as the sender; you receive theirs. It is on by default in the open world and
+off in battlegrounds, and each place can be turned off in the *Recent kills* sub-tab of the PvP tab (one switch per
+place controls both what you share and what you see). Kills are sent about 5 seconds after they happen, at most 5
+per minute and never during an encounter. The feed is not saved: the last 50 entries are kept in memory until you
+log out. Like every addon message it is **not encrypted**, and a message already sent cannot be recalled.
 
 Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
 publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are

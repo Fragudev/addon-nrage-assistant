@@ -219,6 +219,21 @@ Admins can reset a member's counters with `/nrage pvp reset <name>` (the name as
 acts at once, prints the revision it used, and zeroes the member on every client; the member's own counters are
 zeroed when their client receives it, or at their next login. Nobody else can do this.
 
+### Recent kills
+
+The **Recent kills** sub-tab is a short guild feed: who killed whom, newest first, for example
+`12:04  Ann, Bob killed Zed (open world, killing blow)`. It shows the last 50 kills since you logged in; nothing is
+saved. When a guild member kills a player, you also get a chat line such as `Nrage Assistant: Ann killed Zed (open
+world)`. Several members who get honour for the same kill are listed on one line.
+
+- The two switches, **Feed in the open world** (on by default) and **Feed in battlegrounds** (off by default, it
+  would flood the chat), decide both whether you **share** your kills there and whether you **see** the kills of
+  others there. They are saved for the whole account.
+- Your own kills are sent to the guild about 5 seconds after they happen, at most 5 per minute, and never during an
+  encounter. This shares the names of the players you kill (see the privacy notes).
+- The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
+  available and nothing is shown or sent.
+
 ## Reports
 
 `/nrage report attendance [event]` and `/nrage report loot [event]`, over every event held or over one.

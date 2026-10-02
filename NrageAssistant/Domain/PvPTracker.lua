@@ -10,7 +10,7 @@ local _, ns = ...
 --     counted when the wiring managed to register the combat log (`blowsAvailable`).
 --
 -- Nothing here raises: every client read is guarded, and a value that cannot be compared (a secret value)
--- simply counts nothing. Victim names are not read or stored.
+-- simply counts nothing. Victim names are not read or stored here (the kill feed reads them).
 local PvPTracker = {}
 PvPTracker.__index = PvPTracker
 
@@ -86,10 +86,11 @@ function PvPTracker:OnHonorEvent()
 end
 
 -- `info` = { subevent, sourceGUID, destGUID } of a combat log event. Every comparison is guarded because any
--- of the values may be secret.
+-- of the values may be secret. Returns true when it was a killing blow of the player on a player (counted), so
+-- the caller can pass the event on, for example to the kill feed.
 function PvPTracker:OnCombatLog(info)
   if not self.blowsAvailable then
-    return
+    return false
   end
   local ok, counted = pcall(function()
     if info.subevent ~= "PARTY_KILL" then
@@ -102,9 +103,13 @@ function PvPTracker:OnCombatLog(info)
       and type(victim) == "string"
       and victim:sub(1, 7) == "Player-"
   end)
-  if ok and counted and ns.PvPService.RecordKillingBlow(self.stats, self:Where(), self:Day()) then
+  if not (ok and counted) then
+    return false
+  end
+  if ns.PvPService.RecordKillingBlow(self.stats, self:Where(), self:Day()) then
     self:Changed()
   end
+  return true
 end
 
 ns.PvPTracker = PvPTracker

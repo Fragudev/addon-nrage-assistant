@@ -47,6 +47,7 @@ local function build_env()
     pvpStats = {},
     pvpResets = {},
     pvpChanges = {},
+    pvpKills = {},
     ownResets = {},
   }
 
@@ -94,6 +95,9 @@ local function build_env()
     pvpResets = env.pvpResets,
     onPvPChange = function(messageType)
       env.pvpChanges[#env.pvpChanges + 1] = messageType
+    end,
+    onPvPKill = function(sender, payload)
+      env.pvpKills[#env.pvpKills + 1] = { sender = sender, payload = payload }
     end,
     onPvPReset = function(rev)
       env.ownResets[#env.ownResets + 1] = rev
@@ -1198,5 +1202,70 @@ describe("Comm PvP in a snapshot", function()
   it("sends a snapshot of PvP records alone", function()
     local ok = leader.comm:SendSnapshot("Joiner-Realm")
     assert.is_true(ok)
+  end)
+end)
+
+describe("Comm PVP_KILL", function()
+  local env
+
+  local function kill(overrides)
+    local p = { victim = "Zed", where = "world", blow = false }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+  end)
+
+  it("hands the kill to the feed with the sender as the killer", function()
+    local body = kill({ killer = "Someone-Else", sender = "Someone-Else" })
+    assert.is_true(env.comm:HandleMessage(env.wire("PVP_KILL", body, "k-1"), "Ann-Realm", "GUILD"))
+    assert.are.same(
+      { { sender = "Ann-Realm", payload = { victim = "Zed", where = "world", blow = false } } },
+      env.pvpKills
+    )
+    -- It is not a counter: nothing is stored and the ranking is not told.
+    assert.are.same({}, env.pvpStats)
+    assert.are.same({}, env.pvpChanges)
+  end)
+
+  it("needs a sender the guild roster knows", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("PVP_KILL", kill(), "k-1"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.pvpKills)
+  end)
+
+  it("drops a bad place or a blow that is not a boolean", function()
+    local noBlow = kill()
+    noBlow.blow = nil
+    for index, bad in ipairs({ kill({ where = "arena" }), kill({ blow = "yes" }), noBlow, kill({ victim = "" }) }) do
+      local ok, reason = env.comm:HandleMessage(env.wire("PVP_KILL", bad, "k-" .. index), "Ann-Realm", "GUILD")
+      assert.is_false(ok)
+      assert.are.equal("bad_payload", reason)
+    end
+    assert.are.same({}, env.pvpKills)
+  end)
+
+  it("is not accepted as a whisper", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("PVP_KILL", kill(), "k-1"), "Ann-Realm", "WHISPER")
+    assert.is_false(ok)
+    assert.are_not.equal(nil, reason)
+    assert.are.same({}, env.pvpKills)
+  end)
+
+  it("sends a kill at once, and refuses instead of queueing during the lockdown", function()
+    assert.is_true(env.comm:SendPvPKill(kill()))
+    assert.are.equal(1, #env.sent)
+    env.locked = true
+    local ok, reason = env.comm:SendPvPKill(kill())
+    assert.is_false(ok)
+    assert.are.equal("locked", reason)
+    assert.are.equal(0, env.queue:Pending())
+    assert.are.equal(1, #env.sent)
   end)
 end)

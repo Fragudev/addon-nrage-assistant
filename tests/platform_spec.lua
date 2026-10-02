@@ -416,7 +416,7 @@ describe("Platform PvP reads", function()
       return 1, "PARTY_KILL", false, "Player-1", "Me", 0, 0, "Player-2", "You"
     end
     assert.are.same(
-      { subevent = "PARTY_KILL", sourceGUID = "Player-1", destGUID = "Player-2" },
+      { subevent = "PARTY_KILL", sourceGUID = "Player-1", destGUID = "Player-2", destName = "You" },
       Platform.GetCombatLogInfo()
     )
     _G.CombatLogGetCurrentEventInfo = function()
@@ -442,5 +442,131 @@ describe("Platform PvP reads", function()
     end
     -- A table is never equal to a string without calling __eq, so it is simply not a PARTY_KILL.
     assert.is_nil(Platform.GetCombatLogInfo())
+  end)
+end)
+
+describe("Platform honour kill victim", function()
+  local saved = {}
+
+  before_each(function()
+    saved.rank, saved.noRank = _G.COMBATLOG_HONORGAIN, _G.COMBATLOG_HONORGAIN_NO_RANK
+    _G.COMBATLOG_HONORGAIN = "%s dies, honorable kill Rank: %s (%d Honor Points)"
+    _G.COMBATLOG_HONORGAIN_NO_RANK = nil
+  end)
+
+  after_each(function()
+    _G.COMBATLOG_HONORGAIN, _G.COMBATLOG_HONORGAIN_NO_RANK = saved.rank, saved.noRank
+  end)
+
+  it("builds an anchored pattern with a capture per argument", function()
+    local pattern, victim = Platform.HonorGainPattern("%s dies, honorable kill Rank: %s (%d Honor Points)")
+    assert.are.equal("^(.-) dies, honorable kill Rank: (.-) %((%d+) Honor Points%)$", pattern)
+    assert.are.equal(1, victim)
+  end)
+
+  it("escapes the magic characters of the text", function()
+    local pattern = Platform.HonorGainPattern("[PvP] %s (100%%) +1 - done? ^$.*")
+    assert.are.equal("^%[PvP%] (.-) %(100%%%) %+1 %- done%? %^%$%.%*$", pattern)
+    assert.are.equal("Zed", ("[PvP] Zed (100%) +1 - done? ^$.*"):match(pattern))
+  end)
+
+  it("follows positional arguments to find the victim capture", function()
+    local pattern, victim = Platform.HonorGainPattern("%2$s dies, rank %1$s")
+    assert.are.equal("^(.-) dies, rank (.-)$", pattern)
+    assert.are.equal(2, victim)
+    assert.is_nil(Platform.HonorGainPattern("%d points"))
+  end)
+
+  it("gives nil for a format that is missing or not usable", function()
+    assert.is_nil(Platform.HonorGainPattern(nil))
+    assert.is_nil(Platform.HonorGainPattern(""))
+    assert.is_nil(Platform.HonorGainPattern(42))
+    assert.is_nil(Platform.HonorGainPattern("100% sure %s"))
+  end)
+
+  it("reads a single-word and a multi-word victim", function()
+    assert.are.equal("Zed", Platform.ParseHonorVictim("Zed dies, honorable kill Rank: Knight (12 Honor Points)"))
+    assert.are.equal(
+      "Yonemon Gg",
+      Platform.ParseHonorVictim("Yonemon Gg dies, honorable kill Rank: Grand Marshal (3 Honor Points)")
+    )
+  end)
+
+  it("reads the variant without a rank", function()
+    _G.COMBATLOG_HONORGAIN_NO_RANK = "%s dies, honorable kill (%d Honor Points)"
+    assert.are.equal("Zed", Platform.ParseHonorVictim("Zed dies, honorable kill (12 Honor Points)"))
+    -- The ranked text still wins when both exist.
+    assert.are.equal("Zed", Platform.ParseHonorVictim("Zed dies, honorable kill Rank: Knight (12 Honor Points)"))
+  end)
+
+  it("gives nil when the text does not match", function()
+    assert.is_nil(Platform.ParseHonorVictim("You have been awarded 12 honor."))
+    assert.is_nil(Platform.ParseHonorVictim(""))
+    assert.is_nil(Platform.ParseHonorVictim(nil))
+  end)
+
+  it("gives nil for text that is a secret value", function()
+    local secret = setmetatable({}, {
+      __tostring = function()
+        error("secret")
+      end,
+      __concat = function()
+        error("secret")
+      end,
+    })
+    assert.is_nil(Platform.ParseHonorVictim(secret))
+  end)
+
+  it("gives nil when the client has no such format", function()
+    _G.COMBATLOG_HONORGAIN = nil
+    assert.is_nil(Platform.ParseHonorVictim("Zed dies, honorable kill Rank: Knight (12 Honor Points)"))
+    assert.is_false(Platform.HasHonorVictimSource())
+    _G.COMBATLOG_HONORGAIN = "%s dies"
+    assert.is_true(Platform.HasHonorVictimSource())
+  end)
+end)
+
+describe("Platform combat log victim name", function()
+  local saved
+
+  before_each(function()
+    saved = _G.CombatLogGetCurrentEventInfo
+  end)
+
+  after_each(function()
+    _G.CombatLogGetCurrentEventInfo = saved
+  end)
+
+  it("keeps the name of the victim when it is readable", function()
+    _G.CombatLogGetCurrentEventInfo = function()
+      return 1, "PARTY_KILL", false, "Player-1", "Me", 0, 0, "Player-2", "Yonemon Gg"
+    end
+    assert.are.equal("Yonemon Gg", Platform.GetCombatLogInfo().destName)
+  end)
+
+  it("leaves the name out when it is missing, empty or a secret value", function()
+    local secret = setmetatable({}, {
+      __concat = function()
+        error("secret")
+      end,
+      __len = function()
+        error("secret")
+      end,
+    })
+    for _, name in ipairs({ "", secret, 42 }) do
+      _G.CombatLogGetCurrentEventInfo = function()
+        return 1, "PARTY_KILL", false, "Player-1", "Me", 0, 0, "Player-2", name
+      end
+      local info = Platform.GetCombatLogInfo()
+      assert.are.equal("Player-2", info.destGUID)
+      assert.is_nil(info.destName)
+    end
+  end)
+end)
+
+describe("Platform.FormatClock", function()
+  it("formats the time of day", function()
+    local timestamp = Platform.ParseDate("2026-10-03 20:30")
+    assert.are.equal("20:30", Platform.FormatClock(timestamp))
   end)
 end)
