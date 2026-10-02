@@ -5,6 +5,8 @@ local _, ns = ...
 -- Guild traffic arrives on GUILD; a snapshot for a late joiner arrives as a WHISPER from a leader.
 -- The sender identity always comes from the client event, never from the payload.
 local Comm = {}
+
+local L = ns.L
 Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
@@ -592,22 +594,19 @@ function Comm:SendDeleteAssignment(eventId, assignmentId)
   return self:Send("DELETE", payload, ("DEL:%s:%s"):format(eventId, assignmentId))
 end
 
--- Lines for `/nrage sync`.
+-- Lines for the sync state on the Home tab.
 function Comm:Status()
   local lines = {}
   if self.queue:IsPaused() then
-    lines[1] = "sync paused: encounter in progress"
+    lines[1] = L("sync paused: encounter in progress")
   else
-    lines[1] = "sync ready"
+    lines[1] = L("sync ready")
   end
-  lines[#lines + 1] = ("queued messages: %d"):format(self.queue:Pending())
+  lines[#lines + 1] = L("queued messages: %d"):format(self.queue:Pending())
   if self.lastSnapshot then
     local snapshot = self.lastSnapshot
-    lines[#lines + 1] = ("last snapshot: %d of %d record(s) applied, from %s"):format(
-      snapshot.applied,
-      snapshot.total,
-      snapshot.from
-    )
+    lines[#lines + 1] =
+      L("last snapshot: %d of %d record(s) applied, from %s"):format(snapshot.applied, snapshot.total, snapshot.from)
   end
 
   local names = {}
@@ -615,13 +614,13 @@ function Comm:Status()
     names[#names + 1] = name
   end
   table.sort(names)
-  lines[#lines + 1] = ("peers seen: %d"):format(#names)
+  lines[#lines + 1] = L("peers seen: %d"):format(#names)
   for _, name in ipairs(names) do
     local peer = self.peers[name]
     if peer.incompatible then
-      lines[#lines + 1] = ("  %s - incompatible protocol version"):format(name)
+      lines[#lines + 1] = "  " .. L("%s - incompatible protocol version"):format(name)
     else
-      lines[#lines + 1] = ("  %s - addon %s"):format(name, tostring(peer.version))
+      lines[#lines + 1] = "  " .. L("%s - addon %s"):format(name, tostring(peer.version))
     end
   end
   return lines

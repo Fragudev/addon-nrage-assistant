@@ -10,6 +10,20 @@ local _, ns = ...
 -- Only events that were actually held count: planned and cancelled events are ignored.
 local ReportService = {}
 
+local L = ns.L
+
+-- How the attendance states are written in the report; the data keeps the English words.
+local STATE_TEXT = {
+  present = L("present"),
+  late = L("late"),
+  leftEarly = L("leftEarly"),
+  absent = L("absent"),
+  excused = L("excused"),
+  invited = L("invited"),
+  confirmed = L("confirmed"),
+  unknown = L("unknown"),
+}
+
 local ATTENDED = { present = true, late = true, leftEarly = true }
 local MISSED = { absent = true }
 local COUNTED_STATUSES = { open = true, closed = true }
@@ -72,22 +86,22 @@ end
 
 function ReportService.DescribeAttendance(rows, eventCount)
   if eventCount == 0 then
-    return { "No events held yet: only open or closed events count towards attendance." }
+    return { L("No events held yet: only open or closed events count towards attendance.") }
   end
   if #rows == 0 then
-    return { ("%d event(s) held, but no attendance recorded yet."):format(eventCount) }
+    return { L("%d event(s) held, but no attendance recorded yet."):format(eventCount) }
   end
 
-  local lines = { ("Attendance over %d event(s) held:"):format(eventCount) }
+  local lines = { L("Attendance over %d event(s) held:"):format(eventCount) }
   for _, row in ipairs(rows) do
     local parts = {}
     for _, state in ipairs(STATE_ORDER) do
       if row.counts[state] then
-        parts[#parts + 1] = ("%s %d"):format(state, row.counts[state])
+        parts[#parts + 1] = ("%s %d"):format(STATE_TEXT[state] or state, row.counts[state])
       end
     end
     local rate = row.rate and ("%d/%d (%d%%)"):format(row.attended, row.outcomes, math.floor(row.rate * 100 + 0.5))
-      or "no outcome recorded"
+      or L("no outcome recorded")
     lines[#lines + 1] = ("  %s: %s - %s"):format(row.characterKey, rate, table.concat(parts, ", "))
   end
   return lines
@@ -138,10 +152,10 @@ end
 
 function ReportService.DescribeLoot(rows, totals)
   if totals.sessions == 0 then
-    return { "No loot sessions yet." }
+    return { L("No loot sessions yet.") }
   end
   local lines = {
-    ("Loot: %d session(s), %d awarded, %d closed without an award, %d still open."):format(
+    L("Loot: %d session(s), %d awarded, %d closed without an award, %d still open."):format(
       totals.sessions,
       totals.awarded,
       totals.notAwarded,

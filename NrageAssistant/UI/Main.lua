@@ -372,7 +372,7 @@ local function DrawReady(container)
   end
   local statuses = {}
   for _, status in ipairs(ns.ViewModel.READY_STATUSES) do
-    statuses[status] = status
+    statuses[status] = ns.ViewModel.Word(status)
   end
   for _, item in ipairs(items) do
     AddDropdown(container, item.label, statuses, ns.ViewModel.READY_STATUSES, item.status, 0.5, function(key)
@@ -1108,7 +1108,7 @@ local function DrawRules(container)
   AddLines(container, EscapeAll({ ns.ReadinessRules.Describe(ns.db.global.readinessRules)[1] }))
   AddHeading(container, L("Rules (%d)"):format(#rules))
   for _, rule in ipairs(rules) do
-    AddCell(container, viewModel.Escape(rule.label), RULE_COLUMNS.label)
+    AddCell(container, viewModel.Escape(ns.ReadinessService.LabelText(rule.label)), RULE_COLUMNS.label)
     AddCell(container, viewModel.Escape(viewModel.RuleSummary(rule)), RULE_COLUMNS.summary)
     AddButton(container, L("Remove"), RULE_COLUMNS.remove, function()
       local list, reason = viewModel.WithoutRule(rules, rule.id)

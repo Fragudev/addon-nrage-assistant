@@ -7,6 +7,7 @@ local function load_modules()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/EventModel",

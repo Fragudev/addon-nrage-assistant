@@ -5,16 +5,18 @@ local _, ns = ...
 -- never a guess.
 local ProfileService = {}
 
+local L = ns.L
+
 local SOURCE_LABELS = {
-  observed = "verified",
-  declared = "declared",
-  received = "received",
+  observed = L("verified"),
+  declared = L("declared"),
+  received = L("received"),
 }
 
 local LINES = {
-  { key = "class", label = "Class" },
-  { key = "level", label = "Level" },
-  { key = "ilvl", label = "Item level" },
+  { key = "class", label = L("Class") },
+  { key = "level", label = L("Level") },
+  { key = "ilvl", label = L("Item level") },
 }
 
 local function ensureTable(parent, key)
@@ -83,7 +85,7 @@ function ProfileService.Describe(profile)
     if value ~= nil and source then
       lines[#lines + 1] = ("%s: %s [%s]"):format(spec.label, tostring(value), SOURCE_LABELS[source])
     else
-      lines[#lines + 1] = ("%s: unknown"):format(spec.label)
+      lines[#lines + 1] = L("%s: unknown"):format(spec.label)
     end
   end
 
@@ -92,9 +94,9 @@ function ProfileService.Describe(profile)
     names[#names + 1] = ("%s (%s)"):format(profession.name, tostring(profession.skill))
   end
   if #names > 0 then
-    lines[#lines + 1] = ("Professions: %s [%s]"):format(table.concat(names, ", "), SOURCE_LABELS.observed)
+    lines[#lines + 1] = L("Professions: %s [%s]"):format(table.concat(names, ", "), SOURCE_LABELS.observed)
   else
-    lines[#lines + 1] = "Professions: unknown"
+    lines[#lines + 1] = L("Professions: unknown")
   end
 
   local enchanted, equipped = 0, 0
@@ -105,14 +107,14 @@ function ProfileService.Describe(profile)
     end
   end
   if profile.enchants then
-    lines[#lines + 1] = ("Enchants: %d of %d equipped items [%s]"):format(enchanted, equipped, SOURCE_LABELS.observed)
+    lines[#lines + 1] = L("Enchants: %d of %d equipped items [%s]"):format(enchanted, equipped, SOURCE_LABELS.observed)
   else
-    lines[#lines + 1] = "Enchants: unknown"
+    lines[#lines + 1] = L("Enchants: unknown")
   end
   if profile.buffs then
-    lines[#lines + 1] = ("Active buffs: %d [%s]"):format(#profile.buffs, SOURCE_LABELS.observed)
+    lines[#lines + 1] = L("Active buffs: %d [%s]"):format(#profile.buffs, SOURCE_LABELS.observed)
   else
-    lines[#lines + 1] = "Active buffs: unknown"
+    lines[#lines + 1] = L("Active buffs: unknown")
   end
 
   local keys = {}

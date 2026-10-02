@@ -8,6 +8,7 @@ local function load_addon()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/EventModel",

@@ -7,6 +7,8 @@ local _, ns = ...
 --   template = { name, slots = { { encounter, characterKey, group?, task?, note? } ... }, savedAt, savedBy }
 local TemplateService = {}
 
+local L = ns.L
+
 local function countKeys(tbl)
   local count = 0
   for _ in pairs(tbl) do
@@ -171,9 +173,9 @@ function TemplateService.Describe(created, skipped)
   for _, reason in ipairs(reasons) do
     parts[#parts + 1] = ("%s: %d"):format(reason, skipped[reason])
   end
-  local text = ("added %d assignment(s)"):format(#created)
+  local text = L("added %d assignment(s)"):format(#created)
   if #parts > 0 then
-    text = text .. " (skipped - " .. table.concat(parts, ", ") .. ")"
+    text = text .. L(" (skipped - %s)"):format(table.concat(parts, ", "))
   end
   return text
 end
