@@ -214,3 +214,60 @@ describe("PvPService.Prune", function()
     assert.are.same({}, stats.daily)
   end)
 end)
+
+describe("PvPService.RankFor", function()
+  local RANKS = {
+    { name = "Private", kills = 0 },
+    { name = "Corporal", kills = 10 },
+    { name = "Sergeant", kills = 30 },
+  }
+
+  it("gives the first rank at zero kills", function()
+    assert.are.same(
+      { index = 1, name = "Private", next = { name = "Corporal", kills = 10, remaining = 10 } },
+      PvPService.RankFor(0, RANKS)
+    )
+  end)
+
+  it("reaches a rank exactly at its threshold", function()
+    local rank = PvPService.RankFor(10, RANKS)
+    assert.are.equal("Corporal", rank.name)
+    assert.are.equal(2, rank.index)
+    assert.are.same({ name = "Sergeant", kills = 30, remaining = 20 }, rank.next)
+  end)
+
+  it("stays on a rank between thresholds", function()
+    local rank = PvPService.RankFor(29, RANKS)
+    assert.are.equal("Corporal", rank.name)
+    assert.are.equal(1, rank.next.remaining)
+  end)
+
+  it("has no next rank at or above the top threshold", function()
+    assert.are.same({ index = 3, name = "Sergeant" }, PvPService.RankFor(500, RANKS))
+  end)
+
+  it("has no rank yet below a first threshold above zero", function()
+    local rank = PvPService.RankFor(2, { { name = "Scout", kills = 5 } })
+    assert.is_nil(rank.name)
+    assert.are.same({ name = "Scout", kills = 5, remaining = 3 }, rank.next)
+  end)
+
+  it("gives nothing for an empty or missing table", function()
+    assert.are.same({}, PvPService.RankFor(50, {}))
+    assert.are.same({}, PvPService.RankFor(50, nil))
+  end)
+
+  it("skips malformed entries and treats bad kill counts as zero", function()
+    local ranks =
+      { "oops", { name = "Private", kills = 0 }, { name = 3, kills = 5 }, { name = "Corporal", kills = 10 } }
+    local rank = PvPService.RankFor("lots", ranks)
+    assert.are.equal("Private", rank.name)
+    assert.are.equal(1, rank.index)
+    assert.are.equal("Corporal", rank.next.name)
+  end)
+
+  it("works with the configured ranks", function()
+    assert.are.equal("Private", PvPService.RankFor(0, Constants.PVP_RANKS).name)
+    assert.are.equal("Grand Marshal", PvPService.RankFor(1000000, Constants.PVP_RANKS).name)
+  end)
+end)

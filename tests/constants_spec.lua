@@ -10,8 +10,21 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 4", function()
+  it("is at schema version 5", function()
     assert.are.equal(5, ns.Constants.SCHEMA_VERSION)
+  end)
+
+  it("defines PvP ranks with names and thresholds that keep going up", function()
+    local ranks = ns.Constants.PVP_RANKS
+    assert.are.equal(14, #ranks)
+    local previous = -1
+    for i, rank in ipairs(ranks) do
+      assert.is_true(type(rank.name) == "string" and rank.name ~= "", "rank " .. i .. " has no name")
+      assert.is_true(type(rank.kills) == "number" and rank.kills % 1 == 0, "rank " .. i .. " needs whole kills")
+      assert.is_true(rank.kills > previous, "rank " .. i .. " does not go up")
+      previous = rank.kills
+    end
+    assert.are.equal(0, ranks[1].kills)
   end)
 end)
 

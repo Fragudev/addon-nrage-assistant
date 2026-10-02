@@ -157,4 +157,24 @@ function PvPService.Prune(stats, today, keepDays)
   end
 end
 
+-- The rank for `kills` honourable kills in `ranks` (Constants.PVP_RANKS: lowest first):
+--   { index, name, next = { name, kills, remaining } }, with next = nil at the top rank.
+-- Below the first threshold there is no rank yet: { next = ... } without index or name. Entries that are not a
+-- { name, kills } pair are skipped, so a typo in the constants never breaks the tab.
+function PvPService.RankFor(kills, ranks)
+  kills = count(kills)
+  local result = {}
+  for _, rank in ipairs(type(ranks) == "table" and ranks or {}) do
+    if type(rank) == "table" and type(rank.name) == "string" and type(rank.kills) == "number" then
+      if kills >= rank.kills then
+        result.index, result.name = (result.index or 0) + 1, rank.name
+      else
+        result.next = { name = rank.name, kills = rank.kills, remaining = rank.kills - kills }
+        return result
+      end
+    end
+  end
+  return result
+end
+
 ns.PvPService = PvPService

@@ -973,6 +973,26 @@ describe("ViewModel PvP", function()
     assert.is_truthy(text:find("Honourable kills", 1, true))
   end)
 
+  it("starts with the rank and the progress to the next one", function()
+    local ranks = { { name = "Private", kills = 0 }, { name = "Corporal", kills = 25 } }
+    local lines = ViewModel.PvPStats(stats(), { day = "2026-10-01", honorAvailable = true, ranks = ranks })
+    assert.are.equal("Rank: Private (10 honourable kills) - 15 to Corporal", lines[1])
+  end)
+
+  it("uses the configured ranks by default", function()
+    local lines = ViewModel.PvPStats(stats(), { day = "2026-10-01", honorAvailable = true })
+    assert.are.equal("Rank: Private (10 honourable kills) - 15 to Corporal", lines[1])
+  end)
+
+  it("describes the top rank, no rank yet and no ranks configured", function()
+    assert.are.equal(
+      "Rank: Corporal (40 honourable kills), the highest rank",
+      ViewModel.PvPRankLine(40, { { name = "Private", kills = 0 }, { name = "Corporal", kills = 25 } })
+    )
+    assert.are.equal("Rank: none yet - 3 to Scout", ViewModel.PvPRankLine(2, { { name = "Scout", kills = 5 } }))
+    assert.are.equal("Rank: none (no ranks are configured)", ViewModel.PvPRankLine(2, {}))
+  end)
+
   it("says so when honourable kills cannot be read", function()
     local text = table.concat(ViewModel.PvPStats(nil, { blowsAvailable = true }), "\n")
     assert.is_truthy(text:find("Honourable kills are not available on this client.", 1, true))

@@ -108,6 +108,26 @@ ns.Constants = {
   PVP_DAILY_DAYS = 30,
   -- The honour counter can update a moment after its event; it is read once more after this delay.
   PVP_RECHECK_SECONDS = 0.5,
+  -- PvP ranks, lowest first, as in the Classic honour system. `kills` is the total of honourable kills (open
+  -- world plus battleground) a rank needs; killing blows do not count. Names and thresholds can be changed
+  -- freely, and the list can be longer or shorter, as long as the thresholds keep going up. The rank is worked
+  -- out on each client and never sent. PLACEHOLDER thresholds until the guild decides them.
+  PVP_RANKS = {
+    { name = "Private", kills = 0 },
+    { name = "Corporal", kills = 25 },
+    { name = "Sergeant", kills = 75 },
+    { name = "Master Sergeant", kills = 150 },
+    { name = "Sergeant Major", kills = 300 },
+    { name = "Knight", kills = 500 },
+    { name = "Knight-Lieutenant", kills = 800 },
+    { name = "Knight-Captain", kills = 1200 },
+    { name = "Knight-Champion", kills = 1700 },
+    { name = "Lieutenant Commander", kills = 2300 },
+    { name = "Commander", kills = 3000 },
+    { name = "Marshal", kills = 3800 },
+    { name = "Field Marshal", kills = 4700 },
+    { name = "Grand Marshal", kills = 6000 },
+  },
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

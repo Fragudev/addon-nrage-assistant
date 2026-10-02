@@ -157,17 +157,31 @@ function ViewModel.RaidSubTabs(actions)
 end
 
 -- The sub-tabs of the PvP tab. Only the own counters for now; the guild ranking comes with the sync phase.
+-- "Rank: Knight (512 honourable kills) - 288 to Knight-Lieutenant", or the top rank, or no rank yet.
+function ViewModel.PvPRankLine(kills, ranks)
+  local rank = ns.PvPService.RankFor(kills, ranks)
+  local current = rank.name and ("%s (%d honourable kills)"):format(rank.name, kills) or "none yet"
+  if rank.next then
+    return ("Rank: %s - %d to %s"):format(current, rank.next.remaining, rank.next.name)
+  end
+  if rank.name then
+    return ("Rank: %s, the highest rank"):format(current)
+  end
+  return "Rank: none (no ranks are configured)"
+end
+
 function ViewModel.PvPSubTabs()
   return { { value = "mine", text = "My stats" } }
 end
 
 -- The lines of "My stats": honourable kills and killing blows split into open world and battleground, with
--- the total and today. `options` = { day = "YYYY-MM-DD" (today, server date), honorAvailable, blowsAvailable }.
+-- the total and today, after the PvP rank. `options` = { day = "YYYY-MM-DD" (today, server date),
+-- honorAvailable, blowsAvailable, ranks (default Constants.PVP_RANKS) }.
 -- The killing blows are left out when this client does not allow reading them.
 function ViewModel.PvPStats(stats, options)
   local totals = ns.PvPService.Totals(stats)
   local today = ns.PvPService.Today(stats, options.day)
-  local lines = {}
+  local lines = { ViewModel.PvPRankLine(totals.honor.total, options.ranks or ns.Constants.PVP_RANKS), "" }
 
   local function section(title, all, day)
     lines[#lines + 1] = title
