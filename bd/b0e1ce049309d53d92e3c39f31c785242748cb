@@ -1,0 +1,35 @@
+NrageAssistant/Commands/BlacklistCommands.lua
+  s_07ab269e5c3375::t_2583d4c3c463a7 38-39,85,91-93
+NrageAssistant/Domain/BlacklistService.lua
+  s_07ab269e5c3375::t_e864a7605b7a6f 89-99,108-120
+NrageAssistant/Domain/PermissionService.lua
+  s_07ab269e5c3375::t_96529187b7abaf 24-26
+NrageAssistant/Sync/BlacklistSync.lua
+  s_07ab269e5c3375::t_a900f51e7052ef 6-7,68-72
+docs/PROTOCOL.md
+  s_07ab269e5c3375::t_c75cb5d3c53614 157-163
+docs/USER_GUIDE.md
+  s_07ab269e5c3375::t_05c9c7605a9a55 243-244
+tests/blacklist_commands_spec.lua
+  s_07ab269e5c3375::t_70d6551794a657 99,102-111,113-120
+tests/blacklist_service_spec.lua
+  s_07ab269e5c3375::t_a11f04b5978b96 132,135-157,159,161-182
+tests/blacklist_sync_spec.lua
+  s_07ab269e5c3375::t_78875acaa7bc95 107,110,114-134,138,143,148,153-154,158,196-197,292,345-347,349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bdb0e1ce049309d53d92e3c39f31c785242748cb",
+  "prompts": {},
+  "sessions": {
+    "s_07ab269e5c3375": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3aca999b-aa59-45a0-9537-8159c1b07941",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
