@@ -383,6 +383,9 @@ local function DrawReady(container)
   end
 end
 
+-- The event whose Delete button was clicked once, waiting for the second click.
+local deleteConfirming
+
 local function DrawEventEditor(container, raid, event)
   AddTextInput(container, L("Title (Enter to rename)"), event.title, 1, function(value)
     Report(raid:RenameEvent(event, value))
@@ -399,6 +402,20 @@ local function DrawEventEditor(container, raid, event)
   AddTextInput(container, L("Start, local time (YYYY-MM-DD HH:MM)"), start, 0.6, function(value)
     Report(raid:SetEventStart(event, value))
   end)
+  AddButton(
+    container,
+    deleteConfirming == event.eventId and L("Confirm: delete this event") or L("Delete this event"),
+    0.5,
+    function()
+      if deleteConfirming ~= event.eventId then
+        deleteConfirming = event.eventId
+        Report({ L("Delete '%s'? Click the button again to confirm."):format(event.title) })
+        return
+      end
+      deleteConfirming = nil
+      Report(raid:DeleteEvent(event))
+    end
+  )
 end
 
 local attendanceNewState = "present"
@@ -513,6 +530,14 @@ local function DrawTemplates(container, templates, event)
         return
       end
       Report(templates:ApplyToEvent(event, chosen))
+    end)
+    AddButton(container, L("Delete template"), 0.4, function()
+      if not chosen then
+        actionMessage = L("Pick a template first.")
+        Redraw()
+        return
+      end
+      Report(templates:Delete(chosen))
     end)
   else
     AddLines(container, { L("No templates saved yet.") })

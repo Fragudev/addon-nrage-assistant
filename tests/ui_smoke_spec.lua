@@ -88,7 +88,6 @@ local function load_window(locale)
     "Core/Locale",
     "Locales/esES",
     "Core/Validate",
-    "Core/Args",
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
@@ -268,6 +267,7 @@ local function build(rank, locale)
     "SendAttendance",
     "SendAssignment",
     "SendDeleteAssignment",
+    "SendDeleteEvent",
     "SendLootSession",
     "SendLootCandidate",
     "SendLootVote",
@@ -1414,6 +1414,45 @@ describe("Controls that replace the slash commands", function()
       assert.is_truthy(text:find("oot", 1, true))
       assert.is_truthy(env.find(raid, "Dropdown", "Scope"))
       env.find(raid, "Dropdown", "Scope").callbacks.OnValueChanged(nil, nil, "all")
+    end)
+  end)
+
+  describe("on the Raid tab, for the commands that deleted things", function()
+    local function create_event()
+      env.ns.EventService.Create({
+        events = env.ns.db.global.events,
+        role = "rl",
+        actor = "Leader-Realm",
+        now = env.ns.Platform.ServerTime,
+        newId = function()
+          return "ev-1"
+        end,
+      }, { title = "Raid night" })
+    end
+
+    it("deletes an event only after a second click on the button", function()
+      env = build("RL")
+      create_event()
+      local raid = env.raid("details")
+      env.find(raid, "Button", "Delete this event").callbacks.OnClick()
+      assert.is_truthy(env.ns.db.global.events["ev-1"])
+      assert.are.same({}, env.sent)
+      raid = env.raid("details")
+      assert.is_truthy(labels(raid):find("Delete 'Raid night'?", 1, true))
+      env.find(raid, "Button", "Confirm: delete this event").callbacks.OnClick()
+      assert.is_nil(env.ns.db.global.events["ev-1"])
+      assert.are.same({ "SendDeleteEvent" }, env.sent)
+    end)
+
+    it("deletes a saved template", function()
+      env = build("RL")
+      create_event()
+      env.ns.db.global.templates.Boss =
+        { name = "Boss", slots = { { encounter = "Garr", characterKey = "Bob-Realm" } } }
+      local raid = env.raid("templates")
+      env.find(raid, "Dropdown", "Saved templates").callbacks.OnValueChanged(nil, nil, "Boss")
+      env.find(raid, "Button", "Delete template").callbacks.OnClick()
+      assert.is_nil(env.ns.db.global.templates.Boss)
     end)
   end)
 

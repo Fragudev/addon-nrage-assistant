@@ -15,7 +15,6 @@ Core\Platform.lua
 Core\Locale.lua
 Locales\esES.lua
 Core\Validate.lua
-Core\Args.lua
 Core\AccessGuard.lua
 Core\LockdownGuard.lua
 Core\LockdownProbe.lua
@@ -60,7 +59,6 @@ UI\VotingFrame.lua
 UI\MinimapButton.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
-Commands\ReportCommands.lua
 Commands\TemplateCommands.lua
 Commands\BlacklistCommands.lua
 Commands\Slash.lua

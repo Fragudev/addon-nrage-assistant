@@ -2,6 +2,7 @@ local function load_modules()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/EventModel",
@@ -9,7 +10,6 @@ local function load_modules()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/ReportService",
-    "Commands/ReportCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
@@ -188,43 +188,5 @@ describe("ReportService loot", function()
     local rows, totals = Report.Loot({ a = event("a", "closed", 1) })
     assert.are.same({}, rows)
     assert.are.same({ "No loot sessions yet." }, Report.DescribeLoot(rows, totals))
-  end)
-end)
-
-describe("ReportCommands", function()
-  local ReportCommands = ns.ReportCommands
-  local function build()
-    return ReportCommands.New({
-      events = {
-        a = event("a", "closed", 1, records({ ["Ann-Realm"] = "present" })),
-        b = event("b", "closed", 2, records({ ["Bob-Realm"] = "absent" })),
-      },
-    })
-  end
-  local function text(lines)
-    return table.concat(lines, "\n")
-  end
-
-  it("reports attendance over every event, or over a single one by number", function()
-    local commands = build()
-    local all = text(commands:Report("attendance"))
-    assert.is_truthy(all:find("Ann-Realm", 1, true))
-    assert.is_truthy(all:find("Bob-Realm", 1, true))
-
-    local first = text(commands:Report("attendance 1"))
-    assert.is_truthy(first:find("Ann-Realm", 1, true))
-    assert.is_nil(first:find("Bob-Realm", 1, true))
-  end)
-
-  it("reports loot", function()
-    assert.is_truthy(text(build():Report("loot")):find("No loot sessions yet", 1, true))
-  end)
-
-  it("gives the usage for anything else and a clear error for a bad event number", function()
-    local commands = build()
-    assert.is_truthy(text(commands:Report("")):find("usage:", 1, true))
-    assert.is_truthy(text(commands:Report("weather")):find("usage:", 1, true))
-    assert.is_truthy(text(commands:Report("attendance 9")):find("give the event number", 1, true))
-    assert.is_truthy(text(commands:Report("loot x")):find("give the event number", 1, true))
   end)
 end)

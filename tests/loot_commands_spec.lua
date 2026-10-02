@@ -2,8 +2,8 @@ local function load_modules()
   local ns = {}
   for _, path in ipairs({
     "Core/Constants",
+    "Core/Locale",
     "Core/Validate",
-    "Core/Args",
     "Domain/PermissionService",
     "Domain/EventModel",
     "Domain/EventService",
@@ -72,10 +72,19 @@ local function first_session(env)
   return ns.LootService.Sessions(env.events["ev-1"])[1]
 end
 
+local function event_of(env)
+  return env.events["ev-1"]
+end
+
+local function open_session(env, id, name)
+  return env.loot:OpenItem(event_of(env), { itemId = id or 19019, itemName = name or "Thunderfury" })
+end
+
 describe("LootCommands open", function()
   it("opens a session from a shift-clicked item link and sends it", function()
     local env = build("Council")
-    local lines = text(env.loot:Loot("1 open " .. LINK))
+    local item = ns.LootCommands.ParseItem(LINK)
+    local lines = text(env.loot:OpenItem(event_of(env), item))
     assert.is_truthy(lines:find("opened a session for Thunderfury, Blessed Blade", 1, true))
     local session = first_session(env)
     assert.are.equal(19019, session.itemId)
@@ -86,24 +95,21 @@ describe("LootCommands open", function()
 
   it("opens a session from an item id and a name", function()
     local env = build("GM")
-    assert.is_truthy(text(env.loot:Loot("1 open 19019 Thunderfury")):find("opened a session", 1, true))
+    local item = ns.LootCommands.ParseItem("19019 Thunderfury")
+    assert.is_truthy(text(env.loot:OpenItem(event_of(env), item)):find("opened a session", 1, true))
     assert.are.equal("Thunderfury", first_session(env).itemName)
   end)
 
-  it("explains what to give when the item cannot be read, and sends nothing", function()
-    local env = build("Council")
-    for _, args in ipairs({ "", "Thunderfury", "0 ", "abc def" }) do
-      assert.is_truthy(text(env.loot:Loot("1 open " .. args)):find("give an item link", 1, true), args)
+  it("cannot read an item that is not a link or an id and a name", function()
+    for _, args in ipairs({ "", "Thunderfury", "0 ", "abc def", "|Hitem:5|h|h" }) do
+      assert.is_nil(ns.LootCommands.ParseItem(args), args)
     end
-    assert.is_truthy(text(env.loot:Loot("1 open |Hitem:5|h|h")):find("give an item link", 1, true))
-    assert.are.equal(0, #env.sent)
-    assert.is_nil(first_session(env))
   end)
 
   it("refuses to open a session while chat messaging is locked down", function()
     local env = build("Council")
     env.locked = true
-    assert.is_truthy(text(env.loot:Loot("1 open " .. LINK)):find("wait until the encounter ends", 1, true))
+    assert.is_truthy(text(open_session(env)):find("wait until the encounter ends", 1, true))
     assert.is_nil(first_session(env))
     assert.are.equal(0, #env.sent)
   end)
@@ -111,8 +117,7 @@ describe("LootCommands open", function()
   it("tells a member and a raid leader why they cannot open a session", function()
     for _, rank in ipairs({ "member", "RL" }) do
       local env = build(rank)
-      local lines = text(env.loot:Loot("1 open " .. LINK))
-      assert.is_truthy(lines:find("not allowed", 1, true), rank)
+      assert.is_truthy(text(open_session(env)):find("not allowed", 1, true), rank)
       assert.are.equal(0, #env.sent)
     end
   end)
@@ -120,7 +125,7 @@ describe("LootCommands open", function()
   it("reports when the change was saved but could not be queued", function()
     local env = build("Council")
     env.sendResult = { false, "full" }
-    local lines = text(env.loot:Loot("1 open " .. LINK))
+    local lines = text(open_session(env))
     assert.is_truthy(lines:find("saved here, but not sent to the guild (full)", 1, true))
     assert.is_truthy(first_session(env))
   end)
@@ -130,7 +135,7 @@ describe("LootCommands send failures", function()
   it("shows what the encoder reported, so a failure can be diagnosed", function()
     local env = build("Council")
     env.sendResult = { false, "encode_failed", "cannot serialize a function" }
-    local lines = text(env.loot:Loot("1 open " .. LINK))
+    local lines = text(open_session(env))
     assert.is_truthy(lines:find("(encode_failed: cannot serialize a function)", 1, true))
   end)
 end)
@@ -138,88 +143,71 @@ end)
 describe("LootCommands session flow", function()
   local env
 
+  local function apply(fields)
+    return env.loot:Apply(event_of(env), first_session(env), fields)
+  end
+
   before_each(function()
     env = build("Council")
-    env.loot:Loot("1 open 19019 Thunderfury")
+    open_session(env)
     env.sent = {}
   end)
 
   it("registers the actor as a candidate with an optional upgrade, and sends it", function()
-    local lines = text(env.loot:Loot("1 1 apply Fury main Replaces my old axe"))
+    local lines = text(apply({ spec = "Fury", need = "main", upgrade = "Replaces my old axe" }))
     assert.is_truthy(lines:find("you are a candidate for Thunderfury (Fury, main).", 1, true))
     local candidate = first_session(env).candidates["Boss-Realm"]
     assert.are.equal("Replaces my old axe", candidate.upgrade)
     assert.are.equal("SendLootCandidate", env.sent[1].kind)
   end)
 
-  it("rejects a malformed or invalid application", function()
-    assert.is_truthy(text(env.loot:Loot("1 1 apply Fury")):find("usage:", 1, true))
-    assert.is_truthy(text(env.loot:Loot("1 1 apply Fury greed")):find("invalid need", 1, true))
+  it("rejects an invalid application", function()
+    assert.is_truthy(text(apply({ spec = "Fury", need = "greed" })):find("invalid need", 1, true))
     assert.are.equal(0, #env.sent)
   end)
 
   it("votes for a candidate and refuses a character who has not applied", function()
-    env.loot:Loot("1 1 apply Fury main")
+    apply({ spec = "Fury", need = "main" })
     env.sent = {}
-    assert.is_truthy(text(env.loot:Loot("1 1 vote Boss-Realm")):find("voted for Boss-Realm", 1, true))
+    local event, session = event_of(env), first_session(env)
+    assert.is_truthy(text(env.loot:VoteFor(event, session, "Boss-Realm")):find("voted for Boss-Realm", 1, true))
     assert.are.equal("SendLootVote", env.sent[1].kind)
-    assert.is_truthy(text(env.loot:Loot("1 1 vote Nobody-Realm")):find("has not put themselves forward", 1, true))
+    local refused = text(env.loot:VoteFor(event, session, "Nobody-Realm"))
+    assert.is_truthy(refused:find("has not put themselves forward", 1, true))
     assert.are.equal(1, #env.sent)
   end)
 
   it("awards with a reason, closes the session and sends the award", function()
-    env.loot:Loot("1 1 apply Fury main")
+    apply({ spec = "Fury", need = "main" })
     env.sent = {}
-    local lines = text(env.loot:Loot("1 1 award Boss-Realm Highest need in the raid"))
+    local event, session = event_of(env), first_session(env)
+    local lines = text(env.loot:AwardTo(event, session, "Boss-Realm", "Highest need in the raid"))
     assert.is_truthy(lines:find("Thunderfury awarded to Boss-Realm", 1, true))
     assert.are.equal("SendLootAward", env.sent[1].kind)
     assert.are.equal("closed", first_session(env).status)
     assert.are.equal("Highest need in the raid", first_session(env).award.reason)
-    assert.is_truthy(text(env.loot:Loot("1 1 vote Boss-Realm")):find("already closed", 1, true))
+    assert.is_truthy(text(env.loot:VoteFor(event, session, "Boss-Realm")):find("already closed", 1, true))
   end)
 
   it("asks for a reason and for a candidate before awarding", function()
-    env.loot:Loot("1 1 apply Fury main")
-    assert.is_truthy(text(env.loot:Loot("1 1 award Boss-Realm")):find("usage:", 1, true))
-    assert.is_truthy(text(env.loot:Loot("1 1 award Nobody-Realm why")):find("has not put themselves forward", 1, true))
+    apply({ spec = "Fury", need = "main" })
+    local event, session = event_of(env), first_session(env)
+    assert.is_truthy(text(env.loot:AwardTo(event, session, "Boss-Realm", "")):find("invalid", 1, true))
+    local refused = text(env.loot:AwardTo(event, session, "Nobody-Realm", "why"))
+    assert.is_truthy(refused:find("has not put themselves forward", 1, true))
     assert.are.equal("open", first_session(env).status)
   end)
 
   it("closes a session without awarding and sends the closed session", function()
-    local lines = text(env.loot:Loot("1 1 close"))
+    local lines = text(env.loot:CloseSession(event_of(env), first_session(env)))
     assert.is_truthy(lines:find("without awarding", 1, true))
     assert.are.equal("SendLootSession", env.sent[1].kind)
     assert.are.equal("closed", env.sent[1].args[2].status)
   end)
 
-  it("shows a session with its candidates, votes and the privacy warning", function()
-    env.loot:Loot("1 1 apply Fury main Better axe")
-    env.loot:Loot("1 1 vote Boss-Realm")
-    local lines = text(env.loot:Loot("1 1"))
-    assert.is_truthy(lines:find("Thunderfury [open]", 1, true))
-    assert.is_truthy(lines:find("Boss-Realm: Fury, main - Better axe", 1, true))
-    assert.is_truthy(lines:find("votes: Boss-Realm 1", 1, true))
-    assert.is_truthy(lines:find("not private", 1, true))
-  end)
-
-  it("hides vote counts while open under a secret policy", function()
-    local saved = ns.Constants.VOTE_VISIBILITY
-    ns.Constants.VOTE_VISIBILITY = "secret"
-    env.loot:Loot("1 1 apply Fury main")
-    env.loot:Loot("1 1 vote Boss-Realm")
-    local open = text(env.loot:Loot("1 1"))
-    env.loot:Loot("1 1 close")
-    local closed = text(env.loot:Loot("1 1"))
-    ns.Constants.VOTE_VISIBILITY = saved
-
-    assert.is_truthy(open:find("1 vote(s) cast (hidden until the session closes)", 1, true))
-    assert.is_nil(open:find("Boss-Realm 1", 1, true))
-    assert.is_truthy(closed:find("votes: Boss-Realm 1", 1, true))
-  end)
-
   it("a member can apply but cannot vote, award or close", function()
     local member = build("member", { identity = "Ann-Realm" })
-    member.events["ev-1"].loot["s1"] = {
+    local session = {
       sessionId = "s1",
       itemId = 1,
       itemName = "Item",
@@ -228,94 +216,37 @@ describe("LootCommands session flow", function()
       votes = {},
       rev = 1,
     }
-    assert.is_truthy(text(member.loot:Loot("1 1 apply Fury main")):find("you are a candidate", 1, true))
-    for _, command in ipairs({ "1 1 vote Ann-Realm", "1 1 award Ann-Realm why", "1 1 close" }) do
-      assert.is_truthy(text(member.loot:Loot(command)):find("not allowed", 1, true), command)
+    member.events["ev-1"].loot["s1"] = session
+    local event = member.events["ev-1"]
+    assert.is_truthy(
+      text(member.loot:Apply(event, session, { spec = "Fury", need = "main" })):find("you are a candidate", 1, true)
+    )
+    for _, lines in ipairs({
+      member.loot:VoteFor(event, session, "Ann-Realm"),
+      member.loot:AwardTo(event, session, "Ann-Realm", "why"),
+      member.loot:CloseSession(event, session),
+    }) do
+      assert.is_truthy(text(lines):find("not allowed", 1, true))
     end
-    assert.are.equal("open", member.events["ev-1"].loot["s1"].status)
-  end)
-end)
-
-describe("LootCommands lists, minutes and errors", function()
-  it("explains an empty session list", function()
-    local env = build("Council")
-    assert.is_truthy(text(env.loot:Loot("1")):find("No loot sessions", 1, true))
+    assert.are.equal("open", session.status)
   end)
 
-  it("lists sessions by number with their outcome", function()
-    local env = build("Council")
-    env.loot:Loot("1 open 2 Beta")
-    env.loot:Loot("1 open 1 Alpha")
-    env.loot:Loot("1 1 apply Fury main")
-    env.loot:Loot("1 1 award Boss-Realm Highest need")
-    local lines = env.loot:Loot("1")
-    assert.are.equal("  1. Alpha [closed] - awarded to Boss-Realm", lines[2])
-    assert.are.equal("  2. Beta [open]", lines[3])
-  end)
-
-  it("prints the minutes of an event", function()
-    local env = build("Council")
-    assert.is_truthy(text(env.loot:Loot("acta 1")):find("No closed loot sessions", 1, true))
-
-    env.loot:Loot("1 open 1 Alpha")
-    env.loot:Loot("1 1 apply Fury main")
-    env.loot:Loot("1 1 award Boss-Realm Highest need")
-    env.loot:Loot("1 open 2 Beta")
-    env.loot:Loot("1 2 close")
-    local lines = env.loot:Loot("acta 1")
-    assert.are.equal("  Alpha -> Boss-Realm (by Boss-Realm): Highest need", lines[2])
-    assert.are.equal("  Beta -> not awarded", lines[3])
-  end)
-
-  it("gives clear errors for a bad event or session number and shows the usage", function()
-    local env = build("Council")
-    assert.is_truthy(text(env.loot:Loot("x")):find("give the event number", 1, true))
-    assert.is_truthy(text(env.loot:Loot("7")):find("give the event number", 1, true))
-    assert.is_truthy(text(env.loot:Loot("1 9")):find("no session number 9", 1, true))
-    assert.is_truthy(text(env.loot:Loot("acta x")):find("give the event number", 1, true))
-    assert.is_truthy(text(env.loot:Loot("")):find("usage:", 1, true))
-    assert.is_truthy(text(env.loot:Loot("help")):find("/nrage loot acta", 1, true))
-    env.loot:Loot("1 open 1 Alpha")
-    assert.is_truthy(text(env.loot:Loot("1 1 dance")):find("usage:", 1, true))
-  end)
-end)
-
-describe("LootCommands character names with spaces", function()
-  local env
-
-  before_each(function()
-    env = build("Council", { identity = "Yonemon Gg" })
-    env.loot:Loot("1 open 19019 Thunderfury")
-    env.loot:Loot("1 1 apply Fury main")
-    env.sent = {}
-  end)
-
-  it("votes for a name with spaces, quoted or not", function()
-    assert.is_truthy(text(env.loot:Loot("1 1 vote Yonemon Gg")):find("voted for Yonemon Gg", 1, true))
-    assert.is_truthy(text(env.loot:Loot('1 1 vote "Yonemon Gg"')):find("voted for Yonemon Gg", 1, true))
-    assert.are.equal("Yonemon Gg", env.sent[1].args[3].target)
-  end)
-
-  it("awards to a quoted name with spaces, taking the rest as the reason", function()
-    local lines = text(env.loot:Loot('1 1 award "Yonemon Gg" Highest need in the raid'))
+  it("votes for and awards a character whose name has several words", function()
+    local spaced = build("Council", { identity = "Yonemon Gg" })
+    open_session(spaced)
+    local event, session = event_of(spaced), first_session(spaced)
+    spaced.loot:Apply(event, session, { spec = "Fury", need = "main" })
+    spaced.sent = {}
+    assert.is_truthy(text(spaced.loot:VoteFor(event, session, "Yonemon Gg")):find("voted for Yonemon Gg", 1, true))
+    assert.are.equal("Yonemon Gg", spaced.sent[1].args[3].target)
+    local lines = text(spaced.loot:AwardTo(event, session, "Yonemon Gg", "Highest need in the raid"))
     assert.is_truthy(lines:find("Thunderfury awarded to Yonemon Gg", 1, true))
-    assert.are.equal("Yonemon Gg", first_session(env).award.characterKey)
-    assert.are.equal("Highest need in the raid", first_session(env).award.reason)
-  end)
-
-  it("asks for a reason, and explains the quotes, when the award is malformed", function()
-    for _, args in ipairs({ '"Yonemon Gg"', '"Yonemon Gg', "" }) do
-      local lines = text(env.loot:Loot("1 1 award " .. args))
-      assert.is_truthy(lines:find("usage:", 1, true), args)
-      assert.is_truthy(lines:find("quotes", 1, true), args)
-    end
-    assert.are.equal("open", first_session(env).status)
+    assert.are.equal("Yonemon Gg", first_session(spaced).award.characterKey)
   end)
 end)
 
--- The window calls these instead of parsing text; they must behave exactly like the commands.
 describe("LootCommands structured operations", function()
-  local function open_session(env)
+  local function open_and_get(env)
     env.loot:OpenItem(env.events["ev-1"], { itemId = 19019, itemName = "Thunderfury" })
     return ns.LootService.Sessions(env.events["ev-1"])[1]
   end
@@ -323,7 +254,7 @@ describe("LootCommands structured operations", function()
   it("opens a session, applies, votes, awards and sends each change", function()
     local env = build("GM")
     local event = env.events["ev-1"]
-    local session = open_session(env)
+    local session = open_and_get(env)
     assert.are.equal("Thunderfury", session.itemName)
 
     local applied = text(env.loot:Apply(event, session, { spec = "Fury", need = "main", upgrade = "+12 ilvl" }))
@@ -336,7 +267,7 @@ describe("LootCommands structured operations", function()
 
   it("closes a session without awarding it", function()
     local env = build("GM")
-    local session = open_session(env)
+    local session = open_and_get(env)
     assert.is_truthy(text(env.loot:CloseSession(env.events["ev-1"], session)):find("without awarding", 1, true))
     assert.are.equal("closed", session.status)
     assert.is_nil(session.award)
@@ -344,7 +275,7 @@ describe("LootCommands structured operations", function()
 
   it("rejects a bad need and keeps the role checks", function()
     local env = build("GM")
-    local session = open_session(env)
+    local session = open_and_get(env)
     local event = env.events["ev-1"]
     assert.is_truthy(
       text(env.loot:Apply(event, session, { spec = "Fury", need = "greed" })):find("invalid need", 1, true)

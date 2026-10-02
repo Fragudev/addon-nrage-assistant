@@ -100,9 +100,9 @@ words (`Yonemon Gg`); in the window you pick a member from a list, so nothing ne
 The **Raid** tab has the events on the left (with a field to create one, and the *Export* and *Import* buttons) and
 the selected event on the right. The right side has a sub-tab for each thing you can do: *Summary* (everyone:
 status, attendance counts and assignments), and, depending on your rank, *Details* (rename, status, start time in
-your local time), *Attendance* (a state dropdown for each member already recorded, and a search to add somebody
+your local time, and *Delete this event*, which asks you to click twice), *Attendance* (a state dropdown for each member already recorded, and a search to add somebody
 else: type part of a name, press Enter, and click the name), *Assignments* (add by picking a member and typing the
-encounter, remove) and *Templates* (save, apply, and the suggestions that match the event). Everyone also gets
+encounter, remove) and *Templates* (save, apply, delete, and the suggestions that match the event). Everyone also gets
 *Reports*. Sub-tabs your rank does not allow are not shown. Creating an event opens it.
 
 ### Attendance
