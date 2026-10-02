@@ -1,0 +1,59 @@
+NrageAssistant/Core/Init.lua
+  s_3a1049e925af91::t_f9033e68d079b2 244
+NrageAssistant/Domain/ProfileService.lua
+  s_3a1049e925af91::t_349bc9e232d7a5 8-9,11-13,17-19,88,97,99,110,112,115,117
+NrageAssistant/Domain/PublishService.lua
+  s_3a1049e925af91::t_d358f75622954b 12-13,86,89,91,94,98,101
+NrageAssistant/Domain/ReadinessRules.lua
+  s_3a1049e925af91::t_7202e528cec671 19-20,182-184
+NrageAssistant/Domain/ReadinessService.lua
+  s_3a1049e925af91::t_d12b255dc1064c 9-37,44,53,55,57,63,69,74,80,92,95,97,103,117,128,131,139,146,148,155,179,181,214,216-220
+NrageAssistant/Domain/ReportService.lua
+  s_3a1049e925af91::t_86a50915406dd2 13-26,89,92,95,100,104,155,158
+NrageAssistant/Domain/TemplateService.lua
+  s_3a1049e925af91::t_46fc8663ee77ff 10-11,176,178
+NrageAssistant/Locales/esES.lua
+  s_3a1049e925af91::t_3f4660c2e671b7 6-65,71-100,445
+NrageAssistant/Sync/Comm.lua
+  s_3a1049e925af91::t_d54e9aaffdb92d 8-9,597,601,603,605,608-609,617,621,623
+NrageAssistant/Sync/Transfer.lua
+  s_3a1049e925af91::t_8456526e50479c 10-11,287,289
+NrageAssistant/UI/Main.lua
+  s_3a1049e925af91::t_a0c89a3dc3a061 375,1111
+NrageAssistant/UI/ViewModel.lua
+  s_3a1049e925af91::t_a1f5fe3df5bd2f 29-31,659
+docs/USER_GUIDE.md
+  s_3a1049e925af91::t_0597c349334264 12,23-27
+tests/comm_spec.lua
+  s_3a1049e925af91::t_317c2bd794690b 11
+tests/domain_spanish_spec.lua
+  s_3a1049e925af91::t_87e6a07162f496 1-150
+tests/profile_service_spec.lua
+  s_3a1049e925af91::t_a4b51c314a6988 4
+tests/publish_service_spec.lua
+  s_3a1049e925af91::t_f6c73926a50139 5
+tests/readiness_service_spec.lua
+  s_3a1049e925af91::t_9abdfc12d88d4b 4
+tests/template_service_spec.lua
+  s_3a1049e925af91::t_d8893eb5d89961 5
+tests/transfer_spec.lua
+  s_3a1049e925af91::t_63f0f7746ef028 10
+tests/view_model_spec.lua
+  s_3a1049e925af91::t_43d678c9ca5da3 17,537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64eb2b9ff6007de5c7934a50d369b098a58b8825",
+  "prompts": {},
+  "sessions": {
+    "s_3a1049e925af91": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23b8de4a-e96a-43bc-b513-78261550de6e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
