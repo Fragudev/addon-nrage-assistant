@@ -163,6 +163,7 @@ function ViewModel.MyProfessionRows(professions, recipes, now)
     end
     rows[#rows + 1] = {
       name = Escape(profession.name),
+      icon = ViewModel.ProfessionIcon(profession),
       skill = profession.skill,
       skillText = profession.max and ("%d/%d"):format(profession.skill, profession.max) or tostring(profession.skill),
       scanText = scan,

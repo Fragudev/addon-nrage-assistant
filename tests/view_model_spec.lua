@@ -35,10 +35,10 @@ local function load_view_model(locale)
       ns.Locale.Use(locale)
     end
   end
-  return ns.ViewModel, ns.Constants
+  return ns.ViewModel, ns.Constants, ns
 end
 
-local ViewModel, Constants = load_view_model()
+local ViewModel, Constants, viewNs = load_view_model()
 
 describe("ViewModel.Escape", function()
   it("doubles pipes so text cannot start a colour code or link", function()
@@ -1958,6 +1958,24 @@ describe("ViewModel profile rows", function()
     assert.are.equal("300/300", groups.primary[1].text)
     assert.are.equal("||cffff0000Fishing", groups.secondary[2].name)
     assert.are.equal("10", groups.secondary[2].text)
+  end)
+
+  it("carries the icon of each profession, its own or the one remembered for its name", function()
+    viewNs.Platform = {
+      ProfessionIcon = function(name)
+        return name == "Mining" and 134708 or nil
+      end,
+    }
+    local groups = ViewModel.ProfessionGroups({
+      { name = "Alchemy", icon = 136240, skill = 300, max = 300 },
+      { name = "Mining", skill = 120, max = 300 },
+      { name = "Herbalism", skill = 5, max = 300 },
+    })
+    viewNs.Platform = nil
+    assert.are.equal(136240, groups.primary[1].icon)
+    assert.are.equal(134708, groups.primary[2].icon)
+    assert.is_nil(groups.secondary[1].icon)
+    assert.is_nil(ViewModel.ProfessionGroups({ { name = "Herbalism", skill = 5, secondary = true } }).secondary[1].icon)
   end)
 
   it("counts the first two as primary when an older client sent no flags", function()

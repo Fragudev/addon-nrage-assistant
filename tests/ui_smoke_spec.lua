@@ -123,7 +123,7 @@ local function build(rank, locale)
     end,
     GetProfessions = function()
       return {
-        { name = "Alchemy", skill = 300, max = 300 },
+        { name = "Alchemy", icon = 136240, skill = 300, max = 300 },
         { name = "Cooking", skill = 20, max = 300, secondary = true },
       }
     end,
@@ -579,6 +579,19 @@ describe("Window smoke test", function()
       assert.is_truthy(text:find("Not published yet", 1, true))
       assert.is_nil(env.find(profile, "Button", "Publish now"))
       assert.is_nil(env.find(profile, "Button", "Save"))
+    end)
+
+    it("puts the icon of each profession before its name, and nothing when the client gave none", function()
+      env = build("Member")
+      local profile = env.open("profile")
+      local stats = {}
+      for _, grid in ipairs(FakeKit.find_all(profile, "StatGrid")) do
+        for _, stat in ipairs(grid.opts.stats) do
+          stats[stat.caption] = stat
+        end
+      end
+      assert.are.equal(136240, stats.Alchemy.icon)
+      assert.is_nil(stats.Cooking.icon)
     end)
 
     it("saves the specs when they change and publishes, saying so", function()

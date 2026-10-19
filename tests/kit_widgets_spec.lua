@@ -206,6 +206,28 @@ describe("Kit widgets", function()
       assert.is_false(bars[2].fill:IsShown())
     end)
 
+    it("puts an icon before the caption of a stat block and keeps nothing when there is none", function()
+      Kit.StatGrid(root, {
+        columns = 2,
+        stats = {
+          { caption = "Alchemy", value = "300/300", icon = 136240 },
+          { caption = "Mining", value = "1/300" },
+        },
+      })
+      Kit.Picture(root, { texture = 136240, size = 16 })
+      Kit.Picture(root, { size = 16 })
+      assert.is_true(root:Layout(500) > 0)
+      local blocks = find_all(root, "StatBlock")
+      assert.is_true(blocks[1].hasIcon)
+      assert.are.equal(136240, blocks[1].icon.texture)
+      assert.are.equal(22, blocks[1].indent)
+      assert.is_false(blocks[2].hasIcon)
+      assert.are.equal(0, blocks[2].indent)
+      local pictures = find_all(root, "Picture")
+      assert.is_true(pictures[1].texture:IsShown())
+      assert.is_false(pictures[2].texture:IsShown())
+    end)
+
     it("draws a banner that can be dismissed, an empty state and a page header", function()
       local dismissed = false
       local banner = Kit.Banner(root, {

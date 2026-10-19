@@ -266,7 +266,18 @@ function ViewModel.IdentityStats(profile, identityKey)
   }
 end
 
--- The professions in two groups, primary first: { primary = { { name, skill, max, text } }, secondary = { ... } }. A
+-- The icon of a profession: its own (a profile read on this client) or the one this client saw for that name (a
+-- profile received from a member). nil when unknown. Icons stay local; they are never published.
+function ViewModel.ProfessionIcon(profession)
+  if profession.icon ~= nil then
+    return profession.icon
+  end
+  local platform = ns.Platform
+  return platform and platform.ProfessionIcon and platform.ProfessionIcon(profession.name) or nil
+end
+
+-- The professions in two groups, primary first:
+-- { primary = { { name, icon, skill, max, text } }, secondary = { ... } }. A
 -- profession flagged `secondary` is secondary; a list with no flags (an older client) counts its first two as primary.
 function ViewModel.ProfessionGroups(professions)
   local groups = { primary = {}, secondary = {} }
@@ -279,6 +290,7 @@ function ViewModel.ProfessionGroups(professions)
     local skill = profession.max and ("%d/%d"):format(profession.skill, profession.max) or tostring(profession.skill)
     local entry = {
       name = Escape(profession.name),
+      icon = ViewModel.ProfessionIcon(profession),
       skill = profession.skill,
       max = profession.max,
       text = skill,

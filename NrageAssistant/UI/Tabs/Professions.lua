@@ -67,6 +67,7 @@ local function myProfessions(page)
   end
   for _, row in ipairs(rows) do
     local line = Kit.Row(card, { gap = 10, align = "center" })
+    Kit.Picture(line, { texture = row.icon, size = 16, layout = { width = 16 } })
     Kit.Label(line, { text = row.name, layout = { weight = 2 } })
     Kit.Label(line, { text = row.skillText, color = "dim", layout = { width = 70 } })
     Kit.Label(line, { text = row.scanText, style = "small", color = "muted", layout = { weight = 2 } })
