@@ -1620,3 +1620,89 @@ describe("ViewModel.LootMinutes", function()
     end
   end)
 end)
+
+describe("ViewModel sidebar, user card and sync pill", function()
+  it("groups the tabs: no label, Guild, and Admin only for who may edit the rules", function()
+    local member = ViewModel.NavGroups("member")
+    assert.are.equal(2, #member)
+    assert.is_nil(member[1].label)
+    assert.are.same({ "home", "profile", "ready" }, {
+      member[1].items[1].value,
+      member[1].items[2].value,
+      member[1].items[3].value,
+    })
+    assert.are.equal("Guild", member[2].label)
+    assert.are.equal("roster", member[2].items[#member[2].items].value)
+    assert.are.equal("Members", member[2].items[#member[2].items].text)
+
+    local admin = ViewModel.NavGroups("admin")
+    assert.are.equal(3, #admin)
+    assert.are.equal("Admin", admin[3].label)
+    assert.are.equal("rules", admin[3].items[1].value)
+    assert.is_truthy(admin[3].items[1].icon)
+  end)
+
+  it("gives every tab an icon", function()
+    for _, tab in ipairs(ViewModel.TabsFor("admin")) do
+      assert.is_truthy(tab.icon, tab.value)
+    end
+  end)
+
+  it("translates the tab names again when the language changes", function()
+    local loaded = {}
+    for _, path in ipairs({
+      "Core/Constants",
+      "Core/Locale",
+      "Locales/esES",
+      "Core/Validate",
+      "Domain/PvPService",
+      "Domain/PermissionService",
+      "Domain/EventModel",
+      "Domain/EventService",
+      "Domain/LootModel",
+      "Domain/LootService",
+      "Domain/BlacklistService",
+      "Domain/ReadinessRules",
+      "Domain/ReadinessService",
+      "UI/ViewModel",
+    }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", loaded)
+    end
+    local vm, ns = loaded.ViewModel, loaded
+    local tabs = vm.TABS
+    assert.are.equal("Home", tabs[1].text)
+    ns.Locale.UsePreference("es", "enUS")
+    assert.are.equal("Inicio", vm.TABS[1].text)
+    assert.are.equal("Inicio", vm.NavGroups("member")[1].items[1].text)
+    assert.are.equal("Reglas", vm.RULES_TAB.text)
+    assert.are.equal("cumplido", vm.Word("met"))
+    ns.Locale.UsePreference("auto", "enUS")
+    assert.are.equal("Home", vm.TABS[1].text)
+    assert.are.equal("met", vm.Word("met"))
+    -- The rule texts follow too.
+    ns.Locale.UsePreference("es", "enUS")
+    assert.are.equal("Nivel mínimo", vm.RULE_CHECK_TEXT.level)
+  end)
+
+  it("describes the user card with the rank and the addon role", function()
+    assert.are.same({ name = "Ann", detail = "Raider \194\183 raid leader" }, ViewModel.UserCard("Ann", "Raider", "rl"))
+    assert.are.same({ name = "Ann", detail = "none" }, ViewModel.UserCard("Ann", nil, nil))
+    assert.are.same({ name = "?", detail = "member" }, ViewModel.UserCard(nil, "", "member"))
+  end)
+
+  it("tells the sync state in the pill", function()
+    assert.are.same({ text = "Sync off", status = "muted" }, ViewModel.SyncPill(nil))
+    assert.are.same(
+      { text = "Sync paused", status = "warning" },
+      ViewModel.SyncPill({ paused = true, queued = 4, incompatible = {} })
+    )
+    assert.are.same(
+      { text = "3 queued", status = "warning" },
+      ViewModel.SyncPill({ paused = false, queued = 3, incompatible = {} })
+    )
+    assert.are.same(
+      { text = "Sync ready", status = "success" },
+      ViewModel.SyncPill({ paused = false, queued = 0, incompatible = {} })
+    )
+  end)
+end)

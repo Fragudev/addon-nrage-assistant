@@ -21,6 +21,7 @@ Core\LockdownProbe.lua
 Core\PvPProbeLog.lua
 Core\PvPProbe.lua
 Core\Store.lua
+Domain\Settings.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua

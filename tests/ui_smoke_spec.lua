@@ -1,11 +1,19 @@
--- A smoke test of the window (UI/Main.lua) against a fake AceGUI. It cannot say how anything looks, but it
--- draws every tab for each kind of player and presses the buttons, which catches the nil calls and wrong
--- argument orders that are otherwise only found in the game.
+-- A smoke test of the window (UI/Main.lua) against a fake of the kit (tests/support/fake_kit.lua) and, for the tabs
+-- that have not moved to the kit yet, a fake AceGUI. It cannot say how anything looks, but it draws every tab for each
+-- kind of player and presses the buttons, which catches the nil calls and wrong argument orders that are otherwise
+-- only found in the game.
+local FakeFrames = dofile("tests/support/fake_frames.lua")
+local FakeKit = dofile("tests/support/fake_kit.lua")
 
 -- A widget that accepts any method. Containers record their children; text, value and callbacks are kept
 -- so the test can read them and press things.
 local function new_widget(kind, registry)
   local widget = { kind = kind, children = {}, callbacks = {}, props = {} }
+  widget.frame = setmetatable({}, {
+    __index = function()
+      return function() end
+    end,
+  })
   local methods = {
     AddChild = function(self, child)
       self.children[#self.children + 1] = child
@@ -88,6 +96,7 @@ local function load_window(locale)
     "Core/Locale",
     "Locales/esES",
     "Core/Validate",
+    "Domain/Settings",
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
@@ -102,6 +111,11 @@ local function load_window(locale)
     "Domain/PublishService",
     "Domain/BlacklistService",
     "Domain/ReportService",
+    "UI/Kit/Theme",
+    "UI/Kit/Pixel",
+    "UI/Kit/Util",
+    "UI/Kit/Calendar",
+    "UI/Kit/Icons",
     "UI/ViewModel",
     "UI/MinimapButton",
     "Commands/RaidCommands",
@@ -115,6 +129,9 @@ local function load_window(locale)
     if path == "Locales/esES" and locale then
       ns.Locale.Use(locale)
     end
+    if path == "UI/Kit/Icons" then
+      ns.Kit = FakeKit.new(ns.Kit)
+    end
   end
   return ns
 end
@@ -122,11 +139,18 @@ end
 local function build(rank, locale)
   local ns = load_window(locale)
   local env = { ns = ns, widgets = {}, sent = {}, counter = 0, changes = 0 }
+  env.fakeKit = FakeKit
+  FakeFrames.install()
 
   _G.LibStub = function()
     return {
       Create = function(_, kind)
-        return new_widget(kind, env.widgets)
+        local widget = new_widget(kind, env.widgets)
+        -- The window draws every tab into one scroll frame, made the first time a tab is drawn.
+        if kind == "ScrollFrame" and not env.scroll then
+          env.scroll = widget
+        end
+        return widget
       end,
       Release = function() end,
     }
@@ -138,6 +162,9 @@ local function build(rank, locale)
     return "test"
   end
   ns.Platform = {
+    GetLocale = function()
+      return locale or "enUS"
+    end,
     GetOwnGuildRank = function()
       return rank
     end,
@@ -235,6 +262,9 @@ local function build(rank, locale)
     Status = function()
       return { "sync ready" }
     end,
+    StatusInfo = function()
+      return { paused = false, queued = 0, peers = 0, incompatible = {} }
+    end,
   }
   -- What the profile publication sends; kept apart from env.sent so the other tests do not see it.
   env.messages = {}
@@ -295,10 +325,7 @@ local function build(rank, locale)
   function env.open(tab)
     env.widgets = {}
     ns.UI.OpenTab(tab)
-    local scrolls = find_all(env.widgets[1], function(w)
-      return w.kind == "ScrollFrame"
-    end)
-    return scrolls[#scrolls]
+    return env.scroll
   end
   -- Opens the Raid tab on one of its sub-tabs (summary, details, attendance, assignments, templates).
   function env.raid(subtab)
@@ -312,6 +339,7 @@ local function build(rank, locale)
   function env.close()
     -- Toggle closes an open window; OpenTab leaves one open.
     ns.UI.Toggle()
+    FakeFrames.uninstall()
   end
   function env.find(root, kind, label)
     return find_all(root, function(w)
@@ -362,9 +390,7 @@ describe("Window smoke test", function()
     env.ns.pvpTracker = { honorAvailable = true, blowsAvailable = true, Day = function() end }
     env.widgets = {}
     env.ns.UI.PvPChanged()
-    local scrolls = find_all(env.widgets[1], function(w)
-      return w.kind == "ScrollFrame"
-    end)
+    local scrolls = { env.scroll }
     text = texts(scrolls[#scrolls])
     assert.is_truthy(text:find("Killing blows", 1, true))
     assert.is_nil(text:find("not available", 1, true))
@@ -410,9 +436,7 @@ describe("Window smoke test", function()
       assert.is_truthy(table.concat(cells(pvp), "\n"):find("\n50\n", 1, true))
       env.widgets = {}
       env.find(pvp, "Dropdown", "Show").callbacks.OnValueChanged(nil, nil, "today")
-      local scrolls = find_all(env.widgets[1], function(w)
-        return w.kind == "ScrollFrame"
-      end)
+      local scrolls = { env.scroll }
       local text = table.concat(cells(scrolls[#scrolls]), "\n")
       assert.is_nil(text:find("\n50\n", 1, true))
       assert.is_truthy(text:find("Today's kills", 1, true))
@@ -448,9 +472,7 @@ describe("Window smoke test", function()
         end)[1]
         env.widgets = {}
         header.callbacks.OnClick()
-        local scrolls = find_all(env.widgets[1], function(w)
-          return w.kind == "ScrollFrame"
-        end)
+        local scrolls = { env.scroll }
         pvp = scrolls[#scrolls]
       end
       click("Name")
@@ -996,7 +1018,8 @@ describe("Window smoke test", function()
     assert.are.equal(900, ns.db.global.settings.windows.voting.width)
 
     ns.UI.OpenTab("home")
-    assert.are.equal(720, ns.db.global.settings.windows.main.width)
+    assert.are.equal(1000, ns.db.global.settings.windows.mainWindow.width)
+    assert.are.equal(640, ns.db.global.settings.windows.mainWindow.height)
   end)
 
   it("shows the loot items with their icon and tooltip instead of buttons", function()
@@ -1268,10 +1291,18 @@ describe("Rules tab", function()
   end)
 
   local function tab_values()
-    local tabs = env.find(env.widgets[1], "TabGroup")
+    -- The entries of the sidebar the window drew last.
+    local nodes, sidebar = env.ns.Kit.fake.nodes, nil
+    for _, node in ipairs(nodes) do
+      if node.kind == "Sidebar" then
+        sidebar = node
+      end
+    end
     local values = {}
-    for _, tab in ipairs(tabs.props.tabs) do
-      values[#values + 1] = tab.value
+    for _, group in ipairs(sidebar.opts.groups) do
+      for _, item in ipairs(group.items) do
+        values[#values + 1] = item.value
+      end
     end
     return values
   end
@@ -1400,18 +1431,61 @@ describe("Controls that replace the slash commands", function()
       assert.are.same({ "RequestSync" }, env.sent)
     end)
 
-    it("hides and shows the minimap button, and puts it back in its place", function()
+    it("has the settings behind the gear of the header, not on the Home tab", function()
       env = build("Member")
       local home = env.open("home")
-      local box = env.find(home, "CheckBox")
-      assert.is_true(box.props.value)
-      box.callbacks.OnValueChanged(nil, nil, false)
+      assert.is_nil(env.find(home, "CheckBox"))
+      assert.is_nil(env.find(home, "Button", "Reset the button position"))
+      assert.is_truthy(env.ns.UI.IsOpen())
+    end)
+  end)
+
+  describe("in the settings popover", function()
+    local function open_settings()
+      env = build("Member")
+      env.open("home")
+      env.ns.UI.ToggleSettings()
+      return env.ns.Kit.Popup.Get(1).stack
+    end
+
+    it("hides and shows the minimap button, and puts it back in its place", function()
+      local stack = open_settings()
+      local switch = env.fakeKit.find(stack, "Switch", "Show the minimap button")
+      assert.is_true(switch.opts.checked)
+      switch.opts.onChange(false)
       assert.is_true(env.ns.MinimapButton.Settings(env.ns.db).hide)
-      box.callbacks.OnValueChanged(nil, nil, true)
+      switch.opts.onChange(true)
       assert.is_false(env.ns.MinimapButton.Settings(env.ns.db).hide)
       env.ns.MinimapButton.Settings(env.ns.db).angle = 10
-      env.find(home, "Button", "Reset the button position").callbacks.OnClick()
+      env.fakeKit.press(env.fakeKit.find(stack, "Button", "Reset"))
       assert.are.equal(env.ns.Constants.MINIMAP_DEFAULT_ANGLE, env.ns.MinimapButton.Settings(env.ns.db).angle)
+    end)
+
+    it("saves the blacklist alert sound switch, on by default", function()
+      local stack = open_settings()
+      local switch = env.fakeKit.find(stack, "Switch", "Blacklist alert sound")
+      assert.is_true(switch.opts.checked)
+      switch.opts.onChange(false)
+      assert.is_false(env.ns.Settings.BlacklistSound(env.ns.db))
+    end)
+
+    it("changes the language and draws the window again in it", function()
+      local stack = open_settings()
+      local dropdown = env.fakeKit.find_all(stack, "Dropdown")[1]
+      assert.are.equal("auto", dropdown.opts.value)
+      dropdown.opts.onChange("es")
+      assert.are.equal("es", env.ns.Settings.Language(env.ns.db))
+      assert.are.equal("es", env.ns.Locale.Language())
+      assert.are.equal("Inicio", env.ns.ViewModel.TABS[1].text)
+      dropdown.opts.onChange("en")
+      assert.are.equal("Home", env.ns.ViewModel.TABS[1].text)
+    end)
+
+    it("closes on the second press of the gear", function()
+      open_settings()
+      assert.is_true(env.ns.Kit.Popup.Get(1):IsOpen())
+      env.ns.UI.ToggleSettings()
+      assert.is_false(env.ns.Kit.Popup.Get(1):IsOpen())
     end)
   end)
 

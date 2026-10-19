@@ -32,9 +32,51 @@ function Locale.Register(languageCode, strings)
   end
 end
 
+-- Tables of translated text that are built once (a table of status words, the tab names). They are made with
+-- Locale.Table(builder): the builder runs now, and again whenever the language changes, refilling the same table,
+-- so a window drawn after a language change reads the new words without a reload.
+local tables = {}
+
+function Locale.Table(builder)
+  local result = {}
+  local function fill()
+    for key in pairs(result) do
+      result[key] = nil
+    end
+    for key, value in pairs(builder()) do
+      result[key] = value
+    end
+  end
+  tables[#tables + 1] = fill
+  fill()
+  return result
+end
+
+local function refill()
+  for _, fill in ipairs(tables) do
+    fill()
+  end
+end
+
 -- Chooses the language from a client locale code ("esES"). Without a call, the client's own locale is used.
 function Locale.Use(code)
   language = Locale.LanguageFor(code)
+  refill()
+end
+
+-- The languages a player can choose in the settings: "auto" follows the client, "es" and "en" force one.
+Locale.PREFERENCES = { "auto", "es", "en" }
+
+-- Applies the saved preference ("auto" | "es" | "en"; anything else counts as "auto"). `clientCode` is the client's
+-- own locale code, used for "auto". Returns the language now in use.
+function Locale.UsePreference(preference, clientCode)
+  if preference == "es" or preference == "en" then
+    language = preference
+  else
+    language = Locale.LanguageFor(clientCode)
+  end
+  refill()
+  return language
 end
 
 function Locale.Language()

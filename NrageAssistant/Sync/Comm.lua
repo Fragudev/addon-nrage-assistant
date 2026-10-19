@@ -594,6 +594,27 @@ function Comm:SendDeleteAssignment(eventId, assignmentId)
   return self:Send("DELETE", payload, ("DEL:%s:%s"):format(eventId, assignmentId))
 end
 
+-- The sync state as data, for the header pill and the Home card: { paused, queued, snapshot = { from, applied,
+-- total, at } or nil, peers (members seen with a compatible addon), incompatible = sorted names }.
+function Comm:StatusInfo()
+  local compatible, incompatible = 0, {}
+  for name, peer in pairs(self.peers) do
+    if peer.incompatible then
+      incompatible[#incompatible + 1] = name
+    else
+      compatible = compatible + 1
+    end
+  end
+  table.sort(incompatible)
+  return {
+    paused = self.queue:IsPaused(),
+    queued = self.queue:Pending(),
+    snapshot = self.lastSnapshot,
+    peers = compatible,
+    incompatible = incompatible,
+  }
+end
+
 -- Lines for the sync state on the Home tab.
 function Comm:Status()
   local lines = {}

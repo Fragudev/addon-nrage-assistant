@@ -207,7 +207,7 @@ ns.Locale.Register("es", {
   ["Raid"] = "Raid",
   ["Loot"] = "Loot",
   ["Blacklist"] = "Lista negra",
-  ["Roster"] = "Miembros",
+  ["Members"] = "Miembros",
   ["Rules"] = "Reglas",
   ["Minimum level"] = "Nivel mínimo",
   ["Minimum item level"] = "Item level mínimo",
@@ -247,7 +247,6 @@ ns.Locale.Register("es", {
   ["Your role"] = "Tu rol",
   ["Settings"] = "Ajustes",
   ["Show the minimap button"] = "Mostrar el botón del minimapa",
-  ["Reset the button position"] = "Reiniciar la posición del botón",
   ["Your profile"] = "Tu perfil",
   ["Your declared details"] = "Tus datos declarados",
   ["Second spec"] = "Segunda spec",
@@ -451,6 +450,18 @@ ns.Locale.Register("es", {
   ["disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."] = "desactivado: los datos guardados son de una versión más reciente del addon. Actualiza el addon; tus datos no se han tocado.",
   -- UI/Kit
   ["Close"] = "Cerrar",
+
+  -- The window shell and the settings
+  ["Language"] = "Idioma",
+  ["Automatic (game language)"] = "Automático (idioma del juego)",
+  ["Button position"] = "Posición del botón",
+  ["Reset"] = "Reiniciar",
+  ["Blacklist alert sound"] = "Sonido del aviso de la lista negra",
+  ["Guild"] = "Hermandad",
+  ["Sync off"] = "Sincronización apagada",
+  ["Sync paused"] = "Sincronización en pausa",
+  ["Sync ready"] = "Sincronización lista",
+  ["%d queued"] = "%d en cola",
 
   ["%s %s loaded. Click the minimap button or type /nrage to open the window."] = "%s %s cargado. Pulsa el botón del minimapa o escribe /nrage para abrir la ventana.",
 })

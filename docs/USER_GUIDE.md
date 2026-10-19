@@ -17,14 +17,25 @@ ruleset**; on any other character the addon switches itself off and says why onc
 Only three commands exist: `/nrage` (opens the window), `/nrage help` (this short list) and `/nrage debug ...`
 (diagnostics for developers).
 
-## Language
+## The window and the settings
 
-The addon speaks Spanish when your game client is in Spanish (Spain or Latin America) and English for every other
-client language. There is no setting: it follows the client. Everything you read is translated: the window, the
-messages after each action, the readiness checklist, your profile, the reports and the sync state. The exceptions
-are the output of `/nrage debug ...`, which is for developers, the names of brands and of game items, the words you
-type yourself (a role, a rule's name) and what goes over the wire, which is always the same, so players on different
-languages see the same data.
+The window has a header (logo, version, a pill that shows the sync state, the gear and the close button), a sidebar
+with one entry per tab (grouped under *Guild* and, for the guild master, *Admin*) and your character card at the
+bottom, and the page of the selected tab. Drag the header to move it and the corner to resize it; the size and
+position are remembered.
+
+The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
+
+- **Language**: *Automatic (game language)*, *Español* or *English*. Automatic follows the game client: Spanish on a
+  Spanish client (Spain or Latin America), English on any other. The window is drawn again at once when you change it.
+- **Show the minimap button**, and **Button position** with *Reset* to put it back in its default place.
+- **Blacklist alert sound**: when it is off, a listed player in your group still shows the chat line and the
+  warning, but plays no sound.
+
+Everything you read is translated: the window, the messages after each action, the readiness checklist, your profile,
+the reports and the sync state. The exceptions are the output of `/nrage debug ...`, which is for developers, the
+names of brands and of game items, the words you type yourself (a role, a rule's name) and what goes over the wire,
+which is always the same, so players on different languages see the same data.
 
 ## The minimap button
 
@@ -36,8 +47,8 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
 - A small **warning mark** on the button means the silent self test, run a few seconds after login, found
   something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
 - **Right click** opens a menu with a shortcut to each tab and a *Request a sync* entry.
-- On the **Home** tab, under *Settings*, you can hide it or show it again, and put it back in its default place.
-  The position and whether it is hidden are saved for your whole account.
+- In the **settings** (the gear of the window) you can hide it or show it again, and put it back in its default
+  place. The position and whether it is hidden are saved for your whole account.
 - The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
 - The button only shows on characters where the addon is active.
 

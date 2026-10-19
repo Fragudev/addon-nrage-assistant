@@ -4,15 +4,17 @@ local Constants = ns.Constants
 local L = ns.L
 local PREFIX = "|cff33ff99Nrage Assistant|r"
 
-local NOTICES = {
-  not_in_guild = L("disabled: you are not in a guild."),
-  wrong_guild = L("disabled: this addon is only for the Nrage guild."),
-  wrong_faction = L("disabled: this addon is only for the Alliance."),
-  wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
-  incompatible_data = L(
-    "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
-  ),
-}
+local NOTICES = ns.Locale.Table(function()
+  return {
+    not_in_guild = L("disabled: you are not in a guild."),
+    wrong_guild = L("disabled: this addon is only for the Nrage guild."),
+    wrong_faction = L("disabled: this addon is only for the Alliance."),
+    wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
+    incompatible_data = L(
+      "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
+    ),
+  }
+end)
 
 function ns.GetVersion()
   local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
@@ -27,6 +29,8 @@ local function InitDatabase()
   if db then
     NrageAssistantDB = db
     ns.db = db
+    -- The saved language is applied before anything is drawn, so every text is read in it.
+    ns.Locale.UsePreference(ns.Settings.Language(db), ns.Platform.GetLocale())
   else
     -- Leave NrageAssistantDB as it is so nothing is lost on a downgrade.
     ns.dbError = err
@@ -183,7 +187,10 @@ local function StartBlacklist()
       local line = ns.ViewModel.BlacklistAlertLine(match)
       print(("%s: %s"):format(PREFIX, line))
       ns.Platform.ShowRaidNotice(line)
-      ns.Platform.PlayAlertSound()
+      -- The chat line and the warning always show; only the sound can be switched off (settings).
+      if ns.Settings.BlacklistSound(ns.db) then
+        ns.Platform.PlayAlertSound()
+      end
     end,
   })
   ns.blacklistWatcher = watcher

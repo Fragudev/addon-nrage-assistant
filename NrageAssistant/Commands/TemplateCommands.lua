@@ -31,12 +31,14 @@ function TemplateCommands:Context()
   }
 end
 
-local ERRORS = {
-  ["invalid:name"] = L("give a plain-text name (up to 40 characters)."),
-  empty = L("that event has no assignments to save."),
-  limit = L("you already have the maximum number of templates: delete one first."),
-  not_found = L("not found."),
-}
+local ERRORS = ns.Locale.Table(function()
+  return {
+    ["invalid:name"] = L("give a plain-text name (up to 40 characters)."),
+    empty = L("that event has no assignments to save."),
+    limit = L("you already have the maximum number of templates: delete one first."),
+    not_found = L("not found."),
+  }
+end)
 
 local function error_line(ctx, reason)
   if reason == "forbidden" then

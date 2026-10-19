@@ -193,10 +193,14 @@ local function addNameLabel(parent, row, width)
   parent:AddChild(label)
 end
 
-local FILTER_LIST = { all = L("All"), main = L("Main spec"), off = L("Off spec"), other = L("Other") }
+local FILTER_LIST = ns.Locale.Table(function()
+  return { all = L("All"), main = L("Main spec"), off = L("Off spec"), other = L("Other") }
+end)
 local FILTER_ORDER = { "all", "main", "off", "other" }
 local HEADERS = { "name", "rank", "response", nil, "votes" }
-local HEADER_TITLES = { name = L("Name"), rank = L("Rank"), response = L("Response"), votes = L("Votes") }
+local HEADER_TITLES = ns.Locale.Table(function()
+  return { name = L("Name"), rank = L("Rank"), response = L("Response"), votes = L("Votes") }
+end)
 
 local function addHeader(parent, index)
   local key = HEADERS[index]

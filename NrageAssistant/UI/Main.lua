@@ -1,8 +1,10 @@
 local _, ns = ...
 
--- Main window (AceGUI). A thin layer: what to show comes from ViewModel and the domain services,
--- so nothing here needs unit tests beyond loading cleanly. Client only.
+-- The main window: the kit's window shell (header, sidebar, settings popover) and the tabs drawn into its content.
+-- A thin layer: what to show comes from ViewModel and the domain services. Client only.
 local UI = {}
+
+local Kit = ns.Kit
 
 local L = ns.L
 
@@ -16,16 +18,16 @@ function UI.LootChanged()
   end
 end
 
-local frame
-local tabs
+local window
+local sidebar
+local content
+local host
 local currentTab = "home"
 local statusMessage
 
-local function Release()
-  if frame then
-    LibStub("AceGUI-3.0"):Release(frame)
-  end
-  frame, tabs = nil, nil
+-- true while the main window is on screen.
+function UI.IsOpen()
+  return window ~= nil and window:IsShown()
 end
 
 local function AddLines(container, lines)
@@ -79,9 +81,10 @@ function UI.AddItemLabel(parent, options, onClick)
   return label
 end
 
--- Remembers where a window was left and how big: the saved numbers live in settings.windows[name] and AceGUI
--- keeps them up to date as the window is moved or resized. `width`/`height` are the first-time size.
-function UI.ApplyWindowStatus(window, name, width, height)
+-- Remembers where a window was left and how big: the saved numbers live in settings.windows[name] and the window
+-- (the kit's or an AceGUI frame) keeps them up to date as it is moved or resized. `width`/`height` are the first-time
+-- size.
+function UI.ApplyWindowStatus(target, name, width, height)
   local settings = type(ns.db.global.settings) == "table" and ns.db.global.settings or {}
   ns.db.global.settings = settings
   settings.windows = type(settings.windows) == "table" and settings.windows or {}
@@ -89,12 +92,12 @@ function UI.ApplyWindowStatus(window, name, width, height)
   settings.windows[name] = status
   status.width = type(status.width) == "number" and status.width or width
   status.height = type(status.height) == "number" and status.height or height
-  window:SetStatusTable(status)
+  target:SetStatusTable(status)
 end
 
 local function Redraw()
-  if tabs then
-    tabs:SelectTab(currentTab)
+  if UI.IsOpen() then
+    UI.DrawCurrent()
   end
 end
 
@@ -105,7 +108,7 @@ local pvpDrawPending = false
 -- on screen. Records arrive in bursts (a whole guild logging in), so a redraw that comes too soon after the
 -- previous one is postponed, once, to the end of the interval and then shows the latest state.
 function UI.PvPChanged()
-  if not (frame and currentTab == "pvp") then
+  if not (UI.IsOpen() and currentTab == "pvp") then
     return
   end
   local now = ns.Platform.Now()
@@ -127,7 +130,7 @@ end
 -- Called when the guild's readiness rules changed: the checklist is drawn again if it is on screen. They are rare
 -- (one message per change), so there is no throttling.
 function UI.RulesChanged()
-  if frame and (currentTab == "ready" or currentTab == "rules") then
+  if UI.IsOpen() and (currentTab == "ready" or currentTab == "rules") then
     Redraw()
   end
 end
@@ -138,7 +141,7 @@ local blacklistDrawPending = false
 -- Called when a blacklist entry arrived from the guild: the tab is drawn again if it is the one on screen, at most
 -- once per interval like the PvP tab (a snapshot brings the whole list at once).
 function UI.BlacklistChanged()
-  if not (frame and currentTab == "blacklist") then
+  if not (UI.IsOpen() and currentTab == "blacklist") then
     return
   end
   local now = ns.Platform.Now()
@@ -261,19 +264,6 @@ local function DrawHome(container)
   })
   AddButton(container, L("Request a sync"), 0.4, function()
     Report({ ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()) })
-  end)
-
-  AddHeading(container, L("Settings"))
-  local box = LibStub("AceGUI-3.0"):Create("CheckBox")
-  box:SetLabel(L("Show the minimap button"))
-  box:SetValue(not ns.MinimapButton.Settings(ns.db).hide)
-  box:SetCallback("OnValueChanged", function(_, _, value)
-    ns.MinimapButton.SetHidden(ns.db, not value)
-  end)
-  container:AddChild(box)
-  AddButton(container, L("Reset the button position"), 0.4, function()
-    ns.MinimapButton.ResetPosition(ns.db)
-    Redraw()
   end)
 end
 
@@ -1193,23 +1183,23 @@ local DRAWERS = {
   rules = DrawRules,
 }
 
-local function OnTabSelected(container, _, group)
-  if group ~= currentTab then
-    actionMessage = nil
-  end
-  currentTab = group
-  container:ReleaseChildren()
-
+-- Draws the current tab into the content area (an AceGUI scroll frame until the tabs move to the kit).
+function UI.DrawCurrent()
+  local group = currentTab
   if group == "profile" or group == "ready" then
     ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   end
-
   local AceGUI = LibStub("AceGUI-3.0")
-  local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout((group == "raid" or group == "blacklist" or group == "rules") and "Flow" or "List")
-  container:SetLayout("Fill")
-  container:AddChild(scroll)
-  DRAWERS[group](scroll)
+  if not host then
+    host = AceGUI:Create("ScrollFrame")
+    host.frame:SetParent(content)
+    host.frame:ClearAllPoints()
+    host.frame:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
+    UI.SizeHost()
+  end
+  host:ReleaseChildren()
+  host:SetLayout((group == "raid" or group == "blacklist" or group == "rules") and "Flow" or "List")
+  DRAWERS[group](host)
 end
 
 -- Small window with a text box: shows the export text, or takes pasted text to import.
@@ -1243,18 +1233,18 @@ function UI.ShowTransfer(mode)
   ReleaseTransfer()
 
   local AceGUI = LibStub("AceGUI-3.0")
-  local window = AceGUI:Create("Frame")
-  transferFrame = window
-  window:SetTitle(mode == "export" and L("Nrage export") or L("Nrage import"))
-  window:SetWidth(520)
-  window:SetHeight(360)
-  window:SetLayout("Fill")
-  window:SetCallback("OnClose", ReleaseTransfer)
+  local dialog = AceGUI:Create("Frame")
+  transferFrame = dialog
+  dialog:SetTitle(mode == "export" and L("Nrage export") or L("Nrage import"))
+  dialog:SetWidth(520)
+  dialog:SetHeight(360)
+  dialog:SetLayout("Fill")
+  dialog:SetCallback("OnClose", ReleaseTransfer)
 
   local box = AceGUI:Create("MultiLineEditBox")
   box:SetFullWidth(true)
   box:SetFullHeight(true)
-  window:AddChild(box)
+  dialog:AddChild(box)
 
   if mode == "export" then
     local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
@@ -1285,31 +1275,184 @@ function UI.ShowTransfer(mode)
   end)
 end
 
+local SIDEBAR_WIDTH = 200
+local contentWidth, contentHeight = 800, 580
+
+function UI.SizeHost()
+  if host then
+    host:SetWidth(math.max(100, contentWidth - 32))
+    host:SetHeight(math.max(100, contentHeight - 32))
+    host.frame:SetPoint("TOPLEFT", content, "TOPLEFT", 16, -16)
+  end
+end
+
+local function ownRole()
+  return ns.PermissionService.OwnRole(ns.Platform)
+end
+
+-- The sidebar again, after a tab or the language changed: the selection and the texts follow.
+function UI.BuildSidebar()
+  if not window then
+    return
+  end
+  if sidebar then
+    sidebar:Release()
+  end
+  local role = ownRole()
+  sidebar = Kit.Sidebar(window.body, {
+    groups = ns.ViewModel.NavGroups(role),
+    value = currentTab,
+    onSelect = function(value)
+      UI.SelectTab(value)
+    end,
+    user = ns.ViewModel.UserCard(ns.Platform.GetIdentityKey(), ns.Platform.GetOwnGuildRank(), role),
+  })
+  sidebar:Layout(SIDEBAR_WIDTH, contentHeight)
+  Kit.Place(sidebar, window.body, 0, 0)
+end
+
+-- The sync pill of the header, from what the sync reports.
+function UI.UpdatePill()
+  if window then
+    local pill = ns.ViewModel.SyncPill(ns.comm and ns.comm:StatusInfo() or nil)
+    window:SetPill(pill.text, pill.status)
+  end
+end
+
+local function onResize(width, height)
+  contentWidth, contentHeight = width - SIDEBAR_WIDTH, height
+  if content then
+    content:SetSize(contentWidth, contentHeight)
+  end
+  if sidebar then
+    sidebar:Layout(SIDEBAR_WIDTH, height)
+  end
+  UI.SizeHost()
+  if host then
+    host:DoLayout()
+  end
+end
+
+function UI.SelectTab(tab)
+  if tab ~= currentTab then
+    actionMessage = nil
+  end
+  currentTab = tab
+  UI.BuildSidebar()
+  Redraw()
+end
+
+-- The language was changed in the settings: every text is read again.
+function UI.LanguageChanged()
+  UI.BuildSidebar()
+  UI.UpdatePill()
+  Kit.Popup.Get(1):Rebuild()
+  Redraw()
+end
+
+-- The settings popover behind the gear of the header.
+local function buildSettings(stack)
+  local settings = ns.Settings
+  Kit.SectionLabel(stack, { text = L("Settings") })
+  local field = Kit.Field(stack, { label = L("Language") })
+  Kit.Dropdown(field, {
+    items = {
+      { value = "auto", text = L("Automatic (game language)") },
+      { value = "es", text = "Español" },
+      { value = "en", text = "English" },
+    },
+    value = settings.Language(ns.db),
+    onChange = function(value)
+      settings.SetLanguage(ns.db, value)
+      ns.Locale.UsePreference(value, ns.Platform.GetLocale())
+      UI.LanguageChanged()
+    end,
+  })
+  Kit.Switch(stack, {
+    label = L("Show the minimap button"),
+    checked = not ns.MinimapButton.Settings(ns.db).hide,
+    onChange = function(on)
+      ns.MinimapButton.SetHidden(ns.db, not on)
+    end,
+  })
+  local position = Kit.Row(stack, { gap = 10, align = "center" })
+  Kit.Label(position, { text = L("Button position"), layout = { weight = 1 } })
+  Kit.Button(position, {
+    text = L("Reset"),
+    layout = { width = "auto" },
+    onClick = function()
+      ns.MinimapButton.ResetPosition(ns.db)
+    end,
+  })
+  Kit.Switch(stack, {
+    label = L("Blacklist alert sound"),
+    checked = settings.BlacklistSound(ns.db),
+    onChange = function(on)
+      settings.SetBlacklistSound(ns.db, on)
+    end,
+  })
+end
+
+function UI.ToggleSettings()
+  if not (window and ns.db) then
+    return
+  end
+  local popup = Kit.Popup.Get(1)
+  if popup:IsOpen() then
+    popup:Close()
+    return
+  end
+  popup:Open(window.buttons.settings.frame, 320, buildSettings, { point = "BOTTOMRIGHT" })
+end
+
+local function buildWindow()
+  window = Kit.Window.New({
+    name = "NrageAssistantWindow",
+    title = "Nrage Assistant",
+    version = ns.GetVersion(),
+    buttons = {
+      {
+        name = "settings",
+        icon = "gear",
+        tooltip = L("Settings"),
+        onClick = function()
+          UI.ToggleSettings()
+        end,
+      },
+    },
+    onResize = onResize,
+    onClose = function()
+      Kit.CloseAllPopups()
+    end,
+  })
+  UI.ApplyWindowStatus(window, "mainWindow", 1000, 640)
+  content = CreateFrame("Frame", nil, window.body)
+  content:SetPoint("TOPLEFT", window.body, "TOPLEFT", SIDEBAR_WIDTH, 0)
+  content:SetPoint("BOTTOMRIGHT", window.body, "BOTTOMRIGHT", 0, 0)
+  if C_Timer.NewTicker then
+    C_Timer.NewTicker(2, function()
+      if UI.IsOpen() then
+        UI.UpdatePill()
+      end
+    end)
+  end
+end
+
 function UI.Toggle()
   if not ns.active or not ns.character then
     return
   end
-  if frame then
-    Release()
+  if window and window:IsShown() then
+    window:Hide()
     return
   end
-
-  local AceGUI = LibStub("AceGUI-3.0")
-  frame = AceGUI:Create("Frame")
-  frame:SetTitle("Nrage Assistant")
-  frame:SetStatusText(ns.GetVersion())
-  UI.ApplyWindowStatus(frame, "main", 720, 480)
-  frame:SetLayout("Fill")
-  frame:SetCallback("OnClose", function()
-    Release()
-  end)
-
-  tabs = AceGUI:Create("TabGroup")
-  tabs:SetLayout("Fill")
-  tabs:SetTabs(ns.ViewModel.TabsFor(ns.PermissionService.OwnRole(ns.Platform)))
-  tabs:SetCallback("OnGroupSelected", OnTabSelected)
-  frame:AddChild(tabs)
-  tabs:SelectTab(currentTab)
+  if not window then
+    buildWindow()
+  end
+  window:Show()
+  UI.BuildSidebar()
+  UI.UpdatePill()
+  UI.DrawCurrent()
 end
 
 -- Opens the window on `tab` (a value of ViewModel.TABS), or switches to it when the window is already open.
@@ -1318,7 +1461,8 @@ function UI.OpenTab(tab)
     return
   end
   currentTab = tab
-  if frame then
+  if UI.IsOpen() then
+    UI.BuildSidebar()
     Redraw()
   else
     UI.Toggle()

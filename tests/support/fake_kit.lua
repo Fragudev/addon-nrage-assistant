@@ -154,6 +154,7 @@ function M.new(real)
   local Kit = { Theme = real.Theme, Util = real.Util, Calendar = real.Calendar, Icons = real.Icons, Pixel = real.Pixel }
   local fake = { nodes = {} }
   Kit.fake = fake
+  Kit.Place = function() end
 
   local function make(kind, parent, opts)
     local node = setmetatable(new_node(kind, parent, opts), node_meta)

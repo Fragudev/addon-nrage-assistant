@@ -30,19 +30,21 @@ function BlacklistCommands:Context()
   }
 end
 
-local ERRORS = {
-  empty_name = L("enter the name of the player."),
-  long_name = L("the name is too long."),
-  bad_name = L("that is not a valid name."),
-  empty_reason = L("enter a reason."),
-  long_reason = L("the reason is too long (up to 100 characters)."),
-  bad_reason = L("the reason cannot contain | or control characters."),
-  not_author = L(
-    "that player is already on the blacklist; only the member who added them or an officer can change the reason."
-  ),
-  limit = L("the blacklist is full."),
-  not_found = L("that player is not on the blacklist."),
-}
+local ERRORS = ns.Locale.Table(function()
+  return {
+    empty_name = L("enter the name of the player."),
+    long_name = L("the name is too long."),
+    bad_name = L("that is not a valid name."),
+    empty_reason = L("enter a reason."),
+    long_reason = L("the reason is too long (up to 100 characters)."),
+    bad_reason = L("the reason cannot contain | or control characters."),
+    not_author = L(
+      "that player is already on the blacklist; only the member who added them or an officer can change the reason."
+    ),
+    limit = L("the blacklist is full."),
+    not_found = L("that player is not on the blacklist."),
+  }
+end)
 
 local function fail(ctx, reason, action)
   if reason == "forbidden" then

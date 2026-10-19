@@ -135,11 +135,13 @@ local function close()
   end
 end
 
-local NEED_BUTTONS = {
-  { text = L("Main spec"), need = "main" },
-  { text = L("Off spec"), need = "off" },
-  { text = L("Other"), need = "other" },
-}
+local NEED_BUTTONS = ns.Locale.Table(function()
+  return {
+    { text = L("Main spec"), need = "main" },
+    { text = L("Off spec"), need = "off" },
+    { text = L("Other"), need = "other" },
+  }
+end)
 
 local function answer(entry, need)
   local event = ns.db.global.events[entry.eventId]

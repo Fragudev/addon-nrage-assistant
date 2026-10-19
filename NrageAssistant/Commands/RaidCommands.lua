@@ -58,9 +58,6 @@ local function sentNote(ok, reason, detail)
   return L("saved here, but not sent to the guild (%s)."):format(why)
 end
 
-local EVENT_STATUS_HELP = L("status must be planned, open, closed or cancelled.")
-local EVENT_DATE_HELP = L("give the start as YYYY-MM-DD HH:MM in your local time, e.g. 2026-10-03 20:30.")
-
 function RaidCommands:CreateEvent(title)
   local ctx = self:Context()
   local event, reason = ns.EventService.Create(ctx, { title = title })
@@ -84,7 +81,7 @@ function RaidCommands:UpdateEvent(event, fields)
   local updated, reason = ns.EventService.Update(ctx, event.eventId, fields)
   if not updated then
     if reason == "invalid:status" then
-      return { EVENT_STATUS_HELP }
+      return { L("status must be planned, open, closed or cancelled.") }
     end
     return { fail(ctx, reason) }
   end
@@ -103,7 +100,7 @@ end
 function RaidCommands:SetEventStart(event, text)
   local startAt = self.platform.ParseDate(text)
   if not startAt then
-    return { EVENT_DATE_HELP }
+    return { L("give the start as YYYY-MM-DD HH:MM in your local time, e.g. 2026-10-03 20:30.") }
   end
   return self:UpdateEvent(event, { startAt = startAt })
 end
