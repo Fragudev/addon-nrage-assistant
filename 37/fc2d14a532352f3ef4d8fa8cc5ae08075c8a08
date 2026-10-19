@@ -1,0 +1,29 @@
+NrageAssistant/Domain/Diagnostics.lua
+  s_7166cdd3303912::t_9674bd14e81bcc 47
+NrageAssistant/Libs/README.md
+  s_7166cdd3303912::t_7575cf2e226ba1 7
+README.md
+  s_7166cdd3303912::t_a382bd7c9a4eeb 49
+docs/API_NOTES.md
+  s_7166cdd3303912::t_454c3af9145029 153
+tests/diagnostics_spec.lua
+  s_7166cdd3303912::t_431eefddc9fa35 42,174,181
+tests/embeds_spec.lua
+  s_7166cdd3303912::t_eb6b0891d2b31f 28-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "37fc2d14a532352f3ef4d8fa8cc5ae08075c8a08",
+  "prompts": {},
+  "sessions": {
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
