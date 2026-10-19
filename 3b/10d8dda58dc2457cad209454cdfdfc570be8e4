@@ -1,0 +1,19 @@
+docs/REDESIGN_PLAN.md
+  s_7166cdd3303912::t_28b3fdfd64cf32 1-624
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b10d8dda58dc2457cad209454cdfdfc570be8e4",
+  "prompts": {},
+  "sessions": {
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
