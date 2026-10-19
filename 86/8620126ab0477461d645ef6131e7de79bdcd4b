@@ -1,0 +1,45 @@
+NrageAssistant/UI/Kit/Text.lua
+  s_7166cdd3303912::t_ca4796c4e6ba35 145-170,173-175,179,181,190-205,208-218,222,228
+tests/kit_widgets_spec.lua
+  s_7166cdd3303912::t_4bb7170868c9da 209-230
+tests/platform_unmeasured_spec.lua
+  s_7166cdd3303912::t_2f535b722a494a 97-99,103,117-133
+tests/ui_smoke_spec.lua
+  s_7166cdd3303912::t_332e366d63c672 126,583-595
+NrageAssistant/Core/Platform.lua
+  s_eb5d8014516bd2::t_3537e297cec604 166-173,188,190-196
+NrageAssistant/UI/Tabs/Professions.lua
+  s_eb5d8014516bd2::t_37601726128b7c 70
+NrageAssistant/UI/Tabs/Profile.lua
+  s_eb5d8014516bd2::t_404327a7f32d70 78
+NrageAssistant/UI/ViewModelHome.lua
+  s_eb5d8014516bd2::t_bcac087c24c11d 269-280,293
+NrageAssistant/UI/ViewModelProfessions.lua
+  s_eb5d8014516bd2::t_ce8fb593c715f1 166
+tests/view_model_spec.lua
+  s_eb5d8014516bd2::t_fbdc491bbfff21 38,41,1963-1980
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "868620126ab0477461d645ef6131e7de79bdcd4b",
+  "prompts": {},
+  "sessions": {
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_eb5d8014516bd2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a6ebda5258ac39d48",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
