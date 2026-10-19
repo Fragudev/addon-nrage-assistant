@@ -1,0 +1,111 @@
+NrageAssistant/Core/Constants.lua
+  s_7166cdd3303912::t_f178d6772299d1 5,70-91
+NrageAssistant/Core/Init.lua
+  s_7166cdd3303912::t_4140e068e4dce9 295-362,391
+NrageAssistant/Core/Store.lua
+  s_7166cdd3303912::t_38f327a5ef2f15 7-8,81-90,126
+NrageAssistant/Domain/PublishService.lua
+  s_7166cdd3303912::t_14f2f794c23c41 104
+NrageAssistant/Domain/RecipeService.lua
+  s_7166cdd3303912::t_0fa480f38c3dcd 1-150
+NrageAssistant/Locales/esES.lua
+  s_7166cdd3303912::t_ab0ad446addd90 670-692
+NrageAssistant/NrageAssistant.toc
+  s_7166cdd3303912::t_ea81d4154ea27b 34,59,76,87
+NrageAssistant/Sync/Comm.lua
+  s_7166cdd3303912::t_212a9e2584800d 43-45,248-250,447-480,820-825
+NrageAssistant/Sync/Protocol.lua
+  s_7166cdd3303912::t_7e524b8db1509e 417-460,488
+NrageAssistant/Sync/RecipeSync.lua
+  s_7166cdd3303912::t_32e4d9c111f64a 1-143
+NrageAssistant/UI/Kit/Data.lua
+  s_7166cdd3303912::t_a098caf0a78aef 11-13,30-31,34
+NrageAssistant/UI/Main.lua
+  s_7166cdd3303912::t_9ba1048539f825 209-214
+NrageAssistant/UI/Tabs/Professions.lua
+  s_7166cdd3303912::t_d635070f0553d1 1-231
+NrageAssistant/UI/ViewModel.lua
+  s_7166cdd3303912::t_5c45dc0328ba78 1040
+NrageAssistant/UI/ViewModelProfessions.lua
+  s_7166cdd3303912::t_5c3b09b992c13b 1-175
+docs/PRIVACY.md
+  s_7166cdd3303912::t_26cae772f0bb9b 59
+docs/PROTOCOL.md
+  s_7166cdd3303912::t_c546e782d64ae0 61,237-248
+docs/USER_GUIDE.md
+  s_7166cdd3303912::t_62a0688bf17015 248-259
+tests/blacklist_commands_spec.lua
+  s_7166cdd3303912::t_cb06ec8427aae8 12
+tests/blacklist_service_spec.lua
+  s_7166cdd3303912::t_116c07dd679cc9 8
+tests/blacklist_sync_spec.lua
+  s_7166cdd3303912::t_bd61a349f060c6 8
+tests/blacklist_watcher_spec.lua
+  s_7166cdd3303912::t_bb8b151d6cda8b 8
+tests/comm_spec.lua
+  s_7166cdd3303912::t_65b4f7e9fd3265 15,33
+tests/constants_spec.lua
+  s_7166cdd3303912::t_a433209cc7fb08 13-14
+tests/domain_spanish_spec.lua
+  s_7166cdd3303912::t_3db04441331350 11
+tests/event_service_spec.lua
+  s_7166cdd3303912::t_933066ec4db90f 8
+tests/event_sync_spec.lua
+  s_7166cdd3303912::t_cb18604962afa0 8
+tests/loot_commands_spec.lua
+  s_7166cdd3303912::t_f6f2bb764ac2d4 11
+tests/loot_service_spec.lua
+  s_7166cdd3303912::t_2661441cc10663 8
+tests/loot_sync_spec.lua
+  s_7166cdd3303912::t_b4edb067bcbf47 8
+tests/pvp_sync_spec.lua
+  s_7166cdd3303912::t_f3d10feb756af9 9
+tests/raid_commands_spec.lua
+  s_7166cdd3303912::t_2c44b2f12e732a 11
+tests/readiness_rules_spec.lua
+  s_7166cdd3303912::t_039fa3e83a0808 8,15
+tests/report_spec.lua
+  s_7166cdd3303912::t_112c94f431a3ee 9
+tests/roster_service_spec.lua
+  s_7166cdd3303912::t_82fa08ac0d5260 9
+tests/roster_sync_spec.lua
+  s_7166cdd3303912::t_75945bb93c4d7b 15,33
+tests/store_spec.lua
+  s_7166cdd3303912::t_3ee79d90ccf023 28,36,50,57,92,120,147,207,216,236,266,283,302-323
+tests/template_commands_spec.lua
+  s_7166cdd3303912::t_9c2a3161a9f43b 11
+tests/template_service_spec.lua
+  s_7166cdd3303912::t_b9bf4d770f0b50 9
+tests/transfer_spec.lua
+  s_7166cdd3303912::t_68a2266c67c163 14,29
+tests/ui_smoke_spec.lua
+  s_7166cdd3303912::t_1ac7eee5183da6 24,45,62,159-170,183,195,1691-1740
+tests/view_model_spec.lua
+  s_7166cdd3303912::t_7a1bcdc5e7dc74 12,29,148,1651-1654,2744-2829
+tests/recipe_spec.lua
+  s_2a961e4931e22b::t_6cefb0aad9dc43 1-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d90fe2802b07f2ba5e4f230c1ccc1ec34090ae80",
+  "prompts": {},
+  "sessions": {
+    "s_2a961e4931e22b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a095da82e985b52a3",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
