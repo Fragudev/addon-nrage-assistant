@@ -10,8 +10,16 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 9", function()
-    assert.are.equal(9, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 10", function()
+    assert.are.equal(10, ns.Constants.SCHEMA_VERSION)
+  end)
+
+  it("takes roles from assignments, with the guild master as the only admin", function()
+    assert.are.equal("assigned", ns.Constants.ROLE_SOURCE)
+    assert.are.equal(0, ns.Constants.GUILD_MASTER_RANK_INDEX)
+    assert.are.same({ "member", "rl", "council" }, ns.Constants.ASSIGNABLE_ROLES)
+    assert.is_false(ns.Constants.BETA_ADMIN_ENABLED)
+    assert.is_nil(ns.Constants.BETA_ADMIN_NAMES)
   end)
 
   it("defines PvP ranks with names and thresholds that keep going up", function()

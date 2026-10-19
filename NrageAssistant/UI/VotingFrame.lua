@@ -105,15 +105,21 @@ local awardConfirm
 -- What was typed in the reason field, kept across the redraws a confirmation causes.
 local awardReason = ""
 
+-- The events of the roster of this player (the guild master sees all of them): the window opens for the council and
+-- the raid leaders of the roster of a session, not for the others.
 local function events()
-  return ns.db.global.events
+  local global = ns.db.global
+  local viewer = ns.RosterService.OwnViewer(ns.Platform, global.rosters, global.members)
+  return ns.RosterService.FilterEvents(global.events, viewer)
 end
 
 local function loot()
   return ns.LootCommands.New({
-    events = events(),
+    events = ns.db.global.events,
     platform = ns.Platform,
     comm = ns.comm,
+    rosters = ns.db.global.rosters,
+    members = ns.db.global.members,
     onChange = ns.UI.LootChanged,
   })
 end

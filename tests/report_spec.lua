@@ -5,6 +5,7 @@ local function load_modules()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",

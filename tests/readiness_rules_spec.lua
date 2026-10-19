@@ -4,11 +4,13 @@ local function load_modules()
     "Core/Constants",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/ReadinessRules",
     "Sync/Protocol",
     "Sync/SyncRules",
     "Sync/ReadinessRulesSync",
+    "Sync/RosterSync",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end

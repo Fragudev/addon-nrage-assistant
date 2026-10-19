@@ -9,8 +9,10 @@ local _, ns = ...
 --   actor  = "Name-Realm",            now = function() -> server time,
 --   newId  = function() -> unique id, isLockedDown = function() -> boolean (optional),
 -- }
--- Every operation returns its result, or nil/false plus a reason:
---   "forbidden" | "not_found" | "closed" | "locked_down" | "limit" | "not_candidate" | "invalid:<field>".
+-- ctx.rosterId is the roster of the actor: a session is acted on by the members of its event's roster (and the guild
+-- master), see RosterService.MayAct. Every operation returns its result, or nil/false plus a reason:
+--   "forbidden" | "other_roster" | "not_found" | "closed" | "locked_down" | "limit" | "not_candidate" |
+--   "invalid:<field>".
 --
 -- Addon messages are not confidential, and neither is anything here: anyone running the addon on
 -- the guild channel can read votes. The UI says so wherever it shows them.
@@ -34,11 +36,19 @@ local function countKeys(tbl)
   return count
 end
 
--- Returns event, session; or nil, nil plus "not_found" | "closed".
+-- true when the actor may act on the loot of `event`.
+local function inRoster(ctx, event)
+  return ns.RosterService.MayAct(ctx.role, ctx.rosterId, event.rosterId)
+end
+
+-- Returns event, session; or nil, nil plus "not_found" | "closed" | "other_roster".
 local function findOpenSession(ctx, eventId, sessionId)
   local event = ctx.events[eventId]
   if not event then
     return nil, nil, "not_found"
+  end
+  if not inRoster(ctx, event) then
+    return nil, nil, "other_roster"
   end
   -- Events created before loot existed have no table yet.
   event.loot = event.loot or {}
@@ -64,6 +74,9 @@ function LootService.OpenSession(ctx, eventId, fields)
   local event = ctx.events[eventId]
   if not event then
     return nil, "not_found"
+  end
+  if not inRoster(ctx, event) then
+    return nil, "other_roster"
   end
   local item, reason = ns.LootModel.ValidateItem(fields)
   if not item then

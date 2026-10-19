@@ -54,17 +54,24 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
 
 ## What you can do, by role
 
-Your role comes from your **guild rank**. The addon never trusts what a message says about its sender: every
-client checks the sender's rank in its own copy of the guild roster.
+The **guild master is the only admin**. They are recognised by holding rank index 0 of the guild, never by the name
+of the character or of the rank, and nobody can be made admin from inside the addon. Every other role is **assigned
+by the guild master** in the *Members* tab, together with a roster, and shared with the whole guild; whoever has not
+been assigned anything is a member. The addon never trusts what a message says about its sender: every client checks
+the sender against its own copy of the guild roster and of the assignments.
 
 | Role | Who | Can |
 |---|---|---|
-| member | any rank not listed below | see shared data, edit and publish your own sheet, put yourself forward for loot, add players to the blacklist |
-| rl | raid leaders | everything a member can, plus create and edit events, record attendance, manage assignments |
-| council | loot council | everything a member can, plus open loot sessions, vote and award |
-| admin | guild master and officers | everything above, plus moderation and removing players from the blacklist |
+| member | everybody the guild master did not assign a role to | see shared data, edit and publish your own sheet, put yourself forward for loot (in your roster), add players to the blacklist |
+| rl | raid leaders, assigned | everything a member can, plus create and edit events, record attendance and manage assignments, only for the events of their own roster |
+| council | loot council, assigned | everything a member can, plus open loot sessions, vote and award, only for the sessions of their own roster |
+| admin | the guild master | everything above for every roster, plus managing rosters and roles, the readiness rules, moderation and removing players from the blacklist |
 
-The rank names are placeholders until the guild defines its own. Ranks that are not mapped count as member.
+**Rosters.** The guild master defines the rosters (teams) and puts each player in at most one. A player sees the
+events, reports and loot of their own roster only (events made before rosters existed stay visible to every
+member who has a roster until the guild master assigns one); a player with no roster sees none and is told to ask
+for one. The guild master can look at any roster, or all of them, with the roster selector. This is a filter in the
+window, not a lock: the raid data still reaches every member with the addon (see `docs/PRIVACY.md`).
 
 ## Your sheet (profile)
 

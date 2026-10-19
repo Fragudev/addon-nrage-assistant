@@ -12,13 +12,28 @@ local _, ns = ...
 -- resurrect deleted data (on a tie the delete wins).
 --
 -- ctx = { events = db.global.events, tombstones = db.global.sync.tombstones, now = function() }
+-- Rosters: a raid leader only changes the events of their own roster, and the receiver checks it with the roster it
+-- holds for the sender (`ctx.members` and `ctx.rosters`, or `ctx.rosterOf(sender)`); the guild master changes any.
+-- An event without a roster (legacy, or from a client that does not know rosters) stays open to the members who have a
+-- roster until the guild master gives it one.
 -- Every function returns true, or false plus:
---   "unknown_sender" | "forbidden" | "unknown_event" | "stale" | "tombstoned" | "limit" | "unsupported"
+--   "unknown_sender" | "forbidden" | "other_roster" | "unknown_event" | "stale" | "tombstoned" | "limit" |
+--   "unsupported"
 local EventSync = {}
 
 local Rules = ns.SyncRules
 local countKeys, authorize, clampTimestamp = Rules.CountKeys, Rules.Authorize, Rules.ClampTimestamp
 local wins, blockedByTombstone = Rules.Wins, Rules.BlockedByTombstone
+
+-- nil when `sender` (with `role`) may manage an event of `eventRosterId`, else "other_roster".
+local function rosterGuard(ctx, sender, role, eventRosterId)
+  local senderRoster = ns.RosterService.SenderRoster(ctx, sender)
+  if ns.RosterService.MayAct(role, senderRoster, eventRosterId) then
+    return nil
+  end
+  return "other_roster"
+end
+EventSync.RosterGuard = rosterGuard
 
 local function applyEventUpsert(ctx, payload, sender, role)
   local denied = authorize(role, "manage_events")
@@ -32,6 +47,22 @@ local function applyEventUpsert(ctx, payload, sender, role)
   end
 
   local event = ctx.events[payload.eventId]
+  -- The event as it stands, and the event as the message would leave it, both have to be of the sender's roster.
+  if event then
+    local blocked = rosterGuard(ctx, sender, role, event.rosterId)
+    if blocked then
+      return false, blocked
+    end
+  end
+  -- What the message says about the roster has to be the sender's own: a raid leader cannot move an event to another
+  -- roster, and a new event has to say it is of theirs. A message with no roster is only fine for an event that already
+  -- has one (an older client editing it).
+  if role ~= "admin" then
+    local senderRoster = ns.RosterService.SenderRoster(ctx, sender)
+    if (payload.rosterId ~= nil and payload.rosterId ~= senderRoster) or (payload.rosterId == nil and not event) then
+      return false, "other_roster"
+    end
+  end
   local updatedAt = clampTimestamp(ctx, payload.updatedAt)
   if event then
     if not wins(payload.rev, updatedAt, sender, event) then
@@ -50,6 +81,8 @@ local function applyEventUpsert(ctx, payload, sender, role)
   event.instance = payload.instance
   event.startAt = payload.startAt
   event.status = payload.status or "planned"
+  -- A message that leaves the roster out (a client that does not know rosters) keeps the one the event has.
+  event.rosterId = payload.rosterId or event.rosterId
   event.rev = payload.rev
   event.updatedAt = updatedAt
   event.updatedBy = sender
@@ -66,6 +99,10 @@ local function applyAttendanceUpsert(ctx, payload, sender, role)
   local event = ctx.events[payload.eventId]
   if not event then
     return false, "unknown_event"
+  end
+  local blocked = rosterGuard(ctx, sender, role, event.rosterId)
+  if blocked then
+    return false, blocked
   end
 
   local updatedAt = clampTimestamp(ctx, payload.updatedAt)
@@ -101,6 +138,11 @@ local function applyAssignUpsert(ctx, payload, sender, role)
     return false, "unknown_event"
   end
 
+  local blocked = rosterGuard(ctx, sender, role, event.rosterId)
+  if blocked then
+    return false, blocked
+  end
+
   local key = ("A:%s:%s"):format(payload.eventId, payload.assignmentId)
   if blockedByTombstone(ctx, key, payload.rev) then
     return false, "tombstoned"
@@ -133,7 +175,7 @@ local function applyAssignUpsert(ctx, payload, sender, role)
   return true
 end
 
-local function applyDelete(ctx, payload, _, role)
+local function applyDelete(ctx, payload, sender, role)
   local isEvent = payload.kind == "event"
   local denied = authorize(role, isEvent and "manage_events" or "manage_assignments")
   if denied then
@@ -141,6 +183,16 @@ local function applyDelete(ctx, payload, _, role)
   end
 
   local event = ctx.events[payload.eventId]
+  -- Only the guild master can delete something of an event this client does not know: a raid leader cannot know it
+  -- is one of their roster's.
+  if event then
+    local blocked = rosterGuard(ctx, sender, role, event.rosterId)
+    if blocked then
+      return false, blocked
+    end
+  elseif role ~= "admin" then
+    return false, "unknown_event"
+  end
   local key
   if isEvent then
     key = "E:" .. payload.eventId
@@ -204,6 +256,7 @@ function EventSync.EventPayload(event)
     instance = event.instance,
     startAt = event.startAt,
     status = event.status,
+    rosterId = event.rosterId,
   }
 end
 

@@ -5,6 +5,7 @@ local function load_modules()
     "Core/Validate",
     "Domain/PvPService",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Sync/Protocol",
     "Sync/SyncRules",

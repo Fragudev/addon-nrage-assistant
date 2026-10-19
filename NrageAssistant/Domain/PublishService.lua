@@ -34,6 +34,9 @@ local function buildProfessions(list)
       if type(entry.max) == "number" then
         profession.max = entry.max
       end
+      if entry.secondary == true then
+        profession.secondary = true
+      end
       result[#result + 1] = profession
     end
   end
@@ -71,7 +74,7 @@ end
 local function fingerprint(payload)
   local parts = { payload.class, tostring(payload.level), tostring(payload.ilvl or "") }
   for _, profession in ipairs(payload.professions or {}) do
-    parts[#parts + 1] = ("%s=%d"):format(profession.name, profession.skill)
+    parts[#parts + 1] = ("%s=%d%s"):format(profession.name, profession.skill, profession.secondary and "s" or "")
   end
   for _, key in ipairs(SHARED_FIELDS) do
     parts[#parts + 1] = key .. ":" .. ((payload.fields or {})[key] or "")

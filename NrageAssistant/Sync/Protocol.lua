@@ -39,6 +39,13 @@ local function validateProfessions(list)
       end
       profession.max = entry.max
     end
+    -- Protocol 1.5: secondary professions (cooking, fishing, archaeology) say so. An older client leaves it out.
+    if entry.secondary ~= nil then
+      if entry.secondary ~= true then
+        return nil
+      end
+      profession.secondary = true
+    end
     clean[index] = profession
   end
   return clean
@@ -363,6 +370,50 @@ local function validateReadinessRules(payload)
   return { rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
 end
 
+-- Raid rosters and the roles the guild master assigns (protocol 1.5). Who may send them is decided by the receiver
+-- from its own guild roster (RosterSync); `admin` is not a role that can be assigned, so it does not validate.
+local function validateRosterUpsert(payload)
+  if not (isId(payload.rosterId) and validateRevision(payload)) then
+    return nil
+  end
+  local name = ns.RosterService.CleanName(payload.name)
+  if not (name and name == payload.name) then
+    return nil
+  end
+  return { rosterId = payload.rosterId, name = name, rev = payload.rev, updatedAt = payload.updatedAt }
+end
+
+local function validateRosterDelete(payload)
+  if not (isId(payload.rosterId) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  return { rosterId = payload.rosterId, rev = payload.rev }
+end
+
+local function validateMemberUpsert(payload)
+  if not (ns.RosterService.IsMemberKey(payload.key) and validateRevision(payload)) then
+    return nil
+  end
+  if not ns.RosterService.IsAssignableRole(payload.role) then
+    return nil
+  end
+  local clean = { key = payload.key, role = payload.role, rev = payload.rev, updatedAt = payload.updatedAt }
+  if payload.rosterId ~= nil then
+    if not isId(payload.rosterId) then
+      return nil
+    end
+    clean.rosterId = payload.rosterId
+  end
+  return clean
+end
+
+local function validateMemberDelete(payload)
+  if not (ns.RosterService.IsMemberKey(payload.key) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  return { key = payload.key, rev = payload.rev }
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -390,6 +441,10 @@ local VALIDATORS = {
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
   READINESS_RULES = validateReadinessRules,
+  ROSTER_UPSERT = validateRosterUpsert,
+  ROSTER_DELETE = validateRosterDelete,
+  MEMBER_UPSERT = validateMemberUpsert,
+  MEMBER_DELETE = validateMemberDelete,
   SYNC_REQ = validateSyncReq,
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,

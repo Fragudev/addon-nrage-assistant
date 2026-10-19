@@ -7,13 +7,23 @@ local _, ns = ...
 --   events     = db.global.events,             tombstones = db.global.sync.tombstones,
 --   role       = "member" | "rl" | "admin",    actor      = "Name-Realm",
 --   now        = function() -> server time,    newId      = function() -> unique id,
+--   rosterId   = the roster of the actor (nil: none),
 -- }
+-- A raid leader works on the events of their own roster only (RosterService.MayAct); the guild master on any.
 -- Every operation returns its result, or nil/false plus a reason:
---   "forbidden" | "not_found" | "limit" | "invalid:<field>" | "invalid_state".
+--   "forbidden" | "other_roster" | "not_found" | "limit" | "invalid:<field>" | "invalid_state".
 local EventService = {}
 
 local Can = function(role, action)
   return ns.PermissionService.Can(role, action)
+end
+
+-- nil when the actor may manage `event`, else "other_roster".
+local function rosterGuard(ctx, event)
+  if ns.RosterService.MayAct(ctx.role, ctx.rosterId, event.rosterId) then
+    return nil
+  end
+  return "other_roster"
 end
 
 local function stamp(ctx, record)
@@ -56,6 +66,13 @@ function EventService.Create(ctx, fields)
   if not clean then
     return nil, reason
   end
+  -- A raid leader's new event belongs to their roster; the guild master chooses (or leaves it with none).
+  if ctx.role ~= "admin" then
+    if ctx.rosterId == nil or (clean.rosterId ~= nil and clean.rosterId ~= ctx.rosterId) then
+      return nil, "other_roster"
+    end
+    clean.rosterId = ctx.rosterId
+  end
   if countKeys(ctx.events) >= ns.Constants.EVENT_MAX then
     return nil, "limit"
   end
@@ -66,6 +83,7 @@ function EventService.Create(ctx, fields)
     instance = clean.instance,
     startAt = clean.startAt,
     status = clean.status or "planned",
+    rosterId = clean.rosterId,
     source = "declared",
     attendance = {},
     assignments = {},
@@ -88,6 +106,14 @@ function EventService.Update(ctx, eventId, fields)
   if not clean then
     return nil, reason
   end
+  local denied = rosterGuard(ctx, event)
+  if denied then
+    return nil, denied
+  end
+  -- Moving an event to another roster, or giving a legacy one a roster, is the guild master's.
+  if clean.rosterId ~= nil and ctx.role ~= "admin" then
+    return nil, "forbidden"
+  end
 
   for key, value in pairs(clean) do
     event[key] = value
@@ -104,6 +130,10 @@ function EventService.Delete(ctx, eventId)
   if not event then
     return false, "not_found"
   end
+  local denied = rosterGuard(ctx, event)
+  if denied then
+    return false, denied
+  end
   ctx.events[eventId] = nil
   addTombstone(ctx, "E:" .. eventId, event.rev + 1)
   return true
@@ -118,6 +148,10 @@ function EventService.SetAttendance(ctx, eventId, characterKey, state)
   local event = ctx.events[eventId]
   if not event then
     return nil, "not_found"
+  end
+  local denied = rosterGuard(ctx, event)
+  if denied then
+    return nil, denied
   end
   if not ns.EventModel.IsCharacterKey(characterKey) then
     return nil, "invalid:characterKey"
@@ -147,6 +181,10 @@ function EventService.AddAssignment(ctx, eventId, fields)
   local event = ctx.events[eventId]
   if not event then
     return nil, "not_found"
+  end
+  local denied = rosterGuard(ctx, event)
+  if denied then
+    return nil, denied
   end
   local clean, reason = ns.EventModel.ValidateAssignment(fields)
   if not clean then
@@ -178,6 +216,10 @@ function EventService.RemoveAssignment(ctx, eventId, assignmentId)
   local assignment = event and event.assignments[assignmentId]
   if not assignment then
     return false, "not_found"
+  end
+  local denied = rosterGuard(ctx, event)
+  if denied then
+    return false, denied
   end
   event.assignments[assignmentId] = nil
   addTombstone(ctx, ("A:%s:%s"):format(eventId, assignmentId), assignment.rev + 1)

@@ -12,8 +12,10 @@ Comm.__index = Comm
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional),
---       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
---       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
+--       rosters and members (tables: raid rosters, and the role and roster of each member) and
+--       onRosterChange(messageType) (optional), roleOf(sender) -> role or nil, ownRole() -> role or nil,
+--       snapshotInbox (optional), version (string), now() -> seconds, schedule(delaySeconds, fn),
+--       random(low, high) -> number
 function Comm.New(deps)
   return setmetatable({
     platform = deps.platform,
@@ -35,6 +37,9 @@ function Comm.New(deps)
     onBlacklistChange = deps.onBlacklistChange,
     readinessRules = deps.readinessRules or {},
     onRulesChange = deps.onRulesChange,
+    rosters = deps.rosters or {},
+    members = deps.members or {},
+    onRosterChange = deps.onRosterChange,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -234,6 +239,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.BlacklistSync.IsBlacklistMessage(message.t) then
     return self:HandleBlacklist(sender, message)
   end
+  if ns.RosterSync.IsRosterMessage(message.t) then
+    return self:HandleRoster(sender, message)
+  end
   -- SYNC_DATA is only ever accepted as a whisper.
   return false, "wrong_channel"
 end
@@ -293,7 +301,10 @@ function Comm:SendSnapshot(target)
       self.blacklist,
       blacklistMax,
       -- Only an admin's snapshot carries the rules: a receiver applies them under the role of the sender.
-      ns.PermissionService.Can(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil
+      ns.PermissionService.Can(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil,
+      -- The same goes for the rosters and the roles the guild master assigned.
+      ns.PermissionService.Can(self.ownRole and self.ownRole(), "roster_manage") and self:RosterContext() or nil,
+      math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
     )
     if #items == 0 then
       return false, "empty"
@@ -360,6 +371,7 @@ function Comm:HandleWhisper(text, sender)
   ctx.events, ctx.tombstones = self.events, self.tombstones
   ctx.blacklist = self.blacklist
   ctx.readinessRules = self.readinessRules
+  ctx.rosters, ctx.members = self.rosters, self.members
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
   if summary.pvp > 0 and self.onPvPChange then
@@ -371,6 +383,9 @@ function Comm:HandleWhisper(text, sender)
   if summary.rules > 0 and self.onRulesChange then
     self.onRulesChange("SYNC_DATA")
   end
+  if summary.rosters > 0 and self.onRosterChange then
+    self.onRosterChange("SYNC_DATA")
+  end
   return true
 end
 
@@ -380,6 +395,9 @@ function Comm:HandleRaid(sender, message)
     events = self.events,
     tombstones = self.tombstones,
     now = self.platform.ServerTime,
+    -- The roster of the sender is read from what this client holds, never from the message.
+    members = self.members,
+    rosters = self.rosters,
   }
   local ok, reason = ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onLootChange and message.t:sub(1, 5) == "LOOT_" then
@@ -416,6 +434,25 @@ function Comm:HandleBlacklist(sender, message)
   local ok, reason = ns.BlacklistSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onBlacklistChange then
     self.onBlacklistChange(message.t)
+  end
+  return ok, reason
+end
+
+-- The tables the roster rules work with.
+function Comm:RosterContext()
+  return {
+    rosters = self.rosters,
+    members = self.members,
+    tombstones = self.tombstones,
+    now = self.platform.ServerTime,
+  }
+end
+
+-- ROSTER_* and MEMBER_*: the sender's role is read from the local guild roster; only the guild master's are kept.
+function Comm:HandleRoster(sender, message)
+  local ok, reason = ns.RosterSync.Apply(self:RosterContext(), message, sender, self.roleOf(sender))
+  if ok and self.onRosterChange then
+    self.onRosterChange(message.t)
   end
   return ok, reason
 end
@@ -578,6 +615,31 @@ function Comm:SetReadinessRules(rules)
   return true, payload.rev, (self:SendReadinessRules())
 end
 
+-- Local roster changes -> wire. Keyed, so a newer edit replaces one still waiting in the queue.
+function Comm:SendRoster(roster)
+  return self:Send("ROSTER_UPSERT", ns.RosterSync.RosterPayload(roster), "RO:" .. roster.id)
+end
+
+function Comm:SendDeleteRoster(id)
+  local payload = ns.RosterSync.DeleteRosterPayload(self.tombstones, id)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("ROSTER_DELETE", payload, "RO:" .. id)
+end
+
+function Comm:SendMember(key, record)
+  return self:Send("MEMBER_UPSERT", ns.RosterSync.MemberPayload(key, record), "MB:" .. key)
+end
+
+function Comm:SendDeleteMember(key)
+  local payload = ns.RosterSync.DeleteMemberPayload(self.tombstones, key)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("MEMBER_DELETE", payload, "MB:" .. key)
+end
+
 function Comm:SendDeleteEvent(eventId)
   local payload = ns.EventSync.DeleteEventPayload(self.tombstones, eventId)
   if not payload then
@@ -715,6 +777,13 @@ function Comm.Start()
         ns.UI.RulesChanged()
       end
     end,
+    rosters = ns.db.global.rosters,
+    members = ns.db.global.members,
+    onRosterChange = function()
+      if ns.UI and ns.UI.RostersChanged then
+        ns.UI.RostersChanged()
+      end
+    end,
     version = ns.GetVersion(),
     now = platform.Now,
     schedule = C_Timer.After,
@@ -752,6 +821,12 @@ function Comm.Start()
       -- An admin also tells the guild the rules once, for the members who were not there when they were set.
       if ns.PermissionService.Can(comm.ownRole(), "rules_edit") then
         comm:SendReadinessRules()
+      end
+      -- And the roster definitions (the assignments of the members travel in the snapshot an admin answers).
+      if ns.PermissionService.Can(comm.ownRole(), "roster_manage") then
+        for _, roster in ipairs(ns.RosterService.List(comm.rosters)) do
+          comm:SendRoster(roster)
+        end
       end
     end
   end)

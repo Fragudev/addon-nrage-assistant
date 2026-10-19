@@ -1,9 +1,15 @@
 local _, ns = ...
 
--- Who may do what (plan section 12). Roles come from the guild rank, read from the receiver's own
--- guild roster: a message never gets to say what its sender is allowed to do.
--- Roles: member, rl (raid leader), council (loot council) and admin. A raid leader votes and awards loot
--- like the council (issue #24), but only the council and admins open sessions.
+-- Who may do what (plan section 12). A message never gets to say what its sender is allowed to do: roles are worked
+-- out by the receiver from its own data.
+-- Roles: member, rl (raid leader), council (loot council) and admin. A raid leader votes and awards loot like the
+-- council (issue #24), but only the council and admins open sessions.
+--
+-- Where a role comes from (Constants.ROLE_SOURCE, plan 3.4.2):
+--   "assigned" (now): the guild master is the only admin, recognised by the guild rank index 0 and never by name.
+--                     Everybody else has the role the guild master assigned in the Members tab (synced as MEMBER
+--                     records), or "member" when nothing was assigned. `admin` can never be assigned.
+--   "rank":           the old behaviour, from the rank name through Constants.RANK_ROLES.
 local PermissionService = {}
 
 local ACTIONS = {
@@ -28,7 +34,22 @@ local ACTIONS = {
   -- authority matrix in issue #41.
   rules_edit = { admin = true },
   moderate = { admin = true },
+  -- Raid rosters (plan 3.4.1): defining them and assigning members and raid leaders to them, and seeing every roster.
+  roster_manage = { admin = true },
+  roster_view_all = { admin = true },
+  -- Everybody shares the recipes of their own character (plan 3.10).
+  recipes_publish = { member = true, rl = true, council = true, admin = true },
 }
+
+-- The assignments table the role lookups read when none is passed: db.global.members. Set once at startup.
+local configured = {}
+
+-- options: { members = db.global.members }. Anything else keeps its value.
+function PermissionService.Configure(options)
+  for key, value in pairs(options or {}) do
+    configured[key] = value
+  end
+end
 
 -- Maps a rank name to a role using `mapping` (default: Constants.RANK_ROLES). Unlisted ranks are
 -- plain members; a missing rank name gives nil.
@@ -40,53 +61,72 @@ function PermissionService.RoleForRank(rankName, mapping)
   return mapping[rankName:lower()] or "member"
 end
 
--- "Some Name" and "somename" are the same name. Character names cannot contain spaces in the game, so this only
--- makes the configured list forgiving.
-local normalizeName = ns.Validate.NameKey
-
--- BETA ONLY (tracked in issue #25): the characters listed in Constants.BETA_ADMIN_NAMES are treated as
--- admins, as if they were the guild master. `identityKey` is "Name" or "Name-Realm"; only the name
--- part is compared. Callers apply this only to someone who is really in the guild.
-function PermissionService.IsBetaAdmin(identityKey)
-  local constants = ns.Constants
-  if not constants.BETA_ADMIN_ENABLED or type(identityKey) ~= "string" then
-    return false
-  end
-  local name = identityKey:match("^([^%-]+)")
-  if not name then
-    return false
-  end
-  name = normalizeName(name)
-  for _, admin in ipairs(constants.BETA_ADMIN_NAMES) do
-    if normalizeName(admin) == name then
+local function isAssignable(role)
+  for _, allowed in ipairs(ns.Constants.ASSIGNABLE_ROLES) do
+    if role == allowed then
       return true
     end
   end
   return false
 end
 
--- Role of `name` according to the local guild roster, or nil when the roster does not know them
--- (not in the guild, or the roster has not loaded yet). nil never grants anything, and neither
--- does the beta exception: it only applies to someone the roster knows.
-function PermissionService.RoleOf(guildRoster, name, mapping)
+-- The role the guild master assigned to `key`, or nil. `members` = db.global.members. `admin` is never returned: a
+-- record that says so (an old or modified client) counts as nothing.
+function PermissionService.AssignedRole(members, key)
+  local record = members and key and members[key]
+  if type(record) == "table" and isAssignable(record.role) then
+    return record.role
+  end
+  return nil
+end
+
+local function sourceOf(options)
+  return (options and options.source) or ns.Constants.ROLE_SOURCE
+end
+
+local function membersOf(options)
+  return (options and options.members) or configured.members
+end
+
+-- true for the guild master: rank index 0.
+function PermissionService.IsGuildMasterIndex(rankIndex)
+  return rankIndex == ns.Constants.GUILD_MASTER_RANK_INDEX
+end
+
+-- Role of `name` according to the local guild roster, or nil when the roster does not know them (not in the guild,
+-- or the roster has not loaded yet). nil never grants anything.
+-- options (optional): { members = assignments table, source = "assigned" | "rank", mapping = rank mapping }.
+function PermissionService.RoleOf(guildRoster, name, options)
   local entry = guildRoster:Lookup(name)
   if not entry then
     return nil
   end
-  if PermissionService.IsBetaAdmin(name) then
+  if sourceOf(options) == "rank" then
+    return PermissionService.RoleForRank(entry.rankName, options and options.mapping)
+  end
+  if PermissionService.IsGuildMasterIndex(entry.rankIndex) then
     return "admin"
   end
-  return PermissionService.RoleForRank(entry.rankName, mapping)
+  return PermissionService.AssignedRole(membersOf(options), name) or "member"
 end
 
--- Own role from the own guild rank. Without a rank (not in a guild) there is no role, beta
--- exception included.
-function PermissionService.OwnRole(platform, mapping)
-  local role = PermissionService.RoleForRank(platform.GetOwnGuildRank(), mapping)
-  if role ~= nil and PermissionService.IsBetaAdmin(platform.GetIdentityKey()) then
+-- Own role. Without a rank (not in a guild) there is no role. The guild master is recognised by the rank index of
+-- GetGuildInfo or by IsGuildLeader, whichever the client gives; the other roles come from the assignments.
+function PermissionService.OwnRole(platform, options)
+  local rankName, rankIndex = platform.GetOwnGuildRank()
+  if type(rankName) ~= "string" or rankName == "" then
+    return nil
+  end
+  if sourceOf(options) == "rank" then
+    return PermissionService.RoleForRank(rankName, options and options.mapping)
+  end
+  if
+    PermissionService.IsGuildMasterIndex(rankIndex) or (platform.IsGuildLeader and platform.IsGuildLeader() == true)
+  then
     return "admin"
   end
-  return role
+  local key = platform.GetIdentityKey and platform.GetIdentityKey()
+  return PermissionService.AssignedRole(membersOf(options), key) or "member"
 end
 
 function PermissionService.Can(role, action)

@@ -4,6 +4,7 @@
 -- only found in the game.
 local FakeFrames = dofile("tests/support/fake_frames.lua")
 local FakeKit = dofile("tests/support/fake_kit.lua")
+local Roles = dofile("tests/support/roles.lua")
 
 -- A widget that accepts any method. Containers record their children; text, value and callbacks are kept
 -- so the test can read them and press things.
@@ -100,6 +101,7 @@ local function load_window(locale)
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -165,9 +167,7 @@ local function build(rank, locale)
     GetLocale = function()
       return locale or "enUS"
     end,
-    GetOwnGuildRank = function()
-      return rank
-    end,
+    GetOwnGuildRank = Roles.ranking(rank),
     GetIdentityKey = function()
       return "Leader-Realm"
     end,
@@ -240,6 +240,17 @@ local function build(rank, locale)
       readinessRules = {},
     },
   }
+  -- The role of the player: "GM" is the guild master; the other ranks stand for the role assigned to the character, in
+  -- roster r1.
+  ns.db.global.members, ns.db.global.rosters = Roles.assignments(rank, "Leader-Realm")
+  ns.PermissionService.Configure({ members = ns.db.global.members })
+  -- The loot commands the specs make themselves get the roster data of this player, as the window gives them.
+  local new_loot_commands = ns.LootCommands.New
+  ns.LootCommands.New = function(deps)
+    deps.members = deps.members or ns.db.global.members
+    deps.rosters = deps.rosters or ns.db.global.rosters
+    return new_loot_commands(deps)
+  end
   ns.character = {
     profile = { fields = {} },
     readiness = {},
@@ -595,6 +606,7 @@ describe("Window smoke test", function()
       events = env.ns.db.global.events,
       role = "rl",
       actor = "Leader-Realm",
+      rosterId = "r1",
       now = env.ns.Platform.ServerTime,
       newId = function()
         return "ev-1"
@@ -646,6 +658,7 @@ describe("Window smoke test", function()
       events = env.ns.db.global.events,
       role = "rl",
       actor = "Leader-Realm",
+      rosterId = "r1",
       now = env.ns.Platform.ServerTime,
       newId = function()
         return "ev-1"
@@ -689,6 +702,7 @@ describe("Window smoke test", function()
       events = env.ns.db.global.events,
       role = "rl",
       actor = "Leader-Realm",
+      rosterId = "r1",
       now = env.ns.Platform.ServerTime,
       newId = function()
         return "ev-1"
@@ -709,6 +723,7 @@ describe("Window smoke test", function()
         events = env.ns.db.global.events,
         role = "rl",
         actor = "Leader-Realm",
+        rosterId = "r1",
         now = env.ns.Platform.ServerTime,
         newId = function()
           return id
@@ -915,6 +930,7 @@ describe("Window smoke test", function()
         events = ns.db.global.events,
         role = "member",
         actor = name,
+        rosterId = "r1",
         now = ns.Platform.ServerTime,
         newId = function() end,
       }, "ev-1", session.sessionId, { spec = "Spec", need = need })
@@ -1555,6 +1571,7 @@ describe("Controls that replace the slash commands", function()
         events = env.ns.db.global.events,
         role = "rl",
         actor = "Leader-Realm",
+        rosterId = "r1",
         now = env.ns.Platform.ServerTime,
         newId = function()
           return "ev-1"
@@ -1575,6 +1592,7 @@ describe("Controls that replace the slash commands", function()
         events = env.ns.db.global.events,
         role = "rl",
         actor = "Leader-Realm",
+        rosterId = "r1",
         now = env.ns.Platform.ServerTime,
         newId = function()
           return "ev-1"

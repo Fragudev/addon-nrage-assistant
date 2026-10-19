@@ -452,6 +452,18 @@ ns.Locale.Register("es", {
   ["Close"] = "Cerrar",
 
   -- The window shell and the settings
+  ["that template belongs to another roster."] = "esa plantilla es de otro roster.",
+  ["that event belongs to another roster."] = "ese evento es de otro roster.",
+  ["only the guild master can manage rosters and roles."] = "solo el maestro de hermandad puede gestionar rosters y roles.",
+  ["give a plain-text roster name (up to 30 characters)."] = "escribe un nombre de roster en texto plano (hasta 30 caracteres).",
+  ["a member can be assigned member, raid leader or loot council."] = "a un miembro se le puede asignar miembro, líder de raid o consejo de botín.",
+  ["that roster does not exist."] = "ese roster no existe.",
+  ["there is a roster with that name already."] = "ya hay un roster con ese nombre.",
+  ["created the roster '%s'."] = "roster '%s' creado.",
+  ["renamed the roster to '%s'."] = "roster renombrado a '%s'.",
+  ["deleted the roster '%s'."] = "roster '%s' eliminado.",
+  ["saved the role and roster of %s."] = "guardados el rol y el roster de %s.",
+  ["%s is a plain member with no roster again."] = "%s vuelve a ser un miembro normal sin roster.",
   ["Language"] = "Idioma",
   ["Automatic (game language)"] = "Automático (idioma del juego)",
   ["Button position"] = "Posición del botón",

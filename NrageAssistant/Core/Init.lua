@@ -224,6 +224,8 @@ end
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
+  -- The roles the guild master assigned are read from the saved assignments.
+  ns.PermissionService.Configure({ members = ns.db.global.members })
   ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetLegacyIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   ns.EventService.Purge({

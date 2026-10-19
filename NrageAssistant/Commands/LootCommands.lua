@@ -16,6 +16,8 @@ function LootCommands.New(deps)
     platform = deps.platform,
     comm = deps.comm,
     onChange = deps.onChange,
+    rosters = deps.rosters,
+    members = deps.members,
   }, LootCommands)
 end
 
@@ -31,6 +33,7 @@ function LootCommands:Context()
     events = self.events,
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
+    rosterId = ns.RosterService.RosterOf(self.members or {}, self.rosters or {}, platform.GetIdentityKey()),
     now = platform.ServerTime,
     newId = function()
       return self.comm:NextId()
@@ -48,6 +51,7 @@ local function fail(ctx, reason)
     return L("invalid %s."):format(field)
   end
   local messages = {
+    other_roster = L("that event belongs to another roster."),
     not_found = L("not found."),
     closed = L("that session is already closed."),
     locked_down = L("wait until the encounter ends: sessions cannot be opened while chat messaging is locked down."),

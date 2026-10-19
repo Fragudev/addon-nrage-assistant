@@ -15,6 +15,8 @@ function TemplateCommands.New(deps)
     templates = deps.templates,
     platform = deps.platform,
     comm = deps.comm,
+    rosters = deps.rosters,
+    members = deps.members,
   }, TemplateCommands)
 end
 
@@ -24,6 +26,7 @@ function TemplateCommands:Context()
     events = self.events,
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
+    rosterId = ns.RosterService.RosterOf(self.members or {}, self.rosters or {}, platform.GetIdentityKey()),
     now = platform.ServerTime,
     newId = function()
       return self.comm:NextId()
@@ -34,6 +37,7 @@ end
 local ERRORS = ns.Locale.Table(function()
   return {
     ["invalid:name"] = L("give a plain-text name (up to 40 characters)."),
+    other_roster = L("that template belongs to another roster."),
     empty = L("that event has no assignments to save."),
     limit = L("you already have the maximum number of templates: delete one first."),
     not_found = L("not found."),
@@ -79,7 +83,7 @@ function TemplateCommands:ApplyToEvent(event, name)
 end
 
 function TemplateCommands:Delete(name)
-  local ok, reason = ns.TemplateService.Delete(self.templates, name)
+  local ok, reason = ns.TemplateService.Delete(self.templates, name, self:Context())
   if not ok then
     return { error_line(self:Context(), reason) }
   end

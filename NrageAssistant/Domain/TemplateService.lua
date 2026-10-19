@@ -4,7 +4,10 @@ local _, ns = ...
 -- (the same boss week after week). Templates are local to this client and never sent; applying one
 -- creates ordinary assignments, so the usual role check and the usual sync apply to each of them.
 --
---   template = { name, slots = { { encounter, characterKey, group?, task?, note? } ... }, savedAt, savedBy }
+--   template = { name, slots = { { encounter, characterKey, group?, task?, note? } ... }, savedAt, savedBy,
+--                rosterId? }
+-- A template follows the roster of the event it was saved from (plan 3.4.1): it is offered and applied only for events
+-- of that roster. A template with no roster is a legacy one and works for every roster.
 local TemplateService = {}
 
 local L = ns.L
@@ -21,17 +24,21 @@ local function slotKey(slot)
   return ("%s\n%s\n%s"):format(slot.encounter, slot.characterKey, slot.task or "")
 end
 
-function TemplateService.List(templates)
+-- The names of the templates, sorted. With a `viewer` (RosterService.Viewer) only the ones that viewer can use.
+function TemplateService.List(templates, viewer)
   local names = {}
-  for name in pairs(templates) do
-    names[#names + 1] = name
+  for name, template in pairs(templates) do
+    if not viewer or ns.RosterService.TemplateVisible(template, viewer) then
+      names[#names + 1] = name
+    end
   end
   table.sort(names)
   return names
 end
 
 -- Saves the assignments of `event` as `name` (replacing a template with that name).
--- Returns the template, or nil plus "invalid:name" | "empty" | "limit".
+-- Returns the template, or nil plus "invalid:name" | "empty" | "limit" | "other_roster" (a template of that name
+-- belongs to another roster).
 function TemplateService.Save(templates, event, name, now, actor)
   local constants = ns.Constants
   name = type(name) == "string" and name:match("^%s*(.-)%s*$") or nil
@@ -49,7 +56,11 @@ function TemplateService.Save(templates, event, name, now, actor)
   if #slots == 0 then
     return nil, "empty"
   end
-  if not templates[name] and countKeys(templates) >= constants.TEMPLATES_MAX then
+  local existing = templates[name]
+  if existing and existing.rosterId ~= nil and existing.rosterId ~= event.rosterId then
+    return nil, "other_roster"
+  end
+  if not existing and countKeys(templates) >= constants.TEMPLATES_MAX then
     return nil, "limit"
   end
 
@@ -63,14 +74,20 @@ function TemplateService.Save(templates, event, name, now, actor)
     return (a.task or "") < (b.task or "")
   end)
 
-  local template = { name = name, slots = slots, savedAt = now, savedBy = actor }
+  local template = { name = name, slots = slots, savedAt = now, savedBy = actor, rosterId = event.rosterId }
   templates[name] = template
   return template
 end
 
-function TemplateService.Delete(templates, name)
-  if not templates[name] then
+-- Deletes a template. With `ctx` ({ role, rosterId }) a raid leader can only delete the ones of their own roster (and
+-- the legacy ones); returns true, or false plus "not_found" | "other_roster".
+function TemplateService.Delete(templates, name, ctx)
+  local template = templates[name]
+  if not template then
     return false, "not_found"
+  end
+  if ctx and ctx.role ~= "admin" and template.rosterId ~= nil and template.rosterId ~= ctx.rosterId then
+    return false, "other_roster"
   end
   templates[name] = nil
   return true
@@ -78,7 +95,8 @@ end
 
 -- Adds the template's assignments to an event, skipping any the event already has. `ctx` is the one
 -- EventService uses (events, role, actor, now, newId). Returns the assignments created (so the caller
--- can send them) and a table of skip reasons with counts, or nil plus "forbidden" | "not_found".
+-- can send them) and a table of skip reasons with counts, or nil plus "forbidden" | "not_found" | "other_roster" (the
+-- template belongs to another roster than the event).
 function TemplateService.Apply(ctx, templates, name, eventId)
   if not ns.PermissionService.Can(ctx.role, "manage_assignments") then
     return nil, "forbidden"
@@ -87,6 +105,9 @@ function TemplateService.Apply(ctx, templates, name, eventId)
   local event = ctx.events[eventId]
   if not template or not event then
     return nil, "not_found"
+  end
+  if template.rosterId ~= nil and template.rosterId ~= event.rosterId then
+    return nil, "other_roster"
   end
 
   local present = {}
@@ -148,7 +169,9 @@ function TemplateService.Suggest(templates, event)
   local names = {}
   for name, template in pairs(templates) do
     local key = lowered(name)
-    local related = mentions(title, key) or mentions(instance, key) or mentions(key, title) or mentions(key, instance)
+    local mine = template.rosterId == nil or template.rosterId == event.rosterId
+    local related = mine
+      and (mentions(title, key) or mentions(instance, key) or mentions(key, title) or mentions(key, instance))
     if related then
       for _, slot in ipairs(template.slots) do
         if not present[slotKey(slot)] then

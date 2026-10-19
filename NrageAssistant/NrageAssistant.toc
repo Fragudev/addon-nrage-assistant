@@ -28,6 +28,7 @@ Domain\ReadinessRules.lua
 Domain\PublishService.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
+Domain\RosterService.lua
 Domain\EventModel.lua
 Domain\EventService.lua
 Domain\LootModel.lua
@@ -51,6 +52,7 @@ Sync\LootSync.lua
 Sync\PvPSync.lua
 Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
+Sync\RosterSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -72,5 +74,6 @@ Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\TemplateCommands.lua
 Commands\BlacklistCommands.lua
+Commands\RosterCommands.lua
 Commands\Slash.lua
 Core\Init.lua

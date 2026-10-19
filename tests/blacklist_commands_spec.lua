@@ -1,3 +1,5 @@
+local Roles = dofile("tests/support/roles.lua")
+
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
@@ -6,6 +8,7 @@ local function load_modules()
     "Core/Validate",
     "Domain/PvPService",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/BlacklistService",
@@ -23,9 +26,7 @@ local ns = load_modules()
 local function build(rank)
   local env = { blacklist = {}, tombstones = {}, sent = {}, sendResult = { true }, changes = 0 }
   env.platform = {
-    GetOwnGuildRank = function()
-      return rank
-    end,
+    GetOwnGuildRank = Roles.ranking(rank),
     GetIdentityKey = function()
       return "Me-Realm"
     end,
@@ -46,6 +47,8 @@ local function build(rank)
       return unpack(env.sendResult)
     end,
   }
+  env.members = Roles.assignments(rank, "Me-Realm")
+  ns.PermissionService.Configure({ members = env.members })
   env.commands = ns.BlacklistCommands.New({
     blacklist = env.blacklist,
     tombstones = env.tombstones,

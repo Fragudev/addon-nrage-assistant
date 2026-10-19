@@ -1,9 +1,10 @@
 local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
---   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
---                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {},
---                 readinessRules = { rev, updatedAt, updatedBy, rules } }
+--   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, language,
+--                 blacklistSound, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
+--                 blacklist = {}, readinessRules = { rev, updatedAt, updatedBy, rules },
+--                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } } }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
 local Store = {}
@@ -68,6 +69,13 @@ local MIGRATIONS = {
   -- Empty until an admin sets them; the starting checklist applies meanwhile.
   [9] = function(db)
     ensureTable(ensureTable(db, "global"), "readinessRules")
+  end,
+  -- v10: raid rosters (rosters[id]) and the role and roster of each member (members[key]), both set by the guild
+  -- master (see RosterService). Existing events and templates have no rosterId: they stay as they are (legacy).
+  [10] = function(db)
+    local global = ensureTable(db, "global")
+    ensureTable(global, "rosters")
+    ensureTable(global, "members")
   end,
 }
 

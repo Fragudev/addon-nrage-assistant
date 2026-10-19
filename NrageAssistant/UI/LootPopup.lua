@@ -124,8 +124,12 @@ LootPopup.Controller = Controller
 local frame
 local controller
 
+-- Only the members of the roster of a session are asked about it (and the guild master).
 local function pending(dismissed)
-  return ns.ViewModel.PendingLoot(ns.db.global.events, ns.Platform.GetIdentityKey(), dismissed)
+  local global = ns.db.global
+  local viewer = ns.RosterService.OwnViewer(ns.Platform, global.rosters, global.members)
+  local events = ns.RosterService.FilterEvents(global.events, viewer)
+  return ns.ViewModel.PendingLoot(events, ns.Platform.GetIdentityKey(), dismissed)
 end
 
 local function close()
@@ -152,6 +156,8 @@ local function answer(entry, need)
       events = ns.db.global.events,
       platform = ns.Platform,
       comm = ns.comm,
+      rosters = ns.db.global.rosters,
+      members = ns.db.global.members,
       onChange = LootPopup.Refresh,
     })
     local lines = loot:Apply(event, session, { spec = ns.ViewModel.DefaultSpec(ns.character.profile), need = need })

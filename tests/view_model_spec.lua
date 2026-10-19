@@ -8,6 +8,7 @@ local function load_view_model(locale)
     "Core/Validate",
     "Domain/PvPService",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",

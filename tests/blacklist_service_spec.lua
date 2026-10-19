@@ -4,6 +4,7 @@ local function load_modules()
     "Core/Constants",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/BlacklistService",

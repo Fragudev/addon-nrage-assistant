@@ -355,12 +355,16 @@ local function RaidServices()
     tombstones = ns.db.global.sync.tombstones,
     platform = ns.Platform,
     comm = ns.comm,
+    rosters = ns.db.global.rosters,
+    members = ns.db.global.members,
   })
   local templates = ns.TemplateCommands.New({
     events = ns.db.global.events,
     templates = ns.db.global.templates,
     platform = ns.Platform,
     comm = ns.comm,
+    rosters = ns.db.global.rosters,
+    members = ns.db.global.members,
   })
   return raid, templates
 end
@@ -779,6 +783,8 @@ local function DrawLoot(container)
     events = ns.db.global.events,
     platform = ns.Platform,
     comm = ns.comm,
+    rosters = ns.db.global.rosters,
+    members = ns.db.global.members,
     onChange = ns.UI.LootChanged,
   })
 
@@ -1260,10 +1266,16 @@ function UI.ShowTransfer(mode)
   box:SetLabel(L("Paste an export here, then press Import:"))
   box:SetButtonText(L("Import"))
   box:SetCallback("OnEnterPressed", function(_, _, text)
+    -- An import is applied under the importer's own role and roster.
+    local ownRoster =
+      ns.RosterService.RosterOf(ns.db.global.members, ns.db.global.rosters, ns.Platform.GetIdentityKey())
     local ctx = {
       events = ns.db.global.events,
       tombstones = ns.db.global.sync.tombstones,
       now = ns.Platform.ServerTime,
+      rosterOf = function()
+        return ownRoster
+      end,
     }
     local role = ns.PermissionService.OwnRole(ns.Platform)
     local summary, reason = ns.Transfer.Import(TransferLibs(), text, ctx, role)

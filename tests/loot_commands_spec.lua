@@ -1,3 +1,5 @@
+local Roles = dofile("tests/support/roles.lua")
+
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
@@ -5,6 +7,7 @@ local function load_modules()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -38,9 +41,7 @@ local function build(rank, options)
     loot = {},
   }
   env.platform = {
-    GetOwnGuildRank = function()
-      return rank
-    end,
+    GetOwnGuildRank = Roles.ranking(rank),
     GetIdentityKey = function()
       return options.identity or "Boss-Realm"
     end,
@@ -62,7 +63,15 @@ local function build(rank, options)
       return unpack(env.sendResult)
     end
   end
-  env.loot = ns.LootCommands.New({ events = env.events, platform = env.platform, comm = env.comm })
+  env.members, env.rosters = Roles.assignments(rank, options.identity or "Boss-Realm")
+  ns.PermissionService.Configure({ members = env.members })
+  env.loot = ns.LootCommands.New({
+    events = env.events,
+    platform = env.platform,
+    comm = env.comm,
+    members = env.members,
+    rosters = env.rosters,
+  })
   return env
 end
 
@@ -302,6 +311,8 @@ describe("LootCommands onChange", function()
       events = env.events,
       platform = env.platform,
       comm = env.comm,
+      members = env.members,
+      rosters = env.rosters,
       onChange = function()
         calls = calls + 1
       end,

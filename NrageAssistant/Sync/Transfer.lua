@@ -122,7 +122,20 @@ end
 -- author, as an item of a snapshot may. The text export leaves the blacklist out as well. `readinessRules`
 -- (optional) is the stored set of guild readiness rules; its item goes last and only counts at the receiver when
 -- whoever sends the snapshot is an admin (see ReadinessRulesSync).
-function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP, blacklist, maxBlacklist, readinessRules)
+-- `rosters` (optional) is a RosterSync context ({ rosters, members, tombstones, now }) and `maxMembers` how many member
+-- assignments and removals to add; like the rules they are only worth carrying from an admin.
+function Transfer.BuildSnapshot(
+  events,
+  tombstones,
+  maxEvents,
+  pvp,
+  maxPvP,
+  blacklist,
+  maxBlacklist,
+  readinessRules,
+  rosters,
+  maxMembers
+)
   local list = {}
   for _, event in pairs(events) do
     list[#list + 1] = event
@@ -153,6 +166,11 @@ function Transfer.BuildSnapshot(events, tombstones, maxEvents, pvp, maxPvP, blac
   if readinessRules then
     local item = ns.ReadinessRulesSync.SnapshotItem(readinessRules)
     if item then
+      items[#items + 1] = item
+    end
+  end
+  if rosters and maxMembers and maxMembers > 0 then
+    for _, item in ipairs(ns.RosterSync.SnapshotItems(rosters, maxMembers)) do
       items[#items + 1] = item
     end
   end
@@ -190,6 +208,20 @@ local function applyBlacklistItem(item, ctx, sender, role)
   return ns.BlacklistSync.Apply(ctx, message, sender, role, origin)
 end
 
+-- A roster or member item of a snapshot, applied as if the sender had sent it (so only an admin's counts).
+local function applyRosterItem(item, ctx, sender, role)
+  local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
+  if not message then
+    return false, invalid
+  end
+  return ns.RosterSync.Apply(
+    { rosters = ctx.rosters, members = ctx.members, tombstones = ctx.tombstones, now = ctx.now },
+    message,
+    sender,
+    role
+  )
+end
+
 -- The readiness rules of a snapshot, applied as if the sender had sent them.
 local function applyRulesItem(item, ctx, sender, role)
   local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
@@ -206,7 +238,7 @@ end
 -- when `ctx.readinessRules` is there. Returns { total, applied, pvp (how many of those were PvP), blacklist (how
 -- many were blacklist), rules (1 when the guild rules were applied), skipped = { [reason] = count } }.
 function Transfer.ApplyItems(items, ctx, sender, role)
-  local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, rules = 0, skipped = {} }
+  local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, rules = 0, rosters = 0, skipped = {} }
   local function skip(why)
     summary.skipped[why] = (summary.skipped[why] or 0) + 1
   end
@@ -243,6 +275,20 @@ function Transfer.ApplyItems(items, ctx, sender, role)
       if ok then
         summary.applied = summary.applied + 1
         summary.rules = summary.rules + 1
+      else
+        skip(why)
+      end
+    elseif
+      type(item) == "table"
+      and type(item.t) == "string"
+      and ctx.rosters
+      and ctx.members
+      and ns.RosterSync.IsRosterMessage(item.t)
+    then
+      local ok, why = applyRosterItem(item, ctx, sender, role)
+      if ok then
+        summary.applied = summary.applied + 1
+        summary.rosters = summary.rosters + 1
       else
         skip(why)
       end

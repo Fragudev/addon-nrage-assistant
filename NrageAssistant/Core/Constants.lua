@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 9,
+  SCHEMA_VERSION = 10,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 4,
+  PROTOCOL_MINOR = 5,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -35,8 +35,20 @@ ns.Constants = {
   -- How often the profile is read again to see whether it changed and has to be published.
   PUBLISH_CHECK_SECONDS = 300,
 
-  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder
-  -- ranks until Nrage defines its own; a rank that is not listed here is treated as "member".
+  -- Where the addon role of a player comes from (plan 3.4.2):
+  --   "assigned": the guild master (rank index 0) is the only admin, and every other role (member, rl, council) is
+  --               assigned by the guild master inside the addon (Members tab) and synced. The guild ranks are not
+  --               defined yet, so RANK_ROLES is ignored for everyone but the guild master.
+  --   "rank":     the old behaviour: the guild rank name decides, through RANK_ROLES. Kept so it can be switched
+  --               back once the ranks exist.
+  ROLE_SOURCE = "assigned",
+  -- The guild master is always rank index 0 in GetGuildRosterInfo / GetGuildInfo (measured? see API_NOTES).
+  GUILD_MASTER_RANK_INDEX = 0,
+  -- The roles the guild master can assign. "admin" can never be granted from the addon.
+  ASSIGNABLE_ROLES = { "member", "rl", "council" },
+
+  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder ranks until Nrage
+  -- defines its own; a rank that is not listed here is treated as "member". Only used when ROLE_SOURCE = "rank".
   RANK_ROLES = {
     gm = "admin",
     officer = "admin",
@@ -47,12 +59,16 @@ ns.Constants = {
     alter = "member",
   },
 
-  -- BETA ONLY, remove before release (issue #25). Characters that get every permission, as if they
-  -- were the guild master. Compared by name, ignoring case and spaces, and only for guild members.
-  BETA_ADMIN_ENABLED = true,
-  -- "Yonemon Gg" is the full name (Forever names can have several words). "Yonemon" is what UnitName
-  -- gives, used until the guild roster has told the addon the full name.
-  BETA_ADMIN_NAMES = { "Yonemon Gg", "Yonemon" },
+  -- The beta list of admins by character name is gone: nobody is an admin because of who they are, only because they
+  -- hold the guild master rank. The flag stays false so a stale reference cannot turn it on (issue #25).
+  BETA_ADMIN_ENABLED = false,
+
+  -- Raid rosters (teams): definitions and the roster and role of each member, both set by the guild master and synced.
+  ROSTERS_MAX = 20,
+  ROSTER_NAME_MAX = 30,
+  MEMBER_ASSIGNMENTS_MAX = 1000,
+  -- A snapshot carries at most this many member assignments (scaled down with the events when it is too big).
+  MEMBER_SNAPSHOT_MAX = 300,
 
   -- Guild roster cache: bounded, rebuilt in chunks so a big guild never stalls the UI.
   GUILD_ROSTER_MAX = 1000,

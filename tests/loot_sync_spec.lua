@@ -4,6 +4,7 @@ local function load_modules()
     "Core/Constants",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
     "Domain/EventModel",
     "Domain/LootModel",
     "Domain/LootService",
@@ -43,6 +44,10 @@ local function client(name)
     return {
       events = c.events,
       tombstones = {},
+      -- Everybody is in roster r1 unless a test says otherwise.
+      rosterOf = c.rosterOf or function()
+        return "r1"
+      end,
       now = function()
         return c.clock
       end,
@@ -53,6 +58,7 @@ local function client(name)
       events = c.events,
       role = role,
       actor = actor or name,
+      rosterId = "r1",
       now = function()
         return c.clock
       end,
@@ -510,5 +516,63 @@ describe("LootSync payloads and items", function()
   it("are empty for an event without loot", function()
     assert.are.same({}, LootSync.SessionItems("ev-1", {}))
     assert.are.same({}, LootSync.SessionItems("ev-1", { loot = {} }))
+  end)
+end)
+
+describe("LootSync rosters", function()
+  -- A receiver with an open session of an event of roster r1.
+  local function setup(rosterOfSender)
+    local origin, receiver = client("Boss-Realm"), client("Receiver-Realm")
+    origin.events["ev-1"].rosterId, receiver.events["ev-1"].rosterId = "r1", "r1"
+    receiver.rosterOf = function(sender)
+      return rosterOfSender[sender]
+    end
+    local session = assert(LootService.OpenSession(origin.local_ctx("council", "Boss-Realm"), "ev-1", ITEM))
+    assert(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "admin"))
+    return origin, receiver, session
+  end
+
+  it("accepts the council member, the candidate and the voter of the roster of the event", function()
+    local origin, receiver, session = setup({ ["Boss-Realm"] = "r1", ["Ann-Realm"] = "r1", ["Cid-Realm"] = "r1" })
+    local candidate =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
+    local vote = { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, target = "Ann-Realm" }
+    assert.is_true(deliver(receiver, "LOOT_VOTE", vote, "Cid-Realm", "council"))
+    assert.is_truthy(origin)
+  end)
+
+  it("refuses a candidacy, a vote, a session and an award from the council of another roster", function()
+    local _, receiver, session = setup({ ["Ann-Realm"] = "r1", ["Other-Realm"] = "r2" })
+    local candidate =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Other-Realm", "member")))
+    local vote = { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, target = "Ann-Realm" }
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_VOTE", vote, "Other-Realm", "council")))
+    local opened = { eventId = "ev-1", sessionId = "s-x", rev = 1, updatedAt = 1, status = "open" }
+    opened.itemId, opened.itemName = ITEM.itemId, ITEM.itemName
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_SESSION", opened, "Other-Realm", "council")))
+    local award =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 5, updatedAt = 5, characterKey = "Ann-Realm" }
+    award.itemId, award.itemName, award.reason = ITEM.itemId, ITEM.itemName, "need"
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_AWARD", award, "Other-Realm", "council")))
+    assert.are.equal("open", receiver.events["ev-1"].loot[session.sessionId].status)
+  end)
+
+  it("refuses everybody with no roster, and lets the guild master act on any roster", function()
+    local _, receiver, session = setup({ ["Ann-Realm"] = "r1" })
+    local candidate =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Loner-Realm", "member")))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Boss-Realm", "admin"))
+  end)
+
+  it("keeps the loot of an event no roster owns open to the members who have a roster", function()
+    local _, receiver, session = setup({ ["Ann-Realm"] = "r2" })
+    receiver.events["ev-1"].rosterId = nil
+    local candidate =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
   end)
 end)
