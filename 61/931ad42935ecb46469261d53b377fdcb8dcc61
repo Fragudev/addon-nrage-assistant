@@ -1,0 +1,59 @@
+NrageAssistant/Commands/Slash.lua
+  s_7166cdd3303912::t_48ccaae2ce5fd8 101-115,117
+NrageAssistant/Core/Constants.lua
+  s_7166cdd3303912::t_1aef50b307c669 35-36,38-40
+NrageAssistant/Core/Init.lua
+  s_7166cdd3303912::t_d8a077ac34aaef 211-224,226-227,229-269
+NrageAssistant/Core/Platform.lua
+  s_7166cdd3303912::t_982c23ebd9b327 432-443
+NrageAssistant/Domain/PublishService.lua
+  s_7166cdd3303912::t_ce229f79482354 136-144
+NrageAssistant/Locales/esES.lua
+  s_7166cdd3303912::t_1cbf66915e4613 462
+NrageAssistant/NrageAssistant.toc
+  s_7166cdd3303912::t_5e187a04a9e9e5 29-30
+NrageAssistant/UI/Main.lua
+  s_7166cdd3303912::t_86cd2a8f1ac6ca 1194,1292-1340,1474,1496
+NrageAssistant/UI/MinimapButton.lua
+  s_7166cdd3303912::t_76c2980afcfc7c 105
+NrageAssistant/UI/ViewModel.lua
+  s_7166cdd3303912::t_59f748cd1db877 745
+docs/PRIVACY.md
+  s_7166cdd3303912::t_0a8b882af7ffd7 61
+docs/USER_GUIDE.md
+  s_7166cdd3303912::t_15064e2ef70d34 49,91-93,107-110,116,280-285,303
+tests/auto_sync_spec.lua
+  s_7166cdd3303912::t_60c4c550cb61ba 1-225
+tests/ui_smoke_spec.lua
+  s_7166cdd3303912::t_39cb1b6aa515a6 101,144,171-178,1450,1455-1456,1670-1734
+tests/view_model_spec.lua
+  s_7166cdd3303912::t_816a6ac72f4e01 620,622,626-628,631
+NrageAssistant/Domain/AutoPublisher.lua
+  s_2a961e4931e22b::t_19d2cf41582cbb 1-63
+NrageAssistant/Domain/Throttle.lua
+  s_2a961e4931e22b::t_a776a88659bba6 1-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61931ad42935ecb46469261d53b377fdcb8dcc61",
+  "prompts": {},
+  "sessions": {
+    "s_2a961e4931e22b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a095da82e985b52a3",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
