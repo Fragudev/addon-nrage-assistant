@@ -206,6 +206,43 @@ describe("Kit widgets", function()
       assert.is_false(bars[2].fill:IsShown())
     end)
 
+    it("wraps a long caption or value of a stat block instead of cutting it, and grows taller", function()
+      Kit.StatGrid(root, {
+        columns = 3,
+        stats = {
+          { caption = "Level", value = "60" },
+          { caption = "Battleground kills of the day", value = "Not available at the moment on this client" },
+          { caption = "Class", value = "Mage" },
+        },
+      })
+      local grid = root.items[1].obj
+      local blocks = find_all(root, "StatBlock")
+      assert.is_true(blocks[1].caption.wrap)
+      assert.is_true(blocks[2].value.wrap)
+      root:Layout(300)
+      local oneLine = blocks[1].height
+      assert.is_true(blocks[2].height > oneLine)
+      assert.are.equal(blocks[2].height, grid.height)
+    end)
+
+    it("shows a divided row that had to be cut whole in a tooltip, when it asks for it", function()
+      local long = string.rep("killer, ", 20) .. "victim"
+      Kit.List(root, {
+        rows = {
+          { title = long, subtitle = "12:04", tooltipWhenCut = true },
+          { title = "Ann", subtitle = "12:05", tooltipWhenCut = true },
+          { title = long, subtitle = "12:06" },
+        },
+      })
+      root:Layout(400)
+      local rows = find_all(root, "ListRow")
+      assert.are.equal(long .. "\n12:04", rows[1].cutTip)
+      assert.is_nil(rows[2].cutTip)
+      assert.is_nil(rows[3].cutTip)
+      rows[1].frame.scripts.OnEnter()
+      rows[1].frame.scripts.OnLeave()
+    end)
+
     it("puts an icon before the caption of a stat block and keeps nothing when there is none", function()
       Kit.StatGrid(root, {
         columns = 2,
@@ -557,6 +594,36 @@ describe("Kit widgets", function()
       rows[2].frame.scripts.OnLeave()
       find_all(rows[2], "Button")[1].frame.scripts.OnClick()
       assert.is_true(pressed)
+    end)
+
+    it("sizes the columns of a fit table to their text and shows a tooltip for what is still cut", function()
+      local fitColumns = {
+        { key = "name", title = "Name", weight = 1 },
+        { key = "total", title = "Kills in total", width = 20, fit = true, sortable = true },
+      }
+      local rows = {
+        { cells = { name = "Ann", total = "5" } },
+        { cells = { name = "A very long player name", total = "1234" } },
+      }
+      local tbl = Kit.Table(root, { columns = fitColumns, rows = rows, fit = true, sort = { key = "total" } })
+      root:Layout(600)
+      local lines = find_all(tbl, "TableRow")
+      -- The header "KILLS IN TOTAL" (14 characters) plus the room of the sort arrow decides the width.
+      assert.are.equal(14 * 7 + 16, lines[1].fitWidths[2])
+      assert.are.same(lines[1].fitWidths, lines[3].fitWidths)
+      assert.is_nil(lines[3].tips[1])
+      assert.is_nil(lines[1].tips[2])
+      -- A narrower table cannot give the long name its room: it is cut and the whole name is in a tooltip.
+      root:Layout(260)
+      assert.is_true(lines[1].fitWidths[2] >= 14 * 7)
+      assert.are.equal("A very long player name", lines[3].tips[1].tipText)
+      assert.is_nil(lines[2].tips[1])
+    end)
+
+    it("gives a table that is not fit the widths it always had", function()
+      local tbl = Kit.Table(root, { columns = columns(), rows = { { cells = { name = "A", total = "1" } } } })
+      root:Layout(500)
+      assert.is_nil(find_all(tbl, "TableRow")[1].fitWidths)
     end)
 
     it("shows the empty text of a table with no rows", function()

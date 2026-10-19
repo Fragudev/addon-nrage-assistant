@@ -85,6 +85,30 @@ local WIDGET_CELLS = {
   label = "Label",
 }
 
+-- A tooltip with the whole text, for a cell or row that had to be cut.
+local function showTip(frame, text)
+  if text and text ~= "" and GameTooltip then
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:Show()
+  end
+end
+
+local function hideTip()
+  if GameTooltip then
+    GameTooltip:Hide()
+  end
+end
+
+-- The width a cell asks for: its text as measured by the client, or what its widget asks for.
+local function cellNatural(row, index)
+  local cell = row.cellOrder[index]
+  if cell.widget then
+    return cell.widget:NaturalWidth() or 0
+  end
+  return math.ceil(cell.fs:GetStringWidth() or 0)
+end
+
 Kit.Define("TableRow", {
   frameType = "Button",
   create = function(obj)
@@ -93,25 +117,34 @@ Kit.Define("TableRow", {
     obj.stripe:SetAllPoints(obj.frame)
     obj.wash = obj.frame:CreateTexture(nil, "BORDER")
     obj.wash:SetAllPoints(obj.frame)
-    obj.texts, obj.hits = {}, {}
+    obj.texts, obj.hits, obj.tips = {}, {}, {}
+    function obj:Hover(on)
+      if not self.opts then
+        return
+      end
+      if on then
+        if self.opts.onClick then
+          self.wash:SetColorTexture(Theme.Color("hover"))
+        end
+      else
+        self.wash:SetColorTexture(self.washColor())
+      end
+    end
     obj.frame:SetScript("OnClick", function()
       if obj.opts and obj.opts.onClick then
         obj.opts.onClick(obj)
       end
     end)
     obj.frame:SetScript("OnEnter", function()
-      if obj.opts and obj.opts.onClick then
-        obj.wash:SetColorTexture(Theme.Color("hover"))
-      end
+      obj:Hover(true)
     end)
     obj.frame:SetScript("OnLeave", function()
-      if obj.opts then
-        obj.wash:SetColorTexture(obj.washColor())
-      end
+      obj:Hover(false)
     end)
   end,
   apply = function(obj, opts)
     obj.columns = opts.columns
+    obj.fitWidths = nil
     obj.rowHeight = opts.height or (opts.header and Theme.metrics.tableHeader or Theme.metrics.tableRow)
     if opts.header then
       obj.stripe:SetColorTexture(0, 0, 0, 0)
@@ -161,8 +194,9 @@ Kit.Define("TableRow", {
       obj.texts[extra]:Hide()
     end
     -- Header cells are clickable to sort, and show the direction with a chevron.
-    for _, hit in ipairs(obj.hits) do
+    for _, hit in pairs(obj.hits) do
       hit.frame:Hide()
+      hit.tipText = nil
     end
     obj.arrow = obj.arrow or obj.frame:CreateTexture(nil, "OVERLAY")
     obj.arrow:Hide()
@@ -177,11 +211,16 @@ Kit.Define("TableRow", {
         specs[index].weight = 1
       end
     end
-    local widths = Util.Distribute(math.max(0, width - pad * 2), specs, 8)
+    local widths = obj.fitWidths or Util.Distribute(math.max(0, width - pad * 2), specs, 8)
     local x = pad
+    for _, tip in pairs(obj.tips) do
+      tip:Hide()
+    end
     for index, column in ipairs(obj.columns) do
       local cell = obj.cellOrder[index]
       local w = widths[index]
+      -- What a cell shows in a tooltip: the whole text when it does not fit, or the header's own tooltip.
+      local tipText
       if cell.widget then
         local h = cell.widget:Layout(w)
         Kit.Place(cell.widget, obj.frame, x, math.floor((obj.rowHeight - h) / 2))
@@ -189,6 +228,37 @@ Kit.Define("TableRow", {
         cell.fs:ClearAllPoints()
         cell.fs:SetPoint("LEFT", obj.frame, "LEFT", x, 0)
         cell.fs:SetWidth(w)
+        local cut = math.ceil(cell.fs:GetStringWidth() or 0) > w
+        if opts.header then
+          tipText = column.tooltip or (cut and column.title) or nil
+        elseif cut then
+          tipText = cell.fs:GetText()
+        end
+      end
+      if tipText and not (opts.header and column.sortable) then
+        local tip = obj.tips[index]
+        if not tip then
+          tip = CreateFrame("Button", nil, obj.frame)
+          tip:SetScript("OnEnter", function(self)
+            obj:Hover(true)
+            showTip(self, self.tipText)
+          end)
+          tip:SetScript("OnLeave", function()
+            obj:Hover(false)
+            hideTip()
+          end)
+          tip:SetScript("OnClick", function()
+            if obj.opts and obj.opts.onClick then
+              obj.opts.onClick(obj)
+            end
+          end)
+          obj.tips[index] = tip
+        end
+        tip.tipText = tipText
+        tip:ClearAllPoints()
+        tip:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
+        tip:SetSize(w, obj.rowHeight)
+        tip:Show()
       end
       if opts.header and column.sortable then
         local hit = obj.hits[index]
@@ -199,8 +269,13 @@ Kit.Define("TableRow", {
               obj.opts.onSort(column.key)
             end
           end)
+          hit.frame:SetScript("OnEnter", function()
+            showTip(hit.frame, hit.tipText)
+          end)
+          hit.frame:SetScript("OnLeave", hideTip)
           obj.hits[index] = hit
         end
+        hit.tipText = tipText
         hit.frame:ClearAllPoints()
         hit.frame:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
         hit.frame:SetSize(w, obj.rowHeight)
@@ -223,11 +298,55 @@ Kit.Define("TableRow", {
     for _, hit in pairs(obj.hits) do
       hit.frame:Hide()
     end
+    for _, tip in pairs(obj.tips) do
+      tip:Hide()
+    end
+    obj.fitWidths = nil
   end,
 })
+Kit.TableCellNatural = cellNatural
+
+-- The widths of the columns of a table that sizes them to their text (opts.fit): every column is at least as wide as
+-- its header (plus the sort arrow on the sorted column), and a column marked `fit` as wide as its widest cell too.
+-- See Util.FitColumns for what happens when that does not fit.
+local ROW_PAD, COLUMN_GAP, SORT_ARROW = 14, 8, 16
+
+local function fitTableWidths(obj, width)
+  local rows = {}
+  for _, item in ipairs(obj.items) do
+    if item.obj.kind == "TableRow" then
+      rows[#rows + 1] = item.obj
+    end
+  end
+  local header = rows[1]
+  if not header then
+    return
+  end
+  local sorted = obj.opts.sort and obj.opts.sort.key
+  local specs = {}
+  for index, column in ipairs(obj.opts.columns) do
+    local floor = Kit.TableCellNatural(header, index) + (column.key == sorted and SORT_ARROW or 0)
+    local min = floor
+    if column.fit then
+      for row = 2, #rows do
+        min = math.max(min, Kit.TableCellNatural(rows[row], index))
+      end
+    end
+    specs[index] = { width = column.width, weight = column.weight, floor = floor, min = min }
+    if column.width == nil and column.weight == nil then
+      specs[index].weight = 1
+    end
+  end
+  local widths = Util.FitColumns(math.max(0, width - ROW_PAD * 2), specs, COLUMN_GAP)
+  for _, row in ipairs(rows) do
+    row.fitWidths = widths
+  end
+end
 
 -- A table: header row, body rows with subtle striping, the own row highlighted. opts: columns = { { key, title,
--- weight | width, align, sortable } }, rows = { { key, cells = { [columnKey] = text | cell }, highlight, onClick } },
+-- weight | width, align, sortable, fit, tooltip } }, fit (size the columns to their text: no header is ever cut; a
+-- column with `fit` also gets its widest cell; `tooltip` is shown over the header), rows = { { key, cells = {
+-- [columnKey] = text | cell }, highlight, onClick } },
 -- sort = { key, descending }, onSort(key), emptyText, rowHeight. A cell is a string, { text, color, style } or
 -- { widget = "button" | "iconButton" | "dropdown" | "badge" | "item" | "chip" | "edit" | "label", opts = {...} }.
 -- A row can also carry `detail = function(card)`: a panel under it that the function fills.
@@ -245,7 +364,7 @@ Kit.Define("Table", {
       onSort = opts.onSort,
     })
     if #(opts.rows or {}) == 0 and opts.emptyText then
-      Kit.Label(obj, { text = opts.emptyText, color = "muted", align = "CENTER", layout = { gap = 18 } })
+      Kit.Label(obj, { text = opts.emptyText, color = "muted", align = "CENTER", wrap = true, layout = { gap = 18 } })
       return
     end
     for index, row in ipairs(opts.rows or {}) do
@@ -264,6 +383,9 @@ Kit.Define("Table", {
     end
   end,
   layout = function(obj, width)
+    if obj.opts.fit then
+      fitTableWidths(obj, width)
+    end
     local height = Kit.LayoutStack(obj, width, 0, nil)
     if obj.opts.emptyText and #(obj.opts.rows or {}) == 0 then
       height = height + 18
@@ -274,7 +396,8 @@ Kit.Define("Table", {
 
 -- One row of a divided list: a status chip, a title with a sub-line, a value on the right, and optionally a widget
 -- on the right. opts: status, icon, title, subtitle, value, valueColor, badge = { text, color }, right = { widget,
--- opts }, onClick, selected, divider (a line above), titleColor, titleWidget = { widget, opts } (replaces the title).
+-- opts }, onClick, selected, divider (a line above), titleColor, titleWidget = { widget, opts } (replaces the title),
+-- tooltipWhenCut (a title or subtitle that does not fit is shown whole in a tooltip).
 Kit.Define("ListRow", {
   frameType = "Button",
   create = function(obj)
@@ -307,8 +430,10 @@ Kit.Define("ListRow", {
       if obj.opts and obj.opts.onClick and not obj.opts.selected then
         obj.wash:SetColorTexture(Theme.Color("hover"))
       end
+      showTip(obj.frame, obj.cutTip)
     end)
     obj.frame:SetScript("OnLeave", function()
+      hideTip()
       if obj.opts and obj.opts.selected then
         obj.wash:SetColorTexture(Theme.Color("selected"))
       elseif obj.opts then
@@ -402,6 +527,15 @@ Kit.Define("ListRow", {
     obj.sub:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", left, -(padY + Theme.LineHeight("body") + 2))
     obj.sub:SetWidth(textWidth)
     obj.sub:SetShown(hasSub)
+    -- A line that had to be cut is shown whole in a tooltip over the row.
+    obj.cutTip = nil
+    if opts.tooltipWhenCut then
+      local titleCut = math.ceil(obj.title:GetStringWidth() or 0) > textWidth
+      local subCut = hasSub and math.ceil(obj.sub:GetStringWidth() or 0) > textWidth
+      if titleCut or subCut then
+        obj.cutTip = (opts.title or "") .. (hasSub and ("\n" .. opts.subtitle) or "")
+      end
+    end
     return height
   end,
 })

@@ -130,6 +130,40 @@ describe("Kit.Util", function()
 
   it("never gives a negative width, and honours a minimum", function()
     assert.are.same({ 50, 0 }, Util.Distribute(10, { { width = 50 }, { weight = 1 } }, 4))
+  end)
+
+  it("fits table columns to their text: the widest layout that fits wins", function()
+    local specs = {
+      { width = 36, floor = 10, min = 20 },
+      { weight = 2, floor = 40, min = 40 },
+      { weight = 1, floor = 30, min = 90 },
+      { width = 60, floor = 80, min = 80 },
+    }
+    -- Plenty of room: the fixed ones keep their width (or their text, when that is wider), the rest is shared.
+    local roomy = Util.FitColumns(500, specs, 8)
+    assert.are.equal(36, roomy[1])
+    assert.are.equal(80, roomy[4])
+    assert.is_true(roomy[2] >= 40 and roomy[3] >= 90)
+    assert.are.equal(500 - 8 * 3, roomy[1] + roomy[2] + roomy[3] + roomy[4])
+    -- A weighted column never gets less than its text, and the others share the rest.
+    assert.are.equal(90, Util.FitColumns(280, specs, 8)[3])
+  end)
+
+  it("falls back to the header widths, and then shrinks them in proportion, when the text does not fit", function()
+    local specs = {
+      { weight = 1, floor = 40, min = 120 },
+      { weight = 1, floor = 40, min = 120 },
+    }
+    -- The full text does not fit (240 + gap), the headers do: each column gets what its header needs and a share.
+    local headers = Util.FitColumns(150, specs, 8)
+    assert.is_true(headers[1] >= 40 and headers[2] >= 40)
+    assert.are.equal(142, headers[1] + headers[2])
+    -- Not even the headers fit: everything shrinks in proportion, nothing is negative and nothing overflows.
+    local tiny = Util.FitColumns(60, specs, 8)
+    assert.are.equal(26, tiny[1])
+    assert.are.equal(26, tiny[2])
+    assert.are.same({ 0, 0 }, Util.FitColumns(0, specs, 8))
+    assert.are.same({}, Util.FitColumns(100, {}, 8))
     assert.are.same({ 30 }, Util.Distribute(10, { { weight = 1, min = 30 } }, 0))
     assert.are.same({}, Util.Distribute(10, {}, 4))
   end)

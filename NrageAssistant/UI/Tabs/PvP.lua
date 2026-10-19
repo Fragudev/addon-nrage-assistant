@@ -73,7 +73,7 @@ local function adminCard(page, rows)
   Kit.Button(row, {
     text = armed and L("Confirm: reset") or L("Reset PvP counters"),
     variant = armed and "dangerSolid" or "danger",
-    layout = { width = 200 },
+    layout = { width = "auto" },
     onClick = function()
       if not state.resetTarget then
         UI.Notify("warning", L("Pick a member first."))
@@ -103,19 +103,23 @@ local function adminCard(page, rows)
   })
 end
 
+-- The table sizes its columns to their text (`fit`): none of the headers is ever cut, the figures and the short texts
+-- (rank, updated) get the width of their widest cell, and the name takes what is left. When the window is too narrow
+-- for that, the table cuts the text and shows it whole in a tooltip.
 local function rankingColumns(withBlows)
   local columns = {
-    { key = "position", title = "#", width = 36, align = "RIGHT" },
+    { key = "position", title = "#", width = 36, align = "RIGHT", fit = true },
     { key = "name", title = L("Name"), weight = 2, sortable = true },
-    { key = "rank", title = L("Rank"), weight = 2, sortable = true },
-    { key = "world", title = L("World"), width = 62, align = "RIGHT", sortable = true },
-    { key = "bg", title = L("BG"), width = 54, align = "RIGHT", sortable = true },
-    { key = "total", title = L("Total"), width = 62, align = "RIGHT", sortable = true },
+    { key = "rank", title = L("Rank"), weight = 2, sortable = true, fit = true },
+    { key = "world", title = L("World"), width = 62, align = "RIGHT", sortable = true, fit = true },
+    { key = "bg", title = L("BG"), width = 54, align = "RIGHT", sortable = true, fit = true },
+    { key = "total", title = L("Total"), width = 62, align = "RIGHT", sortable = true, fit = true },
   }
   if withBlows then
-    columns[#columns + 1] = { key = "blows", title = L("Blows"), width = 62, align = "RIGHT", sortable = true }
+    columns[#columns + 1] =
+      { key = "blows", title = L("Blows"), width = 62, align = "RIGHT", sortable = true, fit = true }
   end
-  columns[#columns + 1] = { key = "updated", title = L("Updated"), weight = 1.2, sortable = true }
+  columns[#columns + 1] = { key = "updated", title = L("Updated"), weight = 1.2, sortable = true, fit = true }
   return columns
 end
 
@@ -138,6 +142,7 @@ local function drawRankingTable(region, data, withBlows)
   end
   Kit.Table(region, {
     columns = rankingColumns(withBlows),
+    fit = true,
     rows = rows,
     sort = state.sort,
     emptyText = L("Nobody matches."),
@@ -151,6 +156,7 @@ local function drawRankingTable(region, data, withBlows)
       text = L("Showing the first %d of %d members."):format(data.shown, data.total),
       style = "small",
       color = "muted",
+      wrap = true,
       layout = { gap = 10 },
     })
   end
@@ -249,6 +255,7 @@ local function feed(page)
       title = row.text,
       subtitle = row.time .. " \194\183 " .. row.place,
       badge = row.blow and { text = L("Killing blow"), color = "danger" } or nil,
+      tooltipWhenCut = true,
     }
   end
   Kit.List(page, { rows = rows })

@@ -62,6 +62,88 @@ function Util.Distribute(total, specs, gap)
   return widths
 end
 
+-- One pass of FitColumns: fixed columns keep their width (or `key` when that is wider), the weighted ones share
+-- what is left but never get less than their `key` bound. Returns the widths and what is left over (negative when
+-- the bounds do not fit).
+local function flex(total, specs, gap, key)
+  local widths, frozen = {}, {}
+  local free = total - gap * (#specs - 1)
+  for index, spec in ipairs(specs) do
+    if spec.width then
+      widths[index] = math.max(spec.width, spec[key] or 0)
+      frozen[index] = true
+      free = free - widths[index]
+    end
+  end
+  while true do
+    local weights = 0
+    for index, spec in ipairs(specs) do
+      if not frozen[index] then
+        weights = weights + (spec.weight or 1)
+      end
+    end
+    if weights == 0 then
+      break
+    end
+    local clamped = false
+    for index, spec in ipairs(specs) do
+      local bound = spec[key] or 0
+      if not frozen[index] and free * (spec.weight or 1) / weights < bound then
+        widths[index], frozen[index] = bound, true
+        free = free - bound
+        clamped = true
+        break
+      end
+    end
+    if not clamped then
+      local given, last = 0, nil
+      for index, spec in ipairs(specs) do
+        if not frozen[index] then
+          widths[index] = math.max(0, math.floor(free * (spec.weight or 1) / weights))
+          given = given + widths[index]
+          last = index
+        end
+      end
+      if last then
+        widths[last] = widths[last] + math.max(0, free - given)
+      end
+      break
+    end
+  end
+  return widths, free
+end
+
+-- Splits `total` units between table columns that must not be narrower than their text. Each spec is { width = n }
+-- or { weight = w } plus `min` (the width the whole text wants, header and cells) and `floor` (the width of the
+-- header alone). The widest layout that fits is used: first every column at its `min`; when that does not fit,
+-- every column at its `floor`; when even that does not fit, the floors shrink in proportion (the cells are then cut,
+-- and the table shows their full text in a tooltip). Returns one width per spec, never negative.
+function Util.FitColumns(total, specs, gap)
+  gap = gap or 0
+  local bounded = {}
+  for index, spec in ipairs(specs) do
+    local floor = spec.floor or 0
+    bounded[index] = { width = spec.width, weight = spec.weight, floor = floor, min = math.max(spec.min or 0, floor) }
+  end
+  local widths, free = flex(total, bounded, gap, "min")
+  if free >= 0 then
+    return widths
+  end
+  widths, free = flex(total, bounded, gap, "floor")
+  if free >= 0 then
+    return widths
+  end
+  local sum = 0
+  for _, width in ipairs(widths) do
+    sum = sum + width
+  end
+  local available = math.max(0, total - gap * (#specs - 1))
+  for index, width in ipairs(widths) do
+    widths[index] = sum > 0 and math.floor(width * available / sum) or 0
+  end
+  return widths
+end
+
 -- Wraps a list of widths into lines of at most `total` units (with `gap` between items): returns a list of lines,
 -- each a list of item indexes. An item wider than the line gets a line of its own.
 function Util.WrapLines(total, widths, gap)

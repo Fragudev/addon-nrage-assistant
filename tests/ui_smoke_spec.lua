@@ -1268,6 +1268,43 @@ describe("Window smoke test: PvP", function()
     assert.is_truthy(env.banner().opts.text:find("PvP counters of Ann-Realm reset", 1, true))
   end)
 
+  it("lets the ranking table size its columns to their text, so no header or figure is cut", function()
+    env = build("GM")
+    env.ns.db.global.pvpStats = {
+      ["Ann-Realm"] = { honor = { world = 30, bg = 20 }, blows = { world = 5, bg = 1 }, updatedAt = 900, rev = 1 },
+    }
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    local tbl = FakeKit.find_all(env.page(), "Table")[1]
+    assert.is_true(tbl.opts.fit)
+    local fitted = {}
+    for _, column in ipairs(tbl.opts.columns) do
+      fitted[column.key] = column.fit == true
+    end
+    -- The name takes what is left; every figure and the short texts are measured.
+    assert.is_false(fitted.name)
+    for _, key in ipairs({ "position", "rank", "world", "bg", "total", "blows", "updated" }) do
+      assert.is_true(fitted[key], key)
+    end
+    -- The reset button follows its (longer, in Spanish) text instead of a fixed width.
+    assert.are.equal("auto", env.find(env.page(), "Button", "Reset PvP counters").opts.layout.width)
+    -- The footer notes wrap.
+    for _, label in ipairs(FakeKit.find_all(env.page(), "Label")) do
+      if label.opts.style == "small" then
+        assert.is_true(label.opts.wrap, label.opts.text)
+      end
+    end
+  end)
+
+  it("shows a kill that is too long for its row whole in a tooltip", function()
+    env = build("Member")
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("feed")
+    for _, row in ipairs(FakeKit.find(env.page(), "List").opts.rows) do
+      assert.is_true(row.tooltipWhenCut)
+    end
+  end)
+
   it("lists the recent kills with a killing blow badge, and says when there are none or the feed is off", function()
     env = build("Member")
     env.open("pvp")
