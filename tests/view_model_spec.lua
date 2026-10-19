@@ -617,16 +617,18 @@ describe("ViewModel minimap helpers", function()
     assert.is_truthy(lines[1]:find("||cffff0000Evil", 1, true))
   end)
 
-  it("has a menu entry for every tab plus a sync request", function()
+  it("has a menu entry for every tab and no sync request: sync is automatic", function()
     local entries = ViewModel.MinimapMenu()
-    assert.are.equal(#ViewModel.TABS + 1, #entries)
+    assert.are.equal(#ViewModel.TABS, #entries)
     for index, tab in ipairs(ViewModel.TABS) do
       assert.are.same({ text = tab.text, action = "tab", value = tab.value }, entries[index])
     end
-    assert.are.equal("sync", entries[#entries].action)
+    for _, entry in ipairs(entries) do
+      assert.are_not.equal("sync", entry.action)
+    end
   end)
 
-  it("words the result of a sync request", function()
+  it("words the result of a sync request made from the troubleshooting command", function()
     assert.is_truthy(ViewModel.SyncRequestResult(true):find("asked the guild", 1, true))
     assert.is_truthy(ViewModel.SyncRequestResult(false, "cooldown"):find("wait a little", 1, true))
     assert.are.equal("not requested: weird", ViewModel.SyncRequestResult(false, "weird"))

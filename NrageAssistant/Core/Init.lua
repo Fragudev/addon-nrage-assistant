@@ -208,17 +208,65 @@ local function StartBlacklist()
   pcall(watcher.Check, watcher)
 end
 
--- The profile is shared with the guild without a switch (issue #36): once after login, when the roster has had time
--- to load, and again whenever what would be shared differs from what was last sent.
+-- The events that change what is shared in the profile: gear, level and professions.
+local PROFILE_EVENTS = {
+  "PLAYER_EQUIPMENT_CHANGED",
+  "PLAYER_LEVEL_UP",
+  "SKILL_LINES_CHANGED",
+  "PLAYER_AVG_ITEM_LEVEL_UPDATE",
+}
+
+-- The profile is shared with the guild without a switch (issue #36, plan 0.1): once after login, when the roster has
+-- had time to load; a few seconds after any event that changes it; and every PUBLISH_CHECK_SECONDS as a safety net.
+-- A change made inside the publish cooldown is published when it ends (AutoPublisher), and nothing is read or sent
+-- during an encounter lockdown.
+local autoPublishStarted = false
+
 local function StartAutoPublish()
-  local function check()
-    if ns.active and ns.character and ns.comm then
-      ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
-      ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
-    end
+  if autoPublishStarted then
+    return
   end
-  C_Timer.After(math.random(Constants.SYNC_LOGIN_REQUEST_DELAY_MIN, Constants.SYNC_LOGIN_REQUEST_DELAY_MAX) + 1, check)
-  C_Timer.NewTicker(Constants.PUBLISH_CHECK_SECONDS, check)
+  autoPublishStarted = true
+  local publisher = ns.AutoPublisher.New({
+    refresh = function()
+      if ns.active and ns.character then
+        ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+      end
+    end,
+    publish = function()
+      if ns.active and ns.character and ns.comm then
+        return ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
+      end
+      return false, "inactive"
+    end,
+    cooldownLeft = function()
+      return ns.character and ns.PublishService.CooldownLeft(ns.character, ns.Platform) or 0
+    end,
+    schedule = C_Timer.After,
+    isLocked = ns.Platform.IsChatMessagingLockedDown,
+    debounce = Constants.PUBLISH_EVENT_DEBOUNCE_SECONDS,
+  })
+  ns.autoPublisher = publisher
+
+  local profileFrame = CreateFrame("Frame")
+  for _, event in ipairs(PROFILE_EVENTS) do
+    ns.Platform.TryRegisterEvent(profileFrame, event)
+  end
+  profileFrame:SetScript("OnEvent", function()
+    if ns.active then
+      publisher:Changed()
+    end
+  end)
+
+  C_Timer.After(
+    math.random(Constants.SYNC_LOGIN_REQUEST_DELAY_MIN, Constants.SYNC_LOGIN_REQUEST_DELAY_MAX) + 1,
+    function()
+      publisher:Run()
+    end
+  )
+  C_Timer.NewTicker(Constants.PUBLISH_CHECK_SECONDS, function()
+    publisher:Run()
+  end)
 end
 
 local function Activate()

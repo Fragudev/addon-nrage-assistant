@@ -32,8 +32,12 @@ ns.Constants = {
 
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
-  -- How often the profile is read again to see whether it changed and has to be published.
+  -- How often the profile is read again to see whether it changed and has to be published (a safety net: gear, level
+  -- and profession events publish it within PUBLISH_EVENT_DEBOUNCE_SECONDS).
   PUBLISH_CHECK_SECONDS = 300,
+  PUBLISH_EVENT_DEBOUNCE_SECONDS = 3,
+  -- The readiness views read the character again and redraw at most this often while they are on screen.
+  READINESS_REDRAW_SECONDS = 1,
 
   -- Where the addon role of a player comes from (plan 3.4.2):
   --   "assigned": the guild master (rank index 0) is the only admin, and every other role (member, rl, council) is

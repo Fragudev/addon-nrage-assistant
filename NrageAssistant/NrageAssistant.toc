@@ -26,6 +26,8 @@ Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua
 Domain\PublishService.lua
+Domain\AutoPublisher.lua
+Domain\Throttle.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\RosterService.lua

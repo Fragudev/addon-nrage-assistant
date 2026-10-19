@@ -133,6 +133,15 @@ function PublishService.Publish(comm, character, platform)
   return true
 end
 
+-- Seconds until the own profile may be published again (0 when it may be now).
+function PublishService.CooldownLeft(character, platform)
+  local at = character.publish.at
+  if not at then
+    return 0
+  end
+  return math.max(0, ns.Constants.PUBLISH_COOLDOWN_SECONDS - (platform.ServerTime() - at))
+end
+
 -- Publishes only when what would be shared is not what was last sent. Returns true when it published, or false
 -- plus "unchanged" | what Publish returns. A change that arrives inside the cooldown is not lost: it is still
 -- different from the last one sent, so the next call publishes it.

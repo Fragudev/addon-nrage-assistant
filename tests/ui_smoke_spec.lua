@@ -98,6 +98,7 @@ local function load_window(locale)
     "Locales/esES",
     "Core/Validate",
     "Domain/Settings",
+    "Domain/Throttle",
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
@@ -140,7 +141,7 @@ end
 
 local function build(rank, locale)
   local ns = load_window(locale)
-  local env = { ns = ns, widgets = {}, sent = {}, counter = 0, changes = 0 }
+  local env = { ns = ns, widgets = {}, sent = {}, counter = 0, changes = 0, registered = {} }
   env.fakeKit = FakeKit
   FakeFrames.install()
 
@@ -166,6 +167,14 @@ local function build(rank, locale)
   ns.Platform = {
     GetLocale = function()
       return locale or "enUS"
+    end,
+    TryRegisterEvent = function(_, event)
+      env.registered[event] = true
+      return true
+    end,
+    TryRegisterUnitEvent = function(_, event, unit)
+      env.registered[event] = unit
+      return true
     end,
     GetOwnGuildRank = Roles.ranking(rank),
     GetIdentityKey = function()
@@ -1438,13 +1447,13 @@ describe("Controls that replace the slash commands", function()
   end)
 
   describe("on the Home tab", function()
-    it("shows the guild rank and the addon role, and asks the guild for a sync", function()
+    it("shows the guild rank and the addon role, and has no sync button: sync is automatic", function()
       env = build("GM")
       local home = env.open("home")
       assert.is_truthy(labels(home):find("guild rank: GM", 1, true))
       assert.is_truthy(labels(home):find("addon role: admin", 1, true))
-      env.find(home, "Button", "Request a sync").callbacks.OnClick()
-      assert.are.same({ "RequestSync" }, env.sent)
+      assert.is_nil(env.find(home, "Button", "Request a sync"))
+      assert.are.same({}, env.sent)
     end)
 
     it("has the settings behind the gear of the header, not on the Home tab", function()
@@ -1656,5 +1665,70 @@ describe("Controls that replace the slash commands", function()
       env.find(pvp, "Button", "Confirm").callbacks.OnClick()
       assert.are.same({ "ResetPvP:Ann-Realm" }, env.sent)
     end)
+  end)
+end)
+
+describe("Automatic sync in the window", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("has no publish button on the Profile tab: the sheet is shared by itself", function()
+    env = build("Member")
+    local profile = env.open("profile")
+    assert.is_nil(env.find(profile, "Button", "Publish now"))
+    assert.are.same({}, env.messages)
+  end)
+
+  it("listens for gear, level, skill and player aura events while Readiness is on screen", function()
+    env = build("Member")
+    env.open("ready")
+    for _, event in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "SKILL_LINES_CHANGED" }) do
+      assert.is_true(env.registered[event], event)
+    end
+    assert.are.equal("player", env.registered.UNIT_AURA)
+  end)
+
+  it("draws the readiness again on such an event, at most once per interval", function()
+    env = build("Member")
+    env.open("ready")
+    env.widgets = {}
+    env.ns.UI.ReadinessChanged()
+    assert.is_true(#env.widgets > 0)
+    env.widgets = {}
+    env.timers = {}
+    env.ns.UI.ReadinessChanged()
+    env.ns.UI.ReadinessChanged()
+    assert.are.equal(0, #env.widgets)
+    assert.are.equal(1, #env.timers)
+    env.ns.Platform.Now = function()
+      return 5
+    end
+    env.timers[1]()
+    assert.is_true(#env.widgets > 0)
+  end)
+
+  it("also refreshes the Home tab, and leaves the other tabs alone", function()
+    env = build("Member")
+    env.open("home")
+    env.widgets = {}
+    env.ns.UI.ReadinessChanged()
+    assert.is_true(#env.widgets > 0)
+    env = build("Member")
+    env.open("loot")
+    env.widgets = {}
+    env.ns.UI.ReadinessChanged()
+    assert.are.equal(0, #env.widgets)
+  end)
+
+  it("does not redraw when the window is closed", function()
+    env = build("Member")
+    env.open("ready")
+    env.ns.UI.Toggle()
+    env.widgets = {}
+    env.ns.UI.ReadinessChanged()
+    assert.are.equal(0, #env.widgets)
   end)
 end)

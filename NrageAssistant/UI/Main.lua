@@ -262,13 +262,9 @@ local function DrawHome(container)
       ns.PermissionService.OwnRole(ns.Platform)
     ),
   })
-  AddButton(container, L("Request a sync"), 0.4, function()
-    Report({ ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()) })
-  end)
 end
 
 local function DrawProfile(container)
-  local AceGUI = LibStub("AceGUI-3.0")
   local character = ns.character
 
   AddHeading(container, L("Your profile"))
@@ -322,16 +318,6 @@ local function DrawProfile(container)
     L("Your profile is shared automatically after login and whenever it changes."),
     L("Addon messages are not private: any guild member with the addon can read them."),
   })
-
-  local button = AceGUI:Create("Button")
-  button:SetText(L("Publish now"))
-  button:SetCallback("OnClick", function()
-    local ok, reason = ns.PublishService.Publish(ns.comm, character, ns.Platform)
-    statusMessage = ok and L("Profile published to the guild.")
-      or (L("Not published: ") .. ns.ViewModel.PublishError(reason))
-    Redraw()
-  end)
-  container:AddChild(button)
 
   if statusMessage then
     AddLines(container, { ns.ViewModel.Escape(statusMessage) })
@@ -1205,6 +1191,7 @@ function UI.DrawCurrent()
   end
   host:ReleaseChildren()
   host:SetLayout((group == "raid" or group == "blacklist" or group == "rules") and "Flow" or "List")
+  UI.WatchReadiness(group == "ready" or group == "home")
   DRAWERS[group](host)
 end
 
@@ -1300,6 +1287,55 @@ end
 
 local function ownRole()
   return ns.PermissionService.OwnRole(ns.Platform)
+end
+
+-- While the Home or Readiness view is on screen, what it shows (a flask that ran out, a piece of gear that changed,
+-- a new level or skill) is read again by itself: these events redraw it, at most once per interval. Nothing is
+-- listened to while it is hidden, and nothing is sent: readiness stays on this computer.
+local READINESS_EVENTS = { "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "SKILL_LINES_CHANGED" }
+local readinessFrame, readinessThrottle
+local readinessWatching = false
+
+function UI.ReadinessChanged()
+  if not readinessThrottle then
+    readinessThrottle = ns.Throttle.New({
+      run = function()
+        if UI.IsOpen() and (currentTab == "ready" or currentTab == "home") and ns.character then
+          ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+          Redraw()
+        end
+      end,
+      now = function()
+        return ns.Platform.Now()
+      end,
+      schedule = C_Timer.After,
+      interval = ns.Constants.READINESS_REDRAW_SECONDS,
+    })
+  end
+  readinessThrottle:Call()
+end
+
+-- Starts or stops listening for the events above.
+function UI.WatchReadiness(watch)
+  if watch == readinessWatching then
+    return
+  end
+  readinessWatching = watch
+  if not readinessFrame then
+    readinessFrame = CreateFrame("Frame")
+    readinessFrame:SetScript("OnEvent", function()
+      UI.ReadinessChanged()
+    end)
+  end
+  if watch then
+    for _, event in ipairs(READINESS_EVENTS) do
+      ns.Platform.TryRegisterEvent(readinessFrame, event)
+    end
+    -- The auras of the player only: the client sends nothing about the rest of the group.
+    ns.Platform.TryRegisterUnitEvent(readinessFrame, "UNIT_AURA", "player")
+  else
+    readinessFrame:UnregisterAllEvents()
+  end
 end
 
 -- The sidebar again, after a tab or the language changed: the selection and the texts follow.
@@ -1435,6 +1471,7 @@ local function buildWindow()
     onResize = onResize,
     onClose = function()
       Kit.CloseAllPopups()
+      UI.WatchReadiness(false)
     end,
   })
   UI.ApplyWindowStatus(window, "mainWindow", 1000, 640)
@@ -1456,6 +1493,7 @@ function UI.Toggle()
   end
   if window and window:IsShown() then
     window:Hide()
+    UI.WatchReadiness(false)
     return
   end
   if not window then

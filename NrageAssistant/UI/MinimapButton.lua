@@ -102,7 +102,7 @@ local function showTooltip(self)
     end
   end
   GameTooltip:AddLine(L("Left click: open the window"), 0.6, 0.6, 0.6)
-  GameTooltip:AddLine(L("Right click: shortcuts and sync"), 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(L("Right click: shortcuts"), 0.6, 0.6, 0.6)
   GameTooltip:AddLine(L("Drag: move this button"), 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end
@@ -125,8 +125,6 @@ local function runEntry(entry)
   closeMenu()
   if entry.action == "tab" then
     ns.UI.OpenTab(entry.value)
-  elseif ns.comm then
-    print("Nrage Assistant: " .. ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()))
   end
 end
 

@@ -742,13 +742,12 @@ function ViewModel.MinimapTooltip(args)
   return lines
 end
 
--- Right-click menu of the minimap button: a shortcut to each tab, then a sync request.
+-- Right-click menu of the minimap button: a shortcut to each tab. There is no sync entry: sync is automatic.
 function ViewModel.MinimapMenu()
   local entries = {}
   for _, tab in ipairs(ViewModel.TABS) do
     entries[#entries + 1] = { text = tab.text, action = "tab", value = tab.value }
   end
-  entries[#entries + 1] = { text = L("Request a sync"), action = "sync" }
   return entries
 end
 

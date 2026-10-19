@@ -186,7 +186,6 @@ ns.Locale.Register("es", {
   ["Sync queue: empty"] = "Cola de sincronización: vacía",
   [" (held back: encounter in progress)"] = " (retenida: encuentro en curso)",
   ["Sync queue: %d message(s) waiting%s"] = "Cola de sincronización: %d mensaje(s) en espera%s",
-  ["Request a sync"] = "Pedir una sincronización",
   ["you asked a moment ago, wait a little."] = "lo pediste hace un momento, espera un poco.",
   ["asked the guild for the latest raid data; leaders answer by whisper."] = "se pidieron a la guild los últimos datos de raid; los líderes responden por susurro.",
   ["not requested: "] = "no solicitado: ",
@@ -258,9 +257,6 @@ ns.Locale.Register("es", {
   ["Shared with the guild"] = "Compartido con la guild",
   ["Your profile is shared automatically after login and whenever it changes."] = "Tu perfil se comparte automáticamente tras iniciar sesión y cada vez que cambia.",
   ["Addon messages are not private: any guild member with the addon can read them."] = "Los mensajes del addon no son privados: cualquier miembro de la guild que tenga el addon puede leerlos.",
-  ["Publish now"] = "Publicar ahora",
-  ["Profile published to the guild."] = "Perfil publicado en la guild.",
-  ["Not published: "] = "No publicado: ",
   ["Confirm by hand"] = "Confirmar a mano",
   ["Title (Enter to rename)"] = "Título (Intro para renombrar)",
   ["Status"] = "Estado",
@@ -386,7 +382,6 @@ ns.Locale.Register("es", {
 
   -- UI/MinimapButton.lua
   ["Left click: open the window"] = "Clic izquierdo: abrir la ventana",
-  ["Right click: shortcuts and sync"] = "Clic derecho: atajos y sincronización",
   ["Drag: move this button"] = "Arrastrar: mover este botón",
 
   -- Commands/RaidCommands.lua
@@ -464,6 +459,7 @@ ns.Locale.Register("es", {
   ["deleted the roster '%s'."] = "roster '%s' eliminado.",
   ["saved the role and roster of %s."] = "guardados el rol y el roster de %s.",
   ["%s is a plain member with no roster again."] = "%s vuelve a ser un miembro normal sin roster.",
+  ["Right click: shortcuts"] = "Clic derecho: accesos directos",
   ["Language"] = "Idioma",
   ["Automatic (game language)"] = "Automático (idioma del juego)",
   ["Button position"] = "Posición del botón",

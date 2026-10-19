@@ -46,7 +46,7 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
   queue. It reads only what the addon already holds, so it is safe during an encounter.
 - A small **warning mark** on the button means the silent self test, run a few seconds after login, found
   something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
-- **Right click** opens a menu with a shortcut to each tab and a *Request a sync* entry.
+- **Right click** opens a menu with a shortcut to each tab.
 - In the **settings** (the gear of the window) you can hide it or show it again, and put it back in its default
   place. The position and whether it is hidden are saved for your whole account.
 - The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
@@ -88,7 +88,9 @@ Your sheet is shared with the guild automatically, with no switch: after you log
 It holds your class, level, item level, professions and skill, and your declared role and main. Your declared
 **notes stay on this computer**, and so do the enchants and buffs that the readiness checks read from your character.
 
-- The Profile tab lists exactly what is shared and what stays private. *Publish now* sends it at once.
+- The Profile tab lists exactly what is shared and what stays private. There is no publish button: a change to your
+  gear, level or professions is shared a few seconds after it happens (a change made right after another one waits
+  for the short pause between publications and is then sent by itself).
 - What other clients already received cannot be taken back.
 
 **Addon messages are not private.** Anyone in the guild running the addon can read what you publish.
@@ -102,12 +104,16 @@ for example `1/3 met, 2 unknown`. An item nobody has confirmed is `unknown`, and
 Manual items are confirmed from a dropdown on the same tab (the score updates at once). A `waived` item leaves the
 score but stays visible.
 
+The checklist keeps itself up to date: while the Readiness tab (or the readiness card of Home) is on screen it is
+read again when your auras, gear, level or skills change, so a flask that ran out stops counting as met without you
+doing anything. Nothing about your readiness is sent to the guild.
+
 The rules are the same for the whole guild and only an admin can change them. Until the guild sets its own, the
 starting list applies (level 60, item level, role, consumables and enchants). Items measured from the game
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
-Admins (guild master and officers) also see a **Rules** tab, which nobody else gets. It lists the rules in force with a
+The guild master also sees a **Rules** tab, which nobody else gets. It lists the rules in force with a
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
@@ -271,8 +277,12 @@ The **Home** tab shows the sync state. While an encounter is in progress the gam
 everything you change waits in a queue and is sent when the encounter ends: the addon says
 `sync paused: encounter in progress`.
 
-A member who logs in late asks the guild for the latest raid data; a raid leader or admin answers by whisper.
-*Request a sync* on the Home tab (or in the minimap button's menu) asks again, at most once a minute.
+Syncing is always automatic and there is no button for it: your sheet is shared after login and whenever it
+changes, raid, loot, PvP and blacklist changes are sent as they are made, and a member who logs in late asks the
+guild for the latest raid data by itself (a raid leader or the guild master answers by whisper). The header pill shows
+what is happening: *Sync ready*, *Sync paused* during an encounter, or how many messages are queued. For
+troubleshooting, `/nrage debug sync` asks again (at most once a minute) and `/nrage debug publish` sends your sheet at
+once; they are not needed in normal use.
 
 ## Troubleshooting
 
@@ -290,4 +300,4 @@ A member who logs in late asks the guild for the latest raid data; a raid leader
 |---|---|
 | `/nrage` | opens the window, where everything else is done |
 | `/nrage help` | this short list |
-| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp` |
+| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp` |

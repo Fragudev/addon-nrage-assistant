@@ -429,6 +429,18 @@ function Platform.TryRegisterEvent(frame, event)
   return ok
 end
 
+-- Registers `event` on `frame` for one unit only (UNIT_AURA for "player"): the client then sends nothing about other
+-- units. Falls back to the plain registration, which the handler has to filter. False when the client refuses both.
+function Platform.TryRegisterUnitEvent(frame, event, unit)
+  if frame.RegisterUnitEvent then
+    local ok = pcall(frame.RegisterUnitEvent, frame, event, unit)
+    if ok then
+      return true
+    end
+  end
+  return Platform.TryRegisterEvent(frame, event)
+end
+
 -- The text of a name from the client as a plain string without a realm suffix, or nil when it is not readable
 -- (not a string, empty, or a secret value, which raises when it is measured or concatenated).
 local function readableName(name)
