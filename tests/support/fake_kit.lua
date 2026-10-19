@@ -37,7 +37,17 @@ function M.text(root)
   local parts = {}
   M.walk(root, function(node)
     local o = node.opts or {}
-    for _, key in ipairs({ "text", "title", "label", "caption", "description", "hint", "value", "subtitle" }) do
+    for _, key in ipairs({
+      "text",
+      "title",
+      "label",
+      "caption",
+      "description",
+      "hint",
+      "value",
+      "subtitle",
+      "emptyText",
+    }) do
       if type(o[key]) == "string" or type(o[key]) == "number" then
         parts[#parts + 1] = tostring(o[key])
       end

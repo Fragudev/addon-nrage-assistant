@@ -227,6 +227,7 @@ Kit.Define("TableRow", {
 -- weight | width, align, sortable } }, rows = { { key, cells = { [columnKey] = text | cell }, highlight, onClick } },
 -- sort = { key, descending }, onSort(key), emptyText, rowHeight. A cell is a string, { text, color, style } or
 -- { widget = "button" | "iconButton" | "dropdown" | "badge" | "item" | "chip" | "edit" | "label", opts = {...} }.
+-- A row can also carry `detail = function(card)`: a panel under it that the function fills.
 Kit.Define("Table", {
   create = function(obj)
     obj.border = Kit.Pixel.Border(obj.frame, "border")
@@ -253,6 +254,10 @@ Kit.Define("Table", {
         onClick = row.onClick,
         height = opts.rowHeight,
       })
+      if row.detail then
+        local card = Kit.Card(obj, { fill = "side", pad = { 14, 10, 14, 10 }, gap = 4 })
+        row.detail(card)
+      end
     end
   end,
   layout = function(obj, width)
@@ -328,15 +333,23 @@ Kit.Define("ListRow", {
     obj.value:SetFontObject(Theme.StyleFont("body"))
     setColor(obj.value, opts.valueColor or "dim")
     obj.value:SetText(opts.value or "")
-    obj.chip, obj.badge, obj.rightWidget = nil, nil, nil
+    obj.chip, obj.badge, obj.rightWidgets = nil, nil, {}
     if opts.status then
       obj.chip = Kit.StatusChip(obj, { status = opts.status, icon = opts.icon, size = Theme.metrics.chip })
     end
     if opts.badge then
       obj.badge = Kit.Badge(obj, { text = opts.badge.text, color = opts.badge.color })
     end
+    -- Widgets on the right, from the right edge inwards: `right` (one) and `rights` (several, in order).
+    local specs = {}
     if opts.right then
-      obj.rightWidget = Kit[WIDGET_CELLS[opts.right.widget] or opts.right.widget](obj, opts.right.opts)
+      specs[#specs + 1] = opts.right
+    end
+    for _, spec in ipairs(opts.rights or {}) do
+      specs[#specs + 1] = spec
+    end
+    for _, spec in ipairs(specs) do
+      obj.rightWidgets[#obj.rightWidgets + 1] = Kit[WIDGET_CELLS[spec.widget] or spec.widget](obj, spec.opts)
     end
   end,
   layout = function(obj, width)
@@ -354,13 +367,14 @@ Kit.Define("ListRow", {
       left = left + Theme.metrics.chip + 12
     end
     local right = padX
-    if obj.rightWidget then
-      local w = obj.rightWidget:NaturalWidth() or 160
+    for _, widget in ipairs(obj.rightWidgets) do
+      local w = widget:NaturalWidth() or 160
       w = math.min(w, math.floor(width * 0.4))
-      local h = obj.rightWidget:Layout(w)
-      Kit.Place(obj.rightWidget, obj.frame, width - padX - w, math.floor((height - h) / 2))
-      right = right + w + 12
+      local h = widget:Layout(w)
+      Kit.Place(widget, obj.frame, width - right - w, math.floor((height - h) / 2))
+      right = right + w + 8
     end
+    right = right + 4
     if obj.badge then
       local w = obj.badge:NaturalWidth()
       obj.badge:Layout(w)

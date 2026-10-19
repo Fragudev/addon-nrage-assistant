@@ -952,6 +952,7 @@ function ViewModel.VotingRows(session, actor, rankOf, options)
         label = ViewModel.Escape(name),
         rank = ViewModel.Escape(rank or "?"),
         need = candidate.need,
+        spec = ViewModel.Escape(candidate.spec),
         response = ("%s (%s)"):format(
           ViewModel.Escape(ViewModel.LOOT_NEED_LABELS[candidate.need] or candidate.need),
           ViewModel.Escape(candidate.spec)

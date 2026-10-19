@@ -9,6 +9,7 @@ local RaidCommands = {}
 RaidCommands.__index = RaidCommands
 
 local L = ns.L
+local Failure = ns.Validate.Failure
 
 function RaidCommands.New(deps)
   return setmetatable({
@@ -62,20 +63,27 @@ local function sentNote(ok, reason, detail)
   return L("saved here, but not sent to the guild (%s)."):format(why)
 end
 
-function RaidCommands:CreateEvent(title)
+-- Creates an event from the new-event form: `fields` = { title, startAt, status, rosterId }. Returns the lines to
+-- show and,
+-- when it worked, the event (so the window can select it).
+function RaidCommands:CreateEventWith(fields)
   local ctx = self:Context()
-  local event, reason = ns.EventService.Create(ctx, { title = title })
+  local event, reason = ns.EventService.Create(ctx, fields)
   if not event then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
-  return { L("created event '%s'."):format(event.title), sentNote(self.comm:SendEvent(event)) }
+  return { L("created event '%s'."):format(event.title), sentNote(self.comm:SendEvent(event)) }, event
+end
+
+function RaidCommands:CreateEvent(title)
+  return (self:CreateEventWith({ title = title }))
 end
 
 function RaidCommands:DeleteEvent(event)
   local ctx = self:Context()
   local ok, reason = ns.EventService.Delete(ctx, event.eventId)
   if not ok then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   return { L("deleted '%s'."):format(event.title), sentNote(self.comm:SendDeleteEvent(event.eventId)) }
 end
@@ -85,9 +93,9 @@ function RaidCommands:UpdateEvent(event, fields)
   local updated, reason = ns.EventService.Update(ctx, event.eventId, fields)
   if not updated then
     if reason == "invalid:status" then
-      return { L("status must be planned, open, closed or cancelled.") }
+      return Failure(L("status must be planned, open, closed or cancelled."))
     end
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   return { L("updated '%s' [%s]."):format(updated.title, updated.status), sentNote(self.comm:SendEvent(updated)) }
 end
@@ -104,16 +112,51 @@ end
 function RaidCommands:SetEventStart(event, text)
   local startAt = self.platform.ParseDate(text)
   if not startAt then
-    return { L("give the start as YYYY-MM-DD HH:MM in your local time, e.g. 2026-10-03 20:30.") }
+    return Failure(L("give the start as YYYY-MM-DD HH:MM in your local time, e.g. 2026-10-03 20:30."))
   end
   return self:UpdateEvent(event, { startAt = startAt })
+end
+
+-- `timestamp` is the start in seconds (what the date picker gives).
+function RaidCommands:SetEventStartAt(event, timestamp)
+  return self:UpdateEvent(event, { startAt = timestamp })
+end
+
+-- Gives an event to a roster (the guild master's call).
+function RaidCommands:SetEventRoster(event, rosterId)
+  return self:UpdateEvent(event, { rosterId = rosterId })
+end
+
+-- Marks as present every member of the current group that is in the guild and not recorded yet (never overwriting a
+-- recorded one), each through SetAttendance so every change is validated and sent as usual. `groupNames` are the
+-- names of
+-- the party or raid, `guildNames` the guild members.
+function RaidCommands:FillFromGroup(event, groupNames, guildNames)
+  local plan = ns.ViewModel.FillFromGroup(event, groupNames, guildNames)
+  if #plan.toMark == 0 then
+    return { L("Nobody to add: everybody in the group is recorded already, or is not in the guild.") }
+  end
+  local marked, failed = 0, 0
+  for _, name in ipairs(plan.toMark) do
+    local lines = self:SetAttendance(event, name, "present")
+    if ns.Validate.IsFailure(lines) then
+      failed = failed + 1
+    else
+      marked = marked + 1
+    end
+  end
+  local lines = { L("%d member(s) marked present."):format(marked) }
+  if failed > 0 then
+    lines[2] = L("%d could not be recorded."):format(failed)
+  end
+  return lines
 end
 
 function RaidCommands:SetAttendance(event, characterKey, state)
   local ctx = self:Context()
   local record, reason = ns.EventService.SetAttendance(ctx, event.eventId, characterKey, state)
   if not record then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   return {
     L("%s: %s."):format(characterKey, record.state),
@@ -140,14 +183,15 @@ end
 
 RaidCommands.SortedAssignments = sortedAssignments
 
-function RaidCommands:AddAssignment(event, characterKey, encounter)
+function RaidCommands:AddAssignment(event, characterKey, encounter, task)
   local ctx = self:Context()
   local assignment, reason = ns.EventService.AddAssignment(ctx, event.eventId, {
     characterKey = characterKey,
     encounter = encounter,
+    task = task ~= nil and task ~= "" and task or nil,
   })
   if not assignment then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   return {
     L("assigned %s to %s."):format(characterKey, encounter),
@@ -159,7 +203,7 @@ function RaidCommands:RemoveAssignment(event, assignment)
   local ctx = self:Context()
   local ok, reason = ns.EventService.RemoveAssignment(ctx, event.eventId, assignment.assignmentId)
   if not ok then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   return {
     L("removed %s from %s."):format(assignment.characterKey, assignment.encounter),

@@ -202,6 +202,8 @@ local function StartBlacklist()
   blacklistFrame:SetScript("OnEvent", function()
     if ns.active then
       pcall(watcher.Check, watcher)
+      -- The Blacklist tab marks the listed players that are in the group: it follows the group.
+      ns.UI.BlacklistChanged()
     end
   end)
   -- A group that already exists when the addon starts.
@@ -269,6 +271,27 @@ local function StartAutoPublish()
   end)
 end
 
+-- The items of the last corpse looted, for the "Last boss loot" strip of the Loot tab. Kept in memory only, and only
+-- when
+-- the client lets the addon read the loot window (Platform.LootWindowAvailable): otherwise the strip is not shown.
+local function StartBossLoot()
+  if not ns.Platform.LootWindowAvailable() then
+    return
+  end
+  local lootFrame = CreateFrame("Frame")
+  if not ns.Platform.TryRegisterEvent(lootFrame, "LOOT_OPENED") then
+    return
+  end
+  lootFrame:SetScript("OnEvent", function()
+    if ns.active then
+      local items = ns.Platform.GetLootWindowItems()
+      if items and #items > 0 then
+        ns.bossLoot = items
+      end
+    end
+  end)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -296,6 +319,7 @@ local function Activate()
   ns.VotingFrame.Start()
   StartPvP()
   StartBlacklist()
+  StartBossLoot()
   StartAutoPublish()
   ScheduleSelfTest()
   print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))

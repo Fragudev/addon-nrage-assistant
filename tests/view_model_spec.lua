@@ -16,7 +16,17 @@ local function load_view_model(locale)
     "Domain/BlacklistService",
     "Domain/ReadinessRules",
     "Domain/ReadinessService",
+    "Domain/ProfileService",
+    "Domain/ReportService",
+    "UI/Kit/Theme",
+    "UI/Kit/Util",
+    "UI/Kit/Calendar",
     "UI/ViewModel",
+    "UI/ViewModelHome",
+    "UI/ViewModelRaid",
+    "UI/ViewModelGuild",
+    "Commands/RaidCommands",
+    "Commands/LootCommands",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
     if path == "Locales/esES" and locale then
@@ -1667,7 +1677,15 @@ describe("ViewModel sidebar, user card and sync pill", function()
       "Domain/BlacklistService",
       "Domain/ReadinessRules",
       "Domain/ReadinessService",
+      "Domain/ProfileService",
+      "Domain/ReportService",
+      "UI/Kit/Theme",
+      "UI/Kit/Util",
+      "UI/Kit/Calendar",
       "UI/ViewModel",
+      "UI/ViewModelHome",
+      "UI/ViewModelRaid",
+      "UI/ViewModelGuild",
     }) do
       assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", loaded)
     end
@@ -1707,5 +1725,1014 @@ describe("ViewModel sidebar, user card and sync pill", function()
       { text = "Sync ready", status = "success" },
       ViewModel.SyncPill({ paused = false, queued = 0, incompatible = {} })
     )
+  end)
+end)
+
+-- The structured rows of the redesigned tabs (plan 3.1 to 3.3, 3.8).
+local function fake_clock(parts_by_stamp)
+  return {
+    date = function(_, stamp)
+      return parts_by_stamp[stamp]
+    end,
+  }
+end
+
+describe("ViewModel dates", function()
+  it("writes a date as 'Thu 23 Oct · 20:30'", function()
+    local clock = fake_clock({ [1] = { year = 2026, month = 10, day = 23, hour = 20, min = 30 } })
+    assert.are.equal("Fri 23 Oct \194\183 20:30", ViewModel.DateText(1, clock))
+    assert.is_nil(ViewModel.DateText(nil))
+    assert.is_nil(ViewModel.DateText("x"))
+  end)
+
+  it("keeps the order of the weekdays and the months, in both languages", function()
+    assert.are.equal("Mon", ViewModel.WEEKDAYS[1])
+    assert.are.equal("Sun", ViewModel.WEEKDAYS[7])
+    assert.are.equal(12, #ViewModel.MONTHS)
+    assert.are.equal("October", ViewModel.MONTHS_LONG[10])
+  end)
+
+  it("says when the profile was last published", function()
+    assert.are.equal("Not published yet", ViewModel.LastPublished(nil, 1000))
+    assert.are.equal("Last published: just now", ViewModel.LastPublished(990, 1000))
+    assert.are.equal("Last published: 3 min ago", ViewModel.LastPublished(820, 1000))
+    assert.are.equal("Last published: 2 h ago", ViewModel.LastPublished(1000 - 2 * 3600 - 5, 1000))
+    assert.are.equal("Last published: 4 d ago", ViewModel.LastPublished(1000, 1000 + 4 * 86400 + 5))
+    -- A publication dated in the future (a clock skew) counts as just now.
+    assert.are.equal("Last published: just now", ViewModel.LastPublished(2000, 1000))
+  end)
+end)
+
+describe("ViewModel.ReadinessCard", function()
+  local function card(statuses)
+    local results, countable, met = {}, 0, 0
+    for index, status in ipairs(statuses) do
+      results[index] = { label = "Rule " .. index, status = status }
+      if status ~= "waived" then
+        countable = countable + 1
+      end
+      if status == "met" then
+        met = met + 1
+      end
+    end
+    return ViewModel.ReadinessCard(results, { met = met, countable = countable, unknown = 0 })
+  end
+
+  it("is ready when everything is met", function()
+    local data = card({ "met", "met" })
+    assert.are.same({ "ready", "met", "Ready", 1 }, { data.state, data.status, data.stateText, data.ratio })
+    assert.are.equal("2 of 2 requirements met", data.line)
+    assert.is_nil(data.missingText)
+  end)
+
+  it("is not ready when something failed, and lists what is missing", function()
+    local data = card({ "met", "missing", "unknown" })
+    assert.are.same({ "notReady", "missing", "Not ready" }, { data.state, data.status, data.stateText })
+    assert.are.equal("Missing: Rule 2, Rule 3", data.missingText)
+    assert.are.equal("1 of 3 requirements met", data.line)
+  end)
+
+  it("is pending when nothing failed but something is unknown", function()
+    local data = card({ "met", "unknown" })
+    assert.are.same({ "pending", "pending" }, { data.state, data.status })
+    assert.is_true(math.abs(data.ratio - 0.5) < 1e-9)
+  end)
+
+  it("says there are no requirements, and does not divide by zero", function()
+    local data = card({})
+    assert.are.same({ "none", 0 }, { data.state, data.ratio })
+  end)
+
+  it("escapes the missing labels", function()
+    local data = ViewModel.ReadinessCard(
+      { { label = "|cffff0000Red", status = "missing" } },
+      { met = 0, countable = 1 }
+    )
+    assert.is_truthy(data.missingText:find("||cffff0000Red", 1, true))
+  end)
+end)
+
+describe("ViewModel.SyncRows", function()
+  it("shows ready, the queue, the snapshot and the members with the addon", function()
+    local data = ViewModel.SyncRows({
+      paused = false,
+      queued = 2,
+      peers = 14,
+      incompatible = {},
+      snapshot = { from = "Lead", applied = 3, total = 5, at = 940 },
+    }, 1000)
+    assert.are.same({ "Status", "Ready", "success" }, { data.rows[1].label, data.rows[1].value, data.rows[1].dot })
+    assert.are.same({ "Queued messages", "2" }, { data.rows[2].label, data.rows[2].value })
+    assert.are.equal("3 of 5 applied - 1 min ago", data.rows[3].value)
+    assert.are.same({ "Members with the addon", "14" }, { data.rows[4].label, data.rows[4].value })
+    assert.are.same({}, data.warnings)
+  end)
+
+  it("shows a pause and the incompatible members as warnings", function()
+    local data = ViewModel.SyncRows({ paused = true, queued = 0, peers = 0, incompatible = { "|cffff0000Old" } }, 1000)
+    assert.are.equal("warning", data.rows[1].dot)
+    assert.are.equal("none yet", data.rows[3].value)
+    assert.is_truthy(data.warnings[1]:find("||cffff0000Old: incompatible addon version", 1, true))
+  end)
+
+  it("says the sync is off without a transport", function()
+    local data = ViewModel.SyncRows(nil, 1000)
+    assert.are.equal("Sync off", data.rows[1].value)
+  end)
+end)
+
+describe("ViewModel.NextEventCard and OpenLootSessions", function()
+  local function event(id, title, status, startAt, loot)
+    return {
+      eventId = id,
+      title = title,
+      status = status,
+      startAt = startAt,
+      attendance = {},
+      assignments = {},
+      loot = loot or {},
+    }
+  end
+
+  it("picks the soonest upcoming event and ignores past, closed and cancelled ones", function()
+    local events = {
+      past = event("past", "Past", "planned", 100),
+      closed = event("closed", "Closed", "closed", 5000),
+      cancelled = event("cancelled", "Cancelled", "cancelled", 5000),
+      later = event("later", "Later", "planned", 9000),
+      soon = event("soon", "|cffff0000Soon", "open", 6000),
+    }
+    local card = ViewModel.NextEventCard(events, 1000)
+    assert.are.equal("soon", card.eventId)
+    assert.are.equal("||cffff0000Soon", card.title)
+    assert.are.equal("open", card.status)
+    assert.are.equal("success", card.statusToken)
+  end)
+
+  it("keeps an open event that already started, and falls back to an undated one", function()
+    assert.are.equal("o", ViewModel.NextEventCard({ o = event("o", "Open", "open", 100) }, 1000).eventId)
+    assert.are.equal("u", ViewModel.NextEventCard({ u = event("u", "Undated", "planned", nil) }, 1000).eventId)
+    assert.is_nil(ViewModel.NextEventCard({}, 1000))
+    assert.is_nil(ViewModel.NextEventCard({ p = event("p", "Past", "planned", 1) }, 1000))
+  end)
+
+  it("lists the open sessions with their candidates, newest event first by title, cut at the limit", function()
+    local function session(id, name, status, candidates)
+      local list = {}
+      for index = 1, candidates do
+        list["C" .. index] = { need = "main", spec = "Fury" }
+      end
+      return { sessionId = id, itemId = 5, itemName = name, status = status, candidates = list, votes = {} }
+    end
+    local events = {
+      a = event(
+        "a",
+        "Alpha",
+        "open",
+        1,
+        { s1 = session("s1", "Sword", "open", 2), s2 = session("s2", "Axe", "closed", 1) }
+      ),
+      b = event("b", "Beta", "open", 1, { s3 = session("s3", "Ring", "open", 0) }),
+    }
+    local rows, total = ViewModel.OpenLootSessions(events, 5)
+    assert.are.equal(2, total)
+    assert.are.same({ "Sword", "Ring" }, { rows[1].itemName, rows[2].itemName })
+    assert.are.equal("2 candidate(s)", rows[1].candidatesText)
+    assert.are.equal("Alpha", rows[1].eventTitle)
+    local cut, count = ViewModel.OpenLootSessions(events, 1)
+    assert.are.same({ 1, 2 }, { #cut, count })
+  end)
+end)
+
+describe("ViewModel profile rows", function()
+  it("strips the ruleset suffix from the character name", function()
+    assert.are.equal("Yonemon Gg", ViewModel.CharacterName("Yonemon Gg"))
+    assert.are.equal("Yonemon", ViewModel.CharacterName("Yonemon-ClassicBetaPvP"))
+    assert.are.equal("?", ViewModel.CharacterName(nil))
+  end)
+
+  it("writes a class token as a name", function()
+    assert.are.equal("Deathknight", ViewModel.ClassText("DEATHKNIGHT"))
+    assert.is_nil(ViewModel.ClassText(nil))
+    _G.LOCALIZED_CLASS_NAMES_MALE = { MAGE = "Mago" }
+    assert.are.equal("Mago", ViewModel.ClassText("MAGE"))
+    _G.LOCALIZED_CLASS_NAMES_MALE = nil
+  end)
+
+  it("builds the identity line, with unknown values said as such", function()
+    local stats = ViewModel.IdentityStats({ class = "MAGE", level = 60, ilvl = 100 }, "Ann-Realm")
+    assert.are.same({ "Name", "Ann", "Class", "Mage", "Level", "60", "Item level", "100" }, {
+      stats[1].caption,
+      stats[1].value,
+      stats[2].caption,
+      stats[2].value,
+      stats[3].caption,
+      stats[3].value,
+      stats[4].caption,
+      stats[4].value,
+    })
+    assert.are.equal("class", stats[2].color)
+    assert.are.equal("MAGE", stats[2].classToken)
+    local unknown = ViewModel.IdentityStats({}, "Ann")
+    assert.are.same({ "unknown", "unknown", "unknown" }, { unknown[2].value, unknown[3].value, unknown[4].value })
+    assert.are.equal("muted", unknown[2].color)
+  end)
+
+  it("groups the professions, primary first, from the secondary flag", function()
+    local groups = ViewModel.ProfessionGroups({
+      { name = "Alchemy", skill = 300, max = 300 },
+      { name = "Herbalism", skill = 120, max = 300 },
+      { name = "Cooking", skill = 75, max = 300, secondary = true },
+      { name = "|cffff0000Fishing", skill = 10, secondary = true },
+    })
+    assert.are.same({ "Alchemy", "Herbalism" }, { groups.primary[1].name, groups.primary[2].name })
+    assert.are.equal("300/300", groups.primary[1].text)
+    assert.are.equal("||cffff0000Fishing", groups.secondary[2].name)
+    assert.are.equal("10", groups.secondary[2].text)
+  end)
+
+  it("counts the first two as primary when an older client sent no flags", function()
+    local groups = ViewModel.ProfessionGroups({
+      { name = "A", skill = 1 },
+      { name = "B", skill = 2 },
+      { name = "C", skill = 3 },
+    })
+    assert.are.equal(2, #groups.primary)
+    assert.are.equal("C", groups.secondary[1].name)
+    assert.are.same({ primary = {}, secondary = {} }, ViewModel.ProfessionGroups(nil))
+  end)
+end)
+
+describe("ViewModel.ReadinessRows", function()
+  local rules = {
+    { id = "level", check = "level" },
+    { id = "flask", check = "confirm" },
+    { id = "ilvl", check = "ilvl" },
+  }
+  local results = {
+    { status = "met", label = "Level 60", detail = "level 60 (needs 60)" },
+    { status = "unknown", label = "Flask", detail = "not confirmed" },
+    { status = "missing", label = "Item level", detail = "item level 10 (needs 60)" },
+  }
+
+  it("makes a row per rule with the status colors, and the manual one carries its status", function()
+    local data = ViewModel.ReadinessRows(rules, results, { met = 1, countable = 3, unknown = 1 })
+    assert.are.same(
+      { "level", "met", "success" },
+      { data.rows[1].ruleId, data.rows[1].status, data.rows[1].valueToken }
+    )
+    assert.are.equal("warning", data.rows[2].valueToken)
+    assert.are.equal("danger", data.rows[3].valueToken)
+    assert.are.same({ status = "unknown" }, data.rows[2].manual)
+    assert.is_nil(data.rows[1].manual)
+    assert.are.same({ text = "1 of 3 met", color = "danger" }, data.badge)
+  end)
+
+  it("colors the summary badge by state", function()
+    local all = { { status = "met", label = "A", detail = "" } }
+    assert.are.equal(
+      "success",
+      ViewModel.ReadinessRows({ { id = "a", check = "level" } }, all, { met = 1, countable = 1 }).badge.color
+    )
+    local pending = { { status = "unknown", label = "A", detail = "" } }
+    assert.are.equal(
+      "warning",
+      ViewModel.ReadinessRows({ { id = "a", check = "level" } }, pending, { met = 0, countable = 1 }).badge.color
+    )
+    local waived = { { status = "waived", label = "A", detail = "" } }
+    assert.are.equal(
+      "muted",
+      ViewModel.ReadinessRows({ { id = "a", check = "level" } }, waived, { met = 0, countable = 0 }).rows[1].valueToken
+    )
+  end)
+end)
+
+describe("ViewModel.MemberRows", function()
+  local entries = {
+    ["Ann-Realm"] = { rankName = "Raider", rankIndex = 3, level = 60, class = "MAGE" },
+    ["Bob"] = { rankName = "Raider", rankIndex = 3, level = 59, class = "WARRIOR" },
+    ["Boss"] = { rankName = "Maestro", rankIndex = 0, level = 60, class = "PRIEST" },
+    ["Cid"] = { rankName = "Raider", rankIndex = 4, level = 40, class = "ROGUE" },
+  }
+  local received = {
+    ["Ann-Realm"] = {
+      class = "MAGE",
+      level = 60,
+      ilvl = 120,
+      receivedAt = 1000,
+      fields = { role = "Dps", role2 = "Heal", main = "Annmain" },
+      professions = { { name = "Alchemy", skill = 300 } },
+    },
+    ["Bob"] = { class = "WARRIOR", level = 59, ilvl = 90, receivedAt = 1000 - 8 * 86400, fields = { role = "Tank" } },
+    ["Gone"] = { class = "MAGE", level = 10, receivedAt = 1000 },
+  }
+  local rosters = { r1 = { id = "r1", name = "Main" }, r2 = { id = "r2", name = "Alts" } }
+  local members = { ["Ann-Realm"] = { role = "rl", rosterId = "r1" }, ["Bob"] = { role = "council", rosterId = "r2" } }
+
+  local function rows(extra)
+    local args =
+      { entries = entries, received = received, rosters = rosters, members = members, now = 1000, ownKey = "Ann-Realm" }
+    for key, value in pairs(extra or {}) do
+      args[key] = value
+    end
+    return ViewModel.MemberRows(args)
+  end
+
+  local function names(list)
+    local out = {}
+    for _, row in ipairs(list) do
+      out[#out + 1] = row.key
+    end
+    return out
+  end
+
+  it("lists the whole guild, with the members without the addon marked and nobody who left", function()
+    local list, total = rows()
+    assert.are.same({ "Ann-Realm", "Bob", "Boss", "Cid" }, names(list))
+    assert.are.equal(4, total)
+    local byKey = {}
+    for _, row in ipairs(list) do
+      byKey[row.key] = row
+    end
+    assert.is_false(byKey["Ann-Realm"].noAddon)
+    assert.is_true(byKey["Boss"].noAddon)
+    assert.is_true(byKey["Cid"].noAddon)
+    assert.is_true(byKey["Ann-Realm"].mine)
+  end)
+
+  it("merges the received profile with what the guild roster says", function()
+    local ann = rows()[1]
+    assert.are.same({ "Mage", 60, 120, "Dps", "Heal" }, { ann.class, ann.level, ann.ilvl, ann.spec, ann.spec2 })
+    assert.are.same({ "r1", "Main", "rl" }, { ann.rosterId, ann.rosterName, ann.role })
+    local cid = rows()[4]
+    assert.are.same({ "Rogue", 40, nil, nil }, { cid.class, cid.level, cid.ilvl, cid.spec })
+    assert.are.equal("member", cid.role)
+  end)
+
+  it("flags a profile older than a week as stale, and never shows anything as verified", function()
+    local list = rows()
+    assert.is_false(list[1].stale)
+    assert.is_true(list[2].stale)
+    assert.are.equal("1 min ago", rows({ now = 1060 })[1].updated)
+    assert.is_nil(list[3].updated)
+  end)
+
+  it("makes the guild master the admin, whatever is assigned", function()
+    local list = rows({ members = { Boss = { role = "rl" } } })
+    assert.are.same({ "admin", true }, { list[3].role, list[3].isGuildMaster })
+  end)
+
+  it("filters by name, roster, spec and the addon", function()
+    assert.are.same({ "Ann-Realm" }, names(rows({ search = "ann" })))
+    assert.are.same({ "Ann-Realm" }, names(rows({ roster = "r1" })))
+    assert.are.same({ "Boss", "Cid" }, names(rows({ roster = "none" })))
+    assert.are.same({ "Bob" }, names(rows({ spec = "Tank" })))
+    assert.are.same({ "Ann-Realm" }, names(rows({ spec = "Heal" })))
+    assert.are.same({ "Ann-Realm", "Bob" }, names(rows({ addonOnly = true })))
+    assert.are.same({}, names(rows({ search = "zzz" })))
+    assert.are.equal(4, select(2, rows({ search = "zzz" })))
+  end)
+
+  it("sorts by a column, with ties by name", function()
+    assert.are.same({ "Ann-Realm", "Boss", "Bob", "Cid" }, names(rows({ sort = { key = "level", descending = true } })))
+    assert.are.same(
+      { "Cid", "Bob", "Ann-Realm", "Boss" },
+      names(rows({ sort = { key = "level", descending = false } }))
+    )
+    assert.are.same(
+      { "Boss", "Cid", "Bob", "Ann-Realm" },
+      names(rows({ sort = { key = "updated", descending = false } }))
+    )
+    assert.are.same({ "Ann-Realm", "Cid", "Bob", "Boss" }, names(rows({ sort = { key = "role", descending = true } })))
+    assert.are.same({ "Ann-Realm", "Bob", "Boss", "Cid" }, names(rows({ sort = { key = "nonsense" } })))
+  end)
+
+  it("lists the members that sent a profile when the guild roster has not loaded", function()
+    local list = rows({ entries = {} })
+    assert.are.same({ "Ann-Realm", "Bob", "Gone" }, names(list))
+  end)
+
+  it("escapes what members wrote", function()
+    local list = ViewModel.MemberRows({
+      entries = { ["|cffff0000X"] = {} },
+      received = { ["|cffff0000X"] = { class = "MAGE", level = 1, fields = { role = "Tank", main = "|r" } } },
+      rosters = {},
+      members = {},
+      now = 1,
+    })
+    assert.are.equal("||cffff0000X", list[1].name)
+    assert.are.equal("||r", list[1].main)
+  end)
+
+  it("builds the roster chips for the guild master, a raid leader and a member", function()
+    local counts = { r1 = 2, r2 = 1, none = 5 }
+    local admin = ViewModel.RosterChips(rosters, counts, "admin", nil)
+    assert.are.same({
+      { value = "r2", text = "Alts (1)" },
+      { value = "r1", text = "Main (2)" },
+      { value = "none", text = "No roster (5)" },
+    }, admin)
+    assert.are.same({ { value = "r1", text = "Main (2)" } }, ViewModel.RosterChips(rosters, counts, "rl", "r1"))
+    assert.are.same({}, ViewModel.RosterChips(rosters, counts, "member", "r1"))
+    assert.are.same({}, ViewModel.RosterChips(rosters, counts, "council", "r1"))
+  end)
+
+  it("describes the detail of a row", function()
+    local detail = ViewModel.MemberDetail(rows()[1])
+    assert.are.same({ "Alchemy 300", "none", "Annmain" }, { detail.primary, detail.secondary, detail.main })
+    assert.is_true(detail.hasProfile)
+    local none = ViewModel.MemberDetail(rows()[4])
+    assert.are.same({ "not declared", "No profile received", false }, { none.main, none.updated, none.hasProfile })
+  end)
+
+  it("offers member, raid leader and loot council, and the rosters with an optional none", function()
+    local roles = ViewModel.RoleChoices()
+    assert.are.same({ "member", "rl", "council" }, { roles[1].value, roles[2].value, roles[3].value })
+    local choices = ViewModel.RosterChoices(rosters, true)
+    assert.are.same({ false, "r2", "r1" }, { choices[1].value, choices[2].value, choices[3].value })
+    assert.are.equal(2, #ViewModel.RosterChoices(rosters, false))
+  end)
+end)
+
+-- Raid and Loot rows (plan 3.4 and 3.5).
+local function ev(id, title, status, startAt, extra)
+  local e =
+    { eventId = id, title = title, status = status, startAt = startAt, attendance = {}, assignments = {}, loot = {} }
+  for key, value in pairs(extra or {}) do
+    e[key] = value
+  end
+  return e
+end
+
+describe("ViewModel event list", function()
+  local events = {
+    a = ev("a", "Later", "planned", 5000),
+    b = ev("b", "Soon", "open", 2000, { rosterId = "r1" }),
+    c = ev("c", "Done", "closed", 9000),
+    d = ev("d", "Old", "planned", 100),
+    e = ev("e", "Undated", "planned", nil),
+    f = ev("f", "Called off", "cancelled", 8000),
+  }
+
+  local function ids(rows)
+    local out = {}
+    for _, row in ipairs(rows) do
+      out[#out + 1] = row.eventId
+    end
+    return out
+  end
+
+  it("splits upcoming from past: started, closed and cancelled events are past", function()
+    assert.is_true(ViewModel.IsPastEvent(events.d, 1000))
+    assert.is_true(ViewModel.IsPastEvent(events.c, 1000))
+    assert.is_true(ViewModel.IsPastEvent(events.f, 1000))
+    assert.is_false(ViewModel.IsPastEvent(events.a, 1000))
+    assert.is_false(ViewModel.IsPastEvent(events.e, 1000))
+  end)
+
+  it("lists the upcoming ones soonest first with the undated last, and the past ones latest first", function()
+    assert.are.same({ "b", "a", "e" }, ids(ViewModel.EventListRows(events, { filter = "upcoming", now = 1000 })))
+    assert.are.same({ "c", "f", "d" }, ids(ViewModel.EventListRows(events, { filter = "past", now = 1000 })))
+    assert.are.same({ "b", "a", "e" }, ids(ViewModel.EventListRows(events, { now = 1000 })))
+  end)
+
+  it("gives each row its date, status color and roster name", function()
+    local rows = ViewModel.EventListRows(events, { now = 1000, rosters = { r1 = { id = "r1", name = "Main" } } })
+    assert.are.same(
+      { "Soon", "open", "success", "Main" },
+      { rows[1].title, rows[1].status, rows[1].statusToken, rows[1].rosterName }
+    )
+    assert.are.equal("No date", rows[3].dateText)
+    assert.are.equal("planned", rows[2].status)
+    assert.are.equal("accent", rows[2].statusToken)
+    assert.is_nil(rows[2].rosterName)
+  end)
+
+  it("describes the header of the selected event", function()
+    local header = ViewModel.EventHeader(events.b, { r1 = { id = "r1", name = "Main" } })
+    assert.are.same({ "Soon", "open", "Main" }, { header.title, header.status, header.rosterName })
+    assert.is_nil(ViewModel.EventHeader(events.a, {}).rosterName)
+  end)
+
+  it("offers the statuses and attendance states as dropdown items", function()
+    assert.are.same({ "planned", "open", "closed", "cancelled" }, {
+      ViewModel.EventStatusChoices()[1].value,
+      ViewModel.EventStatusChoices()[2].value,
+      ViewModel.EventStatusChoices()[3].value,
+      ViewModel.EventStatusChoices()[4].value,
+    })
+    assert.are.equal(8, #ViewModel.AttendanceStateChoices())
+  end)
+
+  it("summarises the attendance in state order and counts the assignments", function()
+    local event = ev("x", "X", "open", 1)
+    event.attendance = { A = { state = "late" }, B = { state = "present" }, C = { state = "present" } }
+    event.assignments = { a = {}, b = {} }
+    local summary = ViewModel.EventSummary(event)
+    assert.are.same({ "present", "2", "late", "1" }, {
+      summary.attendance[1].caption == ViewModel.Word("present") and "present" or "?",
+      summary.attendance[1].value,
+      summary.attendance[2].caption == ViewModel.Word("late") and "late" or "?",
+      summary.attendance[2].value,
+    })
+    assert.are.equal(2, summary.assignments)
+    assert.is_false(ViewModel.EventSummary(ev("y", "Y", "open", 1)).recorded)
+  end)
+end)
+
+describe("ViewModel attendance and group matching", function()
+  local guild = { "Ann", "Bob Smith", "Bob Jones", "Cid Vega", "Dee" }
+
+  it("matches group names to guild names exactly, or by the first word when that is unambiguous", function()
+    local matched, unmatched = ViewModel.MatchGroupToGuild({ "Ann", "Cid", "Bob", "Zed", "Dee" }, guild)
+    assert.are.same({ "Ann", "Cid Vega", "Dee" }, matched)
+    -- Bob matches two guild members: it is a guess, so it is left out; Zed is not in the guild.
+    assert.are.equal(2, unmatched)
+  end)
+
+  it("counts a member once and handles an empty group", function()
+    assert.are.same({ { "Ann" }, 0 }, { ViewModel.MatchGroupToGuild({ "Ann", "Ann" }, guild) })
+    assert.are.same({ {}, 0 }, { ViewModel.MatchGroupToGuild({}, guild) })
+    assert.are.same({ "Bob Smith" }, (ViewModel.MatchGroupToGuild({ "Bob Smith" }, guild)))
+  end)
+
+  it("fills only the members that are not recorded yet and never overwrites", function()
+    local event = ev("x", "X", "open", 1)
+    event.attendance = { Ann = { state = "absent" } }
+    local plan = ViewModel.FillFromGroup(event, { "Ann", "Dee", "Cid" }, guild)
+    assert.are.same({ { "Cid Vega", "Dee" }, 1, 0 }, { plan.toMark, plan.alreadyRecorded, plan.unmatched })
+  end)
+
+  it("lists the recorded members with who and when", function()
+    local event = ev("x", "X", "open", 1)
+    event.attendance = {
+      ["Zed"] = { state = "late", recordedBy = "Lead", updatedAt = 940 },
+      ["Amy"] = { state = "present" },
+    }
+    local rows = ViewModel.AttendanceRows(event, 1000)
+    assert.are.same({ "Amy", "Zed" }, { rows[1].name, rows[2].name })
+    assert.are.same({ "Lead", "1 min ago" }, { rows[2].recordedBy, rows[2].recordedAt })
+    assert.is_nil(rows[1].recordedAt)
+  end)
+end)
+
+describe("ViewModel assignments and reports", function()
+  it("groups the assignments by encounter and offers the used encounters plus a new one", function()
+    local event = ev("x", "X", "open", 1)
+    event.assignments = {
+      a1 = { assignmentId = "a1", encounter = "Garr", characterKey = "Bob", task = "Tank" },
+      a2 = { assignmentId = "a2", encounter = "Garr", characterKey = "Ann" },
+      a3 = { assignmentId = "a3", encounter = "Rag", characterKey = "Cid" },
+    }
+    local groups = ViewModel.AssignmentGroups(event)
+    assert.are.same({ "Garr", "Rag" }, { groups[1].encounter, groups[2].encounter })
+    assert.are.equal("Ann", groups[1].rows[1].text)
+    assert.is_truthy(groups[1].rows[2].text:find("Bob", 1, true))
+    assert.is_truthy(groups[1].rows[2].text:find("Tank", 1, true))
+    local choices = ViewModel.EncounterChoices(event)
+    assert.are.same(
+      { "Garr", "Rag", ViewModel.NEW_ENCOUNTER },
+      { choices[1].value, choices[2].value, choices[3].value }
+    )
+    assert.are.same({}, ViewModel.AssignmentGroups(ev("y", "Y", "open", 1)))
+  end)
+
+  it("offers members and templates as items, escaped", function()
+    assert.are.equal("||x", ViewModel.MemberChoices({ "|x" })[1].text)
+    assert.are.equal("T", ViewModel.TemplateChoices({ "T" })[1].value)
+  end)
+
+  it("turns the reports into tables with a note when there is nothing", function()
+    local event = ev("x", "X", "closed", 1)
+    event.attendance = { Ann = { state = "present" }, Bob = { state = "absent" } }
+    event.loot = {
+      s1 = {
+        sessionId = "s1",
+        itemId = 1,
+        itemName = "Sword",
+        status = "closed",
+        updatedAt = 5,
+        candidates = { Ann = { need = "main", spec = "Fury" } },
+        votes = {},
+        award = { characterKey = "Ann", reason = "need", awardedBy = "Boss", at = 5 },
+      },
+    }
+    local data = ViewModel.ReportTables({ x = event }, event, true)
+    assert.are.same({ "Ann", "1", "1", "100%" }, {
+      data.attendance.rows[1].name,
+      data.attendance.rows[1].attended,
+      data.attendance.rows[1].outcomes,
+      data.attendance.rows[1].rate,
+    })
+    assert.are.equal("0%", data.attendance.rows[2].rate)
+    assert.is_nil(data.attendance.note)
+    assert.are.same(
+      { "Ann", "1", "Sword" },
+      { data.loot.rows[1].name, data.loot.rows[1].awards, data.loot.rows[1].items }
+    )
+    local none = ViewModel.ReportTables({}, ev("p", "P", "planned", 1), true)
+    assert.is_truthy(none.attendance.note:find("No events held", 1, true))
+    assert.are.equal("No loot sessions yet.", none.loot.note)
+    local single = ViewModel.ReportTables({ x = event, y = ev("y", "Y", "closed", 2) }, event, false)
+    assert.are.equal(1, single.attendance.held)
+  end)
+
+  it("offers the report scopes", function()
+    assert.are.same({ "event", "all" }, { ViewModel.REPORT_SCOPES[1].value, ViewModel.REPORT_SCOPES[2].value })
+  end)
+end)
+
+describe("ViewModel loot rows", function()
+  local function session(id, item, status, updatedAt, candidates, extra)
+    local s = {
+      sessionId = id,
+      itemId = 7,
+      itemName = item,
+      status = status,
+      updatedAt = updatedAt,
+      candidates = candidates or {},
+      votes = {},
+    }
+    for key, value in pairs(extra or {}) do
+      s[key] = value
+    end
+    return s
+  end
+
+  it("opens the Loot tab on the most recent event with an open session, else the most recent", function()
+    local events = {
+      old = ev("old", "Old", "closed", 100),
+      mid = ev("mid", "Mid", "open", 200, { loot = { s = session("s", "Sword", "open", 1) } }),
+      new = ev("new", "New", "open", 300),
+    }
+    assert.are.equal("mid", ViewModel.DefaultLootEvent(events))
+    events.mid.loot.s.status = "closed"
+    assert.are.equal("new", ViewModel.DefaultLootEvent(events))
+    assert.is_nil(ViewModel.DefaultLootEvent({}))
+  end)
+
+  it("lists the events most recent first for the selector", function()
+    local items = ViewModel.LootEventChoices({ a = ev("a", "A", "open", 100), b = ev("b", "|rB", "open", 200) })
+    assert.are.same({ "b", "a" }, { items[1].value, items[2].value })
+    assert.is_truthy(items[1].text:find("||rB", 1, true))
+    assert.are.equal("A", ViewModel.LootEventChoices({ a = ev("a", "A", "open", nil, { updatedAt = 1 }) })[1].text)
+  end)
+
+  it("writes the time left", function()
+    assert.are.equal("1:05 left", ViewModel.TimeLeftText(65))
+    assert.are.equal("0:00 left", ViewModel.TimeLeftText(-3))
+    assert.is_nil(ViewModel.TimeLeftText(nil))
+  end)
+
+  it("makes a card per session, newest first, with the candidates and the actions of the role", function()
+    local event = ev("x", "Raid", "open", 1)
+    event.loot = {
+      old = session("old", "Axe", "closed", 1, { Ann = { need = "main", spec = "Fury" } }, {
+        award = { characterKey = "Ann", reason = "need", awardedBy = "Boss", at = 5 },
+      }),
+      cur = session("cur", "Sword", "open", 9, {
+        Ann = { need = "main", spec = "Fury", upgrade = "+12" },
+        Bob = { need = "off", spec = "Prot" },
+      }),
+    }
+    event.loot.cur.votes = { Boss = { target = "Ann" } }
+    local cards = ViewModel.LootSessionCards(event, {
+      actor = "Boss",
+      rankOf = function()
+        return "Raider"
+      end,
+      actions = { vote = true, award = true, apply = true, open = true },
+      timeLeft = function(id)
+        return id == "cur" and 30 or nil
+      end,
+    })
+    assert.are.same({ "cur", "old" }, { cards[1].sessionId, cards[2].sessionId })
+    local current = cards[1]
+    assert.are.same(
+      { true, "open", "success", "0:30 left", true },
+      { current.open, current.status, current.statusToken, current.timeLeft, current.canClose }
+    )
+    assert.are.equal("Ann", current.candidates[1].name)
+    assert.are.same({ "success", "Main spec", "Fury", "+12", 1, true, true, true }, {
+      current.candidates[1].needToken,
+      current.candidates[1].responseText,
+      current.candidates[1].spec,
+      current.candidates[1].upgrade,
+      current.candidates[1].votes,
+      current.candidates[1].mine,
+      current.candidates[1].canVote,
+      current.candidates[1].canAward,
+    })
+    assert.are.equal("warning", current.candidates[2].needToken)
+    local closed = cards[2]
+    assert.are.same({ false, "muted" }, { closed.open, closed.statusToken })
+    assert.are.same({ "Ann", "Main spec", "need" }, { closed.award.winner, closed.award.response, closed.award.reason })
+    assert.is_truthy(closed.summary:find("Axe", 1, true))
+    assert.is_truthy(closed.summary:find("Ann", 1, true))
+    assert.is_false(closed.candidates[1].canVote)
+  end)
+
+  it("gives a member no vote or award, and says a session closed without an award", function()
+    local event = ev("x", "Raid", "open", 1)
+    event.loot = {
+      s = session("s", "Ring", "closed", 1),
+      o = session("o", "Cape", "open", 2, { Ann = { need = "other", spec = "X" } }),
+    }
+    local cards = ViewModel.LootSessionCards(event, { actor = "Ann", actions = { apply = true } })
+    assert.is_false(cards[1].canClose)
+    assert.is_false(cards[1].candidates[1].canVote)
+    assert.is_truthy(cards[2].summary:find("closed, not awarded", 1, true))
+  end)
+
+  it("builds the minutes with the winner, the response, the reason and the date", function()
+    local event = ev("x", "Raid", "open", 1)
+    event.loot = {
+      b = session("b", "Ring", "closed", 20),
+      a = session("a", "Axe", "closed", 10, { Ann = { need = "off", spec = "X" } }, {
+        award = { characterKey = "Ann", reason = "|rneed", awardedBy = "Boss", at = 15 },
+      }),
+      o = session("o", "Open", "open", 5),
+    }
+    local rows = ViewModel.MinutesTable(event, function(at)
+      return "t" .. at
+    end)
+    assert.are.equal(2, #rows)
+    assert.are.same(
+      { "Axe", "Ann", "Off spec", "||rneed", "t15" },
+      { rows[1].item, rows[1].winner, rows[1].response, rows[1].reason, rows[1].date }
+    )
+    assert.are.same(
+      { "Ring", "-", "-", "not awarded", "t20" },
+      { rows[2].item, rows[2].winner, rows[2].response, rows[2].reason, rows[2].date }
+    )
+  end)
+
+  it("takes the spec of a candidacy from the declared specs", function()
+    local profile = { fields = { role = { value = "Tank" }, role2 = { value = "healer" } } }
+    assert.are.equal("Tank", ViewModel.LootApplySpec(profile, "main"))
+    assert.are.equal("Heal", ViewModel.LootApplySpec(profile, "off"))
+    assert.are.equal("Tank", ViewModel.LootApplySpec(profile, "other"))
+    assert.are.equal("Tank", ViewModel.LootApplySpec({ fields = { role = { value = "Tank" } } }, "off"))
+    assert.is_nil(ViewModel.LootApplySpec({ fields = {} }, "main"))
+    assert.is_nil(ViewModel.LootApplySpec({}, "off"))
+  end)
+
+  it("reads the quality of a link and previews a pasted item", function()
+    local link = "|cffa335ee|Hitem:19019::::::::60:::::|h[Thunderfury]|h|r"
+    assert.are.equal(4, ViewModel.ItemQuality(link))
+    assert.is_nil(ViewModel.ItemQuality("no link"))
+    assert.is_nil(ViewModel.ItemQuality(5))
+    local preview = ViewModel.ItemPreview(link)
+    assert.are.same({ 19019, "Thunderfury", 4 }, { preview.itemId, preview.itemName, preview.quality })
+    assert.is_nil(ViewModel.ItemPreview("hello"))
+    assert.is_nil(ViewModel.ItemPreview(nil))
+  end)
+
+  it("lists the items of the last boss loot that a session accepts", function()
+    local items = {
+      { link = "|cffffffff|Hitem:1::::|h[One]|h|r", icon = "i1" },
+      { link = "gold" },
+      { link = "|cff1eff00|Hitem:2::::|h[Two]|h|r", icon = "i2" },
+      { link = "|cff0070dd|Hitem:3::::|h[Three]|h|r" },
+    }
+    local list = ViewModel.BossLootItems(items, 2)
+    assert.are.equal(2, #list)
+    assert.are.same({ 1, "One", 1, "i1" }, { list[1].itemId, list[1].itemName, list[1].quality, list[1].icon })
+    assert.are.equal(2, list[2].itemId)
+    assert.are.same({}, ViewModel.BossLootItems(nil))
+  end)
+end)
+
+-- PvP, Blacklist and Rules rows (plan 3.6, 3.7 and 3.9).
+describe("ViewModel PvP rows", function()
+  local stats = {
+    honor = { world = 4, bg = 6 },
+    blows = { world = 1, bg = 2 },
+    daily = { ["2026-10-19"] = { honor = { world = 1, bg = 0 }, blows = { world = 0, bg = 0 } } },
+  }
+
+  it("builds the Today and Total grids with the rank", function()
+    local grids = ViewModel.PvPStatGrids(stats, { day = "2026-10-19", honorAvailable = true, blowsAvailable = true })
+    assert.are.same({ "Open world", "1" }, { grids.today[1].caption, grids.today[1].value })
+    assert.are.same({ "Honourable kills", "10" }, { grids.total[3].caption, grids.total[3].value })
+    assert.are.same({ "Killing blows", "3" }, { grids.total[4].caption, grids.total[4].value })
+    assert.are.equal("Rank", grids.total[5].caption)
+    assert.is_truthy(grids.total[5].value:find("Private", 1, true))
+    assert.are.equal("Private", grids.rank.name)
+  end)
+
+  it("says 'Not available' in muted where the client cannot give the figure", function()
+    local grids = ViewModel.PvPStatGrids(stats, { day = "2026-10-19", honorAvailable = false, blowsAvailable = false })
+    assert.are.same({ "Not available", "muted" }, { grids.total[1].value, grids.total[1].color })
+    assert.are.same({ "Not available", "muted" }, { grids.today[4].value, grids.today[4].color })
+  end)
+
+  it("positions the ranking rows, colors the top three and cuts at the limit", function()
+    local rows = {}
+    for index = 1, 5 do
+      rows[index] = {
+        label = "P" .. index,
+        name = "P" .. index,
+        rank = "R",
+        world = index,
+        bg = 0,
+        total = index,
+        blows = index,
+        updated = "-",
+        mine = index == 4,
+      }
+    end
+    local data = ViewModel.RankingTable(rows, { limit = 4 })
+    assert.are.same({ 4, 5 }, { data.shown, data.total })
+    assert.are.same(
+      { "gold", "silver", "bronze", "dim" },
+      { data.rows[1].positionToken, data.rows[2].positionToken, data.rows[3].positionToken, data.rows[4].positionToken }
+    )
+    assert.is_true(data.rows[4].mine)
+    local found = ViewModel.RankingTable(rows, { search = "p5" })
+    assert.are.same({ 1, 1, 5 }, { found.shown, found.total, found.rows[1].position })
+    assert.are.equal(
+      "-",
+      ViewModel.RankingTable({ { label = "A", name = "A", world = 0, bg = 0, total = 0 } }, {}).rows[1].blows
+    )
+  end)
+
+  it("lists the recent kills with the notice for an unavailable or empty feed", function()
+    local entries = { { killers = { "|rAnn", "Bob" }, victim = "Zed", where = "bg", blow = true, time = 5 } }
+    local data = ViewModel.FeedRows(entries, {
+      available = true,
+      formatTime = function(t)
+        return "t" .. t
+      end,
+    })
+    assert.are.same({ "t5", "battleground", true }, { data.rows[1].time, data.rows[1].place, data.rows[1].blow })
+    assert.is_truthy(data.rows[1].text:find("||rAnn, Bob", 1, true))
+    assert.is_nil(data.notice)
+    assert.are.equal("empty", ViewModel.FeedRows({}, { available = true }).notice)
+    assert.are.equal("unavailable", ViewModel.FeedRows({}, { available = false }).notice)
+    assert.are.equal("--:--", ViewModel.FeedRows(entries, { available = true }).rows[1].time)
+  end)
+end)
+
+describe("ViewModel blacklist rows", function()
+  local entries = {
+    ann = { name = "Ann", reason = "ninja", addedBy = "Me", addedAt = 100, rev = 1 },
+    bob = { name = "Bob Smith", reason = "|rrude", addedBy = "Other", addedAt = 200, rev = 1 },
+    cid = { name = "Cid", reason = "afk", addedBy = "Other", addedAt = 300, rev = 1 },
+  }
+  local function names(rows)
+    local out = {}
+    for _, row in ipairs(rows) do
+      out[#out + 1] = row.key
+    end
+    return out
+  end
+
+  it("lists the players in the group first, then by name", function()
+    local rows = ViewModel.BlacklistTable(entries, { role = "member", actor = "Me", groupKeys = { cid = true } })
+    assert.are.same({ "cid", "ann", "bob" }, names(rows))
+    assert.is_true(rows[1].inGroup)
+    assert.is_false(rows[2].inGroup)
+  end)
+
+  it("offers the pencil to who added the entry or the guild master, and the trash to the guild master", function()
+    local member = ViewModel.BlacklistTable(entries, { role = "member", actor = "Me" })
+    assert.are.same({ true, false, false }, { member[1].canEdit, member[2].canEdit, member[3].canEdit })
+    assert.is_false(member[1].canRemove)
+    local admin = ViewModel.BlacklistTable(entries, { role = "admin", actor = "Boss" })
+    assert.are.same({ true, true }, { admin[1].canEdit, admin[1].canRemove })
+  end)
+
+  it("searches the name and the reason, escapes text and formats the date", function()
+    local rows = ViewModel.BlacklistTable(entries, {
+      role = "member",
+      actor = "x",
+      search = "RUDE",
+      formatDate = function(at)
+        return "d" .. at
+      end,
+    })
+    assert.are.same({ "bob" }, names(rows))
+    assert.are.same(
+      { "||rrude", "|rrude", "d200", "Other" },
+      { rows[1].reason, rows[1].rawReason, rows[1].added, rows[1].addedBy }
+    )
+    assert.are.same(
+      { "ann" },
+      names(ViewModel.BlacklistTable(entries, { role = "member", actor = "x", search = "ann" }))
+    )
+    assert.are.same(
+      { "cid" },
+      names(ViewModel.BlacklistTable(entries, { role = "member", actor = "x", search = "afk" }))
+    )
+    assert.are.equal("-", ViewModel.BlacklistTable(entries, { role = "member", actor = "x" })[1].added)
+  end)
+
+  it("finds the listed players that are in the group, even by first word", function()
+    local keys = ViewModel.BlacklistGroupKeys(entries, { "Ann", "Bob", "Stranger" })
+    assert.are.same({ ann = true, bob = true }, keys)
+    assert.are.same({}, ViewModel.BlacklistGroupKeys(entries, {}))
+  end)
+
+  it("counts the characters of the reason and warns near the limit", function()
+    assert.are.same({ "5 / 100", "muted", false }, {
+      ViewModel.ReasonCounter("hello", 100).text,
+      ViewModel.ReasonCounter("hello", 100).token,
+      ViewModel.ReasonCounter("hello", 100).over,
+    })
+    assert.are.equal("warning", ViewModel.ReasonCounter(string.rep("x", 95), 100).token)
+    assert.is_true(ViewModel.ReasonCounter(string.rep("x", 101), 100).over)
+    assert.are.equal("0 / 100", ViewModel.ReasonCounter(nil, 100).text)
+  end)
+end)
+
+describe("ViewModel rule rows", function()
+  local rules = {
+    { id = "level", label = "Level 60", check = "level", min = 60, evidenceMode = "observed" },
+    { id = "flask", label = "|rFlask", check = "confirm", evidenceMode = "manual" },
+    { id = "spec", label = "Spec", check = "field", field = "role", evidenceMode = "manual" },
+  }
+
+  it("marks the rules measured by the game as automatic and the rest as manual", function()
+    local rows = ViewModel.RuleRows(rules)
+    assert.are.same({ true, false, false }, { rows[1].automatic, rows[2].automatic, rows[3].automatic })
+    assert.are.same({ "Automatic", "accent" }, { rows[1].badge.text, rows[1].badge.color })
+    assert.are.same({ "Manual", "warning" }, { rows[2].badge.text, rows[2].badge.color })
+    assert.are.same({ "Minimum level", "level 60 or more" }, { rows[1].kindText, rows[1].summary })
+    assert.are.equal("||rFlask", rows[2].name)
+    assert.are.equal(rules[1], rows[1].rule)
+  end)
+
+  it("replaces a rule in place and keeps its id", function()
+    local list = ViewModel.ReplaceRule(rules, "flask", { id = "other", label = "Food", check = "confirm" })
+    assert.are.same({ "level", "flask", "spec" }, { list[1].id, list[2].id, list[3].id })
+    assert.are.equal("Food", list[2].label)
+    assert.are.equal("Flask", rules[2].label == "|rFlask" and "Flask" or "?")
+    assert.are.same({ nil, "unknown_rule" }, { ViewModel.ReplaceRule(rules, "ghost", {}) })
+    assert.are.equal(rules[1], list[1])
+  end)
+
+  it("offers the slots in order, the fields and the kinds", function()
+    local slots = ViewModel.EnchantSlotChoices()
+    assert.are.same({ "head", "shoulders" }, { slots[1].key, slots[2].key })
+    assert.are.equal("Head", slots[1].text)
+    assert.are.equal("mainhand", slots[#slots - 2].key)
+    local fields = ViewModel.FieldChoices()
+    assert.are.same(
+      { "main", "notes", "role", "role2" },
+      { fields[1].value, fields[2].value, fields[3].value, fields[4].value }
+    )
+    assert.are.equal(#ViewModel.RULE_CHECKS, #ViewModel.RuleKindChoices())
+    assert.are.equal("level", ViewModel.RuleKindChoices()[1].value)
+  end)
+
+  it("fills the form from a rule and builds the rule back from the form", function()
+    local source = { id = "ench", label = "Enchants", check = "enchants", slots = { 1, 16 } }
+    local fields = ViewModel.RuleFields(source)
+    assert.are.same({ [1] = true, [16] = true }, fields.slots)
+    local rule = assert(ViewModel.RuleFromFields("enchants", fields, { source }, "ench"))
+    assert.are.same({ "ench", "enchants", 1, 16 }, { rule.id, rule.check, rule.slots[1], rule.slots[2] })
+    local buff = ViewModel.RuleFields({ spellIds = { 7, 8 }, names = { "Flask" }, label = "Flask" })
+    assert.are.equal("7, 8, Flask", buff.buffs)
+  end)
+
+  it("builds each kind of rule from its controls", function()
+    local level = assert(ViewModel.RuleFromFields("level", { label = "Level", min = "60" }, {}))
+    assert.are.same({ "level", 60 }, { level.check, level.min })
+    local ilvl = assert(ViewModel.RuleFromFields("ilvl", { label = "Gear", min = "100" }, {}))
+    assert.are.equal(100, ilvl.min)
+    local prof =
+      assert(ViewModel.RuleFromFields("profession", { label = "Alchemist", profession = "Alchemy", min = "300" }, {}))
+    assert.are.same({ "Alchemy", 300 }, { prof.profession, prof.min })
+    local anyskill =
+      assert(ViewModel.RuleFromFields("profession", { label = "Cook", profession = "Cooking", min = "" }, {}))
+    assert.is_nil(anyskill.min)
+    local buff = assert(ViewModel.RuleFromFields("buff", { label = "Flask", buffs = "123, Flask of Power" }, {}))
+    assert.are.same({ { 123 }, { "Flask of Power" } }, { buff.spellIds, buff.names })
+    local field = assert(ViewModel.RuleFromFields("field", { label = "Spec", field = "role" }, {}))
+    assert.are.same({ "field", "role" }, { field.check, field.field })
+    local confirm = assert(ViewModel.RuleFromFields("confirm", { label = "Ready" }, {}))
+    assert.are.equal("confirm", confirm.check)
+    local enchants =
+      assert(ViewModel.RuleFromFields("enchants", { label = "Gear", slots = { [16] = true, [5] = true } }, {}))
+    assert.are.same({ 5, 16 }, enchants.slots)
+  end)
+
+  it("keeps the id of an edited rule and gives a new rule a unique id", function()
+    local list = { { id = "level", label = "Level", check = "level", min = 1 } }
+    assert.are.equal(
+      "level",
+      assert(ViewModel.RuleFromFields("level", { label = "Level", min = "60" }, list, "level")).id
+    )
+    assert.are.equal("level_2", assert(ViewModel.RuleFromFields("level", { label = "Level", min = "60" }, list)).id)
+  end)
+
+  it("reports what is wrong and which control it belongs under", function()
+    assert.are.equal("bad_label", select(2, ViewModel.RuleFromFields("level", { label = "", min = "60" }, {})))
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromFields("level", { label = "L", min = "abc" }, {})))
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromFields("enchants", { label = "E", slots = {} }, {})))
+    assert.are.equal("label", ViewModel.RuleErrorField("bad_label"))
+    assert.are.equal("label", ViewModel.RuleErrorField("duplicate_id"))
+    assert.are.equal("details", ViewModel.RuleErrorField("bad_details"))
   end)
 end)

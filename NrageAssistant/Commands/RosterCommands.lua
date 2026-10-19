@@ -8,6 +8,7 @@ local RosterCommands = {}
 RosterCommands.__index = RosterCommands
 
 local L = ns.L
+local Failure = ns.Validate.Failure
 
 function RosterCommands.New(deps)
   return setmetatable({
@@ -69,7 +70,7 @@ end
 function RosterCommands:CreateRoster(name)
   local roster, reason = ns.RosterService.Create(self:Context(), name)
   if not roster then
-    return { fail(reason) }
+    return Failure(fail(reason))
   end
   self:Changed()
   return { L("created the roster '%s'."):format(roster.name), sentNote(self.comm:SendRoster(roster)) }
@@ -78,7 +79,7 @@ end
 function RosterCommands:RenameRoster(id, name)
   local roster, reason = ns.RosterService.Rename(self:Context(), id, name)
   if not roster then
-    return { fail(reason) }
+    return Failure(fail(reason))
   end
   self:Changed()
   return { L("renamed the roster to '%s'."):format(roster.name), sentNote(self.comm:SendRoster(roster)) }
@@ -88,7 +89,7 @@ function RosterCommands:DeleteRoster(id)
   local roster = self.rosters[id]
   local ok, reason = ns.RosterService.Delete(self:Context(), id)
   if not ok then
-    return { fail(reason) }
+    return Failure(fail(reason))
   end
   self:Changed()
   return { L("deleted the roster '%s'."):format(roster.name), sentNote(self.comm:SendDeleteRoster(id)) }
@@ -98,7 +99,7 @@ end
 function RosterCommands:AssignMember(key, fields)
   local record, reason = ns.RosterService.Assign(self:Context(), key, fields)
   if not record then
-    return { fail(reason) }
+    return Failure(fail(reason))
   end
   self:Changed()
   return { L("saved the role and roster of %s."):format(key), sentNote(self.comm:SendMember(key, record)) }
@@ -107,7 +108,7 @@ end
 function RosterCommands:UnassignMember(key)
   local ok, reason = ns.RosterService.Unassign(self:Context(), key)
   if not ok then
-    return { fail(reason) }
+    return Failure(fail(reason))
   end
   self:Changed()
   return { L("%s is a plain member with no roster again."):format(key), sentNote(self.comm:SendDeleteMember(key)) }

@@ -8,6 +8,7 @@ local TemplateCommands = {}
 TemplateCommands.__index = TemplateCommands
 
 local L = ns.L
+local Failure = ns.Validate.Failure
 
 function TemplateCommands.New(deps)
   return setmetatable({
@@ -57,7 +58,7 @@ function TemplateCommands:SaveEvent(event, name)
   local ctx = self:Context()
   local template, reason = ns.TemplateService.Save(self.templates, event, name, ctx.now(), ctx.actor)
   if not template then
-    return { error_line(ctx, reason) }
+    return Failure(error_line(ctx, reason))
   end
   return { L("saved '%s' with %d slot(s)."):format(template.name, #template.slots) }
 end
@@ -66,7 +67,7 @@ function TemplateCommands:ApplyToEvent(event, name)
   local ctx = self:Context()
   local created, skipped = ns.TemplateService.Apply(ctx, self.templates, name, event.eventId)
   if not created then
-    return { error_line(ctx, skipped) }
+    return Failure(error_line(ctx, skipped))
   end
 
   local lines = { ns.TemplateService.Describe(created, skipped) .. "." }
@@ -85,7 +86,7 @@ end
 function TemplateCommands:Delete(name)
   local ok, reason = ns.TemplateService.Delete(self.templates, name, self:Context())
   if not ok then
-    return { error_line(self:Context(), reason) }
+    return Failure(error_line(self:Context(), reason))
   end
   return { L("deleted '%s'."):format(name) }
 end

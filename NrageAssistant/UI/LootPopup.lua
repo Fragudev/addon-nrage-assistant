@@ -35,6 +35,15 @@ function Controller:Dismiss(sessionId)
   self.dismissed[sessionId] = true
 end
 
+-- Seconds left to answer for a session, or nil when it is not counting down (not shown yet, answered, or no timeout).
+function Controller:TimeLeft(sessionId)
+  local first = self.firstShown[sessionId]
+  if not (first and self.deps.timeout and self.deps.now) or self.dismissed[sessionId] then
+    return nil
+  end
+  return math.max(0, self.deps.timeout - (self.deps.now() - first))
+end
+
 function Controller:Hide()
   self.shownKey = nil
   self.deps.hide()
@@ -214,6 +223,19 @@ local function build(entries)
     end)
     row:AddChild(pass)
     frame:AddChild(row)
+  end
+end
+
+-- The time left for a session, for the Loot tab.
+function LootPopup.TimeLeft(sessionId)
+  return controller and controller:TimeLeft(sessionId) or nil
+end
+
+-- Passes on a session from the Loot tab: local only, nothing is sent.
+function LootPopup.Pass(sessionId)
+  if controller then
+    controller:Dismiss(sessionId)
+    LootPopup.Refresh()
   end
 end
 
