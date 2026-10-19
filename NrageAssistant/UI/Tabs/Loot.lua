@@ -186,7 +186,11 @@ local function applyRow(card, event, session, commands)
   })
 end
 
-local function candidatesTable(card, event, session, cardData, commands)
+-- The candidates of a session with Vote and Award per row, and the reason of an award under the table. The Loot tab and
+-- the voting window both draw it. ctx = { state = { awarding, awardReason }, commands, report(lines), redraw(),
+-- sort, onSort(key) (the columns sort only when onSort is given) }.
+function UI.LootCandidates(card, event, session, cardData, ctx)
+  local cstate, commands = ctx.state, ctx.commands
   if #cardData.candidates == 0 then
     Kit.Label(card, { text = L("no candidates yet"), color = "muted" })
     return
@@ -208,8 +212,8 @@ local function candidatesTable(card, event, session, cardData, commands)
           text = candidate.mine and L("Voted") or L("Vote"),
           layout = {},
           onClick = function()
-            state.awarding = nil
-            UI.Report(commands:VoteFor(event, session, candidate.name))
+            cstate.awarding = nil
+            ctx.report(commands:VoteFor(event, session, candidate.name))
           end,
         },
       }
@@ -219,41 +223,44 @@ local function candidatesTable(card, event, session, cardData, commands)
         widget = "button",
         opts = {
           text = L("Award"),
-          variant = state.awarding == key and "primary" or "secondary",
+          variant = cstate.awarding == key and "primary" or "secondary",
           layout = {},
           onClick = function()
-            state.awarding = key
-            state.awardReason = ""
-            UI.Redraw()
+            cstate.awarding = key
+            cstate.awardReason = ""
+            ctx.redraw()
           end,
         },
       }
     end
-    rows[#rows + 1] = { cells = cells, highlight = state.awarding == key }
+    rows[#rows + 1] = { cells = cells, highlight = cstate.awarding == key }
   end
+  local sortable = ctx.onSort ~= nil
   Kit.Table(card, {
     columns = {
-      { key = "name", title = L("Name"), weight = 2 },
-      { key = "response", title = L("Response"), weight = 1.4 },
+      { key = "name", title = L("Name"), weight = 2, sortable = sortable },
+      { key = "response", title = L("Response"), weight = 1.4, sortable = sortable },
       { key = "spec", title = L("Spec"), weight = 1.2 },
       { key = "upgrade", title = L("Upgrade"), weight = 1.4 },
-      { key = "votes", title = L("Votes"), width = 50, align = "RIGHT" },
+      { key = "votes", title = L("Votes"), width = 50, align = "RIGHT", sortable = sortable },
       { key = "vote", title = "", width = 80 },
       { key = "award", title = "", width = 80 },
     },
     rows = rows,
+    sort = ctx.sort,
+    onSort = ctx.onSort,
   })
   -- The reason of an award, asked under the table once a candidate was picked.
   for _, candidate in ipairs(cardData.candidates) do
-    if state.awarding == session.sessionId .. ":" .. candidate.name then
+    if cstate.awarding == session.sessionId .. ":" .. candidate.name then
       local line = Kit.Row(card, { gap = 10, align = "center" })
       Kit.EditBox(line, {
-        text = state.awardReason,
+        text = cstate.awardReason,
         placeholder = L("Reason for the award for %s"):format(candidate.name),
         maxLetters = 100,
         layout = { weight = 1 },
         onChange = function(text)
-          state.awardReason = text
+          cstate.awardReason = text
         end,
       })
       Kit.Button(line, {
@@ -261,17 +268,17 @@ local function candidatesTable(card, event, session, cardData, commands)
         variant = "primary",
         layout = { width = "auto" },
         onClick = function()
-          local reason = state.awardReason
-          state.awarding, state.awardReason = nil, ""
-          UI.Report(commands:AwardTo(event, session, candidate.name, reason))
+          local reason = cstate.awardReason
+          cstate.awarding, cstate.awardReason = nil, ""
+          ctx.report(commands:AwardTo(event, session, candidate.name, reason))
         end,
       })
       Kit.Button(line, {
         text = L("Cancel"),
         layout = { width = "auto" },
         onClick = function()
-          state.awarding = nil
-          UI.Redraw()
+          cstate.awarding = nil
+          ctx.redraw()
         end,
       })
     end
@@ -304,7 +311,13 @@ local function sessionCard(page, event, cardData, actions, commands)
   if actions.apply then
     applyRow(card, event, session, commands)
   end
-  candidatesTable(card, event, session, cardData, commands)
+  UI.LootCandidates(
+    card,
+    event,
+    session,
+    cardData,
+    { state = state, commands = commands, report = UI.Report, redraw = UI.Redraw }
+  )
   if cardData.canClose then
     local key = "close:" .. session.sessionId
     local armed = UI.IsArmed(key)

@@ -215,7 +215,7 @@ function Menu.Open(anchor, items, onSelect, opts)
         end,
       })
     end
-  end, { pad = { 4, 4, 4, 4 }, gap = 0 })
+  end, { pad = { 4, 4, 4, 4 }, gap = 0, point = opts.point })
 end
 
 function Menu.Close()

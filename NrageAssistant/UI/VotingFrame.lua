@@ -11,10 +11,8 @@ local L = ns.L
 local RETRY_SECONDS = 5
 -- Candidacies and votes arrive in bursts; the window is redrawn at most this often because of them.
 local MIN_REDRAW_SECONDS = 0.2
-local WON_ITEMS_MAX = 8
-local WIDTH, HEIGHT = 760, 460
-local NEED_COLORS = { main = "ff00ff00", off = "ffff9900", other = "ff00ccff" }
-local COLUMNS = { 0.21, 0.14, 0.24, 0.14, 0.08, 0.09, 0.09 }
+local WIDTH, HEIGHT = 820, 520
+local PAGE_PAD = { 22, 18, 22, 18 }
 
 -- The decisions, apart from the frame so they can be tested with fakes.
 --   deps: openSessionIds() -> ids of the open sessions, canVote() -> boolean, isLockedDown() -> boolean,
@@ -94,16 +92,17 @@ end
 VotingFrame.Controller = Controller
 
 local controller
-local frame
+local window, page
+local bodyWidth, bodyHeight = WIDTH, HEIGHT - 52
 local selectedId
+-- What the last action said, shown at the top until the next one: { kind, text }.
 local lastMessage
 -- How the table is shown: the sort and the response filter, kept while the window is used.
 local sort = { key = "votes", descending = true }
 local needFilter
--- An award waits for a second click on the same candidate, so a slip does not give the item away.
-local awardConfirm
--- What was typed in the reason field, kept across the redraws a confirmation causes.
-local awardReason = ""
+-- The state of the candidates table (the Award button and its reason), and the armed "close without awarding".
+local tableState = { awarding = nil, awardReason = "" }
+local closeArmed
 
 -- The events of the roster of this player (the guild master sees all of them): the window opens for the council and
 -- the raid leaders of the roster of a session, not for the others.
@@ -124,10 +123,13 @@ local function loot()
   })
 end
 
+local function isOpen()
+  return window ~= nil and window:IsShown()
+end
+
 local function close()
-  if frame then
-    LibStub("AceGUI-3.0"):Release(frame)
-    frame = nil
+  if isOpen() then
+    window:Hide()
   end
 end
 
@@ -145,169 +147,155 @@ local function rankOf(name)
   return entry and entry.rankName or nil
 end
 
-local function addLabel(parent, text, width)
-  local label = LibStub("AceGUI-3.0"):Create("Label")
-  label:SetText(text)
-  if width then
-    label:SetRelativeWidth(width)
-  else
-    label:SetFullWidth(true)
+local FILTER_CHOICES = ns.Locale.Table(function()
+  return {
+    { value = "all", text = L("All") },
+    { value = "main", text = L("Main spec") },
+    { value = "off", text = L("Off spec") },
+    { value = "other", text = L("Other") },
+  }
+end)
+
+local redraw
+
+-- What an action returned, shown in the window.
+local function report(lines)
+  local kind = "success"
+  if ns.Validate.IsFailure(lines) then
+    kind = "danger"
+  elseif lines[2] then
+    kind = "warning"
   end
-  parent:AddChild(label)
+  lastMessage = { kind = kind, text = table.concat(lines, " ") }
+  closeArmed = nil
+  redraw()
 end
 
-local function addButton(parent, text, width, onClick)
-  local button = LibStub("AceGUI-3.0"):Create("Button")
-  button:SetText(text)
-  button:SetRelativeWidth(width)
-  button:SetCallback("OnClick", onClick)
-  parent:AddChild(button)
+-- The sessions to choose from, when there are several: one row each, in the style of the navigation.
+local function sessionList(parent, sessions)
+  local list = ns.Kit.Stack(parent, { gap = 2, layout = { width = 210 } })
+  for _, entry in ipairs(sessions) do
+    ns.Kit.NavRow(list, {
+      text = ("%s (%d)"):format(entry.itemName, entry.candidates),
+      icon = "gem",
+      value = entry.sessionId,
+      selected = entry.selected,
+      onClick = function()
+        selectedId = entry.sessionId
+        tableState.awarding = nil
+        closeArmed = nil
+        lastMessage = nil
+        redraw()
+      end,
+    })
+  end
 end
 
-local draw
-
-local function run(lines)
-  lastMessage = table.concat(lines, " ")
-  draw()
+local function sessionHeader(main, event, session)
+  local Kit = ns.Kit
+  local head = Kit.Row(main, { gap = 10, align = "center" })
+  Kit.ItemLabel(head, {
+    itemId = session.itemId,
+    text = ns.ViewModel.Escape(session.itemName),
+    size = 28,
+    layout = { weight = 1 },
+  })
+  local open = session.status == "open"
+  Kit.Badge(head, {
+    text = ns.ViewModel.Word(session.status),
+    color = open and "success" or "muted",
+    layout = { width = "auto" },
+  })
+  local details = ns.ViewModel.ItemDetailsLine(ns.Platform.GetItemDetails(session.itemId))
+  local subtitle = ns.ViewModel.Escape(event.title)
+  if details then
+    subtitle = subtitle .. " \194\183 " .. details
+  end
+  Kit.Label(main, { text = subtitle, style = "small", color = "muted" })
+  Kit.Label(main, { text = ns.ViewModel.VotingStatus(session), color = "dim", wrap = true })
 end
 
--- The candidate's name; hovering it lists what they have already won, as far as this client knows.
-local function addNameLabel(parent, row, width)
-  local label = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
-  label:SetText(row.label)
-  label:SetRelativeWidth(width)
-  label:SetCallback("OnEnter", function(widget)
-    GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
-    GameTooltip:AddLine(row.label)
-    local won = ns.ViewModel.WonItems(events(), row.name, WON_ITEMS_MAX)
-    if #won == 0 then
-      GameTooltip:AddLine(L("Has not won anything yet."), 0.7, 0.7, 0.7)
+-- The candidates card: the response filter, the shared table of the Loot tab and the close button.
+local function candidates(main, event, session, actions)
+  local Kit = ns.Kit
+  local card = Kit.Card(main, { gap = 10 })
+  local bar = Kit.Row(card, { gap = 10, align = "center" })
+  Kit.Dropdown(bar, {
+    items = FILTER_CHOICES,
+    value = needFilter or "all",
+    layout = { width = 180 },
+    onChange = function(value)
+      needFilter = value ~= "all" and value or nil
+      redraw()
+    end,
+  })
+  Kit.Label(bar, {
+    text = L("Click a column title to sort by it."),
+    style = "small",
+    color = "muted",
+    layout = { weight = 1 },
+  })
+  local cards = ns.ViewModel.LootSessionCards(event, {
+    actor = ns.Platform.GetIdentityKey(),
+    rankOf = rankOf,
+    actions = actions,
+    sort = sort,
+    need = needFilter,
+  })
+  local cardData
+  for _, candidate in ipairs(cards) do
+    if candidate.sessionId == session.sessionId then
+      cardData = candidate
     end
-    for _, item in ipairs(won) do
-      GameTooltip:AddLine(
-        ("%s (%s)"):format(ns.ViewModel.Escape(item.itemName), ns.ViewModel.Escape(item.eventTitle)),
-        1,
-        1,
-        1
-      )
-    end
-    GameTooltip:Show()
-  end)
-  label:SetCallback("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-  parent:AddChild(label)
-end
-
-local FILTER_LIST = ns.Locale.Table(function()
-  return { all = L("All"), main = L("Main spec"), off = L("Off spec"), other = L("Other") }
-end)
-local FILTER_ORDER = { "all", "main", "off", "other" }
-local HEADERS = { "name", "rank", "response", nil, "votes" }
-local HEADER_TITLES = ns.Locale.Table(function()
-  return { name = L("Name"), rank = L("Rank"), response = L("Response"), votes = L("Votes") }
-end)
-
-local function addHeader(parent, index)
-  local key = HEADERS[index]
-  if not key then
-    addLabel(parent, index == 4 and ("|cffffd100%s|r"):format(L("Upgrade")) or " ", COLUMNS[index])
+  end
+  if not cardData then
     return
   end
-  local mark = sort.key == key and (sort.descending and " v" or " ^") or ""
-  local header = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
-  header:SetText(("|cffffd100%s%s|r"):format(HEADER_TITLES[key], mark))
-  header:SetRelativeWidth(COLUMNS[index])
-  header:SetCallback("OnClick", function()
-    sort = ns.ViewModel.NextSort(sort, key)
-    draw()
-  end)
-  parent:AddChild(header)
-end
-
-local function drawTable(scroll, event, session, actions)
-  local AceGUI = LibStub("AceGUI-3.0")
-  local open = session.status == "open"
-  local reason
-
-  if open and actions.award then
-    reason = AceGUI:Create("EditBox")
-    reason:SetLabel(L("Reason for the award (used by the Award buttons)"))
-    reason:SetFullWidth(true)
-    reason:SetText(awardReason)
-    scroll:AddChild(reason)
+  if #cardData.candidates == 0 and needFilter then
+    Kit.Label(card, { text = L("Nobody answered that way."), color = "muted" })
+  else
+    ns.UI.LootCandidates(card, event, session, cardData, {
+      state = tableState,
+      commands = loot(),
+      report = report,
+      redraw = redraw,
+      sort = sort,
+      onSort = function(key)
+        sort = ns.ViewModel.NextSort(sort, key)
+        redraw()
+      end,
+    })
   end
-
-  local filter = AceGUI:Create("Dropdown")
-  filter:SetLabel(L("Show"))
-  filter:SetList(FILTER_LIST, FILTER_ORDER)
-  filter:SetValue(needFilter or "all")
-  filter:SetRelativeWidth(0.4)
-  filter:SetCallback("OnValueChanged", function(_, _, key)
-    needFilter = key ~= "all" and key or nil
-    draw()
-  end)
-  scroll:AddChild(filter)
-  addLabel(scroll, L("Click a column title to sort by it."), 0.55)
-
-  for index = 1, #COLUMNS do
-    addHeader(scroll, index)
-  end
-
-  local rows =
-    ns.ViewModel.VotingRows(session, ns.Platform.GetIdentityKey(), rankOf, { sort = sort, need = needFilter })
-  if #rows == 0 then
-    addLabel(scroll, needFilter and L("Nobody answered that way.") or L("No candidates yet."))
-  end
-  for _, row in ipairs(rows) do
-    addNameLabel(scroll, row, COLUMNS[1])
-    addLabel(scroll, row.rank, COLUMNS[2])
-    addLabel(scroll, ("|c%s%s|r"):format(NEED_COLORS[row.need] or "ffffffff", row.response), COLUMNS[3])
-    addLabel(scroll, row.upgrade == "" and " " or row.upgrade, COLUMNS[4])
-    addLabel(scroll, row.votes and tostring(row.votes) or "?", COLUMNS[5])
-    if open and actions.vote then
-      addButton(scroll, row.mine and L("Voted") or L("Vote"), COLUMNS[6], function()
-        awardConfirm = nil
-        run(loot():VoteFor(event, session, row.name))
-      end)
-    else
-      addLabel(scroll, " ", COLUMNS[6])
-    end
-    if open and actions.award then
-      local confirming = awardConfirm and awardConfirm.sessionId == session.sessionId and awardConfirm.name == row.name
-      addButton(scroll, confirming and L("Confirm") or L("Award"), COLUMNS[7], function()
-        if not confirming then
-          awardReason = reason and reason:GetText() or ""
-          awardConfirm = { sessionId = session.sessionId, name = row.name }
-          lastMessage = L("Award %s to %s? Click Confirm to give it away."):format(session.itemName, row.name)
-          draw()
+  if cardData.canClose then
+    Kit.Button(card, {
+      text = closeArmed == session.sessionId and L("Confirm: close without awarding") or L("Close without awarding"),
+      variant = closeArmed == session.sessionId and "dangerSolid" or "secondary",
+      layout = { width = 280 },
+      onClick = function()
+        if closeArmed ~= session.sessionId then
+          closeArmed = session.sessionId
+          redraw()
           return
         end
-        awardConfirm = nil
-        local why = reason and reason:GetText() or ""
-        awardReason = ""
-        run(loot():AwardTo(event, session, row.name, why))
-      end)
-    else
-      addLabel(scroll, " ", COLUMNS[7])
-    end
+        closeArmed = nil
+        report(loot():CloseSession(event, session))
+      end,
+    })
   end
 end
 
-draw = function()
-  if not frame then
-    return
-  end
-  local AceGUI = LibStub("AceGUI-3.0")
-  frame:ReleaseChildren()
-  local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout("Flow")
-  frame:AddChild(scroll)
-
+-- Draws the window content into `parent` (a stack): the open sessions on the left when there are several, and the
+-- selected one on the right. Everything it needs comes from the saved data, so it can be drawn with the fake kit.
+function VotingFrame.Draw(parent)
+  local Kit = ns.Kit
   local actions = ns.ViewModel.LootActions(ns.PermissionService.OwnRole(ns.Platform))
   local sessions = ns.ViewModel.VotingSessions(events(), selectedId)
   if #sessions == 0 then
-    addLabel(scroll, L("No loot sessions are open."))
+    Kit.EmptyState(parent, {
+      icon = "gem",
+      title = L("No loot sessions are open."),
+      hint = L("The council opens one for each item after an encounter."),
+    })
     return
   end
   local found = false
@@ -318,58 +306,74 @@ draw = function()
     selectedId = sessions[1].sessionId
     sessions = ns.ViewModel.VotingSessions(events(), selectedId)
   end
-
-  -- The items to choose from: icon, name and tooltip, the selected one in gold.
-  for _, entry in ipairs(sessions) do
-    local text = entry.selected and ("|cffffd100%s|r"):format(entry.itemName) or entry.itemName
-    ns.UI.AddItemLabel(
-      scroll,
-      { itemId = entry.itemId, text = text, width = 1 / math.min(#sessions, 3) - 0.01 },
-      function()
-        selectedId = entry.sessionId
-        draw()
-      end
-    )
-  end
-
   local event, session = findSession(selectedId)
   if not session then
     return
   end
-  addLabel(
-    scroll,
-    ("|cffffd100%s|r  (%s)"):format(ns.ViewModel.Escape(session.itemName), ns.ViewModel.Escape(event.title))
-  )
-  local details = ns.ViewModel.ItemDetailsLine(ns.Platform.GetItemDetails(session.itemId))
-  if details then
-    addLabel(scroll, details)
+
+  local layout = Kit.Row(parent, { gap = 18, align = "top" })
+  if #sessions > 1 then
+    sessionList(layout, sessions)
   end
-  addLabel(scroll, ns.ViewModel.VotingStatus(session))
+  local main = Kit.Stack(layout, { gap = 12, layout = { weight = 1 } })
+  sessionHeader(main, event, session)
   if lastMessage then
-    addLabel(scroll, ns.ViewModel.Escape(lastMessage))
+    Kit.Banner(main, { kind = lastMessage.kind, text = ns.ViewModel.Escape(lastMessage.text) })
   end
-  if session.status == "open" and actions.award then
-    addButton(scroll, L("Close without awarding"), 0.4, function()
-      run(loot():CloseSession(event, session))
-    end)
-  end
-  drawTable(scroll, event, session, actions)
-  addLabel(scroll, "")
-  addLabel(scroll, L("Addon messages are not private: anyone with the addon can read votes."))
+  candidates(main, event, session, actions)
+  Kit.Label(main, {
+    text = L("Addon messages are not private: anyone with the addon can read votes."),
+    style = "small",
+    color = "muted",
+    wrap = true,
+  })
 end
 
-local function ensureFrame()
-  if frame then
+redraw = function()
+  if not (isOpen() and page) then
     return
   end
-  frame = LibStub("AceGUI-3.0"):Create("Frame")
-  frame:SetTitle(L("Nrage Loot Council"))
-  frame:SetStatusText(L("Votes follow the guild's visibility setting."))
-  ns.UI.ApplyWindowStatus(frame, "voting", WIDTH, HEIGHT)
-  frame:SetLayout("Fill")
-  frame:SetCallback("OnClose", function()
-    close()
-  end)
+  local offset = page:GetScroll()
+  page:Clear()
+  VotingFrame.Draw(page)
+  page:Layout(bodyWidth, bodyHeight)
+  page:SetScroll(offset)
+end
+
+local function ensureWindow()
+  if window then
+    return
+  end
+  local Kit = ns.Kit
+  window = Kit.Window.New({
+    name = "NrageAssistantVotingFrame",
+    title = L("Nrage Loot Council"),
+    width = WIDTH,
+    height = HEIGHT,
+    minWidth = 600,
+    minHeight = 340,
+    onResize = function(width, height)
+      bodyWidth, bodyHeight = width, height
+      if isOpen() and page then
+        page:Layout(bodyWidth, bodyHeight)
+      end
+    end,
+    onClose = function()
+      tableState.awarding, tableState.awardReason = nil, ""
+      closeArmed = nil
+    end,
+  })
+  ns.UI.ApplyWindowStatus(window, "voting", WIDTH, HEIGHT)
+  page = Kit.ScrollArea(window.body, { gap = 12, pad = PAGE_PAD })
+  Kit.Place(page, window.body, 0, 0)
+end
+
+local function show()
+  ensureWindow()
+  if not window:IsShown() then
+    window:Show()
+  end
+  redraw()
 end
 
 -- Opens the window by hand (the Loot tab has a button for it), on the open session if there is one.
@@ -378,8 +382,7 @@ function VotingFrame.Show()
     return
   end
   lastMessage = nil
-  ensureFrame()
-  draw()
+  show()
 end
 
 function VotingFrame.Refresh()
@@ -411,14 +414,13 @@ function VotingFrame.Start()
     open = function(freshIds)
       selectedId = freshIds[1]
       lastMessage = nil
-      ensureFrame()
-      draw()
+      show()
     end,
-    update = draw,
+    update = function()
+      redraw()
+    end,
     close = close,
-    isOpen = function()
-      return frame ~= nil
-    end,
+    isOpen = isOpen,
     now = ns.Platform.Now,
   })
   controller:Prime()

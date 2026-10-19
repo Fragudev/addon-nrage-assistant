@@ -1738,3 +1738,230 @@ describe("Window smoke test: Professions", function()
     assert.is_truthy(env.text():find("No recipe matches", 1, true))
   end)
 end)
+
+describe("Window smoke test: secondary windows", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+    _G.LibStub = nil
+  end)
+
+  local function load_file(path)
+    assert(loadfile("NrageAssistant/" .. path))("NrageAssistant", env.ns)
+  end
+
+  local function with_session()
+    env.ns.db.global.events.e1 = event("e1", "Molten Core", { status = "open" })
+    env.ns.db.global.events.e1.loot = {
+      s1 = {
+        sessionId = "s1",
+        itemId = 5,
+        itemName = "Sword",
+        status = "open",
+        rev = 1,
+        updatedAt = 3,
+        candidates = { ["Ann-Realm"] = { need = "main", spec = "Tank", rev = 1, updatedAt = 1 } },
+        votes = {},
+      },
+      s2 = {
+        sessionId = "s2",
+        itemId = 6,
+        itemName = "Shield",
+        status = "open",
+        rev = 1,
+        updatedAt = 4,
+        candidates = {},
+        votes = {},
+      },
+    }
+  end
+
+  describe("export and import", function()
+    local function stub_transfer()
+      _G.LibStub = function()
+        return {}
+      end
+      env.ns.Transfer = {
+        Export = function()
+          return "NRAGE1:abc"
+        end,
+        Import = function(_, text)
+          if text == "NRAGE1:abc" then
+            return { events = 1 }
+          end
+          return nil, "bad_header"
+        end,
+        Describe = function()
+          return "imported 1 event"
+        end,
+      }
+    end
+
+    it("shows the export text read-only in a modal", function()
+      env = build("RL")
+      stub_transfer()
+      env.ns.UI.ShowTransfer("export")
+      local modal = env.ns.Kit.fake.modal
+      assert.are.equal("Nrage export", modal.opts.title)
+      assert.is_truthy(FakeKit.text(modal.stack):find("Press Ctrl+C to copy", 1, true))
+      local area = FakeKit.find(modal.stack, "TextArea")
+      assert.are.equal("NRAGE1:abc", area.opts.text)
+      assert.is_true(area.opts.readOnly)
+    end)
+
+    it("imports pasted text and reports in the banner, or says why not", function()
+      env = build("RL")
+      stub_transfer()
+      env.open("home")
+      env.ns.UI.ShowTransfer("import")
+      local modal = env.ns.Kit.fake.modal
+      FakeKit.find(modal.stack, "TextArea").text = "junk"
+      FakeKit.press(FakeKit.find(modal.stack, "Button", "Import"))
+      assert.is_nil(env.ns.Kit.fake.modal)
+      assert.are.equal("danger", env.banner().opts.kind)
+      assert.is_truthy(env.banner().opts.text:find("import failed", 1, true))
+
+      env.ns.UI.ShowTransfer("import")
+      FakeKit.find(env.ns.Kit.fake.modal.stack, "TextArea").text = "NRAGE1:abc"
+      FakeKit.press(FakeKit.find(env.ns.Kit.fake.modal.stack, "Button", "Import"))
+      assert.are.equal("success", env.banner().opts.kind)
+    end)
+
+    it("closes with Cancel", function()
+      env = build("RL")
+      stub_transfer()
+      env.ns.UI.ShowTransfer("import")
+      FakeKit.press(FakeKit.find(env.ns.Kit.fake.modal.stack, "Button", "Cancel"))
+      assert.is_nil(env.ns.Kit.fake.modal)
+    end)
+  end)
+
+  describe("minimap menu", function()
+    it("opens the settings of the window from the menu", function()
+      env = build("Member")
+      env.ns.UI.OpenSettings()
+      assert.is_true(env.ns.Kit.Popup.Get(1):IsOpen())
+    end)
+  end)
+
+  describe("loot popup", function()
+    local function handlers(log)
+      return {
+        answer = function(entry, need)
+          log[#log + 1] = entry.sessionId .. ":" .. need
+        end,
+        pass = function(entry)
+          log[#log + 1] = entry.sessionId .. ":pass"
+        end,
+        timeLeft = function(sessionId)
+          return sessionId == "s1" and 15 or nil
+        end,
+        timeout = 30,
+        spec = "Tank",
+        footer = "Nothing is sent until you click a button.",
+      }
+    end
+
+    it("draws a row per item with the answers, the spec, the countdown and the footer", function()
+      env = build("Member")
+      load_file("UI/LootPopup.lua")
+      local root = env.ns.Kit.Stack(nil, {})
+      local log = {}
+      env.ns.LootPopup.Draw(root, {
+        { sessionId = "s1", itemId = 5, itemName = "Sword", eventTitle = "Molten Core" },
+        { sessionId = "s2", itemId = 6, itemName = "Shield", eventTitle = "Molten Core" },
+      }, handlers(log))
+      local items = FakeKit.find_all(root, "ItemLabel")
+      assert.are.equal("Shield", items[1].opts.text)
+      assert.are.equal("Sword", items[2].opts.text)
+      assert.is_truthy(FakeKit.text(root):find("Spec: Tank (from your profile)", 1, true))
+      assert.are.equal(1, #FakeKit.find_all(root, "ProgressBar"))
+      assert.are.equal(0.5, FakeKit.find(root, "ProgressBar").opts.value)
+      local function buttons(text)
+        return FakeKit.find_all(root, "Button", function(node)
+          return node.opts.text == text
+        end)
+      end
+      FakeKit.press(buttons("Off spec")[2])
+      FakeKit.press(buttons("Pass")[1])
+      assert.are.same({ "s1:off", "s2:pass" }, log)
+      assert.is_truthy(FakeKit.text(root):find("Nothing is sent", 1, true))
+    end)
+
+    it("scrolls when more than three items are waiting", function()
+      env = build("Member")
+      load_file("UI/LootPopup.lua")
+      local root = env.ns.Kit.Stack(nil, {})
+      local entries = {}
+      for index = 1, 5 do
+        entries[index] = { sessionId = "s" .. index, itemId = index, itemName = "Item " .. index, eventTitle = "Raid" }
+      end
+      env.ns.LootPopup.Draw(root, entries, handlers({}))
+      assert.is_truthy(FakeKit.find(root, "ScrollArea"))
+    end)
+  end)
+
+  describe("voting window", function()
+    local function open_voting(rank)
+      env = build(rank)
+      with_session()
+      env.ns.VotingFrame = nil
+      load_file("UI/VotingFrame.lua")
+      env.ns.VotingFrame.Show()
+      return env.page()
+    end
+
+    -- Picks a session in the list on the left by its item.
+    local function select_item(name)
+      for _, row in ipairs(FakeKit.find_all(env.page(), "NavRow")) do
+        if row.opts.text:find(name, 1, true) then
+          FakeKit.press(row)
+        end
+      end
+    end
+
+    it("lists the open sessions on the left and the candidates in the shared table", function()
+      local page = open_voting("Council")
+      assert.are.equal(2, #FakeKit.find_all(page, "NavRow"))
+      assert.is_truthy(env.text():find("Molten Core", 1, true))
+      select_item("Sword")
+      assert.is_truthy(FakeKit.find(env.page(), "Table"))
+    end)
+
+    it("shows the other session when it is selected", function()
+      open_voting("Council")
+      select_item("Shield")
+      assert.is_truthy(env.text():find("no candidates yet", 1, true))
+    end)
+
+    it("votes from a row and reports in the window", function()
+      open_voting("Council")
+      select_item("Sword")
+      local rows = FakeKit.find(env.page(), "Table").opts.rows
+      local vote = rows[1].cells.vote
+      assert.is_truthy(vote)
+      vote.opts.onClick()
+      assert.are.equal("SendLootVote", env.sent[#env.sent])
+      assert.is_truthy(FakeKit.find(env.page(), "Banner"))
+    end)
+
+    it("closes a session only after a second click", function()
+      open_voting("Council")
+      select_item("Sword")
+      FakeKit.press(FakeKit.find(env.page(), "Button", "Close without awarding"))
+      local confirm = FakeKit.find(env.page(), "Button", "Confirm: close without awarding")
+      assert.is_truthy(confirm)
+      FakeKit.press(confirm)
+      assert.are.equal("closed", env.ns.db.global.events.e1.loot.s1.status)
+    end)
+
+    it("says so when no session is open", function()
+      env = build("Council")
+      env.ns.VotingFrame = nil
+      load_file("UI/VotingFrame.lua")
+      env.ns.VotingFrame.Show()
+      assert.is_truthy(env.text():find("No loot sessions are open.", 1, true))
+    end)
+  end)
+end)

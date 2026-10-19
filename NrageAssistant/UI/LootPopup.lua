@@ -9,8 +9,10 @@ local LootPopup = {}
 local L = ns.L
 
 local RETRY_SECONDS = 5
-local ROW_HEIGHT = 58
-local WIDTH = 440
+local WIDTH = 380
+-- How many items show at once; more scroll.
+local VISIBLE_ROWS = 3
+local ROW_HEIGHT = 108
 
 -- The decisions, apart from the frame so they can be tested with fakes.
 --   deps: pending(dismissed) -> entries, isLockedDown() -> boolean, after(seconds, fn),
@@ -130,7 +132,7 @@ end
 
 LootPopup.Controller = Controller
 
-local frame
+local frame, content, lastEntries, footer
 local controller
 
 -- Only the members of the roster of a session are asked about it (and the guild master).
@@ -141,13 +143,6 @@ local function pending(dismissed)
   return ns.ViewModel.PendingLoot(events, ns.Platform.GetIdentityKey(), dismissed)
 end
 
-local function close()
-  if frame then
-    LibStub("AceGUI-3.0"):Release(frame)
-    frame = nil
-  end
-end
-
 local NEED_BUTTONS = ns.Locale.Table(function()
   return {
     { text = L("Main spec"), need = "main" },
@@ -155,6 +150,56 @@ local NEED_BUTTONS = ns.Locale.Table(function()
     { text = L("Other"), need = "other" },
   }
 end)
+
+-- Draws the items into `stack` (the newest on top; more than VISIBLE_ROWS scroll). handlers = { answer(entry, need),
+-- pass(entry), timeLeft(sessionId) -> seconds or nil, timeout (seconds or nil), spec (the spec a click puts, text),
+-- footer (text under the items) }. The frame around it is built apart, so this can be tested with the fake kit.
+function LootPopup.Draw(stack, entries, handlers)
+  local Kit = ns.Kit
+  local host = stack
+  if #entries > VISIBLE_ROWS then
+    host = Kit.ScrollArea(stack, { gap = 12, height = VISIBLE_ROWS * ROW_HEIGHT })
+  end
+  for position = #entries, 1, -1 do
+    local entry = entries[position]
+    local card = Kit.Stack(host, { gap = 6 })
+    local head = Kit.Row(card, { gap = 8, align = "center" })
+    Kit.ItemLabel(head, {
+      itemId = entry.itemId,
+      text = ns.ViewModel.Escape(entry.itemName),
+      size = 28,
+      layout = { weight = 1 },
+    })
+    local detail = ns.ViewModel.Escape(entry.eventTitle or "")
+    if handlers.spec and handlers.spec ~= "unknown" then
+      detail = detail .. " \194\183 " .. L("Spec: %s (from your profile)"):format(ns.ViewModel.Escape(handlers.spec))
+    end
+    Kit.Label(card, { text = detail, style = "small", color = "muted" })
+    local buttons = Kit.Row(card, { gap = 6, align = "center" })
+    for _, spec in ipairs(NEED_BUTTONS) do
+      Kit.Button(buttons, {
+        text = spec.text,
+        layout = { weight = 1 },
+        onClick = function()
+          handlers.answer(entry, spec.need)
+        end,
+      })
+    end
+    Kit.Button(buttons, {
+      text = L("Pass"),
+      variant = "ghost",
+      layout = { weight = 1 },
+      onClick = function()
+        handlers.pass(entry)
+      end,
+    })
+    local left = handlers.timeLeft(entry.sessionId)
+    if left and handlers.timeout and handlers.timeout > 0 then
+      Kit.ProgressBar(card, { value = left / handlers.timeout, height = 2, color = "accent" })
+    end
+  end
+  Kit.Label(stack, { text = handlers.footer, style = "small", color = "muted", wrap = true })
+end
 
 local function answer(entry, need)
   local event = ns.db.global.events[entry.eventId]
@@ -177,53 +222,110 @@ local function answer(entry, need)
   LootPopup.Refresh()
 end
 
-local function build(entries)
-  local AceGUI = LibStub("AceGUI-3.0")
-  close()
-  frame = AceGUI:Create("Frame")
-  frame:SetTitle("Nrage Loot")
-  frame:SetStatusText(L("Nothing is sent until you click a button."))
-  local height = math.min(120 + #entries * ROW_HEIGHT, 520)
-  ns.UI.ApplyWindowStatus(frame, "popup", WIDTH, height)
-  -- Only the position is remembered: the height follows the number of items.
-  frame:SetWidth(WIDTH)
-  frame:SetHeight(height)
-  frame:SetLayout("List")
-  frame:SetCallback("OnClose", function()
-    for _, entry in ipairs(pending(controller.dismissed)) do
-      controller:Dismiss(entry.sessionId)
-    end
-    controller:Hide()
-  end)
-
-  for _, entry in ipairs(entries) do
-    ns.UI.AddItemLabel(frame, {
-      itemId = entry.itemId,
-      text = ("%s  (%s)"):format(ns.ViewModel.Escape(entry.itemName), ns.ViewModel.Escape(entry.eventTitle)),
-    })
-
-    local row = AceGUI:Create("SimpleGroup")
-    row:SetLayout("Flow")
-    row:SetFullWidth(true)
-    for _, spec in ipairs(NEED_BUTTONS) do
-      local button = AceGUI:Create("Button")
-      button:SetText(spec.text)
-      button:SetRelativeWidth(0.25)
-      button:SetCallback("OnClick", function()
-        answer(entry, spec.need)
-      end)
-      row:AddChild(button)
-    end
-    local pass = AceGUI:Create("Button")
-    pass:SetText(L("Pass"))
-    pass:SetRelativeWidth(0.25)
-    pass:SetCallback("OnClick", function()
+local function handlers()
+  return {
+    answer = answer,
+    pass = function(entry)
       controller:Dismiss(entry.sessionId)
       LootPopup.Refresh()
-    end)
-    row:AddChild(pass)
-    frame:AddChild(row)
+    end,
+    timeLeft = function(sessionId)
+      return controller:TimeLeft(sessionId)
+    end,
+    timeout = ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS,
+    spec = ns.ViewModel.DefaultSpec(ns.character.profile),
+    footer = footer or L("Nothing is sent until you click a button."),
+  }
+end
+
+local statusTarget = {
+  SetStatusTable = function(_, status)
+    frame.status = status
+    if type(status.left) == "number" and type(status.top) == "number" then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", status.left, status.top)
+    end
+  end,
+}
+
+-- The floating card: made once, then filled again whenever the list or the time left changes.
+local function ensureFrame()
+  if frame then
+    return frame
   end
+  local Kit = ns.Kit
+  local Theme = Kit.Theme
+  frame = CreateFrame("Frame", "NrageAssistantLootPopup", UIParent)
+  frame:SetFrameStrata("DIALOG")
+  frame:SetClampedToScreen(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:RegisterForDrag("LeftButton")
+  frame:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+  frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+  frame.bg:SetAllPoints(frame)
+  frame.bg:SetColorTexture(Theme.Color("panel"))
+  frame.border = Kit.Pixel.Border(frame, "border")
+  frame.title = frame:CreateFontString(nil, "OVERLAY")
+  frame.title:SetPoint("TOPLEFT", 16, -14)
+  frame.title:SetFontObject(Theme.StyleFont("window"))
+  Kit.SetTextColor(frame.title, "text")
+  frame.title:SetText("Nrage Loot")
+  frame:SetScript("OnDragStart", function(self)
+    self:StartMoving()
+  end)
+  frame:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local status = self.status
+    local left, top = self:GetLeft(), self:GetTop()
+    if status and type(left) == "number" and type(top) == "number" then
+      status.left, status.top = left, top
+    end
+  end)
+  frame.hide = Kit.IconButton(frame, {
+    icon = "close",
+    tooltip = L("Hide"),
+    onClick = function()
+      -- Hiding keeps the items waiting: they come back with the next session event, or from the Loot tab.
+      controller:Hide()
+    end,
+  })
+  frame.hide:Layout(28)
+  frame.hide.frame:ClearAllPoints()
+  frame.hide.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -8)
+  ns.UI.ApplyWindowStatus(statusTarget, "popup", WIDTH, 0)
+  frame:Hide()
+  return frame
+end
+
+local function render()
+  ensureFrame()
+  if content then
+    content:Release()
+  end
+  content = ns.Kit.Stack(frame, { gap = 12 })
+  LootPopup.Draw(content, lastEntries or {}, handlers())
+  local height = content:Layout(WIDTH - 32)
+  ns.Kit.Place(content, frame, 16, 48)
+  frame:SetSize(WIDTH, height + 48 + 16)
+  frame:Show()
+end
+
+local function build(entries)
+  lastEntries = entries
+  footer = nil
+  render()
+end
+
+local function close()
+  if frame then
+    frame:Hide()
+  end
+  if content then
+    content:Release()
+    content = nil
+  end
+  lastEntries = nil
 end
 
 -- The time left for a session, for the Loot tab.
@@ -256,8 +358,9 @@ function LootPopup.Start()
     now = ns.Platform.Now,
     timeout = ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS,
     status = function(text)
-      if frame then
-        frame:SetStatusText(text)
+      footer = text
+      if frame and frame:IsShown() and lastEntries then
+        render()
       end
     end,
   })

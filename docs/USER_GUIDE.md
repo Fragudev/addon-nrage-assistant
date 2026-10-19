@@ -46,7 +46,7 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
   queue. It reads only what the addon already holds, so it is safe during an encounter.
 - A small **warning mark** on the button means the silent self test, run a few seconds after login, found
   something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
-- **Right click** opens a menu with a shortcut to each tab.
+- **Right click** opens a dark menu with the tabs you can open (the same list as the sidebar) and the settings.
 - In the **settings** (the gear of the window) you can hide it or show it again, and put it back in its default
   place. The position and whether it is hidden are saved for your whole account.
 - The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
@@ -157,9 +157,11 @@ listed, so unknown data never improves or worsens anyone's numbers. Planned and 
 
 ### Moving data around
 
-- **Export** shows a text (starting with `NRAGE1:`) with all events, attendance, assignments, loot awards and
-  deletions. Select it and copy it anywhere.
-- **Import** takes such a text and merges it into your data. Only raid leaders and admins see it. Pasted text is
+- **Export** opens a window over the dimmed addon with a text (starting with `NRAGE1:`) with all events, attendance,
+  assignments, loot awards and deletions. The text is selected: press Ctrl+C to copy it (an addon cannot write to the
+  clipboard). Escape closes the window.
+- **Import** opens a window with an empty box: paste the text (Ctrl+V) and press *Import*. The result shows in the
+  banner of the main window. Only raid leaders and admins see it. Pasted text is
   checked exactly like data received over the guild channel: it never overwrites newer edits, and importing the same
   text twice changes nothing. Imported data stays on your client.
 
@@ -168,21 +170,23 @@ listed, so unknown data never improves or worsens anyone's numbers. Planned and 
 Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
 the addon refuses, because the session could not be announced.
 
-When a session opens, everyone in the guild with the addon gets the **Nrage Loot** popup with the item and the
-buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared role (or your
-class) as the spec; nothing is sent before that. The popup never appears during an encounter lockdown (it waits),
-it does not pop up for sessions that were already open when you logged in, and closing it counts as passing.
+When a session opens, the members of that event's roster (and the guild master) get the **Nrage Loot** card with
+the item and the buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared
+role (or your class) as the spec; nothing is sent before that. Several items stack in the same card (the newest on
+top, three at a time, the rest scroll) and a thin bar under each one shows the time left. The card never appears
+during an encounter lockdown (it waits) and does not pop up for sessions that were already open when you logged in.
+*Hide* (the cross) puts it away without passing: the items come back with the next session or from the Loot tab.
 An item you do not answer is passed on after 60 seconds (only on your screen; nothing is sent).
 The Loot tab remains for choosing a different spec or adding an upgrade.
 
 GM, Officer and RL ranks also get the **Nrage Loot Council** voting window, which opens by itself when a session
-opens. It lists the candidates (name, rank, response, upgrade and votes) with *Vote* and *Award* buttons, a
-reason field for the award, *Close without awarding*, and a row of items (icon, name and the usual item tooltip
-on hover) to switch between them. Click a column title to sort by it (again to reverse), and use *Show* to see
-only main spec, off spec or other. *Award* asks you to click *Confirm* before it gives the item away. Votes follow
+opens. It shows the same candidates table as the Loot tab (name, response, spec, upgrade and votes) with *Vote* and
+*Award* buttons, *Close without awarding*, and, when several sessions are open, a list on the left to switch between
+them. Click a column title to sort by it (again to reverse), and use the dropdown to see only main spec, off spec
+or other. *Award* asks for a reason and then *Confirm award* before it gives the item away. Votes follow
 the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
-*Open the voting window* button to bring it back. Hovering a name lists what that person has already won. The
-item's level and slot show under its name when the client knows them. It does not show equipped gear yet.
+*Open the voting window* button to bring it back. The item's level and slot show under its name
+when the client knows them. It does not show equipped gear yet.
 Windows remember where you leave them and how big they are.
 
 The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,

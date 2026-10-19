@@ -112,6 +112,9 @@ end
 function methods.GetText(self)
   return self.text or self.opts.text or ""
 end
+function methods.GetValueText(self)
+  return self.text or self.opts.text or ""
+end
 function methods.SetValue(self, value)
   self.value = value
   self.opts.value = value

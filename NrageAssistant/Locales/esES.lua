@@ -296,7 +296,6 @@ ns.Locale.Register("es", {
   ["Blows"] = "Golpes",
   ["Updated"] = "Actualizado",
   ["Admin"] = "Admin",
-  ["Confirm"] = "Confirmar",
   ["Reset PvP counters"] = "Reiniciar contadores PvP",
   ["Not reset: "] = "No reiniciado: ",
   ["PvP counters of %s reset (revision %d)%s."] = "Contadores PvP de %s reiniciados (revisión %d)%s.",
@@ -326,9 +325,7 @@ ns.Locale.Register("es", {
   ["the text is damaged or not a Nrage export."] = "el texto está dañado o no es una exportación de Nrage.",
   ["Nrage export"] = "Exportación de Nrage",
   ["Nrage import"] = "Importación de Nrage",
-  ["Select all and copy (Ctrl+C):"] = "Selecciona todo y copia (Ctrl+C):",
   ["Export failed: "] = "Falló la exportación: ",
-  ["Paste an export here, then press Import:"] = "Pega aquí una exportación y pulsa Importar:",
   [". Imported data stays on this client only."] = ". Los datos importados se quedan solo en este cliente.",
   ["import failed: "] = "falló la importación: ",
 
@@ -338,20 +335,15 @@ ns.Locale.Register("es", {
   ["Pass"] = "Pasar",
 
   -- UI/VotingFrame.lua
-  ["Has not won anything yet."] = "Todavía no ha ganado nada.",
   ["All"] = "Todos",
   ["Response"] = "Respuesta",
   ["Votes"] = "Votos",
   ["Upgrade"] = "Mejora",
-  ["Reason for the award (used by the Award buttons)"] = "Motivo de la adjudicación (lo usan los botones Adjudicar)",
   ["Click a column title to sort by it."] = "Haz clic en el título de una columna para ordenar.",
   ["Nobody answered that way."] = "Nadie respondió así.",
-  ["No candidates yet."] = "Todavía no hay candidatos.",
   ["Voted"] = "Votado",
-  ["Award %s to %s? Click Confirm to give it away."] = "¿Adjudicar %s a %s? Haz clic en Confirmar para entregarlo.",
   ["No loot sessions are open."] = "No hay sesiones de loot abiertas.",
   ["Nrage Loot Council"] = "Consejo de loot de Nrage",
-  ["Votes follow the guild's visibility setting."] = "Los votos siguen el ajuste de visibilidad de la guild.",
 
   -- UI/MinimapButton.lua
   ["Left click: open the window"] = "Clic izquierdo: abrir la ventana",
@@ -690,4 +682,8 @@ ns.Locale.Register("es", {
   ["Never scanned"] = "Nunca leída",
   ["Recipe %d"] = "Receta %d",
   ["Scanned %s"] = "Leída %s",
+
+  -- Secondary windows
+  ["Press Ctrl+C to copy"] = "Pulsa Ctrl+C para copiar",
+  ["Paste the text (Ctrl+V)"] = "Pega el texto (Ctrl+V)",
 })

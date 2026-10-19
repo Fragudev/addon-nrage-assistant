@@ -743,11 +743,12 @@ function ViewModel.MinimapTooltip(args)
 end
 
 -- Right-click menu of the minimap button: a shortcut to each tab. There is no sync entry: sync is automatic.
-function ViewModel.MinimapMenu()
+function ViewModel.MinimapMenu(role)
   local entries = {}
-  for _, tab in ipairs(ViewModel.TABS) do
-    entries[#entries + 1] = { text = tab.text, action = "tab", value = tab.value }
+  for _, tab in ipairs(ViewModel.TabsFor(role)) do
+    entries[#entries + 1] = { text = tab.text, icon = tab.icon, action = "tab", value = tab.value }
   end
+  entries[#entries + 1] = { text = L("Settings"), icon = "gear", action = "settings", value = "@settings" }
   return entries
 end
 
@@ -837,6 +838,7 @@ function ViewModel.VotingSessions(events, selectedId)
           itemId = session.itemId,
           itemName = ViewModel.Escape(session.itemName),
           eventTitle = ViewModel.Escape(event.title),
+          candidates = ViewModel.CountKeys(session.candidates),
           selected = session.sessionId == selectedId,
           sort = event.title .. "\n" .. session.itemName .. "\n" .. session.sessionId,
         }
@@ -847,6 +849,14 @@ function ViewModel.VotingSessions(events, selectedId)
     return a.sort < b.sort
   end)
   return list
+end
+
+function ViewModel.CountKeys(tbl)
+  local count = 0
+  for _ in pairs(tbl or {}) do
+    count = count + 1
+  end
+  return count
 end
 
 -- One line on where a session stands.

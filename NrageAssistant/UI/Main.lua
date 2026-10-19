@@ -61,7 +61,7 @@ function UI.Viewer(selected)
 end
 
 -- Remembers where a window was left and how big: the saved numbers live in settings.windows[name] and the window
--- (the kit's or an AceGUI frame) keeps them up to date as it is moved or resized. `width`/`height` are the first-time
+-- keeps them up to date as it is moved or resized. `width`/`height` are the first-time
 -- size.
 function UI.ApplyWindowStatus(target, name, width, height)
   local settings = type(ns.db.global.settings) == "table" and ns.db.global.settings or {}
@@ -401,6 +401,19 @@ function UI.ToggleSettings()
   popup:Open(window.buttons.settings.frame, 320, buildSettings, { point = "BOTTOMRIGHT" })
 end
 
+-- Opens the window if needed and shows the settings (from the minimap menu).
+function UI.OpenSettings()
+  if not ns.active or not ns.character then
+    return
+  end
+  if not UI.IsOpen() then
+    UI.Toggle()
+  end
+  if not Kit.Popup.Get(1):IsOpen() then
+    UI.ToggleSettings()
+  end
+end
+
 local function buildWindow()
   window = Kit.Window.New({
     name = "NrageAssistantWindow",
@@ -472,54 +485,8 @@ function UI.OpenTab(tab, state)
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
--- Items, as the loot windows show them (until they move to the kit).
-
--- An item as the client shows it elsewhere: its icon, its name beside it, and its tooltip on hover. Used by the
--- loot windows. `options` = { itemId, text, width (relative, or nil for the full width) }. Clicking calls
--- `onClick` when given. Returns the widget.
-function UI.AddItemLabel(parent, options, onClick)
-  local label = LibStub("AceGUI-3.0"):Create("InteractiveLabel")
-  label:SetText(options.text)
-  label:SetImage(ns.Platform.GetItemIcon(options.itemId))
-  label:SetImageSize(24, 24)
-  if options.width then
-    label:SetRelativeWidth(options.width)
-  else
-    label:SetFullWidth(true)
-  end
-  if onClick then
-    label:SetCallback("OnClick", onClick)
-  end
-  label:SetCallback("OnEnter", function(widget)
-    if type(options.itemId) == "number" then
-      GameTooltip:SetOwner(widget.frame, "ANCHOR_RIGHT")
-      -- The tooltip may refuse an item the client has not seen; the icon and name still show.
-      if pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. options.itemId) then
-        GameTooltip:Show()
-      else
-        GameTooltip:Hide()
-      end
-    end
-  end)
-  label:SetCallback("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-  parent:AddChild(label)
-  return label
-end
-
--- ---------------------------------------------------------------------------------------------------------------
--- Export and import (until the modal moves to the kit): a small window with a text box that shows the export text, or
--- takes pasted text to import.
-
-local transferFrame
-
-local function ReleaseTransfer()
-  if transferFrame then
-    LibStub("AceGUI-3.0"):Release(transferFrame)
-    transferFrame = nil
-  end
-end
+-- Export and import: a modal over the dimmed main window with a text box that shows the export text, or takes pasted
+-- text to import. Addons cannot write to the clipboard, so the export selects its text and the player copies it.
 
 local function TransferLibs()
   return { serialize = LibStub("NrageAssistant-LibSerialize"), deflate = LibStub("LibDeflate") }
@@ -537,59 +504,68 @@ local IMPORT_ERRORS = ns.Locale.Table(function()
   }
 end)
 
+-- Applies pasted text under the importer's own role and roster; returns the banner kind and text.
+local function importText(text)
+  local ownRoster = ns.RosterService.RosterOf(ns.db.global.members, ns.db.global.rosters, ns.Platform.GetIdentityKey())
+  local ctx = {
+    events = ns.db.global.events,
+    tombstones = ns.db.global.sync.tombstones,
+    now = ns.Platform.ServerTime,
+    rosterOf = function()
+      return ownRoster
+    end,
+  }
+  local role = ns.PermissionService.OwnRole(ns.Platform)
+  local summary, reason = ns.Transfer.Import(TransferLibs(), text, ctx, role)
+  if summary then
+    return "success", ns.Transfer.Describe(summary) .. L(". Imported data stays on this client only.")
+  end
+  return "danger", L("import failed: ") .. (IMPORT_ERRORS[reason] or tostring(reason))
+end
+
 function UI.ShowTransfer(mode)
   if not ns.active or not ns.character then
     return
   end
-  ReleaseTransfer()
-
-  local AceGUI = LibStub("AceGUI-3.0")
-  local dialog = AceGUI:Create("Frame")
-  transferFrame = dialog
-  dialog:SetTitle(mode == "export" and L("Nrage export") or L("Nrage import"))
-  dialog:SetWidth(520)
-  dialog:SetHeight(360)
-  dialog:SetLayout("Fill")
-  dialog:SetCallback("OnClose", ReleaseTransfer)
-
-  local box = AceGUI:Create("MultiLineEditBox")
-  box:SetFullWidth(true)
-  box:SetFullHeight(true)
-  dialog:AddChild(box)
-
-  if mode == "export" then
-    local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
-    box:SetLabel(L("Select all and copy (Ctrl+C):"))
-    box:DisableButton(true)
-    box:SetText(text or (L("Export failed: ") .. tostring(reason)))
-    if box.editBox then
-      box.editBox:HighlightText()
-    end
-    return
+  local area
+  Kit.Modal.Open({
+    title = mode == "export" and L("Nrage export") or L("Nrage import"),
+    width = 520,
+    build = function(stack)
+      if mode == "export" then
+        local text, reason = ns.Transfer.Export(TransferLibs(), ns.db.global.events, ns.db.global.sync.tombstones)
+        Kit.Label(stack, { text = L("Press Ctrl+C to copy"), color = "dim" })
+        area = Kit.TextArea(stack, {
+          text = text or (L("Export failed: ") .. tostring(reason)),
+          readOnly = true,
+          height = 200,
+        })
+        return
+      end
+      Kit.Label(stack, { text = L("Paste the text (Ctrl+V)"), color = "dim" })
+      area = Kit.TextArea(stack, { text = "", height = 200 })
+      local buttons = Kit.Row(stack, { gap = 8, align = "center" })
+      Kit.Button(buttons, {
+        text = L("Import"),
+        variant = "primary",
+        layout = { width = "auto" },
+        onClick = function()
+          local kind, text = importText(area:GetValueText())
+          Kit.Modal.Close()
+          UI.Notify(kind, ns.ViewModel.Escape(text))
+        end,
+      })
+      Kit.Button(buttons, {
+        text = L("Cancel"),
+        variant = "ghost",
+        layout = { width = "auto" },
+        onClick = Kit.Modal.Close,
+      })
+    end,
+  })
+  if mode == "export" and area then
+    area:HighlightAll()
   end
-
-  box:SetLabel(L("Paste an export here, then press Import:"))
-  box:SetButtonText(L("Import"))
-  box:SetCallback("OnEnterPressed", function(_, _, text)
-    -- An import is applied under the importer's own role and roster.
-    local ownRoster =
-      ns.RosterService.RosterOf(ns.db.global.members, ns.db.global.rosters, ns.Platform.GetIdentityKey())
-    local ctx = {
-      events = ns.db.global.events,
-      tombstones = ns.db.global.sync.tombstones,
-      now = ns.Platform.ServerTime,
-      rosterOf = function()
-        return ownRoster
-      end,
-    }
-    local role = ns.PermissionService.OwnRole(ns.Platform)
-    local summary, reason = ns.Transfer.Import(TransferLibs(), text, ctx, role)
-    if summary then
-      print("Nrage Assistant: " .. ns.Transfer.Describe(summary) .. L(". Imported data stays on this client only."))
-    else
-      print("Nrage Assistant: " .. L("import failed: ") .. (IMPORT_ERRORS[reason] or tostring(reason)))
-    end
-  end)
 end
 
 ns.UI = UI

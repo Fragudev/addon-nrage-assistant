@@ -107,80 +107,27 @@ local function showTooltip(self)
   GameTooltip:Show()
 end
 
--- Right-click menu: a small frame of buttons. A full-screen invisible button behind it closes it on any
--- click outside, and Escape closes it too.
-local menu, catcher
-local MENU_WIDTH, ROW_HEIGHT = 140, 20
-
-local function closeMenu()
-  if menu then
-    menu:Hide()
-  end
-  if catcher then
-    catcher:Hide()
-  end
-end
-
-local function runEntry(entry)
-  closeMenu()
-  if entry.action == "tab" then
-    ns.UI.OpenTab(entry.value)
-  end
-end
-
-local function buildMenu()
-  catcher = CreateFrame("Button", nil, UIParent)
-  catcher:SetAllPoints(UIParent)
-  catcher:SetFrameStrata("DIALOG")
-  catcher:RegisterForClicks("anyUp")
-  catcher:SetScript("OnClick", closeMenu)
-  catcher:Hide()
-
-  menu =
-    CreateFrame("Frame", "NrageAssistantMinimapMenu", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  menu:SetFrameStrata("FULLSCREEN_DIALOG")
-  menu:SetClampedToScreen(true)
-  if menu.SetBackdrop then
-    menu:SetBackdrop({
-      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      edgeSize = 12,
-      insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-  end
-  menu:Hide()
-  table.insert(UISpecialFrames, "NrageAssistantMinimapMenu")
-
-  local entries = ns.ViewModel.MinimapMenu()
-  menu:SetSize(MENU_WIDTH, #entries * ROW_HEIGHT + 12)
-  for index, entry in ipairs(entries) do
-    local row = CreateFrame("Button", nil, menu)
-    row:SetSize(MENU_WIDTH - 12, ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", 6, -6 - (index - 1) * ROW_HEIGHT)
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-    local label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("LEFT", 4, 0)
-    label:SetText(entry.text)
-    row:SetScript("OnClick", function()
-      runEntry(entry)
-    end)
-  end
-end
-
+-- Right-click menu: the popover menu of the kit (dark, closes on a click outside or Escape) with the tabs the role can
+-- open, like the sidebar, and the settings.
 local function showMenu()
   if not (ns.active and ns.character) then
     return
   end
-  if not menu then
-    buildMenu()
-  end
   GameTooltip:Hide()
-  local scale = UIParent:GetEffectiveScale()
-  local cursorX, cursorY = GetCursorPosition()
-  menu:ClearAllPoints()
-  menu:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", cursorX / scale, cursorY / scale)
-  catcher:Show()
-  menu:Show()
+  local entries = ns.ViewModel.MinimapMenu(ns.UI.Role())
+  local items, byValue = {}, {}
+  for _, entry in ipairs(entries) do
+    items[#items + 1] = { value = entry.value, text = entry.text, icon = entry.icon }
+    byValue[entry.value] = entry
+  end
+  ns.Kit.Menu.Open(button, items, function(value)
+    local entry = byValue[value]
+    if entry and entry.action == "tab" then
+      ns.UI.OpenTab(entry.value)
+    elseif entry and entry.action == "settings" then
+      ns.UI.OpenSettings()
+    end
+  end, { point = "BOTTOMRIGHT" })
 end
 
 -- Builds the button once. It follows the layout LibDBIcon-based addons use, so it looks like theirs:
