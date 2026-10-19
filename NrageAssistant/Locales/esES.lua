@@ -449,5 +449,8 @@ ns.Locale.Register("es", {
   ["disabled: this addon is only for the Alliance."] = "desactivado: este addon es solo para la Alianza.",
   ["disabled: this addon is only for the PvP ruleset."] = "desactivado: este addon es solo para el reino PvP.",
   ["disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."] = "desactivado: los datos guardados son de una versión más reciente del addon. Actualiza el addon; tus datos no se han tocado.",
+  -- UI/Kit
+  ["Close"] = "Cerrar",
+
   ["%s %s loaded. Click the minimap button or type /nrage to open the window."] = "%s %s cargado. Pulsa el botón del minimapa o escribe /nrage para abrir la ventana.",
 })

@@ -52,6 +52,16 @@ Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
+UI\Kit\Theme.lua
+UI\Kit\Pixel.lua
+UI\Kit\Util.lua
+UI\Kit\Calendar.lua
+UI\Kit\Icons.lua
+UI\Kit\Core.lua
+UI\Kit\Text.lua
+UI\Kit\Controls.lua
+UI\Kit\Data.lua
+UI\Kit\Shell.lua
 UI\ViewModel.lua
 UI\Main.lua
 UI\LootPopup.lua
