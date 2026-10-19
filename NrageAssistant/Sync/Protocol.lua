@@ -414,6 +414,50 @@ local function validateMemberDelete(payload)
   return { key = payload.key, rev = payload.rev }
 end
 
+-- The recipes of a member (protocol 1.5): one profession list in `parts` messages. The record belongs to the sender, so
+-- there is no name of a member in it. Every id is a whole number in range and appears once in the message.
+local function validateRecipes(payload)
+  local constants = ns.Constants
+  if not (isInt(payload.prof, 1, constants.RECIPE_PROFESSION_ID_MAX) and validateRevision(payload)) then
+    return nil
+  end
+  if not isInt(payload.parts, 1, constants.RECIPE_PARTS_MAX) or not isInt(payload.part, 1, payload.parts) then
+    return nil
+  end
+  if type(payload.ids) ~= "table" or #payload.ids > constants.RECIPE_CHUNK then
+    return nil
+  end
+  local ids, seen = {}, {}
+  for index, id in ipairs(payload.ids) do
+    if not isInt(id, 1, constants.RECIPE_ID_MAX) or seen[id] then
+      return nil
+    end
+    seen[id] = true
+    ids[index] = id
+  end
+  local clean = {
+    prof = payload.prof,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+    part = payload.part,
+    parts = payload.parts,
+    ids = ids,
+  }
+  if payload.name ~= nil then
+    if not isText(payload.name, MAX_PROFESSION_NAME) then
+      return nil
+    end
+    clean.name = payload.name
+  end
+  if payload.total ~= nil then
+    if not isInt(payload.total, 0, constants.RECIPES_MAX_PER_PROFESSION) then
+      return nil
+    end
+    clean.total = payload.total
+  end
+  return clean
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -441,6 +485,7 @@ local VALIDATORS = {
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
   READINESS_RULES = validateReadinessRules,
+  RECIPES = validateRecipes,
   ROSTER_UPSERT = validateRosterUpsert,
   ROSTER_DELETE = validateRosterDelete,
   MEMBER_UPSERT = validateMemberUpsert,

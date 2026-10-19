@@ -58,6 +58,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
 | `BLACKLIST_UPSERT` | guild | `key`, `name` (1 to 40 bytes), `reason` (1 to 100 bytes), `rev`, `updatedAt` | anyone; the author is the sender |
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
+| `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
 | `ROSTER_UPSERT` | guild | `rosterId`, `name` (1 to 30 bytes, plain text), `rev`, `updatedAt` | admin |
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
 | `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), `role` (`member`, `rl` or `council`: never `admin`), optional `rosterId`, `rev`, `updatedAt` | admin |
@@ -232,6 +233,18 @@ minor 5, plan 3.4.1 and 3.4.2).
   master online does not know its own assigned role yet.
 - **Visibility is not access control.** Every client with the addon still receives every message on the guild
   channel; the roster only decides what the window shows and who may change what. See `docs/PRIVACY.md`.
+
+## Recipes
+
+`RECIPES` carries the recipes a member has learned in one profession, as numeric ids (names and icons are looked up
+in the client). A profession can have hundreds of recipes and a message is limited to 255 encoded bytes, so a list
+is sent as `parts` messages of at most 150 ids. The receiver keeps the parts aside, in memory, until all of them
+arrived and only then replaces the stored list, so a list that never completes changes nothing. A newer `rev`
+starts a new list and drops the half-received one; a `rev` that does not beat the stored one is ignored. The record
+belongs to the sender (there is no name in the payload) and any member may send their own. Bounds: 3000 ids per
+profession, 12 professions per member, 500 members, 100 half-received lists. The revision only goes up when the
+recipes changed, so an unchanged scan sends nothing. Recipes are not part of the snapshot: they are resent 30 to 60
+seconds after login and whenever a scan finds a change.
 
 ## Deletions
 

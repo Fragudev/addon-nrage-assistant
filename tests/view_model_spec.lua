@@ -9,6 +9,7 @@ local function load_view_model(locale)
     "Domain/PvPService",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -25,6 +26,7 @@ local function load_view_model(locale)
     "UI/ViewModelHome",
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
+    "UI/ViewModelProfessions",
     "Commands/RaidCommands",
     "Commands/LootCommands",
   }) do
@@ -143,6 +145,7 @@ describe("ViewModel misc", function()
       pvp = true,
       blacklist = true,
       roster = true,
+      professions = true,
     }, values)
   end)
 
@@ -1645,8 +1648,10 @@ describe("ViewModel sidebar, user card and sync pill", function()
       member[1].items[3].value,
     })
     assert.are.equal("Guild", member[2].label)
-    assert.are.equal("roster", member[2].items[#member[2].items].value)
-    assert.are.equal("Members", member[2].items[#member[2].items].text)
+    assert.are.equal("professions", member[2].items[#member[2].items].value)
+    assert.are.equal("Professions", member[2].items[#member[2].items].text)
+    assert.are.equal("roster", member[2].items[#member[2].items - 1].value)
+    assert.are.equal("Members", member[2].items[#member[2].items - 1].text)
 
     local admin = ViewModel.NavGroups("admin")
     assert.are.equal(3, #admin)
@@ -2734,5 +2739,91 @@ describe("ViewModel rule rows", function()
     assert.are.equal("label", ViewModel.RuleErrorField("bad_label"))
     assert.are.equal("label", ViewModel.RuleErrorField("duplicate_id"))
     assert.are.equal("details", ViewModel.RuleErrorField("bad_details"))
+  end)
+end)
+
+describe("ViewModel recipes", function()
+  local function index()
+    return {
+      professions = { [171] = "Alchemy", [164] = "Blacksmithing" },
+      recipes = {
+        [10] = { professionId = 171, crafters = { "Zed", "Ann", "Bob", "Cat", "Dan" } },
+        [11] = { professionId = 164, crafters = { "Ann" } },
+      },
+      members = 5,
+    }
+  end
+  local names = { [10] = "Elixir", [11] = "Axe" }
+  local function nameOf(id)
+    return names[id]
+  end
+  local function online(name)
+    return name == "Zed" or (name == "Dan" and false) or nil
+  end
+
+  it("offers all professions first and then each by name", function()
+    local items = ViewModel.ProfessionChoices(index())
+    assert.is_false(items[1].value)
+    assert.are.equal("Alchemy", items[2].text)
+    assert.are.equal(164, items[3].value)
+  end)
+
+  it("lists recipes by id with the online crafters first and a more counter", function()
+    local result = ViewModel.RecipeResults({ index = index(), online = online, nameOf = nameOf })
+    assert.are.equal(2, result.total)
+    assert.are.equal("Elixir", result.rows[1].name)
+    assert.are.equal("Zed", result.rows[1].crafters[1].name)
+    assert.are.equal(Constants.RECIPE_ASK_MAX, #result.rows[1].crafters)
+    assert.are.equal(2, result.rows[1].more)
+  end)
+
+  it("searches by name or id, filters by profession and hides offline crafters", function()
+    local base = { index = index(), online = online, nameOf = nameOf }
+    base.search = "AXE"
+    assert.are.equal(11, ViewModel.RecipeResults(base).rows[1].recipeId)
+    base.search = "10"
+    assert.are.equal(10, ViewModel.RecipeResults(base).rows[1].recipeId)
+    base.search = ""
+    base.professionId = 164
+    assert.are.equal(1, ViewModel.RecipeResults(base).total)
+    base.professionId = false
+    base.onlineOnly = true
+    local result = ViewModel.RecipeResults(base)
+    assert.are.equal(1, result.total)
+    assert.are.equal(1, #result.rows[1].crafters)
+  end)
+
+  it("names a recipe the client does not know and caps the rows", function()
+    local result = ViewModel.RecipeResults({ index = index(), online = online, nameOf = function() end, limit = 1 })
+    assert.are.equal("Recipe 10", result.rows[1].name)
+    assert.are.equal(1, result.shown)
+    assert.are.equal(2, result.total)
+    local searched = ViewModel.RecipeResults({
+      index = index(),
+      online = online,
+      nameOf = function() end,
+      search = "recipe",
+      limit = 1,
+    })
+    assert.are.equal(1, searched.shown)
+    assert.are.equal(2, searched.total)
+  end)
+
+  it("writes the whisper for the Ask button", function()
+    assert.are.equal("/w Ann Could you craft me [Elixir]?", ViewModel.AskText("Ann", "[Elixir]"))
+  end)
+
+  it("describes the own professions with their last scan", function()
+    local rows = ViewModel.MyProfessionRows(
+      { { name = "Alchemy", skill = 150, max = 300 }, { name = "Cooking", skill = 5, secondary = true } },
+      { [171] = { name = "Alchemy", ids = { 1, 2 }, at = 900, skill = 150 } },
+      1000
+    )
+    assert.are.equal("150/300", rows[1].skillText)
+    assert.is_false(rows[1].needsScan)
+    assert.are.equal(2, rows[1].count)
+    assert.are.equal("Never scanned", rows[2].scanText)
+    assert.is_true(rows[2].needsScan)
+    assert.is_true(rows[2].secondary)
   end)
 end)

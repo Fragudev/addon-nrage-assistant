@@ -292,6 +292,74 @@ local function StartBossLoot()
   end)
 end
 
+-- Recipes (plan 3.10): the recipes a profession window shows are read when it opens or changes, kept, and published
+-- when
+-- they differ from the last scan. Only when the client has the profession API (Platform.RecipeScanAvailable); the
+-- client
+-- fires its events several times while a list loads, so a burst is one scan a moment after the last one.
+local RECIPE_EVENTS = { "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE" }
+local recipesStarted = false
+
+local function SkillOf(name)
+  for _, profession in ipairs(ns.character.profile.professions or {}) do
+    if profession.name == name then
+      return profession.skill
+    end
+  end
+  return nil
+end
+
+local function ScanRecipes()
+  if not (ns.active and ns.character) then
+    return
+  end
+  local scan = ns.Platform.ScanKnownRecipes()
+  if not scan then
+    return
+  end
+  local record, changed =
+    ns.RecipeService.StoreScan(ns.character.recipes, scan, ns.Platform.ServerTime(), SkillOf(scan.professionName))
+  if record and changed and ns.comm then
+    ns.comm:SendRecipes(scan.professionId, record)
+  end
+  if record then
+    ns.recipesVersion = (ns.recipesVersion or 0) + 1
+    ns.UI.RecipesChanged()
+  end
+end
+
+local function StartRecipes()
+  if recipesStarted or not ns.Platform.RecipeScanAvailable() then
+    return
+  end
+  recipesStarted = true
+  local throttle = ns.Throttle.New({
+    run = ScanRecipes,
+    now = ns.Platform.Now,
+    schedule = C_Timer.After,
+    interval = Constants.RECIPE_SCAN_DELAY_SECONDS,
+  })
+  local recipeFrame = CreateFrame("Frame")
+  for _, event in ipairs(RECIPE_EVENTS) do
+    ns.Platform.TryRegisterEvent(recipeFrame, event)
+  end
+  recipeFrame:SetScript("OnEvent", function()
+    if ns.active then
+      throttle:Call()
+    end
+  end)
+  -- The saved lists go out once after login, for the members who were not there when they changed.
+  C_Timer.After(math.random(Constants.RECIPE_LOGIN_SEND_DELAY_MIN, Constants.RECIPE_LOGIN_SEND_DELAY_MAX), function()
+    if ns.active and ns.comm then
+      for professionId, record in pairs(ns.character.recipes) do
+        if record.ids then
+          ns.comm:SendRecipes(professionId, record)
+        end
+      end
+    end
+  end)
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -320,6 +388,7 @@ local function Activate()
   StartPvP()
   StartBlacklist()
   StartBossLoot()
+  StartRecipes()
   StartAutoPublish()
   ScheduleSelfTest()
   print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))

@@ -12,6 +12,7 @@ local function load_addon()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -29,6 +30,7 @@ local function load_addon()
     "Sync/BlacklistSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
+    "Sync/RecipeSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do

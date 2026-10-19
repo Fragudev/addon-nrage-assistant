@@ -21,6 +21,7 @@ local function load_window(locale)
     "Domain/PvPFeed",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -41,6 +42,7 @@ local function load_window(locale)
     "UI/ViewModelHome",
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
+    "UI/ViewModelProfessions",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
@@ -57,6 +59,7 @@ local function load_window(locale)
     "UI/Tabs/PvP",
     "UI/Tabs/Blacklist",
     "UI/Tabs/Rules",
+    "UI/Tabs/Professions",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -153,6 +156,18 @@ local function build(rank, locale)
     LootWindowAvailable = function()
       return false
     end,
+    RecipeScanAvailable = function()
+      return env.scanAvailable ~= false
+    end,
+    GetRecipeInfo = function(id)
+      return env.recipeNames and env.recipeNames[id] and { name = env.recipeNames[id], link = "[link" .. id .. "]" }
+    end,
+    CanPrefillChat = function()
+      return true
+    end,
+    PrefillChat = function(text)
+      env.prefilled = text
+    end,
   }
   ns.db = {
     global = {
@@ -165,6 +180,7 @@ local function build(rank, locale)
       readinessRules = {},
       rosters = {},
       members = {},
+      recipes = {},
     },
   }
   -- The roles of the players: "GM" is the guild master; the other ranks stand for the role assigned to this character,
@@ -176,6 +192,7 @@ local function build(rank, locale)
   ns.PermissionService.Configure({ members = ns.db.global.members })
   ns.character = {
     profile = { fields = {} },
+    recipes = {},
     readiness = {},
     publish = {},
     pvp = { honor = { world = 4, bg = 6 }, blows = { world = 1, bg = 2 }, daily = {} },
@@ -1669,5 +1686,55 @@ describe("Window smoke test: settings, language and automatic refresh", function
       end
     end
     assert.are.equal(before + 1, after)
+  end)
+end)
+
+describe("Window smoke test: Professions", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  local function share(name, professionId, professionName, ids)
+    env.ns.db.global.recipes[name] = { [professionId] = { name = professionName, ids = ids, rev = 1 } }
+  end
+
+  it("says so when nobody has shared recipes", function()
+    env = build("Member")
+    env.open("professions")
+    assert.is_truthy(env.text():find("No recipes shared yet", 1, true))
+    assert.is_truthy(env.text():find("My professions", 1, true))
+  end)
+
+  it("warns when the client cannot read the own recipes", function()
+    env = build("Member")
+    env.scanAvailable = false
+    env.open("professions")
+    assert.is_truthy(env.text():find("Reading your own recipes is not available", 1, true))
+  end)
+
+  it("lists who can craft a recipe and prefills a whisper from Ask", function()
+    env = build("Member")
+    env.recipeNames = { [10] = "Elixir of Might", [11] = "Flask of Wisdom" }
+    share("Ann-Realm", 171, "Alchemy", { 10, 11 })
+    env.open("professions")
+    assert.is_truthy(env.text():find("Elixir of Might", 1, true))
+    assert.is_truthy(env.text():find("Ask Ann-Realm", 1, true))
+    env.press("Ask Ann-Realm")
+    assert.are.equal("/w Ann-Realm Could you craft me [link10]?", env.prefilled)
+  end)
+
+  it("searches by name and says when nothing matches", function()
+    env = build("Member")
+    env.recipeNames = { [10] = "Elixir of Might", [11] = "Flask of Wisdom" }
+    share("Ann-Realm", 171, "Alchemy", { 10, 11 })
+    env.open("professions")
+    FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("flask", true)
+    local text = env.text()
+    assert.is_truthy(text:find("Flask of Wisdom", 1, true))
+    assert.is_falsy(text:find("Elixir of Might", 1, true))
+    FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("zzz", true)
+    assert.is_truthy(env.text():find("No recipe matches", 1, true))
   end)
 end)

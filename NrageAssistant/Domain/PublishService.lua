@@ -101,6 +101,7 @@ function PublishService.Describe(profile)
       lines[#lines + 1] = L("Shared with the guild: %s = %s"):format(key, payload.fields[key])
     end
   end
+  lines[#lines + 1] = L("Shared with the guild: the recipes you have learned, once you open each profession.")
   lines[#lines + 1] = L("Not shared: notes, enchants and buffs (they stay on this computer).")
   return lines
 end

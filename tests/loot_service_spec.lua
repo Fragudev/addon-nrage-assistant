@@ -5,6 +5,7 @@ local function load_modules()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/LootModel",
     "Domain/LootService",
   }) do

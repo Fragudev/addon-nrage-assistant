@@ -206,6 +206,12 @@ UI.BlacklistChanged = throttledRedraw(function()
   return currentTab == "blacklist"
 end, ns.Constants.BLACKLIST_REDRAW_SECONDS)
 
+-- Recipes arrived from the guild, or a profession was scanned: the Professions tab and the Profile tab follow, once per
+-- interval (a guild logging in sends many lists).
+UI.RecipesChanged = throttledRedraw(function()
+  return currentTab == "professions" or currentTab == "profile"
+end, 1)
+
 -- The guild's readiness rules changed: rare (one message per change), so no throttling.
 function UI.RulesChanged()
   if UI.IsOpen() and (currentTab == "ready" or currentTab == "rules" or currentTab == "home") then

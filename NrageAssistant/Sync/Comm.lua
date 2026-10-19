@@ -40,6 +40,9 @@ function Comm.New(deps)
     rosters = deps.rosters or {},
     members = deps.members or {},
     onRosterChange = deps.onRosterChange,
+    recipes = deps.recipes or {},
+    onRecipesChange = deps.onRecipesChange,
+    recipeStaging = {},
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -242,6 +245,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.RosterSync.IsRosterMessage(message.t) then
     return self:HandleRoster(sender, message)
   end
+  if ns.RecipeSync.IsRecipeMessage(message.t) then
+    return self:HandleRecipes(sender, message)
+  end
   -- SYNC_DATA is only ever accepted as a whisper.
   return false, "wrong_channel"
 end
@@ -436,6 +442,40 @@ function Comm:HandleBlacklist(sender, message)
     self.onBlacklistChange(message.t)
   end
   return ok, reason
+end
+
+-- RECIPES: the record belongs to the sender (any guild member), read from the local guild roster; a list is stored
+-- when its
+-- last part arrives.
+function Comm:HandleRecipes(sender, message)
+  local ctx = {
+    recipes = self.recipes,
+    staging = self.recipeStaging,
+    now = self.platform.ServerTime,
+    onStored = function()
+      if self.onRecipesChange then
+        self.onRecipesChange(message.t)
+      end
+    end,
+  }
+  return ns.RecipeSync.Apply(ctx, message, sender, self.roleOf(sender))
+end
+
+-- Publishes the list of one profession of the own character, in the messages it needs. Each message is keyed by
+-- profession
+-- and part, so a newer list replaces one still waiting in the queue. Returns true, or false plus the first failure.
+function Comm:SendRecipes(professionId, record)
+  local first
+  for _, chunk in ipairs(ns.RecipeService.Chunks(professionId, record, self.platform.ServerTime())) do
+    local ok, reason = self:Send("RECIPES", chunk, ("RC:%d:%d"):format(professionId, chunk.part))
+    if not ok and not first then
+      first = reason
+    end
+  end
+  if first then
+    return false, first
+  end
+  return true
 end
 
 -- The tables the roster rules work with.
@@ -775,6 +815,12 @@ function Comm.Start()
     onRulesChange = function()
       if ns.UI and ns.UI.RulesChanged then
         ns.UI.RulesChanged()
+      end
+    end,
+    recipes = ns.db.global.recipes,
+    onRecipesChange = function()
+      if ns.UI and ns.UI.RecipesChanged then
+        ns.UI.RecipesChanged()
       end
     end,
     rosters = ns.db.global.rosters,

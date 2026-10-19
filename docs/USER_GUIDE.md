@@ -245,6 +245,18 @@ saved. There are no switches: all your kills are always shared with the guild.
 - The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
   available and nothing is shown or sent.
 
+## Professions
+
+The **Professions** tab (Guild group) answers "who can craft this?". Type part of a recipe name in the search box,
+optionally pick a profession, and the table lists the members that know it, with the ones online first. **Ask** puts
+a whisper in your chat box ("Could you craft me ...?"); you send it with Enter. Tick **Connected only** to hide
+members who are offline.
+
+Recipes are shared automatically: open each of your professions once and the addon reads the list the client shows
+and sends it to the guild. It sends again only when the recipes change. The **My professions** card shows when each
+profession was last read and tells you to open it again after your skill changes. If the client does not allow
+reading recipes, the tab says so and you can still search what others share.
+
 ## Blacklist
 
 The **Blacklist** tab is a guild-wide list of players the guild wants to be warned about. It is shared with every

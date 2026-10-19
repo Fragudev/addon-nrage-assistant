@@ -6,6 +6,7 @@ local function load_modules()
     "Domain/PvPService",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Sync/Protocol",
     "Sync/SyncRules",

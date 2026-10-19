@@ -8,7 +8,9 @@ local Theme, Util, Icons = Kit.Theme, Kit.Util, Kit.Icons
 local setColor = Kit.SetTextColor
 
 -- An item as the game shows it: its icon, its name in the quality color, and its tooltip on hover.
--- opts: itemId, text, color (token or { r, g, b, a }), size, onClick, icon (a texture path, overrides the lookup).
+-- opts: itemId, text, color (token or { r, g, b, a }), size, onClick, icon (a texture path, overrides the lookup),
+-- link (a
+-- hyperlink for the tooltip instead of "item:<id>", for a thing that is not an item).
 Kit.Define("ItemLabel", {
   frameType = "Button",
   create = function(obj)
@@ -25,10 +27,11 @@ Kit.Define("ItemLabel", {
     end)
     obj.frame:SetScript("OnEnter", function()
       local id = obj.opts and obj.opts.itemId
-      if type(id) == "number" and GameTooltip then
+      local link = obj.opts and obj.opts.link
+      if (type(id) == "number" or type(link) == "string") and GameTooltip then
         GameTooltip:SetOwner(obj.frame, "ANCHOR_RIGHT")
         -- The tooltip may refuse an item the client has not seen; the icon and name still show.
-        if pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. id) then
+        if pcall(GameTooltip.SetHyperlink, GameTooltip, link or ("item:" .. id)) then
           GameTooltip:Show()
         else
           GameTooltip:Hide()

@@ -56,6 +56,7 @@ receive theirs. It holds:
 | item level | when known |
 | professions and skill | when known |
 | declared role and main | when you set them |
+| recipes you have learned | after you open each profession window |
 
 Never shared: your **declared notes** (they stay on this computer), the enchants and buffs the readiness checks read
 from your character, your guid, your inventory and chat. The Profile tab lists what is shared and when it was last published. Text you declare has escape characters (`|`) and control characters stripped before it is sent. Like

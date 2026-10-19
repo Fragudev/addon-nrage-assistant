@@ -11,6 +11,7 @@ local function load_modules()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -25,6 +26,7 @@ local function load_modules()
     "Sync/BlacklistSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
+    "Sync/RecipeSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)

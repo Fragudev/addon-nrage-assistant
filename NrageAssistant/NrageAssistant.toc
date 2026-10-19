@@ -31,6 +31,7 @@ Domain\Throttle.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\RosterService.lua
+Domain\RecipeService.lua
 Domain\EventModel.lua
 Domain\EventService.lua
 Domain\LootModel.lua
@@ -55,6 +56,7 @@ Sync\PvPSync.lua
 Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
+Sync\RecipeSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -71,6 +73,7 @@ UI\ViewModel.lua
 UI\ViewModelHome.lua
 UI\ViewModelRaid.lua
 UI\ViewModelGuild.lua
+UI\ViewModelProfessions.lua
 UI\Main.lua
 UI\Tabs\Home.lua
 UI\Tabs\Profile.lua
@@ -81,6 +84,7 @@ UI\Tabs\Loot.lua
 UI\Tabs\PvP.lua
 UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
+UI\Tabs\Professions.lua
 UI\LootPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua

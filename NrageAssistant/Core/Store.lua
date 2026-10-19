@@ -4,7 +4,8 @@ local _, ns = ...
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, language,
 --                 blacklistSound, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
 --                 blacklist = {}, readinessRules = { rev, updatedAt, updatedBy, rules },
---                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } } }
+--                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
+--                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } } }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {},
 --                             pvpSync = { rev } }
 local Store = {}
@@ -77,6 +78,16 @@ local MIGRATIONS = {
     ensureTable(global, "rosters")
     ensureTable(global, "members")
   end,
+  -- v11: recipes received from the guild (recipes[memberKey][professionId], see RecipeService); the own character keeps
+  -- its scans in char.recipes, which GetChar creates.
+  [11] = function(db)
+    ensureTable(ensureTable(db, "global"), "recipes")
+    for _, char in pairs(ensureTable(db, "chars")) do
+      if type(char) == "table" then
+        ensureTable(char, "recipes")
+      end
+    end
+  end,
 }
 
 local function versionOf(db)
@@ -112,6 +123,7 @@ function Store.GetChar(db, identityKey)
   ensureTable(char, "readiness")
   ensureTable(char, "publish")
   ensureTable(char, "pvp")
+  ensureTable(char, "recipes")
   local sync = ensureTable(char, "pvpSync")
   if type(sync.rev) ~= "number" or sync.rev < 0 or sync.rev % 1 ~= 0 then
     sync.rev = 0

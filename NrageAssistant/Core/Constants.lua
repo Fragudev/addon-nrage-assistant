@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 10,
+  SCHEMA_VERSION = 11,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -66,6 +66,28 @@ ns.Constants = {
   -- The beta list of admins by character name is gone: nobody is an admin because of who they are, only because they
   -- hold the guild master rank. The flag stays false so a stale reference cannot turn it on (issue #25).
   BETA_ADMIN_ENABLED = false,
+
+  -- Recipes (the Professions tab, plan 3.10). A profession list is sent in messages of at most RECIPE_CHUNK ids (a
+  -- message
+  -- is limited to MAX_ENCODED_BYTES); a list has at most RECIPES_MAX_PER_PROFESSION ids and RECIPE_PARTS_MAX parts. A
+  -- receiver keeps at most RECIPE_PROFESSIONS_MAX professions for each of RECIPE_MEMBERS_MAX members, and at most
+  -- RECIPE_STAGING_MAX half-received lists (in memory). After a profession window changes, it is scanned again
+  -- RECIPE_SCAN_DELAY_SECONDS later (the client fires its events several times while the list loads).
+  RECIPE_CHUNK = 150,
+  RECIPES_MAX_PER_PROFESSION = 3000,
+  RECIPE_PARTS_MAX = 20,
+  RECIPE_ID_MAX = 10000000,
+  RECIPE_PROFESSION_ID_MAX = 1000000,
+  RECIPE_PROFESSIONS_MAX = 12,
+  RECIPE_MEMBERS_MAX = 500,
+  RECIPE_STAGING_MAX = 100,
+  RECIPE_SCAN_DELAY_SECONDS = 2,
+  -- After login the saved recipe lists are sent once, after a random delay in this range.
+  RECIPE_LOGIN_SEND_DELAY_MIN = 30,
+  RECIPE_LOGIN_SEND_DELAY_MAX = 60,
+  -- The Professions tab shows at most this many recipes, and this many crafters with an "Ask" button each.
+  RECIPE_RESULTS_MAX = 100,
+  RECIPE_ASK_MAX = 3,
 
   -- Raid rosters (teams): definitions and the roster and role of each member, both set by the guild master and synced.
   ROSTERS_MAX = 20,

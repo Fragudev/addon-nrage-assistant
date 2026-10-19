@@ -1037,6 +1037,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
     { value = "blacklist", text = L("Blacklist"), icon = "ban", group = "guild" },
     { value = "roster", text = L("Members"), icon = "users", group = "guild" },
+    { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
   }
 end)
 
