@@ -44,7 +44,7 @@ local EXISTS = {
   "C_AddOns.GetAddOnMetadata",
 }
 
-local LIBRARIES = { "AceComm-3.0", "AceGUI-3.0", "NrageAssistant-LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
+local LIBRARIES = { "AceComm-3.0", "NrageAssistant-LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
 
 local function resolve(env, path)
   local value = env

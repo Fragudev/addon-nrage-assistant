@@ -39,7 +39,7 @@ local EXISTS = {
   "C_Timer.NewTicker",
   "C_AddOns.GetAddOnMetadata",
 }
-local LIBRARIES = { "AceComm-3.0", "AceGUI-3.0", "NrageAssistant-LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
+local LIBRARIES = { "AceComm-3.0", "NrageAssistant-LibSerialize", "LibDeflate", "CallbackHandler-1.0" }
 
 local function set(env, path, value)
   local parts = {}
@@ -171,14 +171,14 @@ describe("Diagnostics.SelfTest", function()
       if name == "LibDeflate" then
         return nil
       end
-      if name == "AceGUI-3.0" then
+      if name == "AceComm-3.0" then
         error("bad lib")
       end
       return {}
     end
     local results = Diagnostics.SelfTest(env, full_addon())
     assert.are.equal("missing", find(results, "library LibDeflate").status)
-    assert.are.equal("error", find(results, "library AceGUI-3.0").status)
+    assert.are.equal("error", find(results, "library AceComm-3.0").status)
     assert.are.equal("ok", find(results, "library NrageAssistant-LibSerialize").status)
 
     env.LibStub = nil

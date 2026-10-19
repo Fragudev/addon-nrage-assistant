@@ -25,7 +25,12 @@ describe("Vendored libraries", function()
       handle:close()
       count = count + 1
     end
-    assert.is_true(count >= 6)
+    assert.is_true(count >= 5)
+  end)
+
+  it("does not embed AceGUI: every window is drawn with the kit", function()
+    assert.is_falsy(read("NrageAssistant/embeds.xml"):find("AceGUI", 1, true))
+    assert.is_falsy(io.open("NrageAssistant/Libs/AceGUI-3.0/AceGUI-3.0.xml", "r"))
   end)
 
   it("keeps the license of every vendored library", function()

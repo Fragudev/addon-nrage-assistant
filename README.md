@@ -46,7 +46,7 @@ NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
   Domain/                Profile, readiness, events, loot, permissions, reports, templates, diagnostics
   Sync/                  Codec, protocol, inbox and outbound queue, event and loot sync, snapshot, import/export
-  UI/                    Window (AceGUI) and its view model
+  UI/                    Window (own widget kit in Kit/), tabs and view models
   Commands/              Slash commands
   Libs/                  Vendored libraries, see Libs/README.md
   Media/                 Game textures (the guild logo)
