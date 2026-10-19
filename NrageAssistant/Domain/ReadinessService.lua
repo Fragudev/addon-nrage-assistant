@@ -9,13 +9,15 @@ local ReadinessService = {}
 local L = ns.L
 
 -- How each status is written where it is shown. The code keeps comparing and storing the English words.
-local STATUS_TEXT = {
-  met = L("met"),
-  missing = L("missing"),
-  unknown = L("unknown"),
-  notApplicable = L("notApplicable"),
-  waived = L("waived"),
-}
+local STATUS_TEXT = ns.Locale.Table(function()
+  return {
+    met = L("met"),
+    missing = L("missing"),
+    unknown = L("unknown"),
+    notApplicable = L("notApplicable"),
+    waived = L("waived"),
+  }
+end)
 
 function ReadinessService.StatusText(status)
   return STATUS_TEXT[status] or status
@@ -23,13 +25,15 @@ end
 
 -- The labels of the starting rules (Constants.DEFAULT_RULES), which are data shared in English; they are shown
 -- translated. A rule the guild wrote itself is shown as written.
-local DEFAULT_LABELS = {
-  ["Level 60"] = L("Level 60"),
-  ["Item level"] = L("Item level"),
-  ["Role declared"] = L("Role declared"),
-  ["Consumables ready"] = L("Consumables ready"),
-  ["Enchants done"] = L("Enchants done"),
-}
+local DEFAULT_LABELS = ns.Locale.Table(function()
+  return {
+    ["Level 60"] = L("Level 60"),
+    ["Item level"] = L("Item level"),
+    ["Role declared"] = L("Role declared"),
+    ["Consumables ready"] = L("Consumables ready"),
+    ["Enchants done"] = L("Enchants done"),
+  }
+end)
 
 function ReadinessService.LabelText(label)
   return DEFAULT_LABELS[label] or label

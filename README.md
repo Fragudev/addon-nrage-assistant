@@ -46,7 +46,7 @@ NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
   Domain/                Profile, readiness, events, loot, permissions, reports, templates, diagnostics
   Sync/                  Codec, protocol, inbox and outbound queue, event and loot sync, snapshot, import/export
-  UI/                    Window (AceGUI) and its view model
+  UI/                    Window (own widget kit in Kit/), tabs and view models
   Commands/              Slash commands
   Libs/                  Vendored libraries, see Libs/README.md
   Media/                 Game textures (the guild logo)
@@ -88,6 +88,14 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 Tags containing a hyphen (for example `v0.2.0-alpha.1`) are published as pre-releases. Only `NrageAssistant/` is shipped: `tests/`, `docs/` and the plan stay out of the zip.
+
+## Credits
+
+- **Fira Sans** (Regular, Medium and SemiBold) by The Mozilla Foundation and Telefonica S.A., licensed under the SIL Open
+  Font License 1.1: `NrageAssistant/Media/Fonts/` (the license is `OFL.txt` in the same folder).
+- The icons in `NrageAssistant/Media/Icons/` are our own simple shapes, drawn by `tools/make_icons.py`.
+- The interface is built with the addon's own widget kit (`NrageAssistant/UI/Kit/`). No code, texture or font was
+  copied from other addons.
 
 ## License
 

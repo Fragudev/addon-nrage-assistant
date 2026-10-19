@@ -8,6 +8,7 @@ local BlacklistCommands = {}
 BlacklistCommands.__index = BlacklistCommands
 
 local L = ns.L
+local Failure = ns.Validate.Failure
 
 function BlacklistCommands.New(deps)
   return setmetatable({
@@ -30,19 +31,21 @@ function BlacklistCommands:Context()
   }
 end
 
-local ERRORS = {
-  empty_name = L("enter the name of the player."),
-  long_name = L("the name is too long."),
-  bad_name = L("that is not a valid name."),
-  empty_reason = L("enter a reason."),
-  long_reason = L("the reason is too long (up to 100 characters)."),
-  bad_reason = L("the reason cannot contain | or control characters."),
-  not_author = L(
-    "that player is already on the blacklist; only the member who added them or an officer can change the reason."
-  ),
-  limit = L("the blacklist is full."),
-  not_found = L("that player is not on the blacklist."),
-}
+local ERRORS = ns.Locale.Table(function()
+  return {
+    empty_name = L("enter the name of the player."),
+    long_name = L("the name is too long."),
+    bad_name = L("that is not a valid name."),
+    empty_reason = L("enter a reason."),
+    long_reason = L("the reason is too long (up to 100 characters)."),
+    bad_reason = L("the reason cannot contain | or control characters."),
+    not_author = L(
+      "that player is already on the blacklist; only the member who added them or an officer can change the reason."
+    ),
+    limit = L("the blacklist is full."),
+    not_found = L("that player is not on the blacklist."),
+  }
+end)
 
 local function fail(ctx, reason, action)
   if reason == "forbidden" then
@@ -72,7 +75,7 @@ function BlacklistCommands:Add(name, reason)
   local ctx = self:Context()
   local entry, key, updated = ns.BlacklistService.Add(ctx, name, reason)
   if not entry then
-    return { fail(ctx, key, "add") }
+    return Failure(fail(ctx, key, "add"))
   end
   self:Changed()
   return {
@@ -89,14 +92,14 @@ function BlacklistCommands:Remove(name)
   local entry, key = ns.BlacklistService.Find(self.blacklist, name)
   -- The role is checked first, so a member is told they may not rather than that the player is not listed.
   if not ns.PermissionService.Can(ctx.role, "blacklist_remove") then
-    return { fail(ctx, "forbidden", "remove") }
+    return Failure(fail(ctx, "forbidden", "remove"))
   end
   if not entry then
-    return { fail(ctx, "not_found", "remove") }
+    return Failure(fail(ctx, "not_found", "remove"))
   end
   local ok, reason = ns.BlacklistService.Remove(ctx, key)
   if not ok then
-    return { fail(ctx, reason, "remove") }
+    return Failure(fail(ctx, reason, "remove"))
   end
   self:Changed()
   return {

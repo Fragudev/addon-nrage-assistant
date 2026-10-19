@@ -4,6 +4,8 @@ local function load_modules()
     "Core/Constants",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
   }) do
@@ -21,6 +23,7 @@ local function build_ctx(role)
     tombstones = {},
     role = role or "rl",
     actor = "Leader-Realm",
+    rosterId = "r1",
     clock = 1000,
   }
   local counter = 0

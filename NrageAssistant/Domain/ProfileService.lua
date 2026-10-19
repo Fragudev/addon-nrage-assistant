@@ -7,17 +7,21 @@ local ProfileService = {}
 
 local L = ns.L
 
-local SOURCE_LABELS = {
-  observed = L("verified"),
-  declared = L("declared"),
-  received = L("received"),
-}
+local SOURCE_LABELS = ns.Locale.Table(function()
+  return {
+    observed = L("verified"),
+    declared = L("declared"),
+    received = L("received"),
+  }
+end)
 
-local LINES = {
-  { key = "class", label = L("Class") },
-  { key = "level", label = L("Level") },
-  { key = "ilvl", label = L("Item level") },
-}
+local LINES = ns.Locale.Table(function()
+  return {
+    { key = "class", label = L("Class") },
+    { key = "level", label = L("Level") },
+    { key = "ilvl", label = L("Item level") },
+  }
+end)
 
 local function ensureTable(parent, key)
   if type(parent[key]) ~= "table" then

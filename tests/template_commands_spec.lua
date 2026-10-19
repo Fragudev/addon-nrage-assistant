@@ -1,3 +1,5 @@
+local Roles = dofile("tests/support/roles.lua")
+
 local function load_modules()
   local ns = {}
   for _, path in ipairs({
@@ -5,6 +7,8 @@ local function load_modules()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/TemplateService",
@@ -24,9 +28,7 @@ end
 local function build(rank)
   local env = { events = {}, templates = {}, sent = {}, sendResult = true, counter = 0 }
   env.platform = {
-    GetOwnGuildRank = function()
-      return rank
-    end,
+    GetOwnGuildRank = Roles.ranking(rank),
     GetIdentityKey = function()
       return "Leader-Realm"
     end,
@@ -43,11 +45,15 @@ local function build(rank)
     env.sent[#env.sent + 1] = { eventId = eventId, assignment = assignment }
     return env.sendResult
   end
+  env.members, env.rosters = Roles.assignments(rank, "Leader-Realm")
+  ns.PermissionService.Configure({ members = env.members })
   env.commands = ns.TemplateCommands.New({
     events = env.events,
     templates = env.templates,
     platform = env.platform,
     comm = env.comm,
+    members = env.members,
+    rosters = env.rosters,
   })
   return env
 end

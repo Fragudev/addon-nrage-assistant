@@ -29,4 +29,17 @@ function Validate.NameKey(text)
   return (text:lower():gsub("%s+", ""))
 end
 
+-- What a command (RaidCommands, LootCommands...) returns when it did not do what was asked: the lines to show, marked
+-- as a failure so the window can color the message. The mark is a metatable, so the lines still compare as a plain
+-- list.
+local FAILED = {}
+
+function Validate.Failure(text)
+  return setmetatable({ text }, FAILED)
+end
+
+function Validate.IsFailure(lines)
+  return getmetatable(lines) == FAILED
+end
+
 ns.Validate = Validate

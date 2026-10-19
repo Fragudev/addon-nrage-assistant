@@ -13,30 +13,32 @@ end
 
 -- How the states that the lists show are written (event status, attendance, session status, loot response,
 -- readiness). The code keeps comparing and sending the English words; only what is shown changes.
-local WORDS = {
-  planned = L("planned"),
-  open = L("open"),
-  closed = L("closed"),
-  cancelled = L("cancelled"),
-  invited = L("invited"),
-  confirmed = L("confirmed"),
-  present = L("present"),
-  late = L("late"),
-  leftEarly = L("leftEarly"),
-  absent = L("absent"),
-  excused = L("excused"),
-  unknown = L("unknown"),
-  met = L("met"),
-  missing = L("missing"),
-  waived = L("waived"),
-  main = L("main"),
-  off = L("off"),
-  other = L("other"),
-  member = L("member"),
-  rl = L("raid leader"),
-  council = L("loot council"),
-  admin = L("admin"),
-}
+local WORDS = ns.Locale.Table(function()
+  return {
+    planned = L("planned"),
+    open = L("open"),
+    closed = L("closed"),
+    cancelled = L("cancelled"),
+    invited = L("invited"),
+    confirmed = L("confirmed"),
+    present = L("present"),
+    late = L("late"),
+    leftEarly = L("leftEarly"),
+    absent = L("absent"),
+    excused = L("excused"),
+    unknown = L("unknown"),
+    met = L("met"),
+    missing = L("missing"),
+    waived = L("waived"),
+    main = L("main"),
+    off = L("off"),
+    other = L("other"),
+    member = L("member"),
+    rl = L("raid leader"),
+    council = L("loot council"),
+    admin = L("admin"),
+  }
+end)
 
 function ViewModel.Word(value)
   return WORDS[value] or value
@@ -52,19 +54,23 @@ function ViewModel.RoleLine(identityKey, rank, role)
 end
 
 -- Why a declared profile field was not saved.
-ViewModel.PROFILE_SET_ERRORS = {
-  unknown_field = L("unknown field. Allowed: role, role2, main, notes."),
-  too_long = L("value is too long."),
-  invalid_value = L("invalid value."),
-}
+ViewModel.PROFILE_SET_ERRORS = ns.Locale.Table(function()
+  return {
+    unknown_field = L("unknown field. Allowed: role, role2, main, notes."),
+    too_long = L("value is too long."),
+    invalid_value = L("invalid value."),
+  }
+end)
 
 -- Why the PvP counters of a member could not be reset (Comm:ResetPvP).
-ViewModel.PVP_RESET_ERRORS = {
-  forbidden = L("only an admin can reset PvP counters."),
-  stale = L("that member was already reset (or a later reset is known)."),
-  limit = L("too many resets are remembered."),
-  bad_target = L("that is not a valid member name."),
-}
+ViewModel.PVP_RESET_ERRORS = ns.Locale.Table(function()
+  return {
+    forbidden = L("only an admin can reset PvP counters."),
+    stale = L("that member was already reset (or a later reset is known)."),
+    limit = L("too many resets are remembered."),
+    bad_target = L("that is not a valid member name."),
+  }
+end)
 
 -- args: version, syncLines (Comm:Status()), readinessText (summary.text)
 function ViewModel.Home(args)
@@ -114,13 +120,15 @@ function ViewModel.Roster(roster, now)
   return lines
 end
 
-local PUBLISH_ERRORS = {
-  missing_data = L("class or level is unknown, nothing to share yet."),
-  cooldown = L("you published a moment ago, wait a little."),
-  full = L("the send queue is full, try again shortly."),
-  too_large = L("the profile is too large to send."),
-  encode_failed = L("the profile could not be encoded."),
-}
+local PUBLISH_ERRORS = ns.Locale.Table(function()
+  return {
+    missing_data = L("class or level is unknown, nothing to share yet."),
+    cooldown = L("you published a moment ago, wait a little."),
+    full = L("the send queue is full, try again shortly."),
+    too_large = L("the profile is too large to send."),
+    encode_failed = L("the profile could not be encoded."),
+  }
+end)
 
 function ViewModel.PublishError(reason)
   return PUBLISH_ERRORS[reason] or tostring(reason)
@@ -243,7 +251,9 @@ function ViewModel.PvPRankLine(kills, ranks)
 end
 
 -- The period selector of the ranking.
-ViewModel.PVP_PERIODS = { total = L("Total"), today = L("Today") }
+ViewModel.PVP_PERIODS = ns.Locale.Table(function()
+  return { total = L("Total"), today = L("Today") }
+end)
 ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
 
 -- The sub-tabs of the PvP tab: the own counters, the guild ranking and the own recent kills.
@@ -255,7 +265,9 @@ function ViewModel.PvPSubTabs()
   }
 end
 
-local FEED_PLACES = { world = L("open world"), bg = L("battleground") }
+local FEED_PLACES = ns.Locale.Table(function()
+  return { world = L("open world"), bg = L("battleground") }
+end)
 
 -- The own recent kills, newest first (the order of `entries`): "12:04  Ann, Bob killed Zed (open world,
 -- killing blow)". `options` = { available = boolean (the client can give a victim name), formatTime =
@@ -667,11 +679,13 @@ end
 -- What a player may set by hand on a readiness item (ReadinessService.SetManual accepts the same four).
 ViewModel.READY_STATUSES = { "met", "missing", "waived", "unknown" }
 
-ViewModel.READY_SET_ERRORS = {
-  unknown_rule = L("unknown item."),
-  not_manual = L("that item is measured automatically and cannot be set by hand."),
-  invalid_status = L("status must be met, missing, waived or unknown."),
-}
+ViewModel.READY_SET_ERRORS = ns.Locale.Table(function()
+  return {
+    unknown_rule = L("unknown item."),
+    not_manual = L("that item is measured automatically and cannot be set by hand."),
+    invalid_status = L("status must be met, missing, waived or unknown."),
+  }
+end)
 
 -- The items the player confirms by hand, with their current status: { ruleId, label, status } in rule order.
 -- `results` is what ReadinessService.Evaluate returned for the same `rules`.
@@ -728,20 +742,22 @@ function ViewModel.MinimapTooltip(args)
   return lines
 end
 
--- Right-click menu of the minimap button: a shortcut to each tab, then a sync request.
-function ViewModel.MinimapMenu()
+-- Right-click menu of the minimap button: a shortcut to each tab. There is no sync entry: sync is automatic.
+function ViewModel.MinimapMenu(role)
   local entries = {}
-  for _, tab in ipairs(ViewModel.TABS) do
-    entries[#entries + 1] = { text = tab.text, action = "tab", value = tab.value }
+  for _, tab in ipairs(ViewModel.TabsFor(role)) do
+    entries[#entries + 1] = { text = tab.text, icon = tab.icon, action = "tab", value = tab.value }
   end
-  entries[#entries + 1] = { text = L("Request a sync"), action = "sync" }
+  entries[#entries + 1] = { text = L("Settings"), icon = "gear", action = "settings", value = "@settings" }
   return entries
 end
 
-ViewModel.SYNC_REQUEST_ERRORS = {
-  cooldown = L("you asked a moment ago, wait a little."),
-  full = L("the send queue is full, try again shortly."),
-}
+ViewModel.SYNC_REQUEST_ERRORS = ns.Locale.Table(function()
+  return {
+    cooldown = L("you asked a moment ago, wait a little."),
+    full = L("the send queue is full, try again shortly."),
+  }
+end)
 
 -- The line to print after asking the guild for the latest raid data.
 function ViewModel.SyncRequestResult(ok, reason)
@@ -804,7 +820,9 @@ function ViewModel.DefaultSpec(profile)
   return "unknown"
 end
 
-ViewModel.LOOT_NEED_LABELS = { main = L("Main spec"), off = L("Off spec"), other = L("Other") }
+ViewModel.LOOT_NEED_LABELS = ns.Locale.Table(function()
+  return { main = L("Main spec"), off = L("Off spec"), other = L("Other") }
+end)
 
 -- The items the voting window can switch between: every open session, plus the selected one even if it has
 -- closed (so the decision stays visible). Entries are { eventId, sessionId, itemName, eventTitle, selected },
@@ -820,6 +838,7 @@ function ViewModel.VotingSessions(events, selectedId)
           itemId = session.itemId,
           itemName = ViewModel.Escape(session.itemName),
           eventTitle = ViewModel.Escape(event.title),
+          candidates = ViewModel.CountKeys(session.candidates),
           selected = session.sessionId == selectedId,
           sort = event.title .. "\n" .. session.itemName .. "\n" .. session.sessionId,
         }
@@ -830,6 +849,14 @@ function ViewModel.VotingSessions(events, selectedId)
     return a.sort < b.sort
   end)
   return list
+end
+
+function ViewModel.CountKeys(tbl)
+  local count = 0
+  for _ in pairs(tbl or {}) do
+    count = count + 1
+  end
+  return count
 end
 
 -- One line on where a session stands.
@@ -935,6 +962,7 @@ function ViewModel.VotingRows(session, actor, rankOf, options)
         label = ViewModel.Escape(name),
         rank = ViewModel.Escape(rank or "?"),
         need = candidate.need,
+        spec = ViewModel.Escape(candidate.spec),
         response = ("%s (%s)"):format(
           ViewModel.Escape(ViewModel.LOOT_NEED_LABELS[candidate.need] or candidate.need),
           ViewModel.Escape(candidate.spec)
@@ -1007,19 +1035,26 @@ function ViewModel.BlacklistAlertLine(match)
   return L("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
 end
 
-ViewModel.TABS = {
-  { value = "home", text = L("Home") },
-  { value = "profile", text = L("Profile") },
-  { value = "ready", text = L("Readiness") },
-  { value = "raid", text = L("Raid") },
-  { value = "loot", text = L("Loot") },
-  { value = "pvp", text = "PvP" },
-  { value = "blacklist", text = L("Blacklist") },
-  { value = "roster", text = L("Roster") },
-}
+-- The tabs of the window with the icon and the sidebar group of each. The text is translated again when the
+-- language changes (Locale.Table).
+ViewModel.TABS = ns.Locale.Table(function()
+  return {
+    { value = "home", text = L("Home"), icon = "home", group = "me" },
+    { value = "profile", text = L("Profile"), icon = "user", group = "me" },
+    { value = "ready", text = L("Readiness"), icon = "check-circle", group = "me" },
+    { value = "raid", text = L("Raid"), icon = "calendar", group = "guild" },
+    { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
+    { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
+    { value = "blacklist", text = L("Blacklist"), icon = "ban", group = "guild" },
+    { value = "roster", text = L("Members"), icon = "users", group = "guild" },
+    { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
+  }
+end)
 
 -- The admin-only tab where the guild's readiness rules are edited.
-ViewModel.RULES_TAB = { value = "rules", text = L("Rules") }
+ViewModel.RULES_TAB = ns.Locale.Table(function()
+  return { value = "rules", text = L("Rules"), icon = "list", group = "admin" }
+end)
 
 -- The tabs for a player with `role`: everyone's, plus the rules editor for who may edit the rules.
 function ViewModel.TabsFor(role)
@@ -1035,24 +1070,28 @@ end
 
 -- The kinds of rule an admin can add, in the order of the dropdown, and what each one needs typed in "Details".
 ViewModel.RULE_CHECKS = { "level", "ilvl", "enchants", "buff", "profession", "field", "confirm" }
-ViewModel.RULE_CHECK_TEXT = {
-  level = L("Minimum level"),
-  ilvl = L("Minimum item level"),
-  enchants = L("Enchanted slots"),
-  buff = L("Active buff (flask, food...)"),
-  profession = L("Profession"),
-  field = L("Declared profile field"),
-  confirm = L("Confirmed by hand"),
-}
-ViewModel.RULE_DETAIL_HINTS = {
-  level = L("a number, e.g. 60"),
-  ilvl = L("a number, e.g. 60"),
-  enchants = L("slots by name or number: mainhand, chest, back, 16"),
-  buff = L("spell ids and/or names, separated by commas"),
-  profession = L("name and minimum skill, e.g. Alchemy 300"),
-  field = "role",
-  confirm = L("nothing needed"),
-}
+ViewModel.RULE_CHECK_TEXT = ns.Locale.Table(function()
+  return {
+    level = L("Minimum level"),
+    ilvl = L("Minimum item level"),
+    enchants = L("Enchanted slots"),
+    buff = L("Active buff (flask, food...)"),
+    profession = L("Profession"),
+    field = L("Declared profile field"),
+    confirm = L("Confirmed by hand"),
+  }
+end)
+ViewModel.RULE_DETAIL_HINTS = ns.Locale.Table(function()
+  return {
+    level = L("a number, e.g. 60"),
+    ilvl = L("a number, e.g. 60"),
+    enchants = L("slots by name or number: mainhand, chest, back, 16"),
+    buff = L("spell ids and/or names, separated by commas"),
+    profession = L("name and minimum skill, e.g. Alchemy 300"),
+    field = "role",
+    confirm = L("nothing needed"),
+  }
+end)
 
 -- Equipment slot names an admin may type instead of the number (the slots that can carry an enchant).
 ViewModel.ENCHANT_SLOTS = {
@@ -1069,20 +1108,22 @@ ViewModel.ENCHANT_SLOTS = {
   ranged = 18,
 }
 
-ViewModel.RULE_ERRORS = {
-  forbidden = L("only the guild master and officers can change the rules."),
-  empty = L("keep at least one rule."),
-  too_many = L("there is room for 30 rules at most."),
-  bad_id = L("that rule name cannot be used."),
-  bad_label = L("the name is empty, too long or has unsupported characters."),
-  bad_category = L("that rule category cannot be used."),
-  bad_check = L("that kind of rule is not supported."),
-  bad_details = L("the details do not fit this kind of rule (see the hint under Details)."),
-  duplicate_id = L("two rules would have the same name."),
-  bad_rules = L("those rules are not valid."),
-  last_rule = L("keep at least one rule; add another before removing this one."),
-  unknown_rule = L("that rule no longer exists."),
-}
+ViewModel.RULE_ERRORS = ns.Locale.Table(function()
+  return {
+    forbidden = L("only the guild master and officers can change the rules."),
+    empty = L("keep at least one rule."),
+    too_many = L("there is room for 30 rules at most."),
+    bad_id = L("that rule name cannot be used."),
+    bad_label = L("the name is empty, too long or has unsupported characters."),
+    bad_category = L("that rule category cannot be used."),
+    bad_check = L("that kind of rule is not supported."),
+    bad_details = L("the details do not fit this kind of rule (see the hint under Details)."),
+    duplicate_id = L("two rules would have the same name."),
+    bad_rules = L("those rules are not valid."),
+    last_rule = L("keep at least one rule; add another before removing this one."),
+    unknown_rule = L("that rule no longer exists."),
+  }
+end)
 
 local function trim(text)
   return (tostring(text or ""):match("^%s*(.-)%s*$"))
@@ -1207,6 +1248,52 @@ function ViewModel.RuleSummary(rule)
     return L("declared: ") .. rule.field
   end
   return L("confirmed by the player")
+end
+
+-- The sidebar: groups of { value, text, icon } for a player with `role`. The first group has no label.
+function ViewModel.NavGroups(role)
+  local groups = {
+    { items = {} },
+    { label = L("Guild"), items = {} },
+    { label = L("Admin"), items = {} },
+  }
+  local index = { me = 1, guild = 2, admin = 3 }
+  for _, tab in ipairs(ViewModel.TabsFor(role)) do
+    local group = groups[index[tab.group] or 2]
+    group.items[#group.items + 1] = { value = tab.value, text = tab.text, icon = tab.icon }
+  end
+  local result = {}
+  for _, group in ipairs(groups) do
+    if #group.items > 0 then
+      result[#result + 1] = group
+    end
+  end
+  return result
+end
+
+-- The user card at the bottom of the sidebar: the character name, and "rank - addon role" under it.
+function ViewModel.UserCard(identityKey, rank, role)
+  local name = tostring(identityKey or "?")
+  local detail = {}
+  if rank and rank ~= "" then
+    detail[#detail + 1] = rank
+  end
+  detail[#detail + 1] = role and ViewModel.Word(role) or L("none")
+  return { name = name, detail = table.concat(detail, " \194\183 ") }
+end
+
+-- The sync pill of the window header from Comm:StatusInfo(): { text, status } where status is a color token.
+function ViewModel.SyncPill(info)
+  if not info then
+    return { text = L("Sync off"), status = "muted" }
+  end
+  if info.paused then
+    return { text = L("Sync paused"), status = "warning" }
+  end
+  if info.queued > 0 then
+    return { text = L("%d queued"):format(info.queued), status = "warning" }
+  end
+  return { text = L("Sync ready"), status = "success" }
 end
 
 function ViewModel.HelpLines()

@@ -13,16 +13,18 @@ local ReportService = {}
 local L = ns.L
 
 -- How the attendance states are written in the report; the data keeps the English words.
-local STATE_TEXT = {
-  present = L("present"),
-  late = L("late"),
-  leftEarly = L("leftEarly"),
-  absent = L("absent"),
-  excused = L("excused"),
-  invited = L("invited"),
-  confirmed = L("confirmed"),
-  unknown = L("unknown"),
-}
+local STATE_TEXT = ns.Locale.Table(function()
+  return {
+    present = L("present"),
+    late = L("late"),
+    leftEarly = L("leftEarly"),
+    absent = L("absent"),
+    excused = L("excused"),
+    invited = L("invited"),
+    confirmed = L("confirmed"),
+    unknown = L("unknown"),
+  }
+end)
 
 local ATTENDED = { present = true, late = true, leftEarly = true }
 local MISSED = { absent = true }

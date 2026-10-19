@@ -9,6 +9,7 @@ local LootCommands = {}
 LootCommands.__index = LootCommands
 
 local L = ns.L
+local Failure = ns.Validate.Failure
 
 function LootCommands.New(deps)
   return setmetatable({
@@ -16,6 +17,8 @@ function LootCommands.New(deps)
     platform = deps.platform,
     comm = deps.comm,
     onChange = deps.onChange,
+    rosters = deps.rosters,
+    members = deps.members,
   }, LootCommands)
 end
 
@@ -31,6 +34,7 @@ function LootCommands:Context()
     events = self.events,
     role = ns.PermissionService.OwnRole(platform),
     actor = platform.GetIdentityKey(),
+    rosterId = ns.RosterService.RosterOf(self.members or {}, self.rosters or {}, platform.GetIdentityKey()),
     now = platform.ServerTime,
     newId = function()
       return self.comm:NextId()
@@ -48,6 +52,7 @@ local function fail(ctx, reason)
     return L("invalid %s."):format(field)
   end
   local messages = {
+    other_roster = L("that event belongs to another roster."),
     not_found = L("not found."),
     closed = L("that session is already closed."),
     locked_down = L("wait until the encounter ends: sessions cannot be opened while chat messaging is locked down."),
@@ -91,7 +96,7 @@ function LootCommands:OpenItem(event, item)
   local ctx = self:Context()
   local session, reason = ns.LootService.OpenSession(ctx, event.eventId, item)
   if not session then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   self:Changed()
   return {
@@ -104,7 +109,7 @@ function LootCommands:Apply(event, session, fields)
   local ctx = self:Context()
   local candidate, reason = ns.LootService.Register(ctx, event.eventId, session.sessionId, fields)
   if not candidate then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   self:Changed()
   return {
@@ -117,7 +122,7 @@ function LootCommands:VoteFor(event, session, target)
   local ctx = self:Context()
   local vote, reason = ns.LootService.Vote(ctx, event.eventId, session.sessionId, target)
   if not vote then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   self:Changed()
   return {
@@ -130,7 +135,7 @@ function LootCommands:AwardTo(event, session, target, why)
   local ctx = self:Context()
   local awarded, reason = ns.LootService.Award(ctx, event.eventId, session.sessionId, target, why)
   if not awarded then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   self:Changed()
   return {
@@ -143,7 +148,7 @@ function LootCommands:CloseSession(event, session)
   local ctx = self:Context()
   local closed, reason = ns.LootService.Close(ctx, event.eventId, session.sessionId)
   if not closed then
-    return { fail(ctx, reason) }
+    return Failure(fail(ctx, reason))
   end
   self:Changed()
   return {

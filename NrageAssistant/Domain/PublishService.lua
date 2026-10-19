@@ -34,6 +34,9 @@ local function buildProfessions(list)
       if type(entry.max) == "number" then
         profession.max = entry.max
       end
+      if entry.secondary == true then
+        profession.secondary = true
+      end
       result[#result + 1] = profession
     end
   end
@@ -71,7 +74,7 @@ end
 local function fingerprint(payload)
   local parts = { payload.class, tostring(payload.level), tostring(payload.ilvl or "") }
   for _, profession in ipairs(payload.professions or {}) do
-    parts[#parts + 1] = ("%s=%d"):format(profession.name, profession.skill)
+    parts[#parts + 1] = ("%s=%d%s"):format(profession.name, profession.skill, profession.secondary and "s" or "")
   end
   for _, key in ipairs(SHARED_FIELDS) do
     parts[#parts + 1] = key .. ":" .. ((payload.fields or {})[key] or "")
@@ -98,6 +101,7 @@ function PublishService.Describe(profile)
       lines[#lines + 1] = L("Shared with the guild: %s = %s"):format(key, payload.fields[key])
     end
   end
+  lines[#lines + 1] = L("Shared with the guild: the recipes you have learned, once you open each profession.")
   lines[#lines + 1] = L("Not shared: notes, enchants and buffs (they stay on this computer).")
   return lines
 end
@@ -128,6 +132,15 @@ function PublishService.Publish(comm, character, platform)
   state.at = now
   state.fingerprint = fingerprint(payload)
   return true
+end
+
+-- Seconds until the own profile may be published again (0 when it may be now).
+function PublishService.CooldownLeft(character, platform)
+  local at = character.publish.at
+  if not at then
+    return 0
+  end
+  return math.max(0, ns.Constants.PUBLISH_COOLDOWN_SECONDS - (platform.ServerTime() - at))
 end
 
 -- Publishes only when what would be shared is not what was last sent. Returns true when it published, or false

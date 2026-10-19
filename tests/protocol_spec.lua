@@ -657,8 +657,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 4", function()
-    assert.are.equal(4, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 5", function()
+    assert.are.equal(5, Constants.PROTOCOL_MINOR)
   end)
 end)
 

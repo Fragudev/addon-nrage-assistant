@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 9,
+  SCHEMA_VERSION = 11,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 4,
+  PROTOCOL_MINOR = 5,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -32,11 +32,27 @@ ns.Constants = {
 
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
-  -- How often the profile is read again to see whether it changed and has to be published.
+  -- How often the profile is read again to see whether it changed and has to be published (a safety net: gear, level
+  -- and profession events publish it within PUBLISH_EVENT_DEBOUNCE_SECONDS).
   PUBLISH_CHECK_SECONDS = 300,
+  PUBLISH_EVENT_DEBOUNCE_SECONDS = 3,
+  -- The readiness views read the character again and redraw at most this often while they are on screen.
+  READINESS_REDRAW_SECONDS = 1,
 
-  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder
-  -- ranks until Nrage defines its own; a rank that is not listed here is treated as "member".
+  -- Where the addon role of a player comes from (plan 3.4.2):
+  --   "assigned": the guild master (rank index 0) is the only admin, and every other role (member, rl, council) is
+  --               assigned by the guild master inside the addon (Members tab) and synced. The guild ranks are not
+  --               defined yet, so RANK_ROLES is ignored for everyone but the guild master.
+  --   "rank":     the old behaviour: the guild rank name decides, through RANK_ROLES. Kept so it can be switched
+  --               back once the ranks exist.
+  ROLE_SOURCE = "assigned",
+  -- The guild master is always rank index 0 in GetGuildRosterInfo / GetGuildInfo (measured? see API_NOTES).
+  GUILD_MASTER_RANK_INDEX = 0,
+  -- The roles the guild master can assign. "admin" can never be granted from the addon.
+  ASSIGNABLE_ROLES = { "member", "rl", "council" },
+
+  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder ranks until Nrage
+  -- defines its own; a rank that is not listed here is treated as "member". Only used when ROLE_SOURCE = "rank".
   RANK_ROLES = {
     gm = "admin",
     officer = "admin",
@@ -47,12 +63,38 @@ ns.Constants = {
     alter = "member",
   },
 
-  -- BETA ONLY, remove before release (issue #25). Characters that get every permission, as if they
-  -- were the guild master. Compared by name, ignoring case and spaces, and only for guild members.
-  BETA_ADMIN_ENABLED = true,
-  -- "Yonemon Gg" is the full name (Forever names can have several words). "Yonemon" is what UnitName
-  -- gives, used until the guild roster has told the addon the full name.
-  BETA_ADMIN_NAMES = { "Yonemon Gg", "Yonemon" },
+  -- The beta list of admins by character name is gone: nobody is an admin because of who they are, only because they
+  -- hold the guild master rank. The flag stays false so a stale reference cannot turn it on (issue #25).
+  BETA_ADMIN_ENABLED = false,
+
+  -- Recipes (the Professions tab, plan 3.10). A profession list is sent in messages of at most RECIPE_CHUNK ids (a
+  -- message
+  -- is limited to MAX_ENCODED_BYTES); a list has at most RECIPES_MAX_PER_PROFESSION ids and RECIPE_PARTS_MAX parts. A
+  -- receiver keeps at most RECIPE_PROFESSIONS_MAX professions for each of RECIPE_MEMBERS_MAX members, and at most
+  -- RECIPE_STAGING_MAX half-received lists (in memory). After a profession window changes, it is scanned again
+  -- RECIPE_SCAN_DELAY_SECONDS later (the client fires its events several times while the list loads).
+  RECIPE_CHUNK = 150,
+  RECIPES_MAX_PER_PROFESSION = 3000,
+  RECIPE_PARTS_MAX = 20,
+  RECIPE_ID_MAX = 10000000,
+  RECIPE_PROFESSION_ID_MAX = 1000000,
+  RECIPE_PROFESSIONS_MAX = 12,
+  RECIPE_MEMBERS_MAX = 500,
+  RECIPE_STAGING_MAX = 100,
+  RECIPE_SCAN_DELAY_SECONDS = 2,
+  -- After login the saved recipe lists are sent once, after a random delay in this range.
+  RECIPE_LOGIN_SEND_DELAY_MIN = 30,
+  RECIPE_LOGIN_SEND_DELAY_MAX = 60,
+  -- The Professions tab shows at most this many recipes, and this many crafters with an "Ask" button each.
+  RECIPE_RESULTS_MAX = 100,
+  RECIPE_ASK_MAX = 3,
+
+  -- Raid rosters (teams): definitions and the roster and role of each member, both set by the guild master and synced.
+  ROSTERS_MAX = 20,
+  ROSTER_NAME_MAX = 30,
+  MEMBER_ASSIGNMENTS_MAX = 1000,
+  -- A snapshot carries at most this many member assignments (scaled down with the events when it is too big).
+  MEMBER_SNAPSHOT_MAX = 300,
 
   -- Guild roster cache: bounded, rebuilt in chunks so a big guild never stalls the UI.
   GUILD_ROSTER_MAX = 1000,

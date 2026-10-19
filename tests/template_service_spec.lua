@@ -5,6 +5,8 @@ local function load_modules()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/TemplateService",
@@ -18,7 +20,8 @@ local ns = load_modules()
 local Service, EventService, Constants = ns.TemplateService, ns.EventService, ns.Constants
 
 local function build_ctx(role)
-  local ctx = { events = {}, tombstones = {}, role = role or "rl", actor = "Leader-Realm", clock = 1000 }
+  local ctx =
+    { events = {}, tombstones = {}, role = role or "rl", actor = "Leader-Realm", rosterId = "r1", clock = 1000 }
   local counter = 0
   ctx.now = function()
     return ctx.clock

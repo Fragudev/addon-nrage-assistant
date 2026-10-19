@@ -17,14 +17,25 @@ ruleset**; on any other character the addon switches itself off and says why onc
 Only three commands exist: `/nrage` (opens the window), `/nrage help` (this short list) and `/nrage debug ...`
 (diagnostics for developers).
 
-## Language
+## The window and the settings
 
-The addon speaks Spanish when your game client is in Spanish (Spain or Latin America) and English for every other
-client language. There is no setting: it follows the client. Everything you read is translated: the window, the
-messages after each action, the readiness checklist, your profile, the reports and the sync state. The exceptions
-are the output of `/nrage debug ...`, which is for developers, the names of brands and of game items, the words you
-type yourself (a role, a rule's name) and what goes over the wire, which is always the same, so players on different
-languages see the same data.
+The window has a header (logo, version, a pill that shows the sync state, the gear and the close button), a sidebar
+with one entry per tab (grouped under *Guild* and, for the guild master, *Admin*) and your character card at the
+bottom, and the page of the selected tab. Drag the header to move it and the corner to resize it; the size and
+position are remembered.
+
+The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
+
+- **Language**: *Automatic (game language)*, *Español* or *English*. Automatic follows the game client: Spanish on a
+  Spanish client (Spain or Latin America), English on any other. The window is drawn again at once when you change it.
+- **Show the minimap button**, and **Button position** with *Reset* to put it back in its default place.
+- **Blacklist alert sound**: when it is off, a listed player in your group still shows the chat line and the
+  warning, but plays no sound.
+
+Everything you read is translated: the window, the messages after each action, the readiness checklist, your profile,
+the reports and the sync state. The exceptions are the output of `/nrage debug ...`, which is for developers, the
+names of brands and of game items, the words you type yourself (a role, a rule's name) and what goes over the wire,
+which is always the same, so players on different languages see the same data.
 
 ## The minimap button
 
@@ -35,25 +46,32 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
   queue. It reads only what the addon already holds, so it is safe during an encounter.
 - A small **warning mark** on the button means the silent self test, run a few seconds after login, found
   something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
-- **Right click** opens a menu with a shortcut to each tab and a *Request a sync* entry.
-- On the **Home** tab, under *Settings*, you can hide it or show it again, and put it back in its default place.
-  The position and whether it is hidden are saved for your whole account.
+- **Right click** opens a dark menu with the tabs you can open (the same list as the sidebar) and the settings.
+- In the **settings** (the gear of the window) you can hide it or show it again, and put it back in its default
+  place. The position and whether it is hidden are saved for your whole account.
 - The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
 - The button only shows on characters where the addon is active.
 
 ## What you can do, by role
 
-Your role comes from your **guild rank**. The addon never trusts what a message says about its sender: every
-client checks the sender's rank in its own copy of the guild roster.
+The **guild master is the only admin**. They are recognised by holding rank index 0 of the guild, never by the name
+of the character or of the rank, and nobody can be made admin from inside the addon. Every other role is **assigned
+by the guild master** in the *Members* tab, together with a roster, and shared with the whole guild; whoever has not
+been assigned anything is a member. The addon never trusts what a message says about its sender: every client checks
+the sender against its own copy of the guild roster and of the assignments.
 
 | Role | Who | Can |
 |---|---|---|
-| member | any rank not listed below | see shared data, edit and publish your own sheet, put yourself forward for loot, add players to the blacklist |
-| rl | raid leaders | everything a member can, plus create and edit events, record attendance, manage assignments |
-| council | loot council | everything a member can, plus open loot sessions, vote and award |
-| admin | guild master and officers | everything above, plus moderation and removing players from the blacklist |
+| member | everybody the guild master did not assign a role to | see shared data, edit and publish your own sheet, put yourself forward for loot (in your roster), add players to the blacklist |
+| rl | raid leaders, assigned | everything a member can, plus create and edit events, record attendance and manage assignments, only for the events of their own roster |
+| council | loot council, assigned | everything a member can, plus open loot sessions, vote and award, only for the sessions of their own roster |
+| admin | the guild master | everything above for every roster, plus managing rosters and roles, the readiness rules, moderation and removing players from the blacklist |
 
-The rank names are placeholders until the guild defines its own. Ranks that are not mapped count as member.
+**Rosters.** The guild master defines the rosters (teams) and puts each player in at most one. A player sees the
+events, reports and loot of their own roster only (events made before rosters existed stay visible to every
+member who has a roster until the guild master assigns one); a player with no roster sees none and is told to ask
+for one. The guild master can look at any roster, or all of them, with the roster selector. This is a filter in the
+window, not a lock: the raid data still reaches every member with the addon (see `docs/PRIVACY.md`).
 
 ## Your sheet (profile)
 
@@ -70,7 +88,9 @@ Your sheet is shared with the guild automatically, with no switch: after you log
 It holds your class, level, item level, professions and skill, and your declared role and main. Your declared
 **notes stay on this computer**, and so do the enchants and buffs that the readiness checks read from your character.
 
-- The Profile tab lists exactly what is shared and what stays private. *Publish now* sends it at once.
+- The Profile tab lists exactly what is shared and what stays private. There is no publish button: a change to your
+  gear, level or professions is shared a few seconds after it happens (a change made right after another one waits
+  for the short pause between publications and is then sent by itself).
 - What other clients already received cannot be taken back.
 
 **Addon messages are not private.** Anyone in the guild running the addon can read what you publish.
@@ -84,12 +104,16 @@ for example `1/3 met, 2 unknown`. An item nobody has confirmed is `unknown`, and
 Manual items are confirmed from a dropdown on the same tab (the score updates at once). A `waived` item leaves the
 score but stays visible.
 
+The checklist keeps itself up to date: while the Readiness tab (or the readiness card of Home) is on screen it is
+read again when your auras, gear, level or skills change, so a flask that ran out stops counting as met without you
+doing anything. Nothing about your readiness is sent to the guild.
+
 The rules are the same for the whole guild and only an admin can change them. Until the guild sets its own, the
 starting list applies (level 60, item level, role, consumables and enchants). Items measured from the game
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
-Admins (guild master and officers) also see a **Rules** tab, which nobody else gets. It lists the rules in force with a
+The guild master also sees a **Rules** tab, which nobody else gets. It lists the rules in force with a
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
@@ -133,9 +157,11 @@ listed, so unknown data never improves or worsens anyone's numbers. Planned and 
 
 ### Moving data around
 
-- **Export** shows a text (starting with `NRAGE1:`) with all events, attendance, assignments, loot awards and
-  deletions. Select it and copy it anywhere.
-- **Import** takes such a text and merges it into your data. Only raid leaders and admins see it. Pasted text is
+- **Export** opens a window over the dimmed addon with a text (starting with `NRAGE1:`) with all events, attendance,
+  assignments, loot awards and deletions. The text is selected: press Ctrl+C to copy it (an addon cannot write to the
+  clipboard). Escape closes the window.
+- **Import** opens a window with an empty box: paste the text (Ctrl+V) and press *Import*. The result shows in the
+  banner of the main window. Only raid leaders and admins see it. Pasted text is
   checked exactly like data received over the guild channel: it never overwrites newer edits, and importing the same
   text twice changes nothing. Imported data stays on your client.
 
@@ -144,21 +170,23 @@ listed, so unknown data never improves or worsens anyone's numbers. Planned and 
 Sessions belong to a raid event. They are opened **after the encounter**: while chat messaging is locked down
 the addon refuses, because the session could not be announced.
 
-When a session opens, everyone in the guild with the addon gets the **Nrage Loot** popup with the item and the
-buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared role (or your
-class) as the spec; nothing is sent before that. The popup never appears during an encounter lockdown (it waits),
-it does not pop up for sessions that were already open when you logged in, and closing it counts as passing.
+When a session opens, the members of that event's roster (and the guild master) get the **Nrage Loot** card with
+the item and the buttons *Main spec*, *Off spec*, *Other* and *Pass*. A click puts you forward with your declared
+role (or your class) as the spec; nothing is sent before that. Several items stack in the same card (the newest on
+top, three at a time, the rest scroll) and a thin bar under each one shows the time left. The card never appears
+during an encounter lockdown (it waits) and does not pop up for sessions that were already open when you logged in.
+*Hide* (the cross) puts it away without passing: the items come back with the next session or from the Loot tab.
 An item you do not answer is passed on after 60 seconds (only on your screen; nothing is sent).
 The Loot tab remains for choosing a different spec or adding an upgrade.
 
 GM, Officer and RL ranks also get the **Nrage Loot Council** voting window, which opens by itself when a session
-opens. It lists the candidates (name, rank, response, upgrade and votes) with *Vote* and *Award* buttons, a
-reason field for the award, *Close without awarding*, and a row of items (icon, name and the usual item tooltip
-on hover) to switch between them. Click a column title to sort by it (again to reverse), and use *Show* to see
-only main spec, off spec or other. *Award* asks you to click *Confirm* before it gives the item away. Votes follow
+opens. It shows the same candidates table as the Loot tab (name, response, spec, upgrade and votes) with *Vote* and
+*Award* buttons, *Close without awarding*, and, when several sessions are open, a list on the left to switch between
+them. Click a column title to sort by it (again to reverse), and use the dropdown to see only main spec, off spec
+or other. *Award* asks for a reason and then *Confirm award* before it gives the item away. Votes follow
 the guild's visibility setting, and the window waits during an encounter lockdown. The Loot tab has an
-*Open the voting window* button to bring it back. Hovering a name lists what that person has already won. The
-item's level and slot show under its name when the client knows them. It does not show equipped gear yet.
+*Open the voting window* button to bring it back. The item's level and slot show under its name
+when the client knows them. It does not show equipped gear yet.
 Windows remember where you leave them and how big they are.
 
 The **Loot** tab does all of this from the window. Pick the event, and each session shows its item, candidates,
@@ -221,6 +249,18 @@ saved. There are no switches: all your kills are always shared with the guild.
 - The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
   available and nothing is shown or sent.
 
+## Professions
+
+The **Professions** tab (Guild group) answers "who can craft this?". Type part of a recipe name in the search box,
+optionally pick a profession, and the table lists the members that know it, with the ones online first. **Ask** puts
+a whisper in your chat box ("Could you craft me ...?"); you send it with Enter. Tick **Connected only** to hide
+members who are offline.
+
+Recipes are shared automatically: open each of your professions once and the addon reads the list the client shows
+and sends it to the guild. It sends again only when the recipes change. The **My professions** card shows when each
+profession was last read and tells you to open it again after your skill changes. If the client does not allow
+reading recipes, the tab says so and you can still search what others share.
+
 ## Blacklist
 
 The **Blacklist** tab is a guild-wide list of players the guild wants to be warned about. It is shared with every
@@ -253,8 +293,12 @@ The **Home** tab shows the sync state. While an encounter is in progress the gam
 everything you change waits in a queue and is sent when the encounter ends: the addon says
 `sync paused: encounter in progress`.
 
-A member who logs in late asks the guild for the latest raid data; a raid leader or admin answers by whisper.
-*Request a sync* on the Home tab (or in the minimap button's menu) asks again, at most once a minute.
+Syncing is always automatic and there is no button for it: your sheet is shared after login and whenever it
+changes, raid, loot, PvP and blacklist changes are sent as they are made, and a member who logs in late asks the
+guild for the latest raid data by itself (a raid leader or the guild master answers by whisper). The header pill shows
+what is happening: *Sync ready*, *Sync paused* during an encounter, or how many messages are queued. For
+troubleshooting, `/nrage debug sync` asks again (at most once a minute) and `/nrage debug publish` sends your sheet at
+once; they are not needed in normal use.
 
 ## Troubleshooting
 
@@ -272,4 +316,4 @@ A member who logs in late asks the guild for the latest raid data; a raid leader
 |---|---|
 | `/nrage` | opens the window, where everything else is done |
 | `/nrage help` | this short list |
-| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp` |
+| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp` |
