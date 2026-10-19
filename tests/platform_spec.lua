@@ -179,6 +179,7 @@ describe("Platform.GetGuildRosterEntry", function()
         level = 60,
         class = "WARRIOR",
         guid = "Player-1-ABC",
+        online = true,
       }, entry)
     end)
   end)

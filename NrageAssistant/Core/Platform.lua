@@ -20,10 +20,27 @@ function Platform.GetGuildName()
   return name
 end
 
--- Rank name of the player in their own guild, or nil.
+-- Rank name of the player in their own guild, then the rank index (0 is the guild master), or nil.
+-- The index is the third value of GetGuildInfo; whether Forever returns it is not measured yet (API_NOTES).
 function Platform.GetOwnGuildRank()
-  local _, rankName = GetGuildInfo("player")
-  return rankName
+  local _, rankName, rankIndex = GetGuildInfo("player")
+  if type(rankIndex) ~= "number" then
+    rankIndex = nil
+  end
+  return rankName, rankIndex
+end
+
+-- true when the client says the player is the guild master, false when it says not, nil when it cannot say
+-- (no such API, or it raised). Not measured on Forever yet (API_NOTES); the rank index is the primary source.
+function Platform.IsGuildLeader()
+  if not IsGuildLeader then
+    return nil
+  end
+  local ok, leader = pcall(IsGuildLeader)
+  if not ok or type(leader) ~= "boolean" then
+    return nil
+  end
+  return leader
 end
 
 -- Asks the server for a fresh guild roster; the answer arrives as GUILD_ROSTER_UPDATE.
@@ -38,13 +55,25 @@ function Platform.GetNumGuildMembers()
   return total or 0
 end
 
--- { name, rankName, rankIndex, level, class, guid } for roster row `index`, or nil.
+-- { name, rankName, rankIndex, level, class, guid, online } for roster row `index`, or nil. `online` is the ninth
+-- value of GetGuildRosterInfo (isOnline); it is nil when the client does not give a boolean there.
 function Platform.GetGuildRosterEntry(index)
-  local name, rankName, rankIndex, level, _, _, _, _, _, _, class, _, _, _, _, _, guid = GetGuildRosterInfo(index)
+  local name, rankName, rankIndex, level, _, _, _, _, online, _, class, _, _, _, _, _, guid = GetGuildRosterInfo(index)
   if not name then
     return nil
   end
-  return { name = name, rankName = rankName, rankIndex = rankIndex, level = level, class = class, guid = guid }
+  if type(online) ~= "boolean" then
+    online = nil
+  end
+  return {
+    name = name,
+    rankName = rankName,
+    rankIndex = rankIndex,
+    level = level,
+    class = class,
+    guid = guid,
+    online = online,
+  }
 end
 
 function Platform.GetFaction()
@@ -131,19 +160,26 @@ function Platform.GetAverageItemLevel()
   return math.floor(equipped)
 end
 
--- List of { name, skill, max }; empty when the client has no profession API.
+-- List of { name, skill, max, secondary }; empty when the client has no profession API. `secondary` is true for
+-- the slots after the two primary ones (archaeology, fishing, cooking). Whether Forever fills those slots is not
+-- measured yet (API_NOTES): when it does not, only the primary professions are listed.
 function Platform.GetProfessions()
   local result = {}
   if not (GetProfessions and GetProfessionInfo) then
     return result
   end
   -- Up to five slots (two primary, archaeology, fishing, cooking); empty slots are nil.
-  local indexes = { GetProfessions() }
+  local ok, indexes = pcall(function()
+    return { GetProfessions() }
+  end)
+  if not ok then
+    return result
+  end
   for slot = 1, 5 do
     if indexes[slot] then
-      local name, _, skill, maxSkill = GetProfessionInfo(indexes[slot])
-      if name then
-        result[#result + 1] = { name = name, skill = skill, max = maxSkill }
+      local read, name, _, skill, maxSkill = pcall(GetProfessionInfo, indexes[slot])
+      if read and name and type(skill) == "number" then
+        result[#result + 1] = { name = name, skill = skill, max = maxSkill, secondary = slot > 2 or nil }
       end
     end
   end
@@ -576,6 +612,180 @@ function Platform.ParseHonorVictim(text)
     end
   end
   return nil
+end
+
+-- The group APIs "Fill from current group" needs. None is measured on Forever yet (API_NOTES, P0): the feature is
+-- offered only when every one of them exists, and it works with whatever names GetGroupMemberNames can read.
+function Platform.GroupApiAvailable()
+  return IsInGroup ~= nil and IsInRaid ~= nil and GetNumGroupMembers ~= nil and GetRaidRosterInfo ~= nil
+end
+
+-- The names of everybody in the current group, the player included, without duplicates. Empty when not grouped or
+-- when nothing is readable. In a party the client lists the others only, so the player is added from the identity.
+function Platform.GetFullGroupNames()
+  local names, seen = {}, {}
+  if not Platform.IsInGroup() then
+    return names
+  end
+  local function add(name)
+    if type(name) == "string" and name ~= "" and not seen[name] then
+      seen[name] = true
+      names[#names + 1] = name
+    end
+  end
+  for _, name in ipairs(Platform.GetGroupMemberNames()) do
+    add(name)
+  end
+  add(Platform.GetIdentityKey())
+  return names
+end
+
+-- Recipes (the Professions tab). The profession API of Mainline only lists recipes while a profession window is
+-- open, and nothing here is measured on Forever yet (API_NOTES, P0). Every call is guarded, and the tab ships
+-- disabled when this says false.
+function Platform.RecipeScanAvailable()
+  local api = C_TradeSkillUI
+  return type(api) == "table"
+    and type(api.GetAllRecipeIDs) == "function"
+    and type(api.GetRecipeInfo) == "function"
+    and type(api.GetBaseProfessionInfo) == "function"
+end
+
+-- Reads the recipes the player has learned in the profession window that is open now:
+--   { professionId = skill line id, professionName = text, ids = { recipe ids } }
+-- or nil plus a reason: "unavailable" (no API), "not_open" (no window or no profession data), "linked" (it is
+-- somebody else's profession, a linked one or an NPC crafter: never scanned), "unreadable" (secret or invalid data).
+function Platform.ScanKnownRecipes()
+  if not Platform.RecipeScanAvailable() then
+    return nil, "unavailable"
+  end
+  local api = C_TradeSkillUI
+  for _, check in ipairs({ "IsTradeSkillLinked", "IsTradeSkillGuild", "IsNPCCrafting" }) do
+    if type(api[check]) == "function" then
+      local ok, other = pcall(api[check])
+      if ok and other == true then
+        return nil, "linked"
+      end
+    end
+  end
+  local ok, scanned = pcall(function()
+    local info = api.GetBaseProfessionInfo()
+    if type(info) ~= "table" or type(info.professionID) ~= "number" or info.professionID < 1 then
+      return nil
+    end
+    local all = api.GetAllRecipeIDs()
+    if type(all) ~= "table" then
+      return nil
+    end
+    local ids = {}
+    for _, recipeId in ipairs(all) do
+      local recipe = api.GetRecipeInfo(recipeId)
+      if type(recipe) == "table" and recipe.learned == true and type(recipeId) == "number" then
+        ids[#ids + 1] = recipeId
+      end
+    end
+    return {
+      professionId = info.professionID,
+      professionName = type(info.professionName) == "string" and info.professionName or tostring(info.professionID),
+      ids = ids,
+    }
+  end)
+  if not ok then
+    return nil, "unreadable"
+  end
+  if not scanned then
+    return nil, "not_open"
+  end
+  return scanned
+end
+
+-- { name, icon, link } the client knows for a recipe id, each field only when readable. The name comes from the
+-- recipe info, else from the spell the recipe teaches; the link is the crafted item's when the client says it.
+function Platform.GetRecipeInfo(recipeId)
+  if type(recipeId) ~= "number" then
+    return nil
+  end
+  local result = {}
+  local api = C_TradeSkillUI
+  if type(api) == "table" and type(api.GetRecipeInfo) == "function" then
+    local ok, recipe = pcall(api.GetRecipeInfo, recipeId)
+    if ok and type(recipe) == "table" then
+      result.name = type(recipe.name) == "string" and recipe.name or nil
+      result.icon = recipe.icon
+    end
+  end
+  if type(api) == "table" and type(api.GetRecipeOutputItemData) == "function" then
+    local ok, data = pcall(api.GetRecipeOutputItemData, recipeId)
+    if ok and type(data) == "table" and type(data.hyperlink) == "string" then
+      result.link = data.hyperlink
+    end
+  end
+  if not result.name then
+    local ok, name, icon = pcall(function()
+      if C_Spell and C_Spell.GetSpellInfo then
+        local spell = C_Spell.GetSpellInfo(recipeId)
+        return spell and spell.name, spell and spell.iconID
+      elseif GetSpellInfo then
+        local spellName, _, spellIcon = GetSpellInfo(recipeId)
+        return spellName, spellIcon
+      end
+    end)
+    if ok and type(name) == "string" then
+      result.name = name
+      result.icon = result.icon or icon
+    end
+  end
+  return next(result) and result or nil
+end
+
+-- Opens the chat edit box with `text` typed in, so the player decides whether to press Enter. The addon never
+-- sends a whisper itself. false when the client has no such call (not measured on Forever yet).
+function Platform.CanPrefillChat()
+  return (ChatFrameUtil ~= nil and ChatFrameUtil.OpenChat ~= nil) or ChatFrame_OpenChat ~= nil
+end
+
+function Platform.PrefillChat(text)
+  if type(text) ~= "string" then
+    return false
+  end
+  local open = (ChatFrameUtil and ChatFrameUtil.OpenChat) or ChatFrame_OpenChat
+  if not open then
+    return false
+  end
+  local ok = pcall(open, text)
+  return ok
+end
+
+-- The items in the loot window that is open now: a list of { slot, link, name, icon } for the item slots whose
+-- link is readable. Nil when the client has no loot window API. Item links can arrive as secret values; those
+-- slots are left out. Not measured on Forever yet (API_NOTES, P0): the "last boss loot" strip ships only when
+-- this answers.
+function Platform.LootWindowAvailable()
+  return GetNumLootItems ~= nil and GetLootSlotLink ~= nil
+end
+
+function Platform.GetLootWindowItems()
+  if not Platform.LootWindowAvailable() then
+    return nil
+  end
+  local ok, items = pcall(function()
+    local list = {}
+    for slot = 1, GetNumLootItems() do
+      local link = GetLootSlotLink(slot)
+      if type(link) == "string" and link:find("|Hitem:", 1, true) then
+        local icon, name
+        if GetLootSlotInfo then
+          icon, name = GetLootSlotInfo(slot)
+        end
+        list[#list + 1] = { slot = slot, link = link, name = type(name) == "string" and name or nil, icon = icon }
+      end
+    end
+    return list
+  end)
+  if not ok then
+    return nil
+  end
+  return items
 end
 
 ns.Platform = Platform
