@@ -94,11 +94,13 @@ describe("Platform.GetProfessions", function()
         return 1, nil, 3, 4
       end,
       GetProfessionInfo = function(index)
-        return "Prof" .. index, nil, index * 10, 300
+        -- Prof3 comes with no icon, Prof4 with an unusable one.
+        local icon = ({ [1] = 136240, [4] = {} })[index]
+        return "Prof" .. index, icon, index * 10, 300
       end,
     }, function()
       assert.are.same({
-        { name = "Prof1", skill = 10, max = 300 },
+        { name = "Prof1", icon = 136240, skill = 10, max = 300 },
         { name = "Prof3", skill = 30, max = 300, secondary = true },
         { name = "Prof4", skill = 40, max = 300, secondary = true },
       }, load_platform().GetProfessions())
@@ -110,6 +112,23 @@ describe("Platform.GetProfessions", function()
       GetProfessionInfo = function() end,
     }, function()
       assert.are.same({}, load_platform().GetProfessions())
+    end)
+  end)
+
+  it("remembers the icon by profession name, for a profile received from a member", function()
+    with_globals({
+      GetProfessions = function()
+        return 1
+      end,
+      GetProfessionInfo = function()
+        return "Alchemy", 136240, 10, 300
+      end,
+    }, function()
+      local platform = load_platform()
+      assert.is_nil(platform.ProfessionIcon("Alchemy"))
+      platform.GetProfessions()
+      assert.are.equal(136240, platform.ProfessionIcon("Alchemy"))
+      assert.is_nil(platform.ProfessionIcon("Mining"))
     end)
   end)
 end)

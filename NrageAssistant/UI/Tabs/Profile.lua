@@ -75,7 +75,7 @@ local function professionBlock(card, caption, list)
   Kit.Label(card, { text = caption, style = "small", color = "muted" })
   local stats = {}
   for _, profession in ipairs(list) do
-    stats[#stats + 1] = { caption = profession.name, value = profession.text }
+    stats[#stats + 1] = { caption = profession.name, value = profession.text, icon = profession.icon }
   end
   Kit.StatGrid(card, { columns = math.min(#stats, 4), stats = stats })
 end

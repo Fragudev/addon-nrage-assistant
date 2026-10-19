@@ -123,7 +123,7 @@ local function build(rank, locale)
     end,
     GetProfessions = function()
       return {
-        { name = "Alchemy", skill = 300, max = 300 },
+        { name = "Alchemy", icon = 136240, skill = 300, max = 300 },
         { name = "Cooking", skill = 20, max = 300, secondary = true },
       }
     end,
@@ -579,6 +579,19 @@ describe("Window smoke test", function()
       assert.is_truthy(text:find("Not published yet", 1, true))
       assert.is_nil(env.find(profile, "Button", "Publish now"))
       assert.is_nil(env.find(profile, "Button", "Save"))
+    end)
+
+    it("puts the icon of each profession before its name, and nothing when the client gave none", function()
+      env = build("Member")
+      local profile = env.open("profile")
+      local stats = {}
+      for _, grid in ipairs(FakeKit.find_all(profile, "StatGrid")) do
+        for _, stat in ipairs(grid.opts.stats) do
+          stats[stat.caption] = stat
+        end
+      end
+      assert.are.equal(136240, stats.Alchemy.icon)
+      assert.is_nil(stats.Cooking.icon)
     end)
 
     it("saves the specs when they change and publishes, saying so", function()
@@ -1253,6 +1266,43 @@ describe("Window smoke test: PvP", function()
     env.press("Confirm: reset")
     assert.are.same({ "ResetPvP:Ann-Realm" }, env.sent)
     assert.is_truthy(env.banner().opts.text:find("PvP counters of Ann-Realm reset", 1, true))
+  end)
+
+  it("lets the ranking table size its columns to their text, so no header or figure is cut", function()
+    env = build("GM")
+    env.ns.db.global.pvpStats = {
+      ["Ann-Realm"] = { honor = { world = 30, bg = 20 }, blows = { world = 5, bg = 1 }, updatedAt = 900, rev = 1 },
+    }
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    local tbl = FakeKit.find_all(env.page(), "Table")[1]
+    assert.is_true(tbl.opts.fit)
+    local fitted = {}
+    for _, column in ipairs(tbl.opts.columns) do
+      fitted[column.key] = column.fit == true
+    end
+    -- The name takes what is left; every figure and the short texts are measured.
+    assert.is_false(fitted.name)
+    for _, key in ipairs({ "position", "rank", "world", "bg", "total", "blows", "updated" }) do
+      assert.is_true(fitted[key], key)
+    end
+    -- The reset button follows its (longer, in Spanish) text instead of a fixed width.
+    assert.are.equal("auto", env.find(env.page(), "Button", "Reset PvP counters").opts.layout.width)
+    -- The footer notes wrap.
+    for _, label in ipairs(FakeKit.find_all(env.page(), "Label")) do
+      if label.opts.style == "small" then
+        assert.is_true(label.opts.wrap, label.opts.text)
+      end
+    end
+  end)
+
+  it("shows a kill that is too long for its row whole in a tooltip", function()
+    env = build("Member")
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("feed")
+    for _, row in ipairs(FakeKit.find(env.page(), "List").opts.rows) do
+      assert.is_true(row.tooltipWhenCut)
+    end
   end)
 
   it("lists the recent kills with a killing blow badge, and says when there are none or the feed is off", function()

@@ -142,15 +142,43 @@ Kit.Define("KeyValue", {
   end,
 })
 
--- A muted caption over a 14-15px value. opts: caption, value, color (token of the value), classToken.
+-- A plain texture (a game icon, such as a profession's), cropped a little to hide the border baked into the art. An
+-- unknown texture draws nothing but keeps its room, so rows stay aligned. opts: texture (fileID or path), size.
+Kit.Define("Picture", {
+  create = function(obj)
+    obj.texture = obj.frame:CreateTexture(nil, "ARTWORK")
+    obj.texture:SetAllPoints(obj.frame)
+    obj.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  end,
+  apply = function(obj, opts)
+    obj.size = opts.size or 16
+    obj.texture:SetTexture(opts.texture)
+    obj.texture:SetShown(opts.texture ~= nil)
+  end,
+  layout = function(obj)
+    return obj.size
+  end,
+  natural = function(obj)
+    return obj.size
+  end,
+})
+
+local STAT_ICON, STAT_ICON_GAP = 16, 6
+
+-- A muted caption over a 14-15px value. opts: caption, value, color (token of the value), classToken, icon (a
+-- texture shown before the caption). Caption and value wrap onto more lines when they do not fit the width, so a
+-- long translation is never cut; the block grows taller instead.
 Kit.Define("StatBlock", {
   create = function(obj)
+    obj.icon = obj.frame:CreateTexture(nil, "ARTWORK")
+    obj.icon:SetSize(STAT_ICON, STAT_ICON)
+    obj.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     obj.caption = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.value = obj.frame:CreateFontString(nil, "OVERLAY")
-    obj.caption:SetPoint("TOPLEFT")
-    obj.value:SetPoint("TOPLEFT", obj.caption, "BOTTOMLEFT", 0, -3)
     obj.caption:SetJustifyH("LEFT")
+    obj.caption:SetJustifyV("TOP")
     obj.value:SetJustifyH("LEFT")
+    obj.value:SetJustifyV("TOP")
   end,
   apply = function(obj, opts)
     obj.caption:SetFontObject(Theme.StyleFont("small"))
@@ -159,23 +187,45 @@ Kit.Define("StatBlock", {
     setColor(obj.value, opts.color or "text")
     obj.caption:SetText(opts.caption or "")
     obj.value:SetText(opts.value or "")
-    obj.caption:SetWordWrap(false)
-    obj.value:SetWordWrap(false)
+    obj.caption:SetWordWrap(true)
+    obj.value:SetWordWrap(true)
+    obj.hasIcon = opts.icon ~= nil
+    obj.indent = obj.hasIcon and (STAT_ICON + STAT_ICON_GAP) or 0
+    obj.icon:ClearAllPoints()
+    if obj.hasIcon then
+      obj.icon:SetTexture(opts.icon)
+      obj.icon:SetPoint("TOPLEFT", 0, -math.floor((Theme.LineHeight("small") - STAT_ICON) / 2))
+      obj.icon:Show()
+    else
+      obj.icon:Hide()
+    end
+    obj.caption:ClearAllPoints()
+    obj.caption:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", obj.indent, 0)
+    obj.value:ClearAllPoints()
+    obj.value:SetPoint("TOPLEFT", obj.caption, "BOTTOMLEFT", 0, -3)
   end,
   layout = function(obj, width)
-    obj.caption:SetWidth(width)
-    obj.value:SetWidth(width)
-    return Theme.LineHeight("small") + Theme.LineHeight("value") + 3
+    local textWidth = math.max(1, width - obj.indent)
+    obj.caption:SetWidth(textWidth)
+    obj.value:SetWidth(textWidth)
+    local captionHeight = math.max(Theme.LineHeight("small"), math.ceil(obj.caption:GetStringHeight() or 0))
+    if obj.hasIcon then
+      captionHeight = math.max(captionHeight, STAT_ICON)
+    end
+    local valueHeight = math.max(Theme.LineHeight("value"), math.ceil(obj.value:GetStringHeight() or 0))
+    obj.caption:SetHeight(captionHeight)
+    obj.value:SetHeight(valueHeight)
+    return captionHeight + valueHeight + 3
   end,
 })
 
--- Stat blocks in a grid. opts: columns, stats = { { caption, value, color } ... }.
+-- Stat blocks in a grid. opts: columns, stats = { { caption, value, color, icon } ... }.
 Kit.Define("StatGrid", {
   apply = function(obj, opts)
     obj.columns = math.max(1, opts.columns or #(opts.stats or {}))
     obj.gap, obj.rowGap = 16, 14
     for _, stat in ipairs(opts.stats or {}) do
-      Kit.StatBlock(obj, { caption = stat.caption, value = stat.value, color = stat.color })
+      Kit.StatBlock(obj, { caption = stat.caption, value = stat.value, color = stat.color, icon = stat.icon })
     end
   end,
   layout = function(obj, width)

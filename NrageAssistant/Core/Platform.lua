@@ -163,6 +163,14 @@ end
 -- List of { name, skill, max, secondary }; empty when the client has no profession API. `secondary` is true for
 -- the slots after the two primary ones (archaeology, fishing, cooking). Whether Forever fills those slots is not
 -- measured yet (API_NOTES): when it does not, only the primary professions are listed.
+-- The icon of each profession seen on this client, by name, so a profession read from another member's profile can
+-- show the same icon. Icons are local only: they are never part of a published profile.
+local professionIcons = {}
+
+function Platform.ProfessionIcon(name)
+  return professionIcons[name]
+end
+
 function Platform.GetProfessions()
   local result = {}
   if not (GetProfessions and GetProfessionInfo) then
@@ -177,9 +185,15 @@ function Platform.GetProfessions()
   end
   for slot = 1, 5 do
     if indexes[slot] then
-      local read, name, _, skill, maxSkill = pcall(GetProfessionInfo, indexes[slot])
+      local read, name, icon, skill, maxSkill = pcall(GetProfessionInfo, indexes[slot])
       if read and name and type(skill) == "number" then
-        result[#result + 1] = { name = name, skill = skill, max = maxSkill, secondary = slot > 2 or nil }
+        if type(icon) ~= "number" and type(icon) ~= "string" then
+          icon = nil
+        end
+        if icon ~= nil then
+          professionIcons[name] = icon
+        end
+        result[#result + 1] = { name = name, icon = icon, skill = skill, max = maxSkill, secondary = slot > 2 or nil }
       end
     end
   end
