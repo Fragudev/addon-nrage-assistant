@@ -1,0 +1,65 @@
+.luacheckrc
+  s_7166cdd3303912::t_ac024dbcdd21fe 29-31
+NrageAssistant/Locales/esES.lua
+  s_7166cdd3303912::t_b14564b6894c9b 452-454
+NrageAssistant/Media/Fonts/OFL.txt
+  s_7166cdd3303912::t_125bad4b5be950 1-93
+NrageAssistant/NrageAssistant.toc
+  s_7166cdd3303912::t_8696479a4d3617 55-64
+NrageAssistant/UI/Kit/Controls.lua
+  s_7166cdd3303912::t_aff2d1c977c50d 1-741
+NrageAssistant/UI/Kit/Core.lua
+  s_7166cdd3303912::t_e0b81953a39ca7 1-413
+NrageAssistant/UI/Kit/Data.lua
+  s_7166cdd3303912::t_0c2398972e6b06 1-409
+NrageAssistant/UI/Kit/Shell.lua
+  s_7166cdd3303912::t_097c6b198ffc26 1-938
+NrageAssistant/UI/Kit/Text.lua
+  s_7166cdd3303912::t_342f3f7ed9376e 1-392
+README.md
+  s_7166cdd3303912::t_11c0c2c91381f0 92-99
+tests/kit_helpers_spec.lua
+  s_7166cdd3303912::t_987cc8d2d1aa0b 1-339
+tests/kit_widgets_spec.lua
+  s_7166cdd3303912::t_42deb355a18032 1-842
+tests/support/fake_frames.lua
+  s_7166cdd3303912::t_89a56022c6a33e 1-228
+tests/support/fake_kit.lua
+  s_7166cdd3303912::t_ac82d63c067c68 1-285
+NrageAssistant/UI/Kit/Calendar.lua
+  s_2a961e4931e22b::t_90d6db20c0b79c 1-109
+NrageAssistant/UI/Kit/Icons.lua
+  s_2a961e4931e22b::t_3591aa7ac1726e 1-90
+NrageAssistant/UI/Kit/Pixel.lua
+  s_2a961e4931e22b::t_75a00d81a26eb7 1-91
+NrageAssistant/UI/Kit/Theme.lua
+  s_2a961e4931e22b::t_eb729dcd681a83 1-228
+NrageAssistant/UI/Kit/Util.lua
+  s_2a961e4931e22b::t_3fd543325c3c88 1-133
+tools/make_icons.py
+  s_2a961e4931e22b::t_c07512d0913933 1-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48c764c08a296820da5eb757b5e4fc120ca3859a",
+  "prompts": {},
+  "sessions": {
+    "s_2a961e4931e22b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a095da82e985b52a3",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_7166cdd3303912": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "db29a196-d1d0-485b-a006-6ae5c84f28b3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
