@@ -1,0 +1,97 @@
+.luacheckrc
+  s_71004c7ac410ca::t_e7e869d17c4283 20,34-35,68,70,73
+NrageAssistant/Commands/Slash.lua
+  s_71004c7ac410ca::t_db183f807fb91c 88-89,104-107
+NrageAssistant/Core/Constants.lua
+  s_71004c7ac410ca::t_b6b0fb118bf27d 21,176-198
+NrageAssistant/Core/Init.lua
+  s_71004c7ac410ca::t_441d34efe8dbe1 204-346,385
+NrageAssistant/Core/LayerProbe.lua
+  s_71004c7ac410ca::t_f3fbc353ca8995 1-209
+NrageAssistant/Core/Platform.lua
+  s_71004c7ac410ca::t_5a6d338e3f5372 581-672
+NrageAssistant/Core/Store.lua
+  s_71004c7ac410ca::t_301476401bb9aa 4
+NrageAssistant/Domain/LayerDirectory.lua
+  s_71004c7ac410ca::t_ffac248c34d41f 1-111
+NrageAssistant/Domain/LayerModel.lua
+  s_71004c7ac410ca::t_cacce06b6fa694 1-66
+NrageAssistant/Domain/LayerPublisher.lua
+  s_71004c7ac410ca::t_72cddcfdc8dade 1-80
+NrageAssistant/Domain/LayerSwap.lua
+  s_71004c7ac410ca::t_90e8726917fb87 1-508
+NrageAssistant/Domain/LayerTracker.lua
+  s_71004c7ac410ca::t_8a4f730a0ab31e 1-116
+NrageAssistant/Domain/PermissionService.lua
+  s_71004c7ac410ca::t_c03282d45acbdd 19-20
+NrageAssistant/Locales/esES.lua
+  s_71004c7ac410ca::t_d2c950014bfb4a 243,453-507
+NrageAssistant/NrageAssistant.toc
+  s_71004c7ac410ca::t_fd8ac9dab9e41f 23,44-48,59,65
+NrageAssistant/Sync/Comm.lua
+  s_71004c7ac410ca::t_32a7088156057e 15,39-42,242-244,441-451,518-534
+NrageAssistant/Sync/LayerSync.lua
+  s_71004c7ac410ca::t_a9ecb616f0ae6e 1-67
+NrageAssistant/Sync/Protocol.lua
+  s_71004c7ac410ca::t_7fb7e636be47d6 354-393,433-434
+NrageAssistant/UI/LayerPopup.lua
+  s_71004c7ac410ca::t_17e1de064341a7 1-213
+NrageAssistant/UI/Main.lua
+  s_71004c7ac410ca::t_bdf33f2e6fc6bc 160-184,1081-1160,1296,1315-1317
+NrageAssistant/UI/ViewModel.lua
+  s_71004c7ac410ca::t_a082878d7f176e 1010-1204,1212,1412-1414
+README.md
+  s_71004c7ac410ca::t_f4dc94ac906d47 33,41,48
+docs/API_NOTES.md
+  s_71004c7ac410ca::t_0d1ad23b072788 37-38,49-73
+docs/LAYER_SWAP_PLAN.md
+  s_71004c7ac410ca::t_12b4c091350625 1-305
+docs/PRIVACY.md
+  s_71004c7ac410ca::t_b85e75e3ec1dc9 26,79-86
+docs/PROTOCOL.md
+  s_71004c7ac410ca::t_f93ccba80421e4 58-59,133-158
+docs/USER_GUIDE.md
+  s_71004c7ac410ca::t_6196ec81dce8fe 250-273,299
+tests/comm_spec.lua
+  s_71004c7ac410ca::t_daa63220124f5a 30,1588-1707
+tests/constants_spec.lua
+  s_71004c7ac410ca::t_b7429865a438ae 86-98
+tests/layer_directory_spec.lua
+  s_71004c7ac410ca::t_610d65077332b2 1-118
+tests/layer_model_spec.lua
+  s_71004c7ac410ca::t_4a758160097327 1-97
+tests/layer_popup_spec.lua
+  s_71004c7ac410ca::t_ff0995b9851f74 1-214
+tests/layer_publisher_spec.lua
+  s_71004c7ac410ca::t_2922dce3db42fc 1-144
+tests/layer_swap_spec.lua
+  s_71004c7ac410ca::t_5d2741262be71d 1-763
+tests/layer_sync_spec.lua
+  s_71004c7ac410ca::t_d17ceea7daf9e3 1-122
+tests/layer_tracker_spec.lua
+  s_71004c7ac410ca::t_e09b207e23c826 1-170
+tests/platform_spec.lua
+  s_71004c7ac410ca::t_46c254e4de0063 828-1057
+tests/protocol_spec.lua
+  s_71004c7ac410ca::t_55c0cb5462e5a7 660-661,740-836
+tests/ui_smoke_spec.lua
+  s_71004c7ac410ca::t_a382b28aeccce4 104,178-180,1573-1705
+tests/view_model_spec.lua
+  s_71004c7ac410ca::t_3f09e6b0ff8083 16,134,140,152-153,1626-1786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebeea51942b77d93f2cebf1e3269b6a7ff32d4ba",
+  "prompts": {},
+  "sessions": {
+    "s_71004c7ac410ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cce9a7cd-b2eb-4cf0-99bf-5284c0db1075",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
