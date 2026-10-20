@@ -1,0 +1,19 @@
+NrageAssistant/Commands/PvPSeasonCommands.lua
+  s_96b53beb93db33::t_5d97016434568b 194-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9547d03a8da58ee0276050777162e71534f639ee",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
