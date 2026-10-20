@@ -10,8 +10,8 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 11", function()
-    assert.are.equal(11, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 12", function()
+    assert.are.equal(12, ns.Constants.SCHEMA_VERSION)
   end)
 
   it("takes roles from assignments, with the guild master as the only admin", function()

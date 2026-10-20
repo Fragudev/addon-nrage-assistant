@@ -5,9 +5,11 @@ local _, ns = ...
 --                 blacklistSound, layer, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
 --                 blacklist = {}, readinessRules = { rev, updatedAt, updatedBy, rules },
 --                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
---                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } } }
---   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {},
---                             pvpSync = { rev } }
+--                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
+--                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
+--                               deliveries } (see PvPSeasonSync) }
+--   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
+--                             pvpSync = { rev }, pvpMissions = { seasonId, kills = {}, claims = {} } }
 local Store = {}
 
 local function ensureTable(parent, key)
@@ -88,6 +90,31 @@ local MIGRATIONS = {
       end
     end
   end,
+  -- v12: the PvP season ledger (see PvPSeasonSync) and the per-character mission log. activeId stays nil until an
+  -- admin creates a season.
+  [12] = function(db)
+    local global = ensureTable(db, "global")
+    local season = ensureTable(global, "pvpSeason")
+    for _, name in ipairs({
+      "seasons",
+      "missions",
+      "prizes",
+      "officers",
+      "grants",
+      "voids",
+      "rejects",
+      "queue",
+      "finals",
+      "deliveries",
+    }) do
+      ensureTable(season, name)
+    end
+    for _, char in pairs(ensureTable(db, "chars")) do
+      if type(char) == "table" then
+        ensureTable(char, "pvpMissions")
+      end
+    end
+  end,
 }
 
 local function versionOf(db)
@@ -124,6 +151,9 @@ function Store.GetChar(db, identityKey)
   ensureTable(char, "publish")
   ensureTable(char, "pvp")
   ensureTable(char, "recipes")
+  local missions = ensureTable(char, "pvpMissions")
+  ensureTable(missions, "kills")
+  ensureTable(missions, "claims")
   local sync = ensureTable(char, "pvpSync")
   if type(sync.rev) ~= "number" or sync.rev < 0 or sync.rev % 1 ~= 0 then
     sync.rev = 0

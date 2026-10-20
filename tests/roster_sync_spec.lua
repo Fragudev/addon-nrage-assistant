@@ -72,9 +72,9 @@ local function deliver(receiver, messageType, payload, sender, role)
 end
 
 describe("Protocol roster messages", function()
-  it("is at protocol 1.6", function()
+  it("is at protocol 1.7", function()
     assert.are.equal(1, Constants.PROTOCOL_MAJOR)
-    assert.are.equal(6, Constants.PROTOCOL_MINOR)
+    assert.are.equal(7, Constants.PROTOCOL_MINOR)
   end)
 
   it("accepts a clean roster upsert and delete, and drops unknown fields", function()
