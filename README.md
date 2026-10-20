@@ -30,7 +30,7 @@ Click the minimap button, or type `/nrage`, to open the window: everything is do
 |---|---|
 | `/nrage` | open the window |
 | `/nrage help` | the list of commands |
-| `/nrage debug ...` | diagnostics for developers (`selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp`) |
+| `/nrage debug ...` | diagnostics for developers (`selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp`, `layer`) |
 
 ## Documentation
 
@@ -38,13 +38,14 @@ Click the minimap button, or type `/nrage`, to open the window: everything is do
 - [Sync protocol](docs/PROTOCOL.md)
 - [Privacy and data](docs/PRIVACY.md)
 - [Client API notes](docs/API_NOTES.md)
+- [Layer swap plan](docs/LAYER_SWAP_PLAN.md)
 
 ## Repository layout
 
 ```text
 NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
-  Domain/                Profile, readiness, events, loot, permissions, reports, templates, diagnostics
+  Domain/                Profile, readiness, events, loot, permissions, reports, templates, layers, diagnostics
   Sync/                  Codec, protocol, inbox and outbound queue, event and loot sync, snapshot, import/export
   UI/                    Window (AceGUI) and its view model
   Commands/              Slash commands

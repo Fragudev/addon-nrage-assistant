@@ -23,6 +23,7 @@ secret store.
 | Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
 | PvP counters received from other members | the guild channel |
 | Recent guild kills (killer, victim, place), in memory only | the guild channel, and your own kills |
+| Your layer, and the layers other members share, in memory only | read from the creatures you target, and the guild channel |
 | The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
@@ -74,6 +75,14 @@ of the text export.
 Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
 publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are
 visible to everyone** while a session is open.
+
+## Your layer
+
+The layer you are on is coarse location data. It is read from the creatures you target or mouse over, kept **in
+memory only** (never saved), shared with the guild only, and forgotten by everyone after 15 minutes without a new
+message. **Share my layer** (Layers tab, on by default) stops sharing it: the addon then tells the guild once to
+forget you and sends nothing more. With sharing off you can still ask for a swap: the request carries the layer you
+want, not the one you are on. A guildmate who answers a request tells the requester that they are on that layer.
 
 ## Taking data back
 

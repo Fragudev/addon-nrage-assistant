@@ -657,8 +657,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 4", function()
-    assert.are.equal(4, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 5", function()
+    assert.are.equal(5, Constants.PROTOCOL_MINOR)
   end)
 end)
 
@@ -735,5 +735,102 @@ describe("Protocol.Validate BLACKLIST_UPSERT and BLACKLIST_DELETE", function()
 
   it("keeps the fields of a delete", function()
     assert.are.same({ key = "ann", rev = 2 }, validate_delete({ key = "ann", rev = 2, extra = true }).p)
+  end)
+end)
+
+describe("Protocol.Validate LAYER_STATE", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("LAYER_STATE", payload, "ly-1"))
+  end
+
+  it("accepts a layer and drops unknown fields", function()
+    local m = validate({ map = 1, layer = 4321, owner = "Someone" })
+    assert.are.same({ map = 1, layer = 4321 }, m.p)
+  end)
+
+  it("accepts layer 0, which means forget me", function()
+    assert.is_truthy(validate({ map = 0, layer = 0 }))
+  end)
+
+  it("rejects values out of range or not whole numbers", function()
+    for _, bad in ipairs({
+      { map = -1, layer = 5 },
+      { map = 10000, layer = 5 },
+      { map = 1, layer = -1 },
+      { map = 1, layer = 2147483648 },
+      { map = 1.5, layer = 5 },
+      { map = 1, layer = "5" },
+      { map = 1 },
+      { layer = 5 },
+    }) do
+      local _, reason = validate(bad)
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+end)
+
+describe("Protocol.Validate LAYER_SWAP", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("LAYER_SWAP", payload, "sw-1"))
+  end
+
+  it("accepts a request for a layer", function()
+    local m = validate({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222, extra = 1 })
+    assert.are.same({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222 }, m.p)
+  end)
+
+  it("accepts an offer without anything else", function()
+    assert.are.same({ rid = "a1", s = "offer" }, validate({ rid = "a1", s = "offer", map = 3, helper = "X" }).p)
+  end)
+
+  it("accepts an assign that names a helper, including a multi-word name", function()
+    assert.are.same(
+      { rid = "a1", s = "assign", helper = "Yonemon Gg" },
+      validate({ rid = "a1", s = "assign", helper = "Yonemon Gg" }).p
+    )
+  end)
+
+  it("accepts a close with each outcome", function()
+    for _, outcome in ipairs({ "done", "expired", "cancelled", "declined", "unconfirmed" }) do
+      assert.are.same({ rid = "a1", s = "close", o = outcome }, validate({ rid = "a1", s = "close", o = outcome }).p)
+    end
+  end)
+
+  it("rejects a bad step, outcome or id", function()
+    for _, bad in ipairs({
+      { rid = "a1", s = "other" },
+      { rid = "a1", s = 4 },
+      { rid = "a1" },
+      { s = "offer" },
+      { rid = "a:1", s = "offer" },
+      { rid = "", s = "offer" },
+      { rid = "a1", s = "close" },
+      { rid = "a1", s = "close", o = "won" },
+      { rid = "a1", s = "close", o = 3 },
+    }) do
+      local _, reason = validate(bad)
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+
+  it("rejects a request without a valid target", function()
+    for _, bad in ipairs({
+      { rid = "a1", s = "request" },
+      { rid = "a1", s = "request", map = 0, layer = 0 },
+      { rid = "a1", s = "request", map = 10000, layer = 5 },
+      { rid = "a1", s = "request", map = 0, layer = 2147483648 },
+      { rid = "a1", s = "request", map = "0", layer = 5 },
+    }) do
+      local _, reason = validate(bad)
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+
+  it("rejects an assign whose helper is not plain text", function()
+    for _, bad in ipairs({ "", "|cffff0000Red|r", "line\nbreak", string.rep("a", 200) }) do
+      local _, reason = validate({ rid = "a1", s = "assign", helper = bad })
+      assert.are.equal("bad_payload", reason)
+    end
+    assert.are.equal("bad_payload", select(2, validate({ rid = "a1", s = "assign" })))
   end)
 end)

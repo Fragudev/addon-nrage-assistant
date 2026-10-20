@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
---   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp },
+--   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, layer, windows },
 --                 sync = { seen, tombstones }, pvpStats = {}, pvpResets = {}, blacklist = {},
 --                 readinessRules = { rev, updatedAt, updatedBy, rules } }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {},

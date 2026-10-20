@@ -12,6 +12,7 @@ Comm.__index = Comm
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional),
+--       layerDirectory, layerSwap and onLayerChange(messageType) (all optional),
 --       roleOf(sender) -> role or nil, ownRole() -> role or nil, snapshotInbox (optional),
 --       version (string), now() -> seconds, schedule(delaySeconds, fn), random(low, high) -> number
 function Comm.New(deps)
@@ -35,6 +36,10 @@ function Comm.New(deps)
     onBlacklistChange = deps.onBlacklistChange,
     readinessRules = deps.readinessRules or {},
     onRulesChange = deps.onRulesChange,
+    -- The layer directory and swap flow are in memory and created after Comm (Init.StartLayer sets them).
+    layerDirectory = deps.layerDirectory,
+    layerSwap = deps.layerSwap,
+    onLayerChange = deps.onLayerChange,
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
@@ -234,6 +239,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.BlacklistSync.IsBlacklistMessage(message.t) then
     return self:HandleBlacklist(sender, message)
   end
+  if ns.LayerSync.IsLayerMessage(message.t) then
+    return self:HandleLayer(sender, message)
+  end
   -- SYNC_DATA is only ever accepted as a whisper.
   return false, "wrong_channel"
 end
@@ -430,6 +438,17 @@ function Comm:HandleReadinessRules(sender, message)
   return ok, reason
 end
 
+-- LAYER_STATE and LAYER_SWAP: live only, nothing is saved. The sender's role is read from the local guild roster and
+-- the actor is always the sender, never a payload field.
+function Comm:HandleLayer(sender, message)
+  local ctx = { directory = self.layerDirectory, swap = self.layerSwap }
+  local ok, reason = ns.LayerSync.Apply(ctx, message, sender, self.roleOf(sender))
+  if ok and self.onLayerChange then
+    self.onLayerChange(message.t)
+  end
+  return ok, reason
+end
+
 -- A kill for the guild feed: nothing is stored here. The killer is the sender (never a payload field); the
 -- sender must be a known guild member who may publish PvP data. The feed decides what to show.
 function Comm:HandlePvPKill(sender, payload)
@@ -494,6 +513,23 @@ function Comm:SendPvPKill(payload)
     return false, "locked"
   end
   return self:Send("PVP_KILL", payload)
+end
+
+-- The own layer (or `layer = 0`, "forget me"). Live only, like a kill: refused during the lockdown instead of waiting,
+-- because the next republication carries the latest layer anyway. Keyed, so it never piles up.
+function Comm:SendLayerState(payload)
+  if not self.queue.guard:CanSend() then
+    return false, "locked"
+  end
+  return self:Send("LAYER_STATE", payload, "LY")
+end
+
+-- One step of a layer swap. Never queued: a step that is old by the time the encounter ends is not news.
+function Comm:SendLayerSwap(payload)
+  if not self.queue.guard:CanSend() then
+    return false, "locked"
+  end
+  return self:Send("LAYER_SWAP", payload)
 end
 
 -- Admin only: resets a member. The reset is applied here first (own messages are never received), then told to

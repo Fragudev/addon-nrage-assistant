@@ -101,6 +101,7 @@ local function load_window(locale)
     "Domain/ProfileService",
     "Domain/PublishService",
     "Domain/BlacklistService",
+    "Domain/LayerModel",
     "Domain/ReportService",
     "UI/ViewModel",
     "UI/MinimapButton",
@@ -172,6 +173,9 @@ local function build(rank, locale)
     GetEquippedEnchants = function() end,
     GetActiveBuffs = function() end,
     IsChatMessagingLockedDown = function()
+      return false
+    end,
+    IsInInstance = function()
       return false
     end,
     GetItemIcon = function(itemId)
@@ -1564,5 +1568,138 @@ describe("Controls that replace the slash commands", function()
       env.find(pvp, "Button", "Confirm").callbacks.OnClick()
       assert.are.same({ "ResetPvP:Ann-Realm" }, env.sent)
     end)
+  end)
+end)
+
+describe("Layers tab", function()
+  local env, requested, share
+
+  local function labels(root)
+    local found = {}
+    walk(root, function(widget)
+      if widget.kind == "Label" and widget.props.text then
+        found[#found + 1] = widget.props.text
+      end
+    end)
+    return table.concat(found, "\n")
+  end
+
+  local function install(options)
+    options = options or {}
+    env.ns.layerTracker = {
+      Current = function()
+        return options.own
+      end,
+    }
+    env.ns.layerDirectory = {
+      Groups = function()
+        return { { map = 0, layer = 5678, members = { "Ann-Realm" }, count = 1 } }
+      end,
+    }
+    env.ns.layerSwap = {
+      CanRequest = function()
+        return options.canRequest ~= false, options.reason
+      end,
+      Status = function()
+        return options.status
+      end,
+      Request = function(_, map, layer)
+        requested = { map, layer }
+        return options.requestOk ~= false, "busy"
+      end,
+      Cancel = function()
+        requested = "cancelled"
+      end,
+    }
+    env.ns.SetLayerShare = function(value)
+      share = value
+    end
+  end
+
+  before_each(function()
+    env = build("RL")
+    requested, share = nil, nil
+  end)
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("says the feature is not available before it starts", function()
+    local tab = env.open("layers")
+    assert.is_truthy(labels(tab):find("not available", 1, true))
+    assert.is_truthy(env.find(tab, "CheckBox", "Share my layer"))
+  end)
+
+  it("lists the layers and asks for a swap with the button", function()
+    install({ own = { map = 0, layer = 1234 } })
+    local tab = env.open("layers")
+    local text = labels(tab)
+    assert.is_truthy(text:find("Your layer: #1234", 1, true))
+    assert.is_truthy(text:find("#5678", 1, true))
+    assert.is_truthy(text:find("1: Ann-Realm", 1, true))
+    local button = env.find(tab, "Button", "Request swap")
+    button.callbacks.OnClick(button)
+    assert.are.same({ 0, 5678 }, requested)
+  end)
+
+  it("explains why a button is disabled and what went wrong with a click", function()
+    install({ own = { map = 0, layer = 1234 }, canRequest = false, reason = "in_group", requestOk = false })
+    local tab = env.open("layers")
+    assert.is_truthy(labels(tab):find("you are in a group", 1, true))
+    local button = env.find(tab, "Button", "Request swap")
+    button.callbacks.OnClick(button)
+    tab = env.open("layers")
+    assert.is_truthy(labels(tab):find("Not done: a swap is already running.", 1, true))
+  end)
+
+  it("shows the running swap with a way to cancel it", function()
+    install({
+      own = { map = 0, layer = 1234 },
+      status = { role = "requester", stage = "request", map = 0, layer = 5678 },
+    })
+    local tab = env.open("layers")
+    assert.is_truthy(labels(tab):find("Looking for someone on #5678", 1, true))
+    local cancel = env.find(tab, "Button", "Cancel")
+    cancel.callbacks.OnClick(cancel)
+    assert.are.equal("cancelled", requested)
+  end)
+
+  it("switches sharing with the checkbox", function()
+    install()
+    local tab = env.open("layers")
+    local box = env.find(tab, "CheckBox", "Share my layer")
+    assert.is_true(box.props.value)
+    box.callbacks.OnValueChanged(box, "OnValueChanged", false)
+    assert.is_false(share)
+  end)
+
+  it("redraws when the layers change, at most once per interval", function()
+    install()
+    local clock = 100
+    env.ns.Platform.Now = function()
+      return clock
+    end
+    env.open("layers")
+    env.timers = nil
+    env.widgets = {}
+    env.ns.UI.LayersChanged()
+    assert.is_true(#env.widgets > 0)
+    env.widgets = {}
+    env.ns.UI.LayersChanged()
+    env.ns.UI.LayersChanged()
+    assert.are.equal(0, #env.widgets)
+    assert.are.equal(1, #env.timers)
+    clock = clock + env.ns.Constants.LAYER_REDRAW_SECONDS
+    env.timers[1]()
+    assert.is_true(#env.widgets > 0)
+  end)
+
+  it("does not redraw when the tab is not open", function()
+    install()
+    env.open("home")
+    env.widgets = {}
+    env.ns.UI.LayersChanged()
+    assert.are.equal(0, #env.widgets)
   end)
 end)

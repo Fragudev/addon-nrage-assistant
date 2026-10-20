@@ -16,6 +16,8 @@ local ACTIONS = {
   loot_open = { council = true, admin = true },
   loot_vote = { rl = true, council = true, admin = true },
   loot_award = { rl = true, council = true, admin = true },
+  -- Sharing the own layer and taking part in a layer swap: every member.
+  layer_share = { member = true, rl = true, council = true, admin = true },
   pvp_publish = { member = true, rl = true, council = true, admin = true },
   -- The blacklist is open to add to and closed to remove from: anyone can warn the guild about a player, only an
   -- admin can take the warning back.

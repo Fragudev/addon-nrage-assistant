@@ -201,6 +201,149 @@ local function StartBlacklist()
   pcall(watcher.Check, watcher)
 end
 
+-- The events the layer tracker listens to: the units whose creature GUID names the layer, and the changes that end
+-- or move it. Each is registered on its own, so a client that does not know one keeps the others.
+local LAYER_UNIT_EVENTS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
+local LAYER_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
+local LAYER_WORLD_EVENTS = { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE" }
+
+local layerStarted = false
+
+-- The "Share my layer" switch: on publishes the layer at once, off tells the guild to forget it.
+function ns.SetLayerShare(share)
+  ns.LayerModel.Settings(ns.db).share = share == true
+  if ns.layerPublisher then
+    if share then
+      ns.layerPublisher:Changed()
+    else
+      ns.layerPublisher:Forget()
+    end
+  end
+  ns.UI.LayersChanged()
+end
+
+-- Own frame. Runs once: access can be lost and regained. Everything the client has to say is guarded, so a wrong
+-- assumption about layers (docs/API_NOTES.md) leaves the feature quietly unavailable instead of raising.
+local function StartLayer()
+  if layerStarted then
+    return
+  end
+  layerStarted = true
+  local platform = ns.Platform
+  local function isLocked()
+    return not ns.lockdown:CanSend()
+  end
+
+  local swap, publisher
+  local tracker = ns.LayerTracker.New({
+    now = platform.Now,
+    isInInstance = platform.IsInInstance,
+    onChange = function(current)
+      publisher:Changed()
+      swap:OnLayerConfirmed(current)
+      ns.UI.LayersChanged()
+    end,
+  })
+  local function ownLayer()
+    return tracker:Current()
+  end
+  local directory = ns.LayerDirectory.New({
+    now = platform.Now,
+    isMember = function(name)
+      local roster = ns.guildRoster
+      return roster == nil or not roster:IsReady() or roster:Lookup(name) ~= nil
+    end,
+  })
+  publisher = ns.LayerPublisher.New({
+    now = platform.Now,
+    schedule = C_Timer.After,
+    send = function(payload)
+      return ns.comm:SendLayerState(payload)
+    end,
+    current = ownLayer,
+    enabled = function()
+      return ns.LayerModel.Settings(ns.db).share
+    end,
+  })
+  swap = ns.LayerSwap.New({
+    now = platform.Now,
+    schedule = C_Timer.After,
+    send = function(payload)
+      return ns.comm:SendLayerSwap(payload)
+    end,
+    isLocked = isLocked,
+    ownName = platform.GetIdentityKey,
+    newId = function()
+      return ns.comm:NextId()
+    end,
+    ownLayer = ownLayer,
+    eligibility = ns.LayerSwap.Eligibility(platform, ownLayer, isLocked),
+    invite = function(name)
+      local ok, reason = platform.InviteByName(name)
+      ns.LayerProbe.Note(
+        "invite",
+        ("InviteByName('%s') -> %s %s"):format(tostring(name), tostring(ok), tostring(reason))
+      )
+      return ok, reason
+    end,
+    leave = function()
+      local ok, reason = platform.LeaveGroup()
+      ns.LayerProbe.Note("leave", ("LeaveGroup() -> %s %s"):format(tostring(ok), tostring(reason)))
+      return ok, reason
+    end,
+    onJoined = function(t)
+      tracker:ResetSince(t)
+    end,
+    onChange = function()
+      ns.UI.LayersChanged()
+      ns.LayerPopup.Refresh()
+    end,
+  })
+  ns.layerTracker, ns.layerDirectory, ns.layerSwap, ns.layerPublisher = tracker, directory, swap, publisher
+  ns.comm.layerDirectory, ns.comm.layerSwap = directory, swap
+  ns.comm.onLayerChange = ns.UI.LayersChanged
+  ns.LayerPopup.Start()
+
+  local layerFrame = CreateFrame("Frame")
+  for event in pairs(LAYER_UNIT_EVENTS) do
+    platform.TryRegisterEvent(layerFrame, event)
+  end
+  platform.TryRegisterEvent(layerFrame, LAYER_NAMEPLATE_EVENT)
+  for _, event in ipairs(LAYER_WORLD_EVENTS) do
+    platform.TryRegisterEvent(layerFrame, event)
+  end
+  local wasGrouped = platform.IsInGroup()
+  layerFrame:SetScript("OnEvent", function(_, event, arg1)
+    if not ns.active then
+      return
+    end
+    local unit = LAYER_UNIT_EVENTS[event] or (event == LAYER_NAMEPLATE_EVENT and arg1) or nil
+    if unit then
+      local guid = platform.GetUnitGUID(unit)
+      if guid then
+        tracker:Observe(guid)
+      end
+      return
+    end
+    tracker:Expire()
+    if event == "GROUP_ROSTER_UPDATE" then
+      local grouped = platform.IsInGroup()
+      if grouped and not wasGrouped then
+        swap:OnGroupJoined()
+      end
+      wasGrouped = grouped
+    end
+    ns.UI.LayersChanged()
+  end)
+
+  -- The layer is sent again now and then, so a member who logs in later learns it.
+  C_Timer.NewTicker(Constants.LAYER_REPUBLISH_SECONDS, function()
+    if ns.active then
+      publisher:Tick()
+    end
+  end)
+end
+
 -- The profile is shared with the guild without a switch (issue #36): once after login, when the roster has had time
 -- to load, and again whenever what would be shared differs from what was last sent.
 local function StartAutoPublish()
@@ -239,6 +382,7 @@ local function Activate()
   ns.VotingFrame.Start()
   StartPvP()
   StartBlacklist()
+  StartLayer()
   StartAutoPublish()
   ScheduleSelfTest()
   print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))

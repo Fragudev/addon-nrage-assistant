@@ -157,6 +157,31 @@ function UI.BlacklistChanged()
   Redraw()
 end
 
+local layersDrawnAt
+local layersDrawPending = false
+
+-- Called when the own layer, a received layer or the swap changed: the Layers tab is drawn again if it is the one on
+-- screen, at most once per interval like the PvP tab (a whole guild logging in sends one state each).
+function UI.LayersChanged()
+  if not (frame and currentTab == "layers") then
+    return
+  end
+  local now = ns.Platform.Now()
+  local wait = layersDrawnAt and (ns.Constants.LAYER_REDRAW_SECONDS - (now - layersDrawnAt)) or 0
+  if wait > 0 then
+    if not layersDrawPending then
+      layersDrawPending = true
+      C_Timer.After(wait, function()
+        layersDrawPending = false
+        UI.LayersChanged()
+      end)
+    end
+    return
+  end
+  layersDrawnAt = now
+  Redraw()
+end
+
 local function EscapeAll(lines)
   local escaped = {}
   for index, line in ipairs(lines) do
@@ -1053,6 +1078,86 @@ local function DrawPvP(container)
   sub:SelectTab(allowed and pvpSubTab or "mine")
 end
 
+-- Layers tab: the own layer, the "Share my layer" switch, the layers of this continent with a button to ask for a
+-- swap, and the swap that is running. The rules (and the disabled reasons) come from ViewModel.LayersView; the
+-- request itself is LayerSwap:Request, which checks them again.
+local LAYER_COLUMNS = { label = 0.22, names = 0.43, button = 0.35 }
+
+local function DrawLayers(container)
+  local tracker, directory, swap = ns.layerTracker, ns.layerDirectory, ns.layerSwap
+  local settings = ns.LayerModel.Settings(ns.db)
+  local own = tracker and tracker:Current() or nil
+  local canRequest, reason
+  if swap then
+    canRequest, reason = swap:CanRequest()
+  end
+  local view = ns.ViewModel.LayersView({
+    own = own,
+    inInstance = ns.Platform.IsInInstance() == true,
+    share = settings.share,
+    ownName = ns.Platform.GetIdentityKey(),
+    groups = directory and directory:Groups(own and own.map or nil) or {},
+    swap = swap and swap:Status() or nil,
+    canRequest = canRequest,
+    reason = reason,
+    available = swap ~= nil,
+  })
+
+  if actionMessage then
+    AddLines(container, { ns.ViewModel.Escape(actionMessage), "" })
+  end
+  AddLines(container, { view.yourLayer, "" })
+  local box = LibStub("AceGUI-3.0"):Create("CheckBox")
+  box:SetLabel(L("Share my layer"))
+  box:SetValue(view.share)
+  box:SetCallback("OnValueChanged", function(_, _, value)
+    ns.SetLayerShare(value)
+  end)
+  container:AddChild(box)
+  if view.hint then
+    AddLines(container, { view.hint })
+    return
+  end
+
+  AddHeading(container, L("Layers on this continent"))
+  for _, row in ipairs(view.rows) do
+    AddCell(container, row.label, LAYER_COLUMNS.label)
+    AddCell(container, ("%d: %s"):format(row.count, row.names), LAYER_COLUMNS.names)
+    if row.button then
+      local button = LibStub("AceGUI-3.0"):Create("Button")
+      button:SetText(L("Request swap"))
+      button:SetRelativeWidth(LAYER_COLUMNS.button)
+      button:SetDisabled(not row.enabled)
+      button:SetCallback("OnClick", function()
+        local ok, why = swap:Request(row.map, row.layer)
+        if not ok then
+          Report({ L("Not done: ") .. ns.ViewModel.LayerReason(why) })
+        end
+      end)
+      container:AddChild(button)
+      if row.reason then
+        AddLines(container, { "  " .. row.reason })
+      end
+    else
+      AddCell(container, "", LAYER_COLUMNS.button)
+    end
+  end
+  if view.swapLine then
+    AddHeading(container, L("Current swap"))
+    AddLines(container, { view.swapLine })
+    if view.cancelText then
+      AddButton(container, view.cancelText, 0.3, function()
+        swap:Cancel()
+      end)
+    end
+  end
+  AddLines(container, {
+    "",
+    L("The layer is read from the creatures you target or mouse over, and shared with the guild only."),
+    L("A swap needs a guildmate on that layer to invite you; leaving the group afterwards is your choice."),
+  })
+end
+
 -- Blacklist tab: a form to add a player (open to everyone) and the list, with a Remove button on each row only
 -- for a role that may remove (the receiver checks the role again, so hiding the button is only convenience).
 local BLACKLIST_COLUMNS = { name = 0.22, reason = 0.4, added = 0.25, remove = 0.13 }
@@ -1188,6 +1293,7 @@ local DRAWERS = {
   raid = DrawRaid,
   loot = DrawLoot,
   pvp = DrawPvP,
+  layers = DrawLayers,
   blacklist = DrawBlacklist,
   roster = DrawRoster,
   rules = DrawRules,
@@ -1206,7 +1312,9 @@ local function OnTabSelected(container, _, group)
 
   local AceGUI = LibStub("AceGUI-3.0")
   local scroll = AceGUI:Create("ScrollFrame")
-  scroll:SetLayout((group == "raid" or group == "blacklist" or group == "rules") and "Flow" or "List")
+  scroll:SetLayout(
+    (group == "raid" or group == "blacklist" or group == "rules" or group == "layers") and "Flow" or "List"
+  )
   container:SetLayout("Fill")
   container:AddChild(scroll)
   DRAWERS[group](scroll)

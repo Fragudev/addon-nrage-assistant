@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 4,
+  PROTOCOL_MINOR = 5,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -172,6 +172,29 @@ ns.Constants = {
   BLACKLIST_REASON_MAX = 100,
   BLACKLIST_SNAPSHOT_MAX = 200,
   BLACKLIST_REDRAW_SECONDS = 1,
+
+  -- Layers. A layer is read from creature GUIDs (LayerModel); a new one is confirmed after LAYER_CONFIRM_READINGS
+  -- readings from different spawns, and a reading or a received state is stale after LAYER_STATE_TTL. The own layer
+  -- is sent when it changes and every LAYER_REPUBLISH_SECONDS, at most once per LAYER_PUBLISH_MIN_SECONDS.
+  -- "Unmeasured" values (plan sections 1.1 and 3.2) are defaults until they are measured in game.
+  LAYER_CONFIRM_READINGS = 2,
+  LAYER_READINGS_MAX = 12,
+  LAYER_STATE_TTL = 900,
+  LAYER_REPUBLISH_SECONDS = 300,
+  LAYER_PUBLISH_MIN_SECONDS = 30,
+  LAYER_MAP_MAX = 9999,
+  LAYER_ID_MAX = 2147483647,
+  -- Swap flow timeouts (seconds) and the age after which a swap whose close message was lost is dropped.
+  LAYER_REQUEST_TIMEOUT = 60,
+  LAYER_ASSIGN_TIMEOUT = 90,
+  LAYER_CONFIRM_TIMEOUT = 120,
+  LAYER_SWAP_MAX_AGE = 300,
+  -- A swap popup that cannot be shown during a lockdown tries again after this long.
+  LAYER_POPUP_RETRY_SECONDS = 5,
+  -- A redraw of the Layers tab because of a received state waits at least this long after the previous one.
+  LAYER_REDRAW_SECONDS = 1,
+  -- A party holds five players.
+  LAYER_PARTY_SIZE = 5,
 
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,

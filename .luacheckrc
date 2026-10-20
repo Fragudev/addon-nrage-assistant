@@ -17,6 +17,7 @@ read_globals = {
   "C_ChatInfo",
   "C_Club",
   "C_GuildInfo",
+  "C_PartyInfo",
   "C_Item",
   "GetInventoryItemLink",
   "GetLocale",
@@ -30,6 +31,8 @@ read_globals = {
   "CombatLogGetCurrentEventInfo",
   "GetNumGroupMembers",
   "GetRaidRosterInfo",
+  "InCombatLockdown",
+  "InviteUnit",
   "IsInGroup",
   "IsInRaid",
   "PlaySound",
@@ -62,9 +65,12 @@ read_globals = {
   "UISpecialFrames",
   "UnitClass",
   "UnitFactionGroup",
+  "UnitAffectingCombat",
   "UnitGUID",
+  "UnitIsGroupLeader",
   "UnitLevel",
   "UnitName",
+  "LeaveParty",
 }
 
 files["tests/"] = {

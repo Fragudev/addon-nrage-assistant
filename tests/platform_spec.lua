@@ -825,3 +825,233 @@ describe("Platform.GetActiveBuffs", function()
     }, Platform.GetActiveBuffs())
   end)
 end)
+
+describe("Platform layer and group calls", function()
+  local Layer = load_platform()
+
+  local function with(values, fn)
+    with_globals(values, fn)
+  end
+
+  it("reads the GUID of a unit, or nil when it is not a string", function()
+    with({
+      UnitGUID = function(unit)
+        return unit == "target" and "Creature-0-1-0-5-6-7" or nil
+      end,
+    }, function()
+      assert.are.equal("Creature-0-1-0-5-6-7", Layer.GetUnitGUID("target"))
+      assert.is_nil(Layer.GetUnitGUID("mouseover"))
+    end)
+    with({
+      UnitGUID = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_nil(Layer.GetUnitGUID("target"))
+    end)
+    with({ UnitGUID = false }, function()
+      assert.is_nil(Layer.GetUnitGUID("target"))
+    end)
+  end)
+
+  it("tells whether the player is in an instance, and nil when the client does not say", function()
+    with({
+      IsInInstance = function()
+        return true, "party"
+      end,
+    }, function()
+      assert.is_true(Layer.IsInInstance())
+    end)
+    with({
+      IsInInstance = function()
+        return false, "none"
+      end,
+    }, function()
+      assert.is_false(Layer.IsInInstance())
+    end)
+    with({
+      IsInInstance = function()
+        return "yes"
+      end,
+    }, function()
+      assert.is_nil(Layer.IsInInstance())
+    end)
+    with({
+      IsInInstance = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_nil(Layer.IsInInstance())
+    end)
+    with({ IsInInstance = false }, function()
+      assert.is_nil(Layer.IsInInstance())
+    end)
+  end)
+
+  it("tells whether the player is in combat", function()
+    with({
+      InCombatLockdown = function()
+        return true
+      end,
+    }, function()
+      assert.is_true(Layer.IsInCombat())
+    end)
+    with({
+      InCombatLockdown = false,
+      UnitAffectingCombat = function()
+        return 1
+      end,
+    }, function()
+      assert.is_true(Layer.IsInCombat())
+    end)
+    with({
+      InCombatLockdown = function()
+        return false
+      end,
+    }, function()
+      assert.is_false(Layer.IsInCombat())
+    end)
+    with({
+      InCombatLockdown = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_false(Layer.IsInCombat())
+    end)
+    with({ InCombatLockdown = false, UnitAffectingCombat = false }, function()
+      assert.is_false(Layer.IsInCombat())
+    end)
+  end)
+
+  it("reads the raid, the group size and the leader, guarded", function()
+    with({
+      IsInRaid = function()
+        return true
+      end,
+      IsInGroup = function()
+        return true
+      end,
+      GetNumGroupMembers = function()
+        return 3
+      end,
+      UnitIsGroupLeader = function(unit)
+        return unit == "player"
+      end,
+    }, function()
+      assert.is_true(Layer.IsInRaid())
+      assert.are.equal(3, Layer.GetGroupSize())
+      assert.is_true(Layer.IsGroupLeader())
+    end)
+    with({
+      IsInRaid = false,
+      GetNumGroupMembers = function()
+        return "many"
+      end,
+      IsInGroup = function()
+        return true
+      end,
+      UnitIsGroupLeader = false,
+    }, function()
+      assert.is_false(Layer.IsInRaid())
+      assert.are.equal(0, Layer.GetGroupSize())
+      assert.is_false(Layer.IsGroupLeader())
+    end)
+    with({
+      IsInRaid = function()
+        error("restricted")
+      end,
+      IsInGroup = function()
+        return false
+      end,
+      GetNumGroupMembers = function()
+        return 4
+      end,
+      UnitIsGroupLeader = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_false(Layer.IsInRaid())
+      assert.are.equal(0, Layer.GetGroupSize())
+      assert.is_false(Layer.IsGroupLeader())
+    end)
+    with({
+      IsInGroup = function()
+        return true
+      end,
+      GetNumGroupMembers = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.are.equal(0, Layer.GetGroupSize())
+    end)
+  end)
+
+  it("invites by name through the newest API the client has", function()
+    local invited = {}
+    with({
+      C_PartyInfo = {
+        InviteUnit = function(name)
+          invited[#invited + 1] = "new:" .. name
+        end,
+      },
+      InviteUnit = function(name)
+        invited[#invited + 1] = "old:" .. name
+      end,
+    }, function()
+      assert.is_true(Layer.InviteByName("Yonemon Gg"))
+    end)
+    with({
+      C_PartyInfo = false,
+      InviteUnit = function(name)
+        invited[#invited + 1] = "old:" .. name
+      end,
+    }, function()
+      assert.is_true(Layer.InviteByName("Ann"))
+    end)
+    assert.are.same({ "new:Yonemon Gg", "old:Ann" }, invited)
+  end)
+
+  it("reports why an invite or a leave could not be done", function()
+    with({ C_PartyInfo = false, InviteUnit = false, LeaveParty = false }, function()
+      assert.are.same({ false, "unavailable" }, { Layer.InviteByName("Ann") })
+      assert.are.same({ false, "unavailable" }, { Layer.LeaveGroup() })
+    end)
+    with({
+      C_PartyInfo = false,
+      InviteUnit = function()
+        error("needs a hardware event")
+      end,
+      LeaveParty = function()
+        error("needs a hardware event")
+      end,
+    }, function()
+      assert.are.same({ false, "error" }, { Layer.InviteByName("Ann") })
+      assert.are.same({ false, "error" }, { Layer.LeaveGroup() })
+    end)
+    for _, name in ipairs({ "", 5 }) do
+      assert.are.same({ false, "error" }, { Layer.InviteByName(name) })
+    end
+  end)
+
+  it("leaves the group through the newest API the client has", function()
+    local left = {}
+    with({
+      C_PartyInfo = {
+        LeaveParty = function()
+          left[#left + 1] = "new"
+        end,
+      },
+    }, function()
+      assert.is_true(Layer.LeaveGroup())
+    end)
+    with({
+      C_PartyInfo = false,
+      LeaveParty = function()
+        left[#left + 1] = "old"
+      end,
+    }, function()
+      assert.is_true(Layer.LeaveGroup())
+    end)
+    assert.are.same({ "new", "old" }, left)
+  end)
+end)
