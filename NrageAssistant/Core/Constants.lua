@@ -272,7 +272,7 @@ ns.Constants = {
   -- (a key for L()). The ids are from the Classic map tables and are TO BE MEASURED on Forever (plan, M1); a zone
   -- whose id turns out wrong is fixed here, nothing else depends on the list.
   PVP_MISSION_ZONES = {
-    { mapId = 1411, nameKey = "Orgrimmar" },
+    { mapId = 1454, nameKey = "Orgrimmar" },
     { mapId = 1453, nameKey = "Stormwind City" },
     { mapId = 1455, nameKey = "Ironforge" },
     { mapId = 1457, nameKey = "Darnassus" },
