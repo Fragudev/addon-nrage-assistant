@@ -3,7 +3,8 @@ local _, ns = ...
 -- The interim slash commands of the PvP seasons (`/nrage pvp ...`), for testing the ledger until the PvP tab has its
 -- own sub-tabs (docs/PVP_MISSIONS_PLAN.md, phase 4). Each method returns the lines to show, so the whole thing is
 -- testable without a client. Every action goes through PvPSeasonService, which checks the permission and sends.
---   deps: service (PvPSeasonService), formatDate (function(timestamp) -> text, optional)
+--   deps: service (PvPSeasonService), formatDate (function(timestamp) -> text, optional), missions (function() ->
+--   PvPMissionService or nil, optional: `claim` goes through it, so the claim carries the evidence of the kill log)
 local PvPSeasonCommands = {}
 PvPSeasonCommands.__index = PvPSeasonCommands
 
@@ -17,6 +18,7 @@ function PvPSeasonCommands.New(deps)
   return setmetatable({
     service = deps.service,
     formatDate = deps.formatDate or tostring,
+    missions = deps.missions,
   }, PvPSeasonCommands)
 end
 
@@ -34,6 +36,7 @@ local ERRORS = ns.Locale.Table(function()
     unchanged = L("nothing to change."),
     limit = L("limit reached."),
     inactive = L("that mission is paused."),
+    not_complete = L("the mission is not complete yet."),
     out_of_season = L("that is outside the dates of the season."),
     ["invalid:note"] = L("this mission needs a note."),
     ["invalid:name"] = L("give a plain-text name (up to 40 characters)."),
@@ -203,10 +206,14 @@ function PvPSeasonCommands:Mission(args)
 end
 
 function PvPSeasonCommands:Claim(args)
-  local claim, queued = self.service:SubmitClaim({
-    missionId = args[1] or "",
-    note = args[2] and rest(args, 2) or nil,
-  })
+  local missionId, note = args[1] or "", args[2] and rest(args, 2) or nil
+  local missions = self.missions and self.missions()
+  local claim, queued
+  if missions then
+    claim, queued = missions:Claim(missionId, note)
+  else
+    claim, queued = self.service:SubmitClaim({ missionId = missionId, note = note })
+  end
   if not claim then
     return Failure(fail(queued))
   end

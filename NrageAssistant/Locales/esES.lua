@@ -810,4 +810,5 @@ ns.Locale.Register("es", {
   ["Alterac Mountains"] = "Montañas de Alterac",
   ["Ashenvale"] = "Vallefresno",
   ["Arathi Highlands"] = "Tierras Altas de Arathi",
+  ["the mission is not complete yet."] = "la misión aún no está completa.",
 })

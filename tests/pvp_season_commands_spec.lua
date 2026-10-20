@@ -252,6 +252,36 @@ describe("PvPSeasonCommands", function()
       assert.is_truthy(admin.run("season"):find("1. Ann - 10 points", 1, true))
     end)
 
+    it("claims through the mission service when there is one, and says why it cannot", function()
+      local asked = {}
+      local answer = { nil, "not_complete" }
+      member.commands.missions = function()
+        return {
+          Claim = function(_, id, note)
+            asked[#asked + 1] = { id, note }
+            return answer[1], answer[2]
+          end,
+        }
+      end
+      local out, failed = member.run("claim " .. missionId .. " a note")
+      assert.is_true(failed)
+      assert.are.equal("the mission is not complete yet.", out)
+      assert.are.same({ { missionId, "a note" } }, asked)
+      answer = { nil, "limit" }
+      assert.are.equal("limit reached.", (member.run("claim " .. missionId)))
+      answer = { nil, "unknown_mission" }
+      assert.are.equal("that mission does not exist.", (member.run("claim x")))
+      answer = { { id = "Ann:x:all:1" }, true }
+      out, failed = member.run("claim x")
+      assert.is_false(failed)
+      assert.are.equal("claim sent for Ann:x:all:1.", out)
+      -- without the mission service the claim goes straight to the season service
+      member.commands.missions = function()
+        return nil
+      end
+      assert.is_true(select(2, member.run("claim " .. missionId)))
+    end)
+
     it("rejects a claim with a reason, and says when it cannot", function()
       member.run("claim " .. missionId .. " note")
       local payload = member.sent[1].p

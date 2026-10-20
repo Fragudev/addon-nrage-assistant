@@ -618,7 +618,13 @@ local function StartPvPSeason()
       return ns.comm:Fits(messageType, payload)
     end,
   })
-  ns.pvpSeasonCommands = ns.PvPSeasonCommands.New({ service = ns.pvpSeason, formatDate = platform.FormatDate })
+  ns.pvpSeasonCommands = ns.PvPSeasonCommands.New({
+    service = ns.pvpSeason,
+    formatDate = platform.FormatDate,
+    missions = function()
+      return ns.pvpMissions
+    end,
+  })
 end
 
 local function Activate()
