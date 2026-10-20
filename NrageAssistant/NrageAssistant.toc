@@ -32,6 +32,7 @@ Domain\Throttle.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\RosterService.lua
+Domain\PvPSeasonModel.lua
 Domain\RecipeService.lua
 Domain\EventModel.lua
 Domain\EventService.lua
