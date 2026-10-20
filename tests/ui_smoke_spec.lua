@@ -1680,6 +1680,16 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.banner().opts.text:find("Not saved", 1, true))
   end)
 
+  -- The chip text of a listed zone, as the form writes it.
+  local function zoneText(e, mapId)
+    for _, zone in ipairs(e.ns.Constants.PVP_MISSION_ZONES) do
+      if zone.mapId == mapId then
+        return e.ns.L(zone.nameKey)
+      end
+    end
+    return tostring(mapId)
+  end
+
   it("creates, edits and pauses missions from the form", function()
     env = build("GM")
     local season = seed(env)
@@ -1700,10 +1710,9 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.banner().opts.text:find("'points' is not valid", 1, true))
     edit(4, "30")
     edit(3, "7")
-    for _, box in ipairs(FakeKit.find_all(env.page(), "EditBox")) do
-      if box.opts.placeholder == "Map ids, separated by commas" then
-        box.opts.onChange("1454, 1453")
-      end
+    -- The zones come from the constant list as chips.
+    for _, mapId in ipairs({ 1454, 1453 }) do
+      FakeKit.find(env.page(), "Chip", zoneText(env, mapId)).opts.onToggle(true)
     end
     env.press("Create mission")
     assert.is_truthy(env.banner().opts.text:find("Mission saved", 1, true))
@@ -1751,7 +1760,14 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_nil(env.find(env.page(), "Button", "Add current zone"))
     goal.opts.onChange("kills")
     env.press("Add current zone")
-    assert.is_truthy(env.box("Map ids, separated by commas").opts.text:find("1453", 1, true))
+    local stormwind = FakeKit.find(env.page(), "Chip", zoneText(env, 1453))
+    assert.is_true(stormwind.opts.active)
+    -- A current zone the list does not have shows up as its own chip.
+    env.ns.Platform.GetPlayerMapId = function()
+      return 9999
+    end
+    env.press("Add current zone")
+    assert.is_true(FakeKit.find(env.page(), "Chip", "9999").opts.active)
     env.press("Cancel")
     assert.is_nil(env.find(env.page(), "Button", "Create mission"))
     env.ns.Platform.GetPlayerMapId = function()

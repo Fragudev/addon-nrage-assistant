@@ -915,32 +915,46 @@ end
 local function zonesField(parent, draft)
   local field = Kit.Field(parent, { label = L("Zones (optional)") })
   local list = ns.Constants.PVP_MISSION_ZONES
+  local row
   if list then
-    local selected = {}
-    for _, mapId in ipairs(ViewModel.PvPParseZones(draft.zones) or {}) do
-      selected[mapId] = true
+    -- The listed zones, then any selected zone the list does not have (added as the current zone), so it can be
+    -- seen and taken out again.
+    local selected = ViewModel.PvPParseZones(draft.zones) or {}
+    local isSelected, listed = {}, {}
+    for _, mapId in ipairs(selected) do
+      isSelected[mapId] = true
     end
     local flow = Kit.Flow(field, { gap = 6, rowGap = 6 })
-    for _, zone in ipairs(list) do
+    local function chip(mapId)
       Kit.Chip(flow, {
-        text = zoneName(zone.mapId) or tostring(zone.mapId),
-        active = selected[zone.mapId] == true,
+        text = zoneName(mapId) or tostring(mapId),
+        active = isSelected[mapId] == true,
         onToggle = function(active)
-          toggleZone(draft, zone.mapId, active)
+          toggleZone(draft, mapId, active)
         end,
       })
     end
-    return
+    for _, zone in ipairs(list) do
+      listed[zone.mapId] = true
+      chip(zone.mapId)
+    end
+    for _, mapId in ipairs(selected) do
+      if not listed[mapId] then
+        chip(mapId)
+      end
+    end
+    row = Kit.Row(field, { gap = 8 })
+  else
+    row = Kit.Row(field, { gap = 8 })
+    Kit.EditBox(row, {
+      text = draft.zones,
+      placeholder = L("Map ids, separated by commas"),
+      layout = { weight = 1 },
+      onChange = function(text)
+        draft.zones = text
+      end,
+    })
   end
-  local row = Kit.Row(field, { gap = 8 })
-  Kit.EditBox(row, {
-    text = draft.zones,
-    placeholder = L("Map ids, separated by commas"),
-    layout = { weight = 1 },
-    onChange = function(text)
-      draft.zones = text
-    end,
-  })
   if type(ns.Platform.GetPlayerMapId) == "function" then
     Kit.Button(row, {
       text = L("Add current zone"),
