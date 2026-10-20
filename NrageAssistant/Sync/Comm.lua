@@ -14,7 +14,9 @@ Comm.__index = Comm
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional),
 --       layerDirectory, layerSwap and onLayerChange(messageType) (all optional),
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
---       onRosterChange(messageType) (optional), roleOf(sender) -> role or nil, ownRole() -> role or nil,
+--       onRosterChange(messageType) (optional), pvpSeason (the season ledger table, see PvPSeasonSync),
+--       onPvPSeasonChange(messageType) and onPvPSeasonClosed(seasonId) (optional), ledgerInbox (optional),
+--       roleOf(sender) -> role or nil, ownRole() -> role or nil,
 --       snapshotInbox (optional), version (string), now() -> seconds, schedule(delaySeconds, fn),
 --       random(low, high) -> number
 function Comm.New(deps)
@@ -47,6 +49,15 @@ function Comm.New(deps)
     onRosterChange = deps.onRosterChange,
     recipes = deps.recipes or {},
     onRecipesChange = deps.onRecipesChange,
+    pvpSeason = deps.pvpSeason or {},
+    onPvPSeasonChange = deps.onPvPSeasonChange,
+    onPvPSeasonClosed = deps.onPvPSeasonClosed,
+    -- Ledger pages arrive in bursts (one whisper per page), so they have a limit of their own.
+    ledgerInbox = deps.ledgerInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.PVP_LEDGER_PAGES_MAX }),
+    ledgerServed = {},
+    ledgerServedCount = 0,
+    lastLedgerRequestAt = nil,
+    lastLedger = nil,
     recipeStaging = {},
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
@@ -253,6 +264,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.RosterSync.IsRosterMessage(message.t) then
     return self:HandleRoster(sender, message)
   end
+  if ns.PvPSeasonSync.IsSeasonMessage(message.t) then
+    return self:HandlePvPSeason(sender, message)
+  end
   if ns.RecipeSync.IsRecipeMessage(message.t) then
     return self:HandleRecipes(sender, message)
   end
@@ -346,19 +360,27 @@ function Comm:RequestSync()
   return self:Send("SYNC_REQ", {}, "SYNC_REQ")
 end
 
--- A whisper can only carry a snapshot, and only a leader's snapshot is worth decoding. Both are
--- checked from the local guild roster before any decompression happens, and snapshots have a much
--- stricter rate limit than guild traffic because each one is expensive to decode.
+-- Is `name` a PvP officer right now, according to the officer records this client holds?
+function Comm:IsPvPOfficer(name)
+  local officers = self.pvpSeason.officers
+  return officers ~= nil and ns.PvPSeasonModel.IsOfficer(officers[name])
+end
+
+-- A whisper can only carry a snapshot (SYNC_DATA) or one page of a PvP ledger catch-up (PVP_LEDGER_DATA), and only a
+-- leader's snapshot, or the catch-up of a leader or a PvP officer, is worth decoding. Both are checked from the local
+-- guild roster and officer records before any decompression happens. Snapshots have a much stricter rate limit than
+-- guild traffic because each one is expensive to decode; a catch-up is many small pages, so it has a limit of its own.
 function Comm:HandleWhisper(text, sender)
   local constants = ns.Constants
   local role = self.roleOf(sender)
   if role == nil then
     return false, "unknown_sender"
   end
-  if not ns.PermissionService.Can(role, "manage_events") then
+  local leader = ns.PermissionService.Can(role, "manage_events")
+  if not (leader or self:IsPvPOfficer(sender)) then
     return false, "forbidden"
   end
-  if not self.snapshotInbox:AllowRate(sender, self.now()) then
+  if not self.ledgerInbox:AllowRate(sender, self.now()) then
     return false, "rate_limited"
   end
 
@@ -374,8 +396,21 @@ function Comm:HandleWhisper(text, sender)
   if not message then
     return false, reason
   end
+  if message.t == "PVP_LEDGER_DATA" then
+    if not self.inbox:MarkSeen(sender .. "\n" .. message.id) then
+      return false, "duplicate"
+    end
+    return self:HandleLedgerData(sender, message.p)
+  end
   if message.t ~= "SYNC_DATA" then
     return false, "wrong_channel"
+  end
+  -- Only a leader's snapshot counts, and each costs a lot to decode.
+  if not leader then
+    return false, "forbidden"
+  end
+  if not self.snapshotInbox:AllowRate(sender, self.now()) then
+    return false, "rate_limited"
   end
   if not self.inbox:MarkSeen(sender .. "\n" .. message.id) then
     return false, "duplicate"
@@ -503,6 +538,159 @@ function Comm:HandleRoster(sender, message)
     self.onRosterChange(message.t)
   end
   return ok, reason
+end
+
+-- Does this client approve PvP claims (an admin, or a PvP officer)? Claims are only kept by those that do.
+function Comm:IsPvPApprover()
+  local role = self.ownRole and self.ownRole()
+  return role == "admin" or (role ~= nil and self:IsPvPOfficer(self.platform.GetIdentityKey()))
+end
+
+-- The tables and callbacks the PvP season rules work with.
+function Comm:PvPSeasonContext()
+  return {
+    ledger = self.pvpSeason,
+    now = self.platform.ServerTime,
+    roleOf = self.roleOf,
+    isApprover = function()
+      return self:IsPvPApprover()
+    end,
+    onSeasonClosed = self.onPvPSeasonClosed,
+  }
+end
+
+-- PVP_SEASON, PVP_MISSION, PVP_PRIZES, PVP_OFFICER, PVP_CLAIM, PVP_REJECT, PVP_GRANT, PVP_VOID, PVP_DELIVERY, PVP_FINAL
+-- and PVP_LEDGER_REQ. The author is the sender, read from the local guild roster (and, for an officer, from the officer
+-- records), never a payload field.
+function Comm:HandlePvPSeason(sender, message)
+  if message.t == "PVP_LEDGER_REQ" then
+    return self:HandleLedgerRequest(sender, message.p)
+  end
+  local activeBefore = self.pvpSeason.activeId
+  local ok, reason = ns.PvPSeasonSync.Apply(self:PvPSeasonContext(), message, sender)
+  if ok then
+    if self.onPvPSeasonChange then
+      self.onPvPSeasonChange(message.t)
+    end
+    -- A season that just became active: what the others hold of it (missions, grants) is worth asking for now.
+    if self.pvpSeason.activeId and self.pvpSeason.activeId ~= activeBefore then
+      self:RequestLedger()
+    end
+  end
+  return ok, reason
+end
+
+-- Asks the guild for the ledger of the active season (or just the officers, seasons and finals when this client knows
+-- no season yet); trusted relays whose own ledger differs answer by whisper. At most once per cooldown.
+function Comm:RequestLedger()
+  local now = self.now()
+  local cooldown = ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+  if self.lastLedgerRequestAt and now - self.lastLedgerRequestAt < cooldown then
+    return false, "cooldown"
+  end
+  self.lastLedgerRequestAt = now
+  return self:Send("PVP_LEDGER_REQ", ns.PvPSeasonSync.RequestPayload(self.pvpSeason, self.pvpSeason.activeId), "PLR")
+end
+
+-- Can this client answer a ledger request? Only a raid leader, an admin or a PvP officer: they are the ones a requester
+-- accepts a catch-up from.
+function Comm:IsLedgerRelay()
+  local role = self.ownRole and self.ownRole()
+  return ns.PermissionService.Can(role, "manage_events")
+    or (role ~= nil and self:IsPvPOfficer(self.platform.GetIdentityKey()))
+end
+
+-- A ledger request from a late joiner: answered after a random delay, at most once a minute per requester, and only
+-- when the ledger here differs from the one the request describes.
+function Comm:HandleLedgerRequest(sender, request)
+  local constants = ns.Constants
+  if not self:IsLedgerRelay() then
+    return false, "not_relay"
+  end
+  if self.roleOf(sender) == nil then
+    return false, "unknown_sender"
+  end
+  if not ns.PvPSeasonSync.Differs(self.pvpSeason, request) then
+    return false, "in_sync"
+  end
+
+  local now = self.now()
+  local last = self.ledgerServed[sender]
+  if last and now - last < constants.PVP_LEDGER_SERVE_COOLDOWN_SECONDS then
+    return false, "cooldown"
+  end
+  if not last then
+    if self.ledgerServedCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+      for name, servedAt in pairs(self.ledgerServed) do
+        if now - servedAt >= constants.PVP_LEDGER_SERVE_COOLDOWN_SECONDS then
+          self.ledgerServed[name] = nil
+          self.ledgerServedCount = self.ledgerServedCount - 1
+        end
+      end
+      if self.ledgerServedCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+        return false, "busy"
+      end
+    end
+    self.ledgerServedCount = self.ledgerServedCount + 1
+  end
+  self.ledgerServed[sender] = now
+
+  local delay = self.random(constants.SYNC_RESPONSE_DELAY_MIN, constants.SYNC_RESPONSE_DELAY_MAX)
+  self.schedule(delay, function()
+    self:SendLedger(sender, request)
+  end)
+  return true
+end
+
+-- Does a message of this type with this payload encode under the guild message limit? Used to cut what does not fit.
+function Comm:Fits(messageType, payload)
+  local message = ns.Protocol.Build(messageType, payload, "ffffffff-ffff-ffffff")
+  return self.codec:Encode(message) ~= nil
+end
+
+-- Whispers `target` the ledger the request is about, in pages that each fit the snapshot limit. Returns true plus the
+-- number of pages, or false plus the first failure ("empty" when there is nothing to send).
+function Comm:SendLedger(target, request)
+  local constants = ns.Constants
+  local sync = ns.PvPSeasonSync
+  local items = sync.LedgerItems(self.pvpSeason, sync.ScopeFor(self.pvpSeason, request))
+  if #items == 0 then
+    return false, "empty"
+  end
+  local function fits(page)
+    local payload = { seasonId = request.seasonId, page = 1, pages = constants.PVP_LEDGER_PAGES_MAX, items = page }
+    local message = ns.Protocol.Build("PVP_LEDGER_DATA", payload, "ffffffff-ffff-ffffff")
+    return self.codec:Encode(message, constants.SYNC_MAX_ENCODED_BYTES) ~= nil
+  end
+  local pages = sync.Paginate(items, fits, constants.PVP_LEDGER_PAGE_ITEMS)
+  local count = math.min(#pages, constants.PVP_LEDGER_PAGES_MAX)
+  local first
+  for number = 1, count do
+    local ok, reason = self:Send(
+      "PVP_LEDGER_DATA",
+      { seasonId = request.seasonId, page = number, pages = count, items = pages[number] },
+      ("PL:%s:%d"):format(target, number),
+      { target = target, maxBytes = constants.SYNC_MAX_ENCODED_BYTES }
+    )
+    if not ok and not first then
+      first = reason
+    end
+  end
+  if first then
+    return false, first
+  end
+  return true, count
+end
+
+-- One page of a catch-up, already checked to come from a trusted relay: each item is applied as if its author had sent
+-- it, through the same validation, authority and conflict rules.
+function Comm:HandleLedgerData(sender, payload)
+  local summary = ns.PvPSeasonSync.ApplyItems(self:PvPSeasonContext(), payload.items)
+  self.lastLedger = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
+  if summary.applied > 0 and self.onPvPSeasonChange then
+    self.onPvPSeasonChange("PVP_LEDGER_DATA")
+  end
+  return true
 end
 
 -- READINESS_RULES: the sender's role is read from the local guild roster; only an admin's set is kept.
@@ -859,6 +1047,17 @@ function Comm.Start()
         ns.UI.RecipesChanged()
       end
     end,
+    pvpSeason = ns.db.global.pvpSeason,
+    onPvPSeasonChange = function(messageType)
+      if ns.PvPSeasonChanged then
+        ns.PvPSeasonChanged(messageType)
+      end
+    end,
+    onPvPSeasonClosed = function(seasonId)
+      if ns.PvPSeasonClosed then
+        ns.PvPSeasonClosed(seasonId)
+      end
+    end,
     rosters = ns.db.global.rosters,
     members = ns.db.global.members,
     onRosterChange = function()
@@ -900,6 +1099,8 @@ function Comm.Start()
   C_Timer.After(math.random(constants.SYNC_LOGIN_REQUEST_DELAY_MIN, constants.SYNC_LOGIN_REQUEST_DELAY_MAX), function()
     if ns.active then
       comm:RequestSync()
+      -- And what the guild holds of the PvP season, in case it moved on while this client was away.
+      comm:RequestLedger()
       -- An admin also tells the guild the rules once, for the members who were not there when they were set.
       if ns.PermissionService.Can(comm.ownRole(), "rules_edit") then
         comm:SendReadinessRules()

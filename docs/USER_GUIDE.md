@@ -65,7 +65,9 @@ the sender against its own copy of the guild roster and of the assignments.
 | member | everybody the guild master did not assign a role to | see shared data, edit and publish your own sheet, put yourself forward for loot (in your roster), add players to the blacklist |
 | rl | raid leaders, assigned | everything a member can, plus create and edit events, record attendance and manage assignments, only for the events of their own roster |
 | council | loot council, assigned | everything a member can, plus open loot sessions, vote and award, only for the sessions of their own roster |
-| admin | the guild master | everything above for every roster, plus managing rosters and roles, the readiness rules, moderation and removing players from the blacklist |
+| admin | the guild master | everything above for every roster, plus managing rosters and roles, the readiness rules, moderation and removing players from the blacklist, and all of the PvP seasons |
+
+**PvP officer** is not a role but a flag the guild master gives to a player on top of whatever role they have (see *PvP seasons* below). A PvP officer can approve and reject mission claims and mark prizes as delivered, and nothing else.
 
 **Rosters.** The guild master defines the rosters (teams) and puts each player in at most one. A player sees the
 events, reports and loot of their own roster only (events made before rosters existed stay visible to every
@@ -249,6 +251,33 @@ saved. There are no switches: all your kills are always shared with the guild.
 - The feed needs the name of the killed player. If this client does not give it, the tab says the feed is not
   available and nothing is shown or sent.
 
+## PvP seasons
+
+A PvP season is a period in which missions give points and the points make a ranking. Everything described here is
+the base of the system: for now it is driven with `/nrage pvp ...` commands, and the PvP tab will get its own screens
+in a later version (`docs/PVP_MISSIONS_PLAN.md`).
+
+| Who | Can |
+|---|---|
+| any member | claim a mission (`/nrage pvp claim <missionId> [note]`); see the season, its missions and the ranking (`/nrage pvp season`, `/nrage pvp mission`) |
+| PvP officer | everything a member can, plus see the claims waiting (`/nrage pvp queue`), approve (`approve <claimId>`) or reject (`reject <claimId> [reason]`) them, and mark a prize as delivered. An officer cannot approve their own claim |
+| admin (guild master) | everything an officer can, plus create and close seasons (`/nrage pvp season create <days> <name>`, `close`), define missions and prizes, make an officer or take the flag away (`/nrage pvp officer add\|remove <name>`), give points without a claim (`grant <player> <missionId> [points]`) and void a grant |
+
+Prizes, delivery marks and voiding a grant have no command yet: they come with the PvP tab.
+
+- Only **one season** is active at a time. A claim only counts for something done between the start and the end date
+  of the season; the end date blocks new claims, and the admin **closes** the season by hand.
+- Every claim needs the approval of an admin or a PvP officer, also the automatic ones. Approving gives the points the
+  mission is worth at that moment, and approving the same claim twice counts once.
+- The ranking is the sum of the approved points. If two players have the same total, the one who got there first
+  ranks higher. Points are never spent.
+- On closing, the final standing is frozen and every member keeps only that; the detail of the season (each grant,
+  the pending claims) is dropped. The top 10 get the prizes the admin defined, by tier (1st, 2nd, 3rd, 4th to 6th, 7th
+  to 10th; each player in a tier gets the whole prize). The addon never sends gold or mail: the prize is handed over
+  in game and marked as delivered.
+- A member who logs in late, or while a season starts, asks the guild for it and receives the ranking from a raid
+  leader, an admin or a PvP officer who is online.
+
 ## Professions
 
 The **Professions** tab (Guild group) answers "who can craft this?". Type part of a recipe name in the search box,
@@ -340,4 +369,5 @@ once; they are not needed in normal use.
 |---|---|
 | `/nrage` | opens the window, where everything else is done |
 | `/nrage help` | this short list |
+| `/nrage pvp ...` | interim commands for the PvP seasons (see *PvP seasons*); they go away when the PvP tab gets its own screens |
 | `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp`, `layer` |

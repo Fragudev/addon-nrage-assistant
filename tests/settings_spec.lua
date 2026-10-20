@@ -109,6 +109,7 @@ describe("Comm:StatusInfo", function()
       events = {},
       tombstones = {},
       snapshotInbox = {},
+      ledgerInbox = {},
       now = function()
         return 0
       end,

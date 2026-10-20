@@ -498,6 +498,48 @@ local function validateRecipes(payload)
   return clean
 end
 
+-- PvP seasons (protocol 1.7). Every record is validated by PvPSeasonModel; who may author it is decided by the receiver
+-- (PvPSeasonSync) from its own guild roster and officer records. `by` never travels in a payload: it is the sender, or
+-- the author named by the item of a ledger catch-up from a trusted relay.
+local function seasonValidator(name)
+  return function(payload)
+    return (ns.PvPSeasonModel[name](payload))
+  end
+end
+
+-- The ledger request: how many ledger records the requester holds for a season and their digest.
+local function validateLedgerReq(payload)
+  if payload.seasonId ~= nil and not isId(payload.seasonId) then
+    return nil
+  end
+  if
+    not (
+      isInt(payload.count, 0, 1000000)
+      and type(payload.digest) == "string"
+      and payload.digest:find("^%x%x%x%x%x%x%x%x$")
+    )
+  then
+    return nil
+  end
+  return { seasonId = payload.seasonId, count = payload.count, digest = payload.digest }
+end
+
+-- One page of a ledger catch-up. As with SYNC_DATA only the size is checked here: each item is validated by its own
+-- validator when it is applied.
+local function validateLedgerData(payload)
+  local constants = ns.Constants
+  if payload.seasonId ~= nil and not isId(payload.seasonId) then
+    return nil
+  end
+  if not (isInt(payload.pages, 1, constants.PVP_LEDGER_PAGES_MAX) and isInt(payload.page, 1, payload.pages)) then
+    return nil
+  end
+  if type(payload.items) ~= "table" or #payload.items > constants.PVP_LEDGER_PAGE_ITEMS then
+    return nil
+  end
+  return { seasonId = payload.seasonId, page = payload.page, pages = payload.pages, items = payload.items }
+end
+
 -- Snapshot for late joiners. SYNC_REQ carries nothing. SYNC_DATA carries a list of raid messages
 -- ({ t, p } items); only its size is checked here, because each item is validated on its own, by
 -- its own validator, when it is applied.
@@ -528,6 +570,18 @@ local VALIDATORS = {
   LAYER_STATE = validateLayerState,
   LAYER_SWAP = validateLayerSwap,
   RECIPES = validateRecipes,
+  PVP_SEASON = seasonValidator("ValidateSeason"),
+  PVP_MISSION = seasonValidator("ValidateMission"),
+  PVP_PRIZES = seasonValidator("ValidatePrizes"),
+  PVP_OFFICER = seasonValidator("ValidateOfficer"),
+  PVP_CLAIM = seasonValidator("ValidateClaim"),
+  PVP_REJECT = seasonValidator("ValidateReject"),
+  PVP_GRANT = seasonValidator("ValidateGrant"),
+  PVP_VOID = seasonValidator("ValidateVoid"),
+  PVP_DELIVERY = seasonValidator("ValidateDelivery"),
+  PVP_FINAL = seasonValidator("ValidateFinal"),
+  PVP_LEDGER_REQ = validateLedgerReq,
+  PVP_LEDGER_DATA = validateLedgerData,
   ROSTER_UPSERT = validateRosterUpsert,
   ROSTER_DELETE = validateRosterDelete,
   MEMBER_UPSERT = validateMemberUpsert,

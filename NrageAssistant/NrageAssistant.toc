@@ -32,6 +32,8 @@ Domain\Throttle.lua
 Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\RosterService.lua
+Domain\PvPSeasonModel.lua
+Domain\PvPSeasonService.lua
 Domain\RecipeService.lua
 Domain\EventModel.lua
 Domain\EventService.lua
@@ -62,6 +64,7 @@ Sync\PvPSync.lua
 Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
+Sync\PvPSeasonSync.lua
 Sync\RecipeSync.lua
 Sync\LayerSync.lua
 Sync\Transfer.lua
@@ -103,5 +106,6 @@ Commands\LootCommands.lua
 Commands\TemplateCommands.lua
 Commands\BlacklistCommands.lua
 Commands\RosterCommands.lua
+Commands\PvPSeasonCommands.lua
 Commands\Slash.lua
 Core\Init.lua

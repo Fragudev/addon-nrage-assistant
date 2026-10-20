@@ -29,6 +29,7 @@ secret store.
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates (each keeps the roster of the event it was saved from) | you; never shared |
 | Raid rosters and the role and roster the guild master assigned to each member | the guild master, received over the guild channel |
+| PvP seasons: the season, its missions and prizes, the PvP officers, who earned how many points for which mission (the grants), and the final standings of past seasons | the guild master and PvP officers, received over the guild channel and from a catch-up whisper |
 
 Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
 
@@ -89,6 +90,15 @@ of the text export.
 Other data is shared because of the role someone plays, not by your choice: a raid leader recording attendance
 publishes it, and a loot session's candidates, votes and awards are published to the guild. Loot **votes are
 visible to everyone** while a session is open.
+
+## PvP seasons
+
+A season's ledger is shared with the whole guild like the rest of the shared data: the points each player was granted
+and by whom, and, for a PvP officer, the dates the flag was on. A claim (what a member asks points for, with a note)
+goes over the guild channel too, and only admins and PvP officers keep it. When a season is closed, every client
+keeps the final standing and the delivery list and drops the detail (each grant, the pending claims). Nothing about
+mission claims is read from the game yet; when the kill log and the evidence of automatic missions arrive in a later
+version, they will be listed here before they are sent.
 
 ## Your layer
 

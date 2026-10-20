@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 11,
+  SCHEMA_VERSION = 12,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
@@ -18,7 +18,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 6,
+  PROTOCOL_MINOR = 7,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -205,6 +205,53 @@ ns.Constants = {
     { name = "Field Marshal", kills = 4700 },
     { name = "Grand Marshal", kills = 6000 },
   },
+
+  -- PvP seasons (docs/PVP_MISSIONS_PLAN.md). Text and number bounds of the records that travel with PVP_SEASON,
+  -- PVP_MISSION, PVP_PRIZES, PVP_OFFICER, PVP_CLAIM, PVP_GRANT, PVP_VOID, PVP_REJECT, PVP_DELIVERY and PVP_FINAL.
+  PVP_SEASON_NAME_MAX = 40,
+  PVP_MISSION_TITLE_MAX = 40,
+  PVP_MISSION_DESC_MAX = 100,
+  PVP_MISSION_POINTS_MAX = 1000,
+  PVP_MISSION_COUNT_MAX = 500,
+  PVP_MISSION_ZONES_MAX = 5,
+  PVP_MISSION_PER_PLAYER_MAX = 10,
+  PVP_REASON_MAX = 100,
+  PVP_NOTE_MAX = 100,
+  PVP_PRIZE_ENTRIES_MAX = 5,
+  PVP_PRIZE_GOLD_MAX = 100000,
+  PVP_PRIZE_ITEM_COUNT_MAX = 200,
+  PVP_PRIZE_ITEM_NAME_MAX = 60,
+  PVP_OFFICER_INTERVALS_MAX = 10,
+  -- A claim carries at most this many evidence rows (it has to fit one guild message), and a claimant announces the
+  -- claims still pending again after login and then every PVP_CLAIM_REANNOUNCE_SECONDS.
+  PVP_CLAIM_EVIDENCE_MAX = 60,
+  PVP_CLAIM_REANNOUNCE_SECONDS = 600,
+  PVP_CLAIM_SUMMARY_MAX = 20,
+  PVP_FINAL_STANDINGS_MAX = 100,
+  -- Receiver side caps. Over one of them a new record is refused; a grant is never evicted to make room.
+  PVP_GRANTS_MAX = 3000,
+  PVP_VOIDS_MAX = 3000,
+  PVP_REJECTS_MAX = 3000,
+  PVP_QUEUE_MAX = 300,
+  -- One player has at most this many claims waiting in a queue, so a single client cannot fill it.
+  PVP_QUEUE_PER_PLAYER_MAX = 20,
+  -- Positions 1 to 10 are the only ones that get a prize, so a season has at most this many deliveries.
+  PVP_DELIVERIES_MAX = 10,
+  PVP_MISSIONS_MAX = 50,
+  PVP_SEASONS_MAX = 60,
+  PVP_FINALS_MAX = 50,
+  PVP_OFFICERS_MAX = 20,
+  -- Ledger catch-up (PVP_LEDGER_REQ / PVP_LEDGER_DATA): a client asks after login and when a season becomes active;
+  -- a trusted relay answers by whisper, at most once per requester per cooldown, in pages that fit the snapshot
+  -- limit and hold at most PVP_LEDGER_PAGE_ITEMS items.
+  PVP_LEDGER_REQUEST_COOLDOWN_SECONDS = 60,
+  PVP_LEDGER_SERVE_COOLDOWN_SECONDS = 60,
+  PVP_LEDGER_PAGE_ITEMS = 400,
+  PVP_LEDGER_PAGES_MAX = 100,
+  -- Prize tiers, best first: the keys of prizes.tiers and of a delivery. A position 1..10 maps to exactly one tier.
+  PVP_PRIZE_TIERS = { "1", "2", "3", "4-6", "7-10" },
+  -- Points are never spent; at least this many are needed to be ranked (and to get a prize).
+  PVP_MIN_POINTS = 1,
 
   -- Guild blacklist: names and short free-text reasons, shared with the guild. A snapshot carries at most
   -- BLACKLIST_SNAPSHOT_MAX entries (the most recently updated) and as many removals (the newest). The tab redraws
