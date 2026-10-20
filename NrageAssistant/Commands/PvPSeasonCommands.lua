@@ -191,7 +191,8 @@ function PvPSeasonCommands:Mission(args)
     return { L("no PvP season is running.") }
   end
   local lines = {}
-  for _, mission in ipairs(service:Missions(season.id, true)) do
+  -- Paused missions are for whoever manages them: members never see them.
+  for _, mission in ipairs(service:Missions(season.id, service:CanPvP("pvp_mission_manage"))) do
     local paused = mission.active and "" or (" " .. L("(paused)"))
     lines[#lines + 1] = L("%s  %d points  %s%s"):format(mission.id, mission.points, mission.title, paused)
   end
