@@ -1,0 +1,19 @@
+docs/PVP_MISSIONS_PLAN.md
+  s_96b53beb93db33::t_ef89f3055b8954 1-487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a8c6cc076a1f220cfad9d7afe958944b24be5aa",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
