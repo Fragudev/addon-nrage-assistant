@@ -8,14 +8,14 @@ This document is written for the implementing agent. It must be executable witho
 it. Items marked **decided** were agreed with the guild officer who owns the addon on 2026-10-20. Items marked
 **default** were proposed and not objected to; they are open to review but should be implemented as written.
 
-**Status:** planned (2026-10-20). Phase P1 is implemented on `feat/pvp-seasons` (its API is in section 9); P2 and P3
-are implemented on `feat/pvp-seasons-detection` (its API is in section 10); P4 and P5 are not started. Based on `main` at `695bbe1` (redesign #129, profile icons
-#130 and layer swap #131 merged): the UI kit (`UI/Kit/*`), the redesigned PvP tab (`UI/Tabs/PvP.lua`) and the
-admin-assigned roles (`Sync/RosterSync.lua`, `db.global.members`, `UI/Tabs/Members.lua`) already exist.
+**Status:** implemented (2026-10-20). Every phase is merged into `main`: P1 in #133 (API in section 9), P2 and P3 in
+#134 (API in section 10), P4 and P5 in #135. It was built on `main` at `695bbe1` (redesign #129, profile icons #130
+and layer swap #131).
 
-**In-game measurements (section 5) cannot be done by the implementing agent.** Implement every client read behind
-the usual guards, treat a missing or unreadable value as "not available on this client", record each question as
-"not measured yet" in `docs/API_NOTES.md`, and do not stop a phase because a measurement is pending.
+**Still open:** the in-game measurements M1–M5 (section 5, tracked in `docs/API_NOTES.md`) and a visual check of the
+PvP tab in game. Until they are measured, every client read is guarded and a missing or unreadable value shows as
+"not available on this client". The zone map ids, the enemy class and race lists and the battleground winner mapping
+in `Core/Constants.lua` are Classic values to confirm on Forever.
 
 **Visual reference:** the redesign mockup canvas (Design artifact "Nrage Assistant redesign",
 https://claude.ai/artifact/U4aUo3uAXjK3jL4zpTi2eR, artboard "Ventana principal" → PvP, version 23 or later). Use
