@@ -20,6 +20,7 @@ local function build()
     scheduled = {},
     changes = 0,
     sendOk = true,
+    honor = {},
   }
   env.feed = PvPFeed.New({
     now = function()
@@ -50,6 +51,12 @@ local function build()
     onChange = function()
       env.changes = env.changes + 1
     end,
+    onHonorKill = function(entry)
+      if env.honorFails then
+        error("listener")
+      end
+      env.honor[#env.honor + 1] = entry
+    end,
   })
   -- Moves the clock and runs the timers that are due.
   function env.advance(seconds)
@@ -69,6 +76,34 @@ end
 local MERGE = Constants.PVP_FEED_MERGE_SECONDS
 
 describe("PvPFeed own kills", function()
+  it("tells the listener once per honour kill, also when the killing blow came first", function()
+    local env = build()
+    env.feed:OnHonorKill("Zed", "world")
+    env.feed:OnHonorKill("zed", "world")
+    env.feed:OnKillingBlow("Zed", "world")
+    assert.are.equal(1, #env.honor)
+    assert.are.equal("Zed", env.honor[1].victim)
+    assert.are.equal(5100, env.honor[1].time)
+
+    env = build()
+    env.feed:OnKillingBlow("Zed", "world")
+    assert.are.equal(0, #env.honor)
+    env.feed:OnHonorKill("Zed", "world")
+    assert.are.equal(1, #env.honor)
+  end)
+
+  it("does not tell the listener about a refused victim, and a failing listener changes nothing", function()
+    local env = build()
+    env.feed:OnHonorKill("", "world")
+    env.feed:OnHonorKill("Zed", "sky")
+    env.feed:OnHonorKill(nil, "world")
+    assert.are.equal(0, #env.honor)
+    env.honorFails = true
+    assert.is_true(env.feed:OnHonorKill("Zed", "world"))
+    env.advance(MERGE)
+    assert.are.equal(1, #env.sent)
+  end)
+
   it("sends an honour kill after the merge delay, not before", function()
     local env = build()
     assert.is_true(env.feed:OnHonorKill("Zed", "world"))

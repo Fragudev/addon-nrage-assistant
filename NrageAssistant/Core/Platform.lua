@@ -471,6 +471,92 @@ local function readableName(name)
   return normalizedOk and type(normalized) == "string" and normalized or copy
 end
 
+-- PvP missions (docs/PVP_MISSIONS_PLAN.md, sections 2 and 5). Nothing here is measured on Forever yet (M1, M3, M5):
+-- each reader gives nil when the API is missing, raises or returns a secret value, and the caller then treats the
+-- data as unknown instead of guessing.
+
+-- The uiMapId of the zone the player is in, or nil.
+function Platform.GetPlayerMapId()
+  if not (C_Map and C_Map.GetBestMapForUnit) then
+    return nil
+  end
+  local ok, mapId = pcall(function()
+    local value = C_Map.GetBestMapForUnit("player")
+    if type(value) == "number" and value > 0 and value % 1 == 0 then
+      return value
+    end
+    return nil
+  end)
+  return ok and mapId or nil
+end
+
+-- An upper-case file token ("WARRIOR", "SCOURGE") from the second return of UnitClass / UnitRace, or nil.
+local function fileToken(value)
+  if type(value) == "string" and value:find("^%a+$") then
+    return value:upper()
+  end
+  return nil
+end
+
+-- What is known of the enemy player on `unit` ("target", "mouseover", "nameplate3"): { name, class, race } with the
+-- full name as the client gives it and the class and race file tokens (which do not depend on the locale); `class`
+-- and `race` are nil when one is not readable. Nil when the unit is not an enemy player or nothing is readable.
+function Platform.GetEnemyPlayerInfo(unit)
+  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy and UnitClass and UnitRace) then
+    return nil
+  end
+  local ok, info = pcall(function()
+    if UnitIsPlayer(unit) ~= true or UnitIsEnemy("player", unit) ~= true then
+      return nil
+    end
+    local name = readableName(GetUnitName and GetUnitName(unit, true) or UnitName(unit))
+    local class = fileToken(select(2, UnitClass(unit)))
+    local race = fileToken(select(2, UnitRace(unit)))
+    if not name or not (class or race) then
+      return nil
+    end
+    return { name = name, class = class, race = race }
+  end)
+  return ok and info or nil
+end
+
+-- Can this client say who won a battleground?
+function Platform.HasBattlegroundWinner()
+  return type(GetBattlefieldWinner) == "function"
+end
+
+-- "Alliance" or "Horde" once the battleground is decided, nil while it is not, for a draw or when unreadable.
+function Platform.GetBattlegroundWinner()
+  if not Platform.HasBattlegroundWinner() then
+    return nil
+  end
+  local ok, winner = pcall(function()
+    local value = GetBattlefieldWinner()
+    if value == 1 then
+      return "Alliance"
+    elseif value == 0 then
+      return "Horde"
+    end
+    return nil
+  end)
+  return ok and winner or nil
+end
+
+-- The faction of the player ("Alliance" | "Horde"), or nil.
+function Platform.GetPlayerFaction()
+  if not UnitFactionGroup then
+    return nil
+  end
+  local ok, faction = pcall(function()
+    local value = UnitFactionGroup("player")
+    if value == "Alliance" or value == "Horde" then
+      return value
+    end
+    return nil
+  end)
+  return ok and faction or nil
+end
+
 -- Group (party or raid). The names are those the client gives: on Forever `UnitName` returns only the first word
 -- of a multi-word name, and what `GetRaidRosterInfo` returns for one has not been measured yet (see API_NOTES).
 -- Every call is guarded, so a missing API or a secret value leaves a name out instead of raising.

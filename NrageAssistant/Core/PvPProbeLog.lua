@@ -126,6 +126,30 @@ function PvPProbeLog.DescribeInstance(inInstance, instanceType)
   return ("inInstance=%s instanceType=%s"):format(PvPProbeLog.ToText(inInstance), PvPProbeLog.ToText(instanceType))
 end
 
+-- One piece of the PvP missions measurements (plan M1 to M5) as text: `label=a, b, c`. `ok`, `...` are what the probe's
+-- reader gives: `nil, reason` when the API is missing or raised, `true, a, b, c, d` otherwise. A value that cannot be
+-- turned into text (a secret) shows as "<secret>"; trailing nils are left out and no values at all show as "nil".
+function PvPProbeLog.DescribeRead(label, ok, ...)
+  if not ok then
+    return ("%s=<unavailable: %s>"):format(label, PvPProbeLog.ToText((...)))
+  end
+  local values = { ... }
+  local last = 0
+  for index = 1, select("#", ...) do
+    if values[index] ~= nil then
+      last = index
+    end
+  end
+  if last == 0 then
+    return label .. "=nil"
+  end
+  local parts = {}
+  for index = 1, last do
+    parts[index] = PvPProbeLog.ToText(values[index])
+  end
+  return ("%s=%s"):format(label, table.concat(parts, ", "))
+end
+
 -- Describes a combat log event given as a table with the fields of COMBAT_FIELDS. Returns the text and the
 -- readable fields; sourceIsPlayer is true only when the source GUID could be compared and matches.
 function PvPProbeLog.DescribeCombatEvent(event, playerGuid)

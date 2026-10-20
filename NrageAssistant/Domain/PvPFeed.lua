@@ -17,7 +17,11 @@ local _, ns = ...
 --
 -- deps = { now = function() -> seconds (monotonic), serverTime = function() -> seconds (for display),
 --          send = function(payload) -> ok, isLocked = function() -> boolean, schedule = function(delay, fn),
---          ownName = function() -> string, onChange = function() (optional) }
+--          ownName = function() -> string, onChange = function() (optional),
+--          onHonorKill = function(entry) (optional) }
+--
+-- `onHonorKill` is told once per honour kill (never for a killing blow without honour), also when the blow came first.
+-- The PvP missions log their kills from it (docs/PVP_MISSIONS_PLAN.md, 2.1).
 local PvPFeed = {}
 PvPFeed.__index = PvPFeed
 
@@ -133,7 +137,18 @@ function PvPFeed:Own(victim, where, blow)
 end
 
 function PvPFeed:OnHonorKill(victim, where)
-  return self:Own(victim, where, false)
+  local started = self:Own(victim, where, false)
+  if self.deps.onHonorKill and type(victim) == "string" then
+    local key = victim:lower()
+    for _, entry in ipairs(self.own) do
+      if entry.key == key and not entry.honor then
+        entry.honor = true
+        pcall(self.deps.onHonorKill, entry)
+        break
+      end
+    end
+  end
+  return started
 end
 
 function PvPFeed:OnKillingBlow(victim, where)

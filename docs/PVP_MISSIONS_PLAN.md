@@ -8,8 +8,8 @@ This document is written for the implementing agent. It must be executable witho
 it. Items marked **decided** were agreed with the guild officer who owns the addon on 2026-10-20. Items marked
 **default** were proposed and not objected to; they are open to review but should be implemented as written.
 
-**Status:** planned (2026-10-20). Phase P1 is implemented on `feat/pvp-seasons` (its API is in section 9); P2 to P5 are
-not started. Based on `main` at `695bbe1` (redesign #129, profile icons
+**Status:** planned (2026-10-20). Phase P1 is implemented on `feat/pvp-seasons` (its API is in section 9); P2 and P3
+are implemented on `feat/pvp-seasons-detection` (its API is in section 10); P4 and P5 are not started. Based on `main` at `695bbe1` (redesign #129, profile icons
 #130 and layer swap #131 merged): the UI kit (`UI/Kit/*`), the redesigned PvP tab (`UI/Tabs/PvP.lua`) and the
 admin-assigned roles (`Sync/RosterSync.lua`, `db.global.members`, `UI/Tabs/Members.lua`) already exist.
 
@@ -580,3 +580,80 @@ guild channel and for a catch-up item alike.
 - A mission or prize record is still taken after the final of its season (it may reach a client late); grants, voids and
   rejections are not.
 
+---
+
+## 10. Detection API (P2 and P3, implemented)
+
+What phases P2 and P3 left for the interface (P4, P5). The files: `Domain/PvPMissionTracker.lua`
+(`ns.PvPMissionTracker`, pure), `Domain/PvPUnitCache.lua` (`ns.PvPUnitCache`), `Domain/PvPMissionService.lua`
+(`ns.PvPMissionService`). At runtime the service of this client is **`ns.pvpMissions`**, created in `Core/Init.lua`
+(`StartPvP`) after `ns.pvpSeason`; it is nil if the feature cannot start, so the interface checks it.
+
+```lua
+ns.pvpMissions:Progress(missionId)    -- -> { bars = { { label, done, total } }, unknown = n, complete = bool,
+                                       --      claimable = bool, periodKey, evidence = {...} } or nil (unknown mission / no active season)
+ns.pvpMissions:Claim(missionId, note) -- -> claim or nil, reason   (builds evidence + summary, calls ns.pvpSeason:SubmitClaim)
+ns.pvpMissions:ClaimState(missionId)  -- -> "none" | "pending" | "approved" | "rejected"  for the current period
+ns.pvpMissions:Availability()         -- -> { kills = bool, zones = bool, classRace = bool, bgWins = bool }
+```
+
+- `bars[i].label` is an English key: `"Kills"`, `"Distinct players"`, `"Classes"`, `"Races"`, `"Victories"`. Show it with
+  `ns.PvPMissionTracker.LabelText(label)` (it holds the `L()` calls, so a UI that passes `bar.label` to `L` itself would
+  not get the Spanish text checked by `locale_spec`). `ns.PvPMissionTracker.ZoneName(mapId)` gives the translated name of
+  a zone of `PVP_MISSION_ZONES` (nil for other ids).
+- `Progress` also returns `couldComplete` (the unknown kills could fill the bars: the claim is allowed and the approver
+  decides) and `nextN` (the number of the claim the next `Claim` would make). `unknown` counts the kills with an unknown
+  class or race (for `class_race`, a kill missing either); show "N kills without a known class" when it is above 0.
+  `claimable` is true when the mission is active, the season is running (inside its dates), the period still has a free
+  claim (`nextN <= perPlayer`) and the bars are full or `couldComplete`. A manual mission has no bars, `complete` is
+  true, and it is claimable while the period has room; `Claim` then needs a note.
+- `evidence` rows are the ones `SubmitClaim` sends (`{ at, victim, mapId?, place, class?, race? }` or
+  `{ at, bgWin = true, mapId? }`), at most `PVP_CLAIM_EVIDENCE_MAX`, in time order. A row without `class`/`race` is
+  unknown (amber in the approver's table).
+- `Claim` reasons: `"unknown_mission"`, `"no_season"`, `"inactive"`, `"limit"` (the period has no free claim),
+  `"not_complete"`, plus those of `SubmitClaim` (`"invalid:note"`, `"out_of_season"`, ...). On success the second
+  value is `queued` (false: saved here, not sent yet). The claim is kept in `char.pvpMissions.claims[claim.id] =
+  { claim, state }`; a claim already sent is announced again after the login send delay and every
+  `PVP_CLAIM_REANNOUNCE_SECONDS` while any is pending.
+- `ClaimState` looks at the claims of the current period of the mission and gives the best state (approved, then
+  pending, then rejected). The state follows the ledger: a received grant (`ClaimState` of `ns.pvpSeason`) makes it
+  approved, a received rejection rejected, otherwise it stays pending.
+- `Availability()`: `kills` = the kill feed has a victim name; `zones` = `GetBestMapForUnit` is readable right now;
+  `classRace` = at least one of the unit events could be registered; `bgWins` = `GetBattlefieldWinner` exists and its
+  event could be registered. A mission whose source is false shows "Not available on this client" (the criteria: zones
+  need `zones`, `distinct = class|race|class_race` needs `classRace`, `bg_wins` needs `bgWins`, everything but `manual`
+  needs `kills`).
+- Whenever the log, a claim or a claim state changes, the service calls `ns.UI.PvPChanged()` (only if it exists, and
+  that function is already throttled to one redraw per `PVP_REDRAW_SECONDS`). Decisions that arrive from the guild
+  reach the interface through `ns.PvPSeasonChanged` as before.
+
+### How it works
+
+- **Kill log.** `PvPFeed` calls `deps.onHonorKill(entry)` once per own honour kill (also when the killing blow came
+  first; a blow without honour never does). The service appends `{ at, victim, mapId, place, class?, race? }` to
+  `char.pvpMissions.kills` while a season is active and the kill time is inside its dates; `at` is the server time of
+  the feed entry, `mapId` is `Platform.GetPlayerMapId()` at that moment (nil when unreadable), `class`/`race` come from
+  the unit cache. A battleground win is `{ at, bgWin = true, mapId }` in the same list. The log is capped at
+  `PVP_MISSION_KILLS_MAX`, oldest dropped first, and belongs to one season (`char.pvpMissions.seasonId`): a record for
+  another season starts a new log, and `ns.PvPSeasonClosed` empties it.
+- **Unit cache.** `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT` and `NAME_PLATE_UNIT_ADDED` call
+  `Platform.GetEnemyPlayerInfo(unit)` (enemy players only; name from `GetUnitName(unit, true)`, class and race as
+  upper-case file tokens) and store it in memory (`PVP_UNIT_CACHE_MAX`, `PVP_UNIT_CACHE_TTL`). Each event is registered
+  in `pcall`; the combat log stays disabled.
+- **Battleground wins.** On `UPDATE_BATTLEFIELD_STATUS`, inside a battleground, when `Platform.GetBattlegroundWinner()`
+  equals the own faction, a win is logged once; `PLAYER_ENTERING_WORLD` re-arms it, and a win already logged less than
+  `PVP_BG_WIN_DEDUPE_SECONDS` ago (a reload inside the same battleground) is not logged again.
+- **Cap and filters** are the order of 2.4: the per-victim cap first (3 per victim per UTC day, case-insensitive),
+  then season dates, current period, kind, place and zones.
+
+### What differs from the text above
+
+- `PVP_ENEMY_CLASSES` has the eight Horde classes of Classic (no Paladin) and `PVP_ENEMY_RACES` the four races (Orc,
+  Scourge, Tauren, Troll), upper-cased file tokens; change the lists in `Core/Constants.lua` if Forever has other Horde
+  classes or races. The `uiMapId`s of `PVP_MISSION_ZONES` are the Classic ones and still **to be measured** (M1).
+- A claim for the n-th place of a period (`perPlayer > 1`) is checked against the same period progress, not against
+  n times the count: the approver sees the earlier claim in the queue. A rejected claim uses its place in the period.
+- No change to `Core/Store.lua`: the claim table `char.pvpMissions.claims` and the kill list already exist from the
+  schema-12 migration.
+- `/nrage pvp claim` now goes through `ns.pvpMissions:Claim` (so it carries the evidence); without the service it
+  falls back to `SubmitClaim`.

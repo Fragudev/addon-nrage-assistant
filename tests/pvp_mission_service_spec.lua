@@ -1,0 +1,549 @@
+-- The detection side of the PvP missions: the kill log, battleground wins, progress, claims and their announcements,
+-- on top of the real season service. Two clients stand in for the guild: an admin and a member.
+local function load_addon()
+  local ns = {}
+  for _, path in ipairs({
+    "Core/Constants",
+    "Core/Locale",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/PvPSeasonModel",
+    "Domain/PvPSeasonService",
+    "Domain/PvPUnitCache",
+    "Domain/PvPMissionTracker",
+    "Domain/PvPMissionService",
+    "Sync/Protocol",
+    "Sync/SyncRules",
+    "Sync/PvPSeasonSync",
+  }) do
+    assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+  end
+  return ns
+end
+
+local ns = load_addon()
+local Constants, Protocol, Sync = ns.Constants, ns.Protocol, ns.PvPSeasonSync
+
+local DAY = 86400
+local T0 = 1792454400 -- 2026-10-20 00:00 UTC
+local ROLES = { Boss = "admin", Ann = "member" }
+
+local function new_world()
+  return { clock = T0 + 12 * 3600, mono = 0, ids = 0 }
+end
+
+-- A client: the season service plus, for `mission = true`, the mission service. `sent` is what went to the guild.
+local function new_client(world, name, withMissions)
+  local client = { name = name, sent = {}, changes = 0, timers = {}, cursor = 0 }
+  client.season = ns.PvPSeasonService.New({
+    ledger = Sync.NewLedger(),
+    now = function()
+      return world.clock
+    end,
+    newId = function()
+      world.ids = world.ids + 1
+      return "id-" .. world.ids
+    end,
+    ownName = function()
+      return name
+    end,
+    ownRole = function()
+      return ROLES[name]
+    end,
+    roleOf = function(who)
+      return ROLES[who]
+    end,
+    send = function(messageType, payload, key)
+      client.sent[#client.sent + 1] = { t = messageType, p = payload, key = key }
+      return true
+    end,
+  })
+  if withMissions then
+    client.char = { seasonId = nil, kills = {}, claims = {} }
+    client.cache = ns.PvPUnitCache.New({
+      now = function()
+        return world.mono
+      end,
+    })
+    client.world = {
+      mapId = 1411,
+      winner = nil,
+      faction = "Alliance",
+      inBg = true,
+      enemy = {},
+    }
+    client.active = true
+    client.missions = ns.PvPMissionService.New({
+      season = client.season,
+      log = function()
+        return client.char
+      end,
+      cache = client.cache,
+      now = function()
+        return world.clock
+      end,
+      platform = {
+        GetPlayerMapId = function()
+          return client.world.mapId
+        end,
+        GetEnemyPlayerInfo = function(unit)
+          return client.world.enemy[unit]
+        end,
+        GetBattlegroundWinner = function()
+          return client.world.winner
+        end,
+        GetPlayerFaction = function()
+          return client.world.faction
+        end,
+        IsInBattleground = function()
+          return client.world.inBg
+        end,
+        HasBattlegroundWinner = function()
+          return client.world.winnerApi ~= false
+        end,
+      },
+      killsAvailable = function()
+        return client.world.killsApi ~= false
+      end,
+      schedule = function(delay, fn)
+        client.timers[#client.timers + 1] = { delay = delay, fn = fn }
+      end,
+      random = function(min)
+        return min
+      end,
+      isActive = function()
+        return client.active
+      end,
+      onChange = function()
+        client.changes = client.changes + 1
+      end,
+    })
+    client.missions.unitSource = true
+    client.missions.winSource = true
+  end
+  return client
+end
+
+-- Delivers to `to` what `from` has sent since the last time, as the guild channel would.
+local function relay(from, to)
+  while from.cursor < #from.sent do
+    from.cursor = from.cursor + 1
+    local entry = from.sent[from.cursor]
+    local message = assert(Protocol.Validate(Protocol.Build(entry.t, entry.p, "wire")))
+    Sync.Apply(to.season:Context(), message, from.name)
+  end
+end
+
+-- Runs the oldest timer of `client` (the timers are one shot).
+local function fire(client)
+  local timer = table.remove(client.timers, 1)
+  timer.fn()
+  return timer.delay
+end
+
+local function goal(extra)
+  local base = { kind = "kills", count = 3, zones = {}, place = "any", distinct = "none" }
+  for key, value in pairs(extra or {}) do
+    base[key] = value
+  end
+  return base
+end
+
+local function kill(client, victim, where)
+  return client.missions:OnHonorKill({ victim = victim, where = where or "world", time = client.season.now() })
+end
+
+-- An admin and a member with an active season and one mission each can claim.
+local function setup(missionGoal, mission)
+  local world = new_world()
+  local admin = new_client(world, "Boss")
+  local member = new_client(world, "Ann", true)
+  assert(admin.season:CreateSeason({ name = "S1", startsAt = T0 - DAY, endsAt = T0 + 30 * DAY }))
+  local fields = { id = "m1", title = "Hunt", points = 10, goal = goal(missionGoal), repeatKind = "daily" }
+  for key, value in pairs(mission or {}) do
+    fields[key] = value
+  end
+  assert(admin.season:UpsertMission(fields))
+  relay(admin, member)
+  return world, admin, member
+end
+
+describe("PvPMissionService kill log", function()
+  it("logs an honour kill with the map id, the place and the class and race the cache knows", function()
+    local _, _, member = setup()
+    member.cache:Remember("Zed", "MAGE", "ORC")
+    assert.is_true(kill(member, "Zed", "bg"))
+    local row = member.char.kills[1]
+    assert.are.same(
+      { at = T0 + 12 * 3600, victim = "Zed", mapId = 1411, place = "bg", class = "MAGE", race = "ORC" },
+      row
+    )
+    assert.are.equal(member.season:ActiveSeason().id, member.char.seasonId)
+    assert.are.equal(1, member.changes)
+  end)
+
+  it("leaves class, race and map id unknown when they are not readable", function()
+    local _, _, member = setup()
+    member.world.mapId = nil
+    assert.is_true(kill(member, "Zed"))
+    local row = member.char.kills[1]
+    assert.is_nil(row.mapId)
+    assert.is_nil(row.class)
+    assert.is_nil(row.race)
+  end)
+
+  it("logs nothing without an active season, outside its dates or for an unusable entry", function()
+    local world = new_world()
+    local lone = new_client(world, "Ann", true)
+    assert.is_false(kill(lone, "Zed"))
+    local _, admin, member = setup()
+    assert.is_false(member.missions:OnHonorKill(nil))
+    assert.is_false(member.missions:OnHonorKill({ victim = "Zed" }))
+    assert.is_false(member.missions:OnHonorKill({ time = T0 }))
+    assert.is_false(member.missions:OnHonorKill({ victim = "Zed", where = "world", time = T0 - 5 * DAY }))
+    assert.is_false(member.missions:OnHonorKill({ victim = "Zed", where = "world", time = T0 + 40 * DAY }))
+    assert.are.equal(0, #member.char.kills)
+    -- after the end date nothing is counted
+    admin.season:EditSeason(admin.season:ActiveSeason().id, { endsAt = T0 + 13 * 3600 })
+    relay(admin, member)
+    member.season.now = function()
+      return T0 + 14 * 3600
+    end
+    assert.is_false(kill(member, "Zed"))
+  end)
+
+  it("keeps at most PVP_MISSION_KILLS_MAX rows, dropping the oldest", function()
+    local _, _, member = setup()
+    for index = 1, Constants.PVP_MISSION_KILLS_MAX + 3 do
+      member.missions:OnHonorKill({ victim = "V" .. index, where = "world", time = T0 + index })
+    end
+    assert.are.equal(Constants.PVP_MISSION_KILLS_MAX, #member.char.kills)
+    assert.are.equal("V4", member.char.kills[1].victim)
+  end)
+
+  it("starts a new log for another season", function()
+    local _, _, member = setup()
+    member.char.seasonId = "old"
+    member.char.kills = { { at = 1, victim = "Old", place = "world" } }
+    member.char.claims = { x = {} }
+    assert.are.same({}, member.missions:ReadLog(member.season:ActiveSeason()).kills)
+    assert.is_true(kill(member, "Zed"))
+    assert.are.equal(1, #member.char.kills)
+    assert.are.equal("Zed", member.char.kills[1].victim)
+    assert.are.same({}, member.char.claims)
+  end)
+
+  it("does not break when the character has no saved log", function()
+    local _, _, member = setup()
+    member.char = nil
+    assert.is_false(kill(member, "Zed"))
+    assert.are.same({}, member.missions:ReadLog(member.season:ActiveSeason()).kills)
+  end)
+end)
+
+describe("PvPMissionService unit cache feed", function()
+  it("remembers the enemy players it sees, only while a season runs", function()
+    local world = new_world()
+    local lone = new_client(world, "Ann", true)
+    lone.world.enemy.target = { name = "Zed", class = "MAGE", race = "ORC" }
+    assert.is_false(lone.missions:OnUnit("target"))
+
+    local _, _, member = setup()
+    member.world.enemy.target = { name = "Zed", class = "MAGE", race = "ORC" }
+    assert.is_true(member.missions:OnUnit("target"))
+    assert.is_false(member.missions:OnUnit("mouseover"))
+    kill(member, "Zed")
+    assert.are.equal("MAGE", member.char.kills[1].class)
+    assert.are.equal("ORC", member.char.kills[1].race)
+  end)
+end)
+
+describe("PvPMissionService battleground wins", function()
+  it("logs a win of the own side once per battleground", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Alliance"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    assert.are.same({ at = T0 + 12 * 3600, bgWin = true, mapId = 1411 }, member.char.kills[1])
+    assert.are.equal(1, #member.char.kills)
+    assert.is_true(member.missions:Progress("m1").complete)
+  end)
+
+  it("ignores a loss, an undecided battleground, a unit outside one and an unknown faction", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Horde"
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    member.world.winner = nil
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    member.world.winner = "Alliance"
+    member.world.inBg = false
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    member.world.inBg = true
+    member.world.faction = nil
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    assert.are.equal(0, #member.char.kills)
+  end)
+
+  it("does not log twice after a reload in the same battleground, but does for the next one", function()
+    local world, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Alliance"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    member.missions:OnWorldEntered()
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    assert.are.equal(1, #member.char.kills)
+    member.missions:OnWorldEntered()
+    world.clock = world.clock + Constants.PVP_BG_WIN_DEDUPE_SECONDS
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.are.equal(2, #member.char.kills)
+  end)
+
+  it("logs nothing without a season", function()
+    local lone = new_client(new_world(), "Ann", true)
+    lone.world.winner = "Alliance"
+    assert.is_false(lone.missions:OnBattlegroundStatus())
+  end)
+end)
+
+describe("PvPMissionService availability", function()
+  it("says which sources this client has", function()
+    local _, _, member = setup()
+    assert.are.same({ kills = true, zones = true, classRace = true, bgWins = true }, member.missions:Availability())
+    member.world.killsApi = false
+    member.world.winnerApi = false
+    member.missions.unitSource = false
+    assert.are.same({ kills = false, zones = false, classRace = false, bgWins = false }, member.missions:Availability())
+    member.world.killsApi = true
+    member.world.mapId = nil
+    member.missions.winSource = false
+    local availability = member.missions:Availability()
+    assert.is_true(availability.kills)
+    assert.is_false(availability.zones)
+    assert.is_false(availability.bgWins)
+  end)
+end)
+
+describe("PvPMissionService progress and claims", function()
+  local function kills(member, count)
+    for index = 1, count do
+      kill(member, "Victim" .. index)
+    end
+  end
+
+  it("gives nothing for an unknown mission or a mission of another season", function()
+    local _, _, member = setup()
+    assert.is_nil(member.missions:Progress("nope"))
+    assert.are.equal("none", member.missions:ClaimState("nope"))
+    local nobody = new_client(new_world(), "Ann", true)
+    assert.is_nil(nobody.missions:Progress("m1"))
+  end)
+
+  it("reports the progress of a mission", function()
+    local _, _, member = setup()
+    kills(member, 2)
+    local progress = member.missions:Progress("m1")
+    assert.are.same({ { label = "Kills", done = 2, total = 3 } }, progress.bars)
+    assert.are.equal(0, progress.unknown)
+    assert.is_false(progress.complete)
+    assert.is_false(progress.claimable)
+    assert.are.equal("20261020", progress.periodKey)
+    assert.are.equal(2, #progress.evidence)
+    assert.are.equal("none", member.missions:ClaimState("m1"))
+  end)
+
+  it("refuses a claim that is not complete, paused or beyond the limit", function()
+    local _, admin, member = setup()
+    kills(member, 2)
+    assert.are.same({ nil, "not_complete" }, { member.missions:Claim("m1") })
+    assert.are.same({ nil, "unknown_mission" }, { member.missions:Claim("nope") })
+    kills(member, 3)
+    assert.is_truthy(member.missions:Claim("m1"))
+    assert.are.same({ nil, "limit" }, { member.missions:Claim("m1") })
+    assert(admin.season:SetMissionActive("m1", false))
+    relay(admin, member)
+    assert.are.same({ nil, "inactive" }, { member.missions:Claim("m1") })
+  end)
+
+  it("sends a claim with the evidence and the summary, and keeps it pending", function()
+    local _, admin, member = setup()
+    kills(member, 3)
+    local claim, queued = member.missions:Claim("m1", "  ")
+    assert.is_truthy(claim)
+    assert.is_true(queued)
+    assert.are.equal("Ann:m1:20261020:1", claim.id)
+    local sent = member.sent[#member.sent]
+    assert.are.equal("PVP_CLAIM", sent.t)
+    assert.are.equal(3, #sent.p.evidence)
+    assert.are.equal(3, sent.p.summary.done)
+    assert.are.equal(3, sent.p.summary.total)
+    assert.are.equal("pending", member.missions:ClaimState("m1"))
+    assert.are.equal("pending", member.char.claims[claim.id].state)
+    relay(member, admin)
+    assert.are.equal(1, #admin.season:Queue())
+    assert.is_true(member.changes >= 4)
+  end)
+
+  it("follows the decision of the approver", function()
+    local _, admin, member = setup()
+    kills(member, 3)
+    local claim = member.missions:Claim("m1")
+    relay(member, admin)
+    assert(admin.season:Reject(claim.id, "no"))
+    relay(admin, member)
+    assert.are.equal("rejected", member.missions:ClaimState("m1"))
+    -- a grant beats a rejection
+    assert(admin.season:Approve(claim.id))
+    relay(admin, member)
+    assert.are.equal("approved", member.missions:ClaimState("m1"))
+    assert.are.equal("approved", member.char.claims[claim.id].state)
+    -- the approved claim is not announced again
+    assert.are.equal(0, member.missions:Reannounce())
+  end)
+
+  it("takes the best state when a period has several claims", function()
+    local _, admin, member = setup({}, { perPlayer = 2 })
+    kills(member, 3)
+    local first = member.missions:Claim("m1")
+    local second = member.missions:Claim("m1")
+    assert.are.equal("Ann:m1:20261020:2", second.id)
+    relay(member, admin)
+    assert(admin.season:Reject(first.id))
+    relay(admin, member)
+    assert.are.equal("pending", member.missions:ClaimState("m1"))
+  end)
+
+  it("claims a class mission when the unknown ones could complete it, with the unknown ones as evidence", function()
+    local _, _, member = setup({ kind = "kills", distinct = "class", count = 1 }, { repeatKind = "once" })
+    local classes = Constants.PVP_ENEMY_CLASSES
+    for index = 1, #classes - 1 do
+      member.cache:Remember("C" .. index, classes[index], "ORC")
+      kill(member, "C" .. index)
+    end
+    assert.are.same({ nil, "not_complete" }, { member.missions:Claim("m1") })
+    kill(member, "Mystery")
+    local progress = member.missions:Progress("m1")
+    assert.are.equal(1, progress.unknown)
+    assert.is_true(progress.claimable)
+    local claim = assert(member.missions:Claim("m1"))
+    assert.are.equal(#classes - 1, claim.summary.classes)
+    assert.are.equal(#classes, claim.summary.classesTotal)
+    assert.are.equal(1, claim.summary.unknown)
+    assert.are.equal("Mystery", claim.evidence[#claim.evidence].victim)
+  end)
+
+  it("needs a note for a manual mission", function()
+    local _, _, member = setup({ kind = "manual", count = 1 })
+    assert.are.same({ nil, "invalid:note" }, { member.missions:Claim("m1") })
+    assert.are.same({ nil, "invalid:note" }, { member.missions:Claim("m1", "") })
+    local claim = assert(member.missions:Claim("m1", "Won the duel tournament"))
+    assert.are.equal("Won the duel tournament", claim.note)
+    assert.are.equal(0, #claim.evidence)
+  end)
+
+  it("claims a battleground mission with the win as evidence", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Alliance"
+    member.missions:OnBattlegroundStatus()
+    local claim = assert(member.missions:Claim("m1"))
+    assert.are.same({ at = T0 + 12 * 3600, bgWin = true, mapId = 1411 }, claim.evidence[1])
+  end)
+
+  it("sends the largest evidence a client can build", function()
+    local _, admin, member = setup({ count = 500 }, { repeatKind = "once" })
+    local name = string.rep("n", Constants.PVP_FEED_VICTIM_MAX)
+    for index = 1, Constants.PVP_CLAIM_EVIDENCE_MAX + 40 do
+      member.cache:Remember(name .. index, "WARRIOR", "TAUREN")
+      member.missions:OnHonorKill({
+        victim = (name .. index):sub(1, Constants.PVP_FEED_VICTIM_MAX),
+        where = "bg",
+        time = T0 + index,
+      })
+    end
+    -- 500 are needed: top the log up with distinct victims
+    for index = 1, 500 do
+      member.missions:OnHonorKill({ victim = "Fill" .. index, where = "world", time = T0 + 1000 + index })
+    end
+    local claim = assert(member.missions:Claim("m1"))
+    assert.are.equal(Constants.PVP_CLAIM_EVIDENCE_MAX, #claim.evidence)
+    assert.are.equal(Constants.PVP_CLAIM_EVIDENCE_MAX, #member.sent[#member.sent].p.evidence)
+    relay(member, admin)
+    assert.are.equal(1, #admin.season:Queue())
+  end)
+end)
+
+describe("PvPMissionService announcements", function()
+  local function pending_claim()
+    local world, admin, member = setup()
+    for index = 1, 3 do
+      kill(member, "Victim" .. index)
+    end
+    local claim = assert(member.missions:Claim("m1"))
+    member.timers = {}
+    member.missions.looping = false
+    return world, admin, member, claim
+  end
+
+  it("announces the pending claims again after the login delay, then every interval while any is pending", function()
+    local _, admin, member, claim = pending_claim()
+    member.missions:StartAnnouncing()
+    member.missions:StartAnnouncing()
+    assert.are.equal(1, #member.timers)
+    assert.are.equal(Constants.PVP_LOGIN_SEND_DELAY_MIN, member.timers[1].delay)
+    local before = #member.sent
+    fire(member)
+    assert.are.equal(before + 1, #member.sent)
+    assert.are.equal("PC:" .. claim.id, member.sent[#member.sent].key)
+    assert.are.same(member.sent[before].p, member.sent[#member.sent].p)
+    -- still pending: the next round is planned
+    assert.are.equal(1, #member.timers)
+    assert.are.equal(Constants.PVP_CLAIM_REANNOUNCE_SECONDS, member.timers[1].delay)
+    -- an approver who was offline gets it from the repeat, and decides
+    relay(member, admin)
+    assert(admin.season:Approve(claim.id))
+    relay(admin, member)
+    fire(member)
+    assert.are.equal(before + 1, #member.sent)
+    assert.are.equal(0, #member.timers)
+    assert.is_false(member.missions:HasPending())
+  end)
+
+  it("plans the repeat when a claim is made, once", function()
+    local _, _, member = setup()
+    for index = 1, 3 do
+      kill(member, "Victim" .. index)
+    end
+    member.timers = {}
+    assert(member.missions:Claim("m1"))
+    assert.are.equal(1, #member.timers)
+    assert.are.equal(Constants.PVP_CLAIM_REANNOUNCE_SECONDS, member.timers[1].delay)
+    member.missions:KeepAnnouncing()
+    assert.are.equal(1, #member.timers)
+  end)
+
+  it("stops when the addon is no longer active", function()
+    local _, _, member = pending_claim()
+    member.missions:StartAnnouncing()
+    member.active = false
+    local before = #member.sent
+    fire(member)
+    assert.are.equal(before, #member.sent)
+    assert.are.equal(0, #member.timers)
+    assert.is_false(member.missions.looping)
+  end)
+
+  it("sends nothing when there is no season or nothing pending", function()
+    local lone = new_client(new_world(), "Ann", true)
+    assert.are.equal(0, lone.missions:Reannounce())
+    assert.is_false(lone.missions:HasPending())
+    local _, _, member = setup()
+    assert.are.equal(0, member.missions:Reannounce())
+    member.missions:StartAnnouncing()
+    fire(member)
+    assert.are.equal(0, #member.timers)
+  end)
+
+  it("skips a claim of a season that is no longer the active one", function()
+    local _, _, member, claim = pending_claim()
+    member.char.claims[claim.id].claim.seasonId = "other"
+    assert.are.equal(0, member.missions:Reannounce())
+  end)
+end)

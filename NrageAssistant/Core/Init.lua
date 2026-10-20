@@ -55,6 +55,67 @@ local PVP_HONOR_EVENTS = { "CHAT_MSG_COMBAT_HONOR_GAIN", "PLAYER_PVP_KILLS_CHANG
 local PVP_HONOR_TEXT_EVENT = PVP_HONOR_EVENTS[1]
 local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
 
+-- The events the PvP missions listen to (docs/PVP_MISSIONS_PLAN.md, 2.2 and 2.3), each registered on its own so a
+-- client that refuses one keeps the others. The first three fill the unit cache (the unit is the event argument for
+-- a nameplate, otherwise the one named here); none of them is measured on Forever yet (M3 to M5).
+local PVP_MISSION_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
+local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
+local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
+local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
+
+-- Builds ns.pvpMissions (the kill log, progress and claims of the PvP missions) and its events. Returns the service,
+-- or nil when it cannot start. A failing handler never raises into the client.
+local function StartPvPMissions(feed)
+  if not (ns.pvpSeason and ns.PvPMissionService and ns.PvPUnitCache) then
+    return nil
+  end
+  local missions = ns.PvPMissionService.New({
+    season = ns.pvpSeason,
+    log = function()
+      return ns.character and ns.character.pvpMissions
+    end,
+    cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
+    now = ns.Platform.ServerTime,
+    platform = ns.Platform,
+    killsAvailable = function()
+      return feed:Available()
+    end,
+    schedule = C_Timer.After,
+    random = math.random,
+    isActive = function()
+      return ns.active == true
+    end,
+    onChange = function()
+      if ns.UI and ns.UI.PvPChanged then
+        ns.UI.PvPChanged()
+      end
+    end,
+  })
+  ns.pvpMissions = missions
+
+  local frame = CreateFrame("Frame")
+  for event in pairs(PVP_MISSION_UNITS) do
+    missions.unitSource = ns.Platform.TryRegisterEvent(frame, event) or missions.unitSource
+  end
+  missions.unitSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_NAMEPLATE_EVENT) or missions.unitSource
+  missions.winSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WIN_EVENT)
+  ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
+  frame:SetScript("OnEvent", function(_, event, unit)
+    if not ns.active then
+      return
+    end
+    if event == PVP_MISSION_WIN_EVENT then
+      pcall(missions.OnBattlegroundStatus, missions)
+    elseif event == PVP_MISSION_WORLD_EVENT then
+      missions:OnWorldEntered()
+    else
+      pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
+    end
+  end)
+  missions:StartAnnouncing()
+  return missions
+end
+
 local pvpStarted = false
 
 -- Own frame, so the access frame below stays as it is. Runs once: access can be lost and regained.
@@ -120,9 +181,16 @@ local function StartPvP()
     schedule = C_Timer.After,
     ownName = ns.Platform.GetIdentityKey,
     onChange = ns.UI.PvPChanged,
+    -- The own honour kills also go to the mission log.
+    onHonorKill = function(entry)
+      if ns.pvpMissions then
+        ns.pvpMissions:OnHonorKill(entry)
+      end
+    end,
   })
   feed.honorNames = ns.Platform.HasHonorVictimSource()
   ns.pvpFeed = feed
+  StartPvPMissions(feed)
 
   local pvpFrame = CreateFrame("Frame")
   for _, event in ipairs(PVP_HONOR_EVENTS) do
@@ -550,7 +618,13 @@ local function StartPvPSeason()
       return ns.comm:Fits(messageType, payload)
     end,
   })
-  ns.pvpSeasonCommands = ns.PvPSeasonCommands.New({ service = ns.pvpSeason, formatDate = platform.FormatDate })
+  ns.pvpSeasonCommands = ns.PvPSeasonCommands.New({
+    service = ns.pvpSeason,
+    formatDate = platform.FormatDate,
+    missions = function()
+      return ns.pvpMissions
+    end,
+  })
 end
 
 local function Activate()

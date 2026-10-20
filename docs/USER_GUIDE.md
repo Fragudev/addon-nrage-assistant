@@ -259,7 +259,7 @@ in a later version (`docs/PVP_MISSIONS_PLAN.md`).
 
 | Who | Can |
 |---|---|
-| any member | claim a mission (`/nrage pvp claim <missionId> [note]`); see the season, its missions and the ranking (`/nrage pvp season`, `/nrage pvp mission`) |
+| any member | claim a mission when it is complete (`/nrage pvp claim <missionId> [note]`); see the season, its missions and the ranking (`/nrage pvp season`, `/nrage pvp mission`) |
 | PvP officer | everything a member can, plus see the claims waiting (`/nrage pvp queue`), approve (`approve <claimId>`) or reject (`reject <claimId> [reason]`) them, and mark a prize as delivered. An officer cannot approve their own claim |
 | admin (guild master) | everything an officer can, plus create and close seasons (`/nrage pvp season create <days> <name>`, `close`), define missions and prizes, make an officer or take the flag away (`/nrage pvp officer add\|remove <name>`), give points without a claim (`grant <player> <missionId> [points]`) and void a grant |
 
@@ -277,6 +277,32 @@ Prizes, delivery marks and voiding a grant have no command yet: they come with t
   in game and marked as delivered.
 - A member who logs in late, or while a season starts, asks the guild for it and receives the ranking from a raid
   leader, an admin or a PvP officer who is online.
+
+### How missions are counted and claimed
+
+While a season is running, the addon keeps a private log of your own kills and counts them for the missions by
+itself; nothing is shared until you claim.
+
+- **What counts.** Only honourable kills (a grey target gives no honour and never counts), done between the start and
+  the end date of the season, in the current period of the mission (*once*: the whole season; *daily*: today, server
+  day, UTC; *weekly*: this ISO week, UTC). The same victim counts at most 3 times per server day, across all missions.
+  A mission can ask for a number of kills, a number of different players, one kill of each enemy class and/or race, a
+  number of battleground wins, or be *manual* (you describe what you did in the note).
+- **Zones and place.** A mission can be limited to some zones and to the open world or battlegrounds. A kill whose
+  zone the client did not give never matches a zone mission.
+- **Class and race.** The client does not tell the addon the class of a victim directly: the addon remembers the
+  enemy players you saw (target, mouseover, nameplates) for an hour. If it did not see the victim before the kill,
+  the class or race is *unknown*: it does not fill the bar, but if the unknown kills could complete it you can still
+  claim, and the approver decides from the evidence.
+- **Battleground wins** are logged once per battleground when the client reports your side as the winner.
+- **Claiming.** When a mission is complete (or could be, with unknown classes), claim it. The claim carries up to 60
+  of the rows that back it, the counts and your note, and goes to the guild. It is repeated after you log in and
+  about every 10 minutes while it waits, so an approver who comes online later receives it. A claim is *pending*
+  until an admin or a PvP officer approves or rejects it. A period allows as many approved claims as the mission says
+  (usually one), and a rejected claim uses its place.
+- **Not available on this client.** Zones, class and race, and battleground wins depend on what the game client lets
+  addons read, which is still being measured. A mission that needs a source the client does not give is shown as not
+  available; manual missions never depend on one.
 
 ## Professions
 

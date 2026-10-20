@@ -29,6 +29,7 @@ secret store.
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates (each keeps the roster of the event it was saved from) | you; never shared |
 | Raid rosters and the role and roster the guild master assigned to each member | the guild master, received over the guild channel |
+| Your PvP mission log, for the active season only: each honour kill (time, victim name, zone id, open world or battleground, and the victim's class and race when you had seen them), each battleground win, and your claims | your own kills and what you see in the game; never shared except inside a claim |
 | PvP seasons: the season, its missions and prizes, the PvP officers, who earned how many points for which mission (the grants), and the final standings of past seasons | the guild master and PvP officers, received over the guild channel and from a catch-up whisper |
 
 Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
@@ -96,9 +97,17 @@ visible to everyone** while a session is open.
 A season's ledger is shared with the whole guild like the rest of the shared data: the points each player was granted
 and by whom, and, for a PvP officer, the dates the flag was on. A claim (what a member asks points for, with a note)
 goes over the guild channel too, and only admins and PvP officers keep it. When a season is closed, every client
-keeps the final standing and the delivery list and drops the detail (each grant, the pending claims). Nothing about
-mission claims is read from the game yet; when the kill log and the evidence of automatic missions arrive in a later
-version, they will be listed here before they are sent.
+keeps the final standing and the delivery list and drops the detail (each grant, the pending claims).
+
+**The mission log.** While a season is active, the addon keeps a log in your `SavedVariables`, per character, of your
+own honour kills (time, the victim's name, the zone id, open world or battleground, and the victim's class and race)
+and battleground wins, at most 2000 rows. Class and race come from a cache of the enemy players you saw (target,
+mouseover, nameplates), which lives in memory only and is never saved or sent. Grey kills are not logged. The log is
+**not shared**: only when you press *Claim* does a claim go to the guild channel with up to 60 of the rows that back
+it (time, victim, zone, place, class and race), the counts and the note you typed, so an admin or PvP officer can
+check it. The claim is repeated about every 10 minutes while it is waiting, so an officer who logs in later gets
+it, and only admins and PvP officers keep it. When the season closes, the log, your claims and the pending claims of
+everyone are deleted.
 
 ## Your layer
 
