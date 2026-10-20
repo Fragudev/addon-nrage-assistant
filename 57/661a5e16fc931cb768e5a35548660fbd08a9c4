@@ -1,0 +1,37 @@
+NrageAssistant/Locales/esES.lua
+  s_96b53beb93db33::t_199c1fffc8bfaf 794-978
+NrageAssistant/NrageAssistant.toc
+  s_96b53beb93db33::t_b166eb934c9838 86
+NrageAssistant/UI/Main.lua
+  s_96b53beb93db33::t_3f1d08f7322208 204-212
+NrageAssistant/UI/Tabs/Members.lua
+  s_96b53beb93db33::t_a7391c0e77da1c 166,181,195,198-217,257-261,263,281
+NrageAssistant/UI/Tabs/PvP.lua
+  s_96b53beb93db33::t_c76d85a4928fcf 3-6,12-14,17-20,25-33,36-98,125-129,142-148,254,262,271-274,354-1588,1592,1594-1595,1597,1604-1607,1610-1613,1615
+NrageAssistant/UI/ViewModelHome.lua
+  s_96b53beb93db33::t_ae56b53be4c927 349,360,412
+NrageAssistant/UI/ViewModelPvP.lua
+  s_96b53beb93db33::t_fc25bbbfc0844b 1-939
+tests/ui_smoke_spec.lua
+  s_96b53beb93db33::t_dfc62f656f2100 23-27,51,278-300,1242-1244,1253,1264-1265,1278,1282,1286-1287,1293-1298,1321-1322,1340-1343,1392-1961
+tests/view_model_pvp_spec.lua
+  s_96b53beb93db33::t_fb09d222151ff8 1-825
+tests/view_model_spec.lua
+  s_96b53beb93db33::t_e197360cfbf465 2105-2113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "57661a5e16fc931cb768e5a35548660fbd08a9c4",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
