@@ -8,7 +8,8 @@ This document is written for the implementing agent. It must be executable witho
 it. Items marked **decided** were agreed with the guild officer who owns the addon on 2026-10-20. Items marked
 **default** were proposed and not objected to; they are open to review but should be implemented as written.
 
-**Status:** planned (2026-10-20). Nothing is implemented. Based on `main` at `695bbe1` (redesign #129, profile icons
+**Status:** planned (2026-10-20). Phase P1 is implemented on `feat/pvp-seasons` (its API is in section 9); P2 to P5 are
+not started. Based on `main` at `695bbe1` (redesign #129, profile icons
 #130 and layer swap #131 merged): the UI kit (`UI/Kit/*`), the redesigned PvP tab (`UI/Tabs/PvP.lua`) and the
 admin-assigned roles (`Sync/RosterSync.lua`, `db.global.members`, `UI/Tabs/Members.lua`) already exist.
 
@@ -485,3 +486,97 @@ One PR per phase, each green on `busted`, `luacheck`, `stylua --check` and the c
 | 2026-10-20 | All UI inside the PvP tab as sub-tabs, redesign style; mockup updated (canvas version 22) |
 | 2026-10-20 | Assignable PvP officer flag (approvals and deliveries only); mockup updated (version 23) |
 | 2026-10-20 | Delivery in five phases (section 6) |
+
+---
+
+## 9. P1 API (implemented)
+
+What phase P1 left for P2 to P5 to build on. The files: `Domain/PvPSeasonModel.lua` (`ns.PvPSeasonModel`, pure),
+`Domain/PvPSeasonService.lua` (`ns.PvPSeasonService`, local actions and reads), `Sync/PvPSeasonSync.lua`
+(`ns.PvPSeasonSync`, receiving and catch-up), `Commands/PvPSeasonCommands.lua` (the interim `/nrage pvp ...`).
+At runtime the service of this client is **`ns.pvpSeason`** (created in `Core/Init.lua` once the addon is active).
+The ledger it works on is `ns.db.global.pvpSeason` (section 4.3); the per-character log is `char.pvpMissions`
+(`{ seasonId, kills = {}, claims = {} }`, created by the migration and `Store.GetChar`; P2 fills it).
+
+**Conventions.** Every service action returns `record, queued` (the record it made; `queued` is false when it was
+saved here but could not be sent) or `nil, reason`. Reasons: `"forbidden"`, `"invalid:<field>"`, `"no_season"`,
+`"closed"`, `"not_found"`, `"decided"`, `"unknown_mission"`, `"unknown_player"`, `"self_grant"`, `"unchanged"`,
+`"inactive"`, `"out_of_season"`, `"limit"`, `"active_exists"`, `"stale"`, plus `PvPSeasonSync.Apply`'s. A record's
+author (`by`, `updatedBy`, `closedBy`) is never in a payload. Times are server time. Players are full roster names.
+
+### `ns.PvPSeasonModel` (pure)
+
+| Function | Notes |
+|---|---|
+| `PeriodKey(repeatKind, at)` | `"once"` -> `"all"`, `"daily"` -> `"YYYYMMDD"` (UTC), `"weekly"` -> `"YYYYWww"` (ISO week, UTC); nil for anything else. Also `DayKey(at)`, `WeekKey(at)`, `IsPeriodKey(key)` |
+| `Contains(season, at)` | `startsAt <= at <= endsAt` |
+| `ClaimId(player, missionId, periodKey, n)`, `ParseClaimId(id)` -> `{ player, missionId, periodKey, n }` or nil, `IsClaimId(id)` | the claim id of 1.3 |
+| `ValidateSeason`, `ValidateMission`, `ValidateClaim`, `ValidateGrant`, `ValidateVoid`, `ValidateReject`, `ValidatePrizes`, `ValidateTiers`, `ValidateOfficer`, `ValidateDelivery`, `ValidateFinal` `(fields)` | `clean` or `nil, "invalid:<field>"`; the wire validators too. A claim's `evidence` rows: `{ at, victim, mapId?, place = "world" \| "bg", class?, race? }` or `{ at, bgWin = true, mapId? }`, at most `PVP_CLAIM_EVIDENCE_MAX` (60). `summary` keys: `done, total, classes, classesTotal, races, racesTotal, unknown` (integers) |
+| `Standings(grants, voids, officers, roleOf, seasonId?)` | `{ pos, player, points, lastAt, tier }` best first (1.8); `grants` is a map or a list of grants carrying `by`, `roleOf(name) -> role \| nil` |
+| `Cumulative(finals)` | `{ pos, player, points, seasons, podiums }` over a map or list of finals |
+| `TierOf(position)`, `TierRange(tier)`, `IsTier(tier)` | tiers `"1"`, `"2"`, `"3"`, `"4-6"`, `"7-10"` |
+| `IsOfficerAt(officer, at)`, `IsOfficer(officer)`, `ToggleIntervals(intervals, on, now, keepFrom?)` | officer intervals (both ends included) |
+| `GrantCounts(grant, officers, roleOf)`, `VoidCounts(void, roleOf)` | does the author count (admin; officer at the time of the grant, for a claim approval, not for themselves) |
+| `FitFinal(final, fits)`, `Digest(tokens)`, `IsPlayer(name)`, `CleanText(text)` | helpers |
+
+`PermissionService.CanPvP(role, isOfficer, action)` and the actions of section 3 (`pvp_claim`, `pvp_claim_decide`,
+`pvp_delivery_mark`, `pvp_grant_direct`, `pvp_grant_void`, `pvp_season_manage`, `pvp_mission_manage`,
+`pvp_prize_manage`, `pvp_officer_assign`) are in `Domain/PermissionService.lua`.
+
+### `ns.PvPSeasonService` (`ns.pvpSeason`)
+
+Reads (never nil, empty lists when there is nothing):
+
+- `ActiveSeason()`, `Season(id)`, `Seasons()` (newest first), `Mission(id)`, `Missions(seasonId, includePaused?)`
+  (by title; paused ones only with `includePaused`), `Prizes(seasonId)` (`{ seasonId, tiers, ... }`; the frozen copy,
+  with `closed = true`, once the season is closed).
+- `Standings(seasonId?)` (default: the active season; the final standing for a closed one), `StandingOf(player?, seasonId?)`
+  (the row or nil), `Grants(seasonId?)` (`{ id, player, missionId, missionTitle, points, at, by, counts, voided }`, newest
+  first), `Queue()` (claims waiting, oldest first), `Rejected()` (claims an approver rejected, with `rejectedBy`,
+  `rejectedAt`, `reason`), `ClaimState(claimId)` -> `"approved" \| "rejected" \| "pending" \| nil`.
+- `Final(seasonId)`, `Finals()` (newest first), `Deliveries(seasonId)` (`{ pos, player, tier, rewards, delivered,
+  updatedBy, updatedAt }`), `Cumulative()`, `Officers()` (`{ player, active, since }`).
+- `IsOfficer(name)`, `CanPvP(action)` (the local player, officer flag included), `IsApprover()`.
+
+Actions (each checks the permission, validates, applies to the own ledger and sends):
+
+- `CreateSeason({ name, startsAt?, endsAt })`, `EditSeason(seasonId, { name?, startsAt?, endsAt? })`,
+  `CloseSeason(seasonId?)` -> `final, expiredClaims, queued` (builds the final from the grants held, copies the prizes,
+  deletes the detail, makes the deliveries, then sends `PVP_FINAL` and the closed season).
+- `UpsertMission({ id?, title, desc?, points, goal = { kind, count?, zones?, place?, distinct? }, repeatKind, perPlayer?,
+  active? })` (an `id` of a mission held edits it, keeping the fields not given), `SetMissionActive(missionId, active)`,
+  `SetPrizes(seasonId, tiers)`, `SetOfficer(player, on)`.
+- **For detection (P2/P3): `SubmitClaim({ missionId, at?, n?, summary?, evidence?, note? })`** -> `claim, queued`. The
+  player is always the local one and the period key comes from the mission, so the claim id is `ClaimId(own, mission,
+  period, n or 1)`; a manual mission needs a `note`. It sends `PVP_CLAIM` and, for an admin, keeps the claim in the own
+  queue. The re-announcement (1.3) just calls it again with the same fields: the same claim is the same id.
+- `ReceiveClaim(payload, sender)` (what `Comm` does for a received `PVP_CLAIM`: it only stores it on an approver),
+  `Approve(claimId)` (a grant with the claim id and the mission's points), `Reject(claimId, reason?)`,
+  `DirectGrant(player, missionId, points?)`, `Void(grantId, reason?)`, `MarkDelivery(seasonId, player, delivered)`.
+- `PvPSeasonService.ClearMissionLog(char.pvpMissions, seasonId)` empties the per-character log of a closed season;
+  `ns.PvPSeasonClosed(seasonId)` (Init) calls it, and is the place to hook the kill log and claim state of P2.
+
+Hooks the interface can define: `ns.UI.PvPSeasonChanged(messageType)` (called when a season record changes here or
+arrives; until it exists `ns.UI.PvPChanged()` is called instead).
+
+### Messages (`ns.PvPSeasonSync`, `Comm`)
+
+`PVP_SEASON`, `PVP_MISSION`, `PVP_PRIZES`, `PVP_OFFICER`, `PVP_CLAIM`, `PVP_REJECT`, `PVP_GRANT`, `PVP_VOID`,
+`PVP_DELIVERY`, `PVP_FINAL`, `PVP_LEDGER_REQ`, `PVP_LEDGER_DATA`: see `docs/PROTOCOL.md` ("PvP seasons"). `Comm` routes
+them (`HandlePvPSeason`, `HandleLedgerRequest`, whispers in `HandleWhisper`), `Comm:RequestLedger()` asks for the
+catch-up (at login and when a season becomes active), `Comm:Fits(messageType, payload)` says whether a payload fits
+one guild message. `PvPSeasonSync.Apply(ctx, message, by)` is the single entry point for a validated record, for the
+guild channel and for a catch-up item alike.
+
+### What differs from the text above
+
+- `PVP_CLAIM_EVIDENCE_MAX` is 60 as planned: a test encodes the largest claim the validator allows (60 rows of 40-byte
+  victim names) and it fits the 4096-byte guild message.
+- A rejected claim stays in the queue (marked by its `PVP_REJECT`) so an approver can still approve it; `Queue()` hides
+  it and `Rejected()` lists it. Rejected claims make room first when the queue is full.
+- An officer cannot approve their own claim (an admin can); the receivers apply the same rule.
+- The ledger digest also covers officers, seasons, finals and deliveries, not only grants and voids, so a difference in
+  any of them triggers a catch-up. Missions and prizes are sent only for the requested and the relay's active season.
+- A mission or prize record is still taken after the final of its season (it may reach a client late); grants, voids and
+  rejections are not.
+
