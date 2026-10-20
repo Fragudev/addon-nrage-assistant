@@ -358,6 +358,46 @@ local function validatePvPReset(payload)
   return { target = payload.target, rev = payload.rev }
 end
 
+-- Layers. LAYER_STATE is the sender's own layer (`layer = 0` means "forget me"); LAYER_SWAP is one step of a swap.
+-- Neither names who acts: the actor is always the sender. Only the helper of an `assign` is named, and it is
+-- plain text like any character name.
+local SWAP_STEPS = { request = true, offer = true, assign = true, close = true }
+local SWAP_OUTCOMES = { done = true, expired = true, cancelled = true, declined = true, unconfirmed = true }
+
+local function validateLayerState(payload)
+  local constants = ns.Constants
+  if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 0, constants.LAYER_ID_MAX)) then
+    return nil
+  end
+  return { map = payload.map, layer = payload.layer }
+end
+
+local function validateLayerSwap(payload)
+  local constants = ns.Constants
+  local step = payload.s
+  if not (isId(payload.rid) and type(step) == "string" and SWAP_STEPS[step]) then
+    return nil
+  end
+  local clean = { rid = payload.rid, s = step }
+  if step == "request" then
+    if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 1, constants.LAYER_ID_MAX)) then
+      return nil
+    end
+    clean.map, clean.layer = payload.map, payload.layer
+  elseif step == "assign" then
+    if not ns.EventModel.IsCharacterKey(payload.helper) then
+      return nil
+    end
+    clean.helper = payload.helper
+  elseif step == "close" then
+    if not (type(payload.o) == "string" and SWAP_OUTCOMES[payload.o]) then
+      return nil
+    end
+    clean.o = payload.o
+  end
+  return clean
+end
+
 -- The guild's readiness rules: the whole set, validated rule by rule (ReadinessRules.Validate).
 local function validateReadinessRules(payload)
   if not validateRevision(payload) then
@@ -485,6 +525,8 @@ local VALIDATORS = {
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
   READINESS_RULES = validateReadinessRules,
+  LAYER_STATE = validateLayerState,
+  LAYER_SWAP = validateLayerSwap,
   RECIPES = validateRecipes,
   ROSTER_UPSERT = validateRosterUpsert,
   ROSTER_DELETE = validateRosterDelete,

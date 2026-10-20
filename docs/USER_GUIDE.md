@@ -287,6 +287,30 @@ The game gives the addon only the **first word** of a multi-word character name 
 the alert still fires and says so: `Yonemon may be Yonemon Gg, who is on the blacklist: <reason>`. A false alarm is
 better than a warning that never comes; check who it is before acting on it.
 
+## Layers
+
+The **Layers** tab shows the layer you are on and the layers of your continent that guildmates have shared. The
+addon reads your layer from the creatures you **target or mouse over** (it needs two different creatures to be
+sure), so when it says "unknown", click any NPC. The label of a layer is `#` plus the last four digits of its
+id; your own layer is marked "(you)". Layers are shown only for your continent.
+
+- **Share my layer** (on by default) lets the guild see your layer. Turn it off and the addon tells the guild to
+  forget you. You can still ask for a swap with it off.
+- **Request swap** asks the guildmates on that layer to help you. It needs you to be alone (not in a group), out of
+  combat and not in an instance, and no other swap running; otherwise the button is disabled and says why.
+- A member on that layer who can help gets a popup with a sound: **Help** or **Ignore**. The first to answer is
+  picked, and the others' popups close. The helper then clicks **Invite**; you accept the normal group invite.
+- After you join, target or mouse over any NPC so the addon can confirm the move. When your layer is the one you
+  asked for, the popup says "Layer changed" and offers **Leave group**. The addon never leaves a group by itself.
+- If nobody answers (60 seconds), the helper does not invite you (90 seconds) or the move cannot be confirmed
+  (120 seconds), the popup says so. **Cancel** works at any step.
+
+To help: the popup appears only if you are on the requested layer, not in combat or an instance, and either alone
+or leading a party that is not full.
+
+The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
+on Forever is still being checked (see `docs/API_NOTES.md`).
+
 ## Sync
 
 The **Home** tab shows the sync state. While an encounter is in progress the game blocks addon messages, so
@@ -316,4 +340,4 @@ once; they are not needed in normal use.
 |---|---|
 | `/nrage` | opens the window, where everything else is done |
 | `/nrage help` | this short list |
-| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp` |
+| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp`, `layer` |

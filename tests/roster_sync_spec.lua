@@ -31,6 +31,7 @@ local function load_addon()
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/RecipeSync",
+    "Sync/LayerSync",
     "Sync/Transfer",
     "Sync/Comm",
     "Commands/RosterCommands",
@@ -71,9 +72,9 @@ local function deliver(receiver, messageType, payload, sender, role)
 end
 
 describe("Protocol roster messages", function()
-  it("is at protocol 1.5", function()
+  it("is at protocol 1.6", function()
     assert.are.equal(1, Constants.PROTOCOL_MAJOR)
-    assert.are.equal(5, Constants.PROTOCOL_MINOR)
+    assert.are.equal(6, Constants.PROTOCOL_MINOR)
   end)
 
   it("accepts a clean roster upsert and delete, and drops unknown fields", function()

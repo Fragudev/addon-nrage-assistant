@@ -640,6 +640,98 @@ function Platform.ParseHonorVictim(text)
   return nil
 end
 
+-- Layers and group actions. None of these is measured on Forever yet (see docs/API_NOTES.md): each is guarded, and
+-- nil or false means "unavailable", never an error. A secret value is not inspected beyond its type.
+
+-- The GUID of `unit`, or nil when the unit does not exist, the API is missing or the value is not a string.
+function Platform.GetUnitGUID(unit)
+  if not UnitGUID then
+    return nil
+  end
+  local ok, guid = pcall(UnitGUID, unit)
+  if ok and type(guid) == "string" then
+    return guid
+  end
+  return nil
+end
+
+-- true inside any instance (dungeon, raid, battleground, arena), false outside, nil when the client does not say.
+function Platform.IsInInstance()
+  if not IsInInstance then
+    return nil
+  end
+  local ok, inInstance = pcall(IsInInstance)
+  if ok and (inInstance == true or inInstance == false) then
+    return inInstance
+  end
+  return nil
+end
+
+-- true while the player is in combat; false when not or when the client does not say.
+function Platform.IsInCombat()
+  local lockdown = InCombatLockdown or UnitAffectingCombat and function()
+    return UnitAffectingCombat("player")
+  end
+  if not lockdown then
+    return false
+  end
+  local ok, inCombat = pcall(lockdown)
+  return ok and (inCombat == true or inCombat == 1)
+end
+
+function Platform.IsInRaid()
+  if not IsInRaid then
+    return false
+  end
+  local ok, inRaid = pcall(IsInRaid)
+  return ok and inRaid == true
+end
+
+-- The number of players in the group (the player included), or 0 when alone or unknown.
+function Platform.GetGroupSize()
+  if not (GetNumGroupMembers and Platform.IsInGroup()) then
+    return 0
+  end
+  local ok, total = pcall(GetNumGroupMembers)
+  if ok and type(total) == "number" and total >= 0 then
+    return total
+  end
+  return 0
+end
+
+-- true when the player leads the group; false when not or when the client does not say.
+function Platform.IsGroupLeader()
+  if not UnitIsGroupLeader then
+    return false
+  end
+  local ok, leader = pcall(UnitIsGroupLeader, "player")
+  return ok and leader == true
+end
+
+-- Invites `name` to the party. Returns true, or false plus "unavailable" | "error". Whether it needs a hardware
+-- event, and whether a multi-word name works, is not measured yet: the caller only ever calls it from a click.
+function Platform.InviteByName(name)
+  if type(name) ~= "string" or name == "" then
+    return false, "error"
+  end
+  local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+  if not invite then
+    return false, "unavailable"
+  end
+  local ok = pcall(invite, name)
+  return ok, not ok and "error" or nil
+end
+
+-- Leaves the group. Returns true, or false plus "unavailable" | "error". Only ever called from a click.
+function Platform.LeaveGroup()
+  local leave = (C_PartyInfo and C_PartyInfo.LeaveParty) or LeaveParty
+  if not leave then
+    return false, "unavailable"
+  end
+  local ok = pcall(leave)
+  return ok, not ok and "error" or nil
+end
+
 -- The group APIs "Fill from current group" needs. None is measured on Forever yet (API_NOTES, P0): the feature is
 -- offered only when every one of them exists, and it works with whatever names GetGroupMemberNames can read.
 function Platform.GroupApiAvailable()

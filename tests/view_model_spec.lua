@@ -7,6 +7,7 @@ local function load_view_model(locale)
     "Locales/esES",
     "Core/Validate",
     "Domain/PvPService",
+    "Domain/LayerModel",
     "Domain/PermissionService",
     "Domain/RosterService",
     "Domain/RecipeService",
@@ -27,6 +28,7 @@ local function load_view_model(locale)
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
     "UI/ViewModelProfessions",
+    "UI/ViewModelLayers",
     "Commands/RaidCommands",
     "Commands/LootCommands",
   }) do
@@ -143,13 +145,14 @@ describe("ViewModel misc", function()
       raid = true,
       loot = true,
       pvp = true,
+      layers = true,
       blacklist = true,
       roster = true,
       professions = true,
     }, values)
   end)
 
-  it("puts the Blacklist tab after PvP and before Roster", function()
+  it("puts the Layers tab after PvP, then the Blacklist tab before Roster", function()
     local order = {}
     for _, tab in ipairs(ViewModel.TABS) do
       order[#order + 1] = tab.value
@@ -161,8 +164,11 @@ describe("ViewModel misc", function()
         end
       end
     end
-    assert.are.equal(index_of("pvp") + 1, index_of("blacklist"))
+    assert.are.equal(index_of("pvp") + 1, index_of("layers"))
+    assert.are.equal(index_of("layers") + 1, index_of("blacklist"))
     assert.are.equal(index_of("blacklist") + 1, index_of("roster"))
+    assert.are.equal("Layers", ViewModel.TABS[index_of("layers")].text)
+    assert.are.equal("guild", ViewModel.TABS[index_of("layers")].group)
     assert.are.equal("Blacklist", ViewModel.TABS[index_of("blacklist")].text)
   end)
 

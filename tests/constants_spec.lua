@@ -91,4 +91,17 @@ describe("Addon load", function()
       assert.is_truthy(text:find("/nrage help", 1, true), command)
     end
   end)
+
+  it("lists the layer probe in the debug usage", function()
+    assert.is_truthy(run("debug"):find("layer <action>", 1, true))
+  end)
+
+  it("answers the layer probe actions while the addon is disabled", function()
+    assert.is_truthy(run("debug layer"):find("usage: /nrage debug layer start", 1, true))
+    assert.is_truthy(run("debug layer start"):find("probe unavailable", 1, true))
+    assert.is_truthy(run("debug layer stop"):find("probe is not running", 1, true))
+    assert.is_truthy(run("debug layer log"):find("no log yet", 1, true))
+    assert.is_truthy(run("debug layer clear"):find("log cleared", 1, true))
+    assert.is_truthy(run("debug layer status"):find("layer: unknown", 1, true))
+  end)
 end)

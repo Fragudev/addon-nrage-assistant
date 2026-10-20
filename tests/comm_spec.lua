@@ -31,6 +31,7 @@ local function load_addon()
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/RecipeSync",
+    "Sync/LayerSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -1611,5 +1612,125 @@ describe("Comm readiness rules", function()
       env.comm:HandleMessage(leader.sent[1], "Boss-Realm", "WHISPER")
       assert.is_nil(env.readinessRules.rules)
     end)
+  end)
+end)
+
+describe("Comm layers", function()
+  local env
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.layerStates, env.layerSteps, env.layerChanges = {}, {}, {}
+    env.comm.layerDirectory = {
+      Apply = function(_, sender, state)
+        env.layerStates[#env.layerStates + 1] = { sender = sender, state = state }
+        return true
+      end,
+    }
+    env.comm.layerSwap = {
+      OnMessage = function(_, sender, payload)
+        env.layerSteps[#env.layerSteps + 1] = { sender = sender, payload = payload }
+        return true
+      end,
+    }
+    env.comm.onLayerChange = function(messageType)
+      env.layerChanges[#env.layerChanges + 1] = messageType
+    end
+  end)
+
+  it("hands a received layer to the directory with the sender as its owner", function()
+    assert.is_true(
+      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Ann-Realm", "GUILD")
+    )
+    assert.are.same({ { sender = "Ann-Realm", state = { map = 1, layer = 50 } } }, env.layerStates)
+    assert.are.same({ "LAYER_STATE" }, env.layerChanges)
+  end)
+
+  it("hands a swap step to the flow", function()
+    assert.is_true(
+      env.comm:HandleMessage(env.wire("LAYER_SWAP", { rid = "r-1", s = "offer" }, "l-2"), "Ann-Realm", "GUILD")
+    )
+    assert.are.same({ { sender = "Ann-Realm", payload = { rid = "r-1", s = "offer" } } }, env.layerSteps)
+    assert.are.same({ "LAYER_SWAP" }, env.layerChanges)
+  end)
+
+  it("needs a sender the guild roster knows", function()
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.layerStates)
+    assert.are.same({}, env.layerChanges)
+  end)
+
+  it("does not tell the UI when the flow refused the step", function()
+    env.comm.layerSwap.OnMessage = function()
+      return false, "busy"
+    end
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("LAYER_SWAP", { rid = "r-1", s = "offer" }, "l-3"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("busy", reason)
+    assert.are.same({}, env.layerChanges)
+  end)
+
+  it("is not accepted as a whisper", function()
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Ann-Realm", "WHISPER")
+    assert.is_false(ok)
+    assert.are_not.equal(nil, reason)
+    assert.are.same({}, env.layerStates)
+  end)
+
+  it("drops a bad payload", function()
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("LAYER_SWAP", { rid = "r-1", s = "close" }, "l-4"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("works without a directory or flow, and without a callback", function()
+    env.comm.layerDirectory, env.comm.layerSwap, env.comm.onLayerChange = nil, nil, nil
+    local ok, reason =
+      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-5"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unsupported", reason)
+  end)
+
+  it("works without a callback", function()
+    env.comm.onLayerChange = nil
+    assert.is_true(
+      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-6"), "Ann-Realm", "GUILD")
+    )
+  end)
+
+  it("sends the own layer under one queue key, and refuses it during the lockdown", function()
+    assert.is_true(env.comm:SendLayerState({ map = 1, layer = 50 }))
+    assert.are.equal(1, #env.sent)
+    env.locked = true
+    local ok, reason = env.comm:SendLayerState({ map = 1, layer = 51 })
+    assert.is_false(ok)
+    assert.are.equal("locked", reason)
+    assert.are.equal(0, env.queue:Pending())
+  end)
+
+  it("sends a swap step at once, and refuses it instead of queueing during the lockdown", function()
+    assert.is_true(env.comm:SendLayerSwap({ rid = "r-1", s = "offer" }))
+    assert.are.equal(1, #env.sent)
+    env.locked = true
+    local ok, reason = env.comm:SendLayerSwap({ rid = "r-1", s = "offer" })
+    assert.is_false(ok)
+    assert.are.equal("locked", reason)
+    assert.are.equal(0, env.queue:Pending())
+    assert.are.equal(1, #env.sent)
+  end)
+
+  it("sends what the receiver accepts", function()
+    env.comm:SendLayerState({ map = 1, layer = 50 })
+    local decoded = env.codec:Decode(env.sent[1])
+    local message = Protocol.Validate(decoded)
+    assert.are.equal("LAYER_STATE", message.t)
+    assert.are.same({ map = 1, layer = 50 }, message.p)
   end)
 end)

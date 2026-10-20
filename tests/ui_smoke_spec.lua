@@ -5,7 +5,7 @@ local FakeFrames = dofile("tests/support/fake_frames.lua")
 local FakeKit = dofile("tests/support/fake_kit.lua")
 local Roles = dofile("tests/support/roles.lua")
 
-local ALL_TABS = { "home", "profile", "ready", "raid", "loot", "pvp", "blacklist", "roster", "rules" }
+local ALL_TABS = { "home", "profile", "ready", "raid", "loot", "pvp", "layers", "blacklist", "roster", "rules" }
 
 -- `locale` (optional) is the client locale code the window is built for, e.g. "esES".
 local function load_window(locale)
@@ -32,6 +32,7 @@ local function load_window(locale)
     "Domain/ProfileService",
     "Domain/PublishService",
     "Domain/BlacklistService",
+    "Domain/LayerModel",
     "Domain/ReportService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
@@ -43,6 +44,7 @@ local function load_window(locale)
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
     "UI/ViewModelProfessions",
+    "UI/ViewModelLayers",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
@@ -60,6 +62,7 @@ local function load_window(locale)
     "UI/Tabs/Blacklist",
     "UI/Tabs/Rules",
     "UI/Tabs/Professions",
+    "UI/Tabs/Layers",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -130,6 +133,9 @@ local function build(rank, locale)
     GetEquippedEnchants = function() end,
     GetActiveBuffs = function() end,
     IsChatMessagingLockedDown = function()
+      return false
+    end,
+    IsInInstance = function()
       return false
     end,
     GetItemIcon = function(itemId)
@@ -2013,5 +2019,137 @@ describe("Window smoke test: secondary windows", function()
       env.ns.VotingFrame.Show()
       assert.is_truthy(env.text():find("No loot sessions are open.", 1, true))
     end)
+  end)
+end)
+
+describe("Window smoke test: Layers", function()
+  local env, requested, share
+
+  local function install(options)
+    options = options or {}
+    env.ns.layerTracker = {
+      Current = function()
+        return options.own
+      end,
+    }
+    env.ns.layerDirectory = {
+      Groups = function()
+        return { { map = 0, layer = 5678, members = { "Ann-Realm" }, count = 1 } }
+      end,
+    }
+    env.ns.layerSwap = {
+      CanRequest = function()
+        return options.canRequest ~= false, options.reason
+      end,
+      Status = function()
+        return options.status
+      end,
+      Request = function(_, map, layer)
+        requested = { map, layer }
+        return options.requestOk ~= false, "busy"
+      end,
+      Cancel = function()
+        requested = "cancelled"
+      end,
+    }
+    env.ns.SetLayerShare = function(value)
+      share = value
+    end
+  end
+
+  local function button(page, text)
+    for _, row in ipairs(FakeKit.find(page, "List").opts.rows) do
+      if row.right and row.right.opts.text == text then
+        return row.right.opts
+      end
+    end
+  end
+
+  before_each(function()
+    env = build("RL")
+    requested, share = nil, nil
+  end)
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("is in the sidebar of every role, next to PvP", function()
+    local values = {}
+    for _, tab in ipairs(env.ns.ViewModel.TabsFor("member")) do
+      values[#values + 1] = tab.value
+    end
+    local pvp
+    for index, value in ipairs(values) do
+      pvp = value == "pvp" and index or pvp
+    end
+    assert.are.equal("layers", values[pvp + 1])
+  end)
+
+  it("says the feature is not available before it starts", function()
+    env.open("layers")
+    assert.is_truthy(env.text():find("not available", 1, true))
+    assert.is_truthy(FakeKit.find(env.page(), "Switch", "Share my layer"))
+  end)
+
+  it("lists the layers and asks for a swap with the button", function()
+    install({ own = { map = 0, layer = 1234 } })
+    env.open("layers")
+    local text = env.text()
+    assert.is_truthy(text:find("Your layer: #1234", 1, true))
+    assert.is_truthy(text:find("#5678", 1, true))
+    assert.is_truthy(text:find("Ann-Realm", 1, true))
+    button(env.page(), "Request swap").onClick()
+    assert.are.same({ 0, 5678 }, requested)
+  end)
+
+  it("explains why a button is disabled and what went wrong with a click", function()
+    install({ own = { map = 0, layer = 1234 }, canRequest = false, reason = "in_group", requestOk = false })
+    env.open("layers")
+    local request = button(env.page(), "Request swap")
+    assert.is_true(request.disabled)
+    assert.are.equal("you are in a group.", request.tooltip)
+    assert.is_truthy(env.text():find("you are in a group", 1, true))
+    request.onClick()
+    assert.are.equal("warning", env.banner().opts.kind)
+    assert.is_truthy(env.banner().opts.text:find("Not done: a swap is already running.", 1, true))
+  end)
+
+  it("shows the running swap with a way to cancel it", function()
+    install({
+      own = { map = 0, layer = 1234 },
+      status = { role = "requester", stage = "request", map = 0, layer = 5678 },
+    })
+    env.open("layers")
+    assert.is_truthy(env.text():find("Looking for someone on #5678", 1, true))
+    env.press("Cancel")
+    assert.are.equal("cancelled", requested)
+  end)
+
+  it("switches sharing with the switch", function()
+    install()
+    env.open("layers")
+    local switch = FakeKit.find(env.page(), "Switch", "Share my layer")
+    assert.is_true(switch.opts.checked)
+    switch.opts.onChange(false)
+    assert.is_false(share)
+  end)
+
+  it("redraws when the layers change, at most once per interval, and only on its own tab", function()
+    install()
+    env.open("layers")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LayersChanged()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+    count = #env.ns.Kit.fake.nodes
+    env.timers = {}
+    env.ns.UI.LayersChanged()
+    env.ns.UI.LayersChanged()
+    assert.are.equal(count, #env.ns.Kit.fake.nodes)
+    assert.are.equal(1, #env.timers)
+    env.ns.UI.SelectTab("home")
+    count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LayersChanged()
+    assert.are.equal(count, #env.ns.Kit.fake.nodes)
   end)
 end)

@@ -20,6 +20,7 @@ Core\LockdownGuard.lua
 Core\LockdownProbe.lua
 Core\PvPProbeLog.lua
 Core\PvPProbe.lua
+Core\LayerProbe.lua
 Core\Store.lua
 Domain\Settings.lua
 Domain\ProfileService.lua
@@ -45,6 +46,11 @@ Domain\PvPPublisher.lua
 Domain\PvPFeed.lua
 Domain\BlacklistService.lua
 Domain\BlacklistWatcher.lua
+Domain\LayerModel.lua
+Domain\LayerTracker.lua
+Domain\LayerDirectory.lua
+Domain\LayerSwap.lua
+Domain\LayerPublisher.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -57,6 +63,7 @@ Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
 Sync\RecipeSync.lua
+Sync\LayerSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -74,6 +81,7 @@ UI\ViewModelHome.lua
 UI\ViewModelRaid.lua
 UI\ViewModelGuild.lua
 UI\ViewModelProfessions.lua
+UI\ViewModelLayers.lua
 UI\Main.lua
 UI\Tabs\Home.lua
 UI\Tabs\Profile.lua
@@ -85,7 +93,9 @@ UI\Tabs\PvP.lua
 UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
+UI\Tabs\Layers.lua
 UI\LootPopup.lua
+UI\LayerPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 Commands\RaidCommands.lua

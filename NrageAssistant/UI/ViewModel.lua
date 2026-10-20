@@ -1045,6 +1045,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "raid", text = L("Raid"), icon = "calendar", group = "guild" },
     { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
+    { value = "layers", text = L("Layers"), icon = "disc", group = "guild" },
     { value = "blacklist", text = L("Blacklist"), icon = "ban", group = "guild" },
     { value = "roster", text = L("Members"), icon = "users", group = "guild" },
     { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
@@ -1300,7 +1301,9 @@ function ViewModel.HelpLines()
   return {
     L("/nrage               open the window, where everything else is done"),
     L("/nrage help          this list"),
-    L("/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"),
+    L(
+      "/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp | layer)"
+    ),
   }
 end
 

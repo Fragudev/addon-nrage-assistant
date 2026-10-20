@@ -535,6 +535,18 @@ Each tab lists what it does today (from `UI/Main.lua`), then the redesign, then 
 
 Everything in "Agreed so far" above still applies: the scan on opening the window, automatic sync, the size limits, privacy, and the client APIs to measure first.
 
+### 3.11 Layers (NEW tab): **approved 2026-10-20**
+
+**Goal:** the member sees which layer they are on and which layers their guildmates are on, and can ask a guildmate on another layer to move them (docs/LAYER_SWAP_PLAN.md has the rules, the protocol and the swap flow; this entry only fixes the look).
+
+- **Its own sidebar entry, "Layers"** (in the GUILD group, right after PvP), open to every role. Icon `disc`.
+- **Your layer card:** the own layer as text ("Your layer: #1234", "unknown", or "you are in an instance") and a **"Share my layer" switch** with its description. Turning it off tells the guild to forget the layer.
+- **"Layers on this continent" card:** a divided list, one row per layer: the label as the title, the guildmates on it as the sub-line, the member count as the value. Your own layer has an accent "You" badge and no button; every other row has a secondary **"Request swap"** button on the right. A disabled button shows the reason as its tooltip, and one muted line under the list says why a swap cannot be asked for now. Empty state: "Nobody has shared a layer yet." (or "Layers are not available yet." before the feature starts).
+- **"Current swap" card** (only while a swap is running or just finished): the same sentence the popup shows and a button, "Cancel" while it runs and "Close" once it is over.
+- A muted footer explains where the layer comes from and that leaving the group afterwards is the player's choice.
+- The tab redraws itself when a layer or the swap changes, at most once per `LAYER_REDRAW_SECONDS`, and only while it is on screen (`UI.LayersChanged`).
+- Rows come from `ViewModel.LayersView` (`UI/ViewModelLayers.lua`), which keeps its tests; `UI/Tabs/Layers.lua` only draws them.
+
 ---
 
 ## 4. Secondary windows: **approved 2026-10-19**
@@ -583,6 +595,12 @@ Deliver each phase as its own reviewable change (chained PRs when one exceeds ~4
 **General rules for the implementer:**
 - Follow the existing architecture: domain in `Domain/`, decisions in ViewModel or Controllers (tested), thin frames.
 - Every user-visible string goes through `L()`, with an `esES` entry. Never translate wire values.
+5. **Layer popup (`UI/LayerPopup.lua`).**
+   - The same floating card as the loot popup (about 380 px wide, draggable, position saved with `UI.ApplyWindowStatus` as `layerPopup`), titled "Nrage Layers", with a close button at the top right.
+   - Inside: the sentence for the current step (wrapped), the time left in a small muted line, and one button per action in a row. The first button is primary, the others secondary.
+   - It serves both sides of a swap: the requester follows the request step by step; a helper is asked to help and, when picked, to invite. Every action that invites or leaves a group is a click.
+   - Keep `Controller` (lockdown wait, retry, closed-by-the-player, alert once per request) and `ViewModel.LayerSwapView` unchanged; only the frame is rebuilt with the kit.
+
 - Client APIs go through `Core/Platform.lua` behind `pcall`.
 - Respect encounter lockdown everywhere.
 - When this plan and the mockup disagree, this plan wins. When the code disagrees with a "verified" note here, re-check before building on it.
@@ -592,6 +610,7 @@ Deliver each phase as its own reviewable change (chained PRs when one exceeds ~4
 | Loot popup | `UI/LootPopup.lua` | 440 px wide, rows of 58 px: item plus main/off/other/pass buttons, with a countdown | small floating card in the same theme; the item row has a buttons segment and a thin countdown bar in accent |
 | Voting window | `UI/VotingFrame.lua` | 760 × 460 AceGUI: a candidates table (response, upgrade, votes), vote, award, close | same window chrome; shared data table; need colors mapped to tokens (main = success, off = warning, other = accent) |
 | Transfer | `UI/Main.lua` `UI.ShowTransfer` | AceGUI Frame with a MultiLineEditBox | small modal in the theme: monospace-free input area, Copy/Import buttons |
+| Layer popup | `UI/LayerPopup.lua` | kit card of 380 px: the sentence of the step, the time left and one button per action; shown to the requester and to a helper | same floating card as the loot popup; `Controller` and `ViewModel.LayerSwapView` kept |
 | Minimap button | `UI/MinimapButton.lua` | logo in the gold ring; right-click menu | keep the ring (it is minimap convention); restyle the menu if it is custom |
 
 ---
@@ -622,3 +641,4 @@ Deliver each phase as its own reviewable change (chained PRs when one exceeds ~4
 | 2026-10-19 | Professions filter: one profession dropdown instead of chips; search and "Connected only" stay. |
 | 2026-10-19 | Secondary windows approved: themed loot popup with stacked items, voting window sharing the Loot table, export/import modal with Ctrl+C/V hints, dark minimap menu without the sync entry. Implementation phases P0–P8 defined. |
 | 2026-10-19 | Readiness refreshes on its own on aura, gear, level and profession events while it is visible. |
+| 2026-10-20 | Layers approved: a tab after PvP for every role (your layer, a "Share my layer" switch, a divided list of the continent's layers with a Request swap button, the running swap), and a kit popup for both sides of a swap. |

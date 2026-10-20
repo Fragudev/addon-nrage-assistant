@@ -30,10 +30,10 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ```
 
 - `v` must equal the receiver's major version (currently 1); a different major is reported as an incompatible
-  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 5): a client
+  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 6): a client
   that does not know a field drops it while validating, and a client that does not know a message type drops the
-  message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster messages and fields
-  below.
+  message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
+  below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -63,6 +63,8 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
 | `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), `role` (`member`, `rl` or `council`: never `admin`), optional `rosterId`, `rev`, `updatedAt` | admin |
 | `MEMBER_DELETE` | guild | `key`, `rev` | admin |
+| `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
+| `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
@@ -135,6 +137,32 @@ queued) and beyond 5 per rolling minute (the rest are dropped).
 
 Receiving: the sender must be a known guild member (`pvp_publish`) and passes the per-sender rate limit of the
 inbox. The kill is validated and then ignored: the Recent kills list only holds the own kills.
+
+## Layers
+
+Protocol minor version 6. Older clients drop both types with `unknown_type`. Both are **guild channel only** (never a
+whisper, never part of a snapshot) and live only: nothing is saved. A sender must be a known guild member
+(`layer_share`, every role).
+
+`LAYER_STATE` is the sender's own layer, a pair `(map, layer)` read from creature GUIDs (see `docs/API_NOTES.md`).
+It is sent when the layer changes and again every 300 seconds, at most once per 30 seconds (queue key `LY`), and
+refused during an encounter lockdown instead of waiting. `layer = 0` means "forget me" and is sent once when the
+player turns "Share my layer" off. The receiver keeps it in memory for 15 minutes.
+
+`LAYER_SWAP` is one step of a swap, tied together by `rid`, which the requester makes. The actor is always the
+**sender**; a name in the payload is only data.
+
+| Step | Sent by | Meaning |
+|---|---|---|
+| `request` | requester | wants to be on `(map, layer)` |
+| `offer` | an eligible member on that layer | can help |
+| `assign` | requester | the first offer won; `helper` names who |
+| `close` | requester (`o` = `done`, `expired`, `cancelled`, `unconfirmed`), or the assigned helper (`o = declined`) | the swap is over |
+
+Only the requester of a `rid` may send `assign` and `close`, with the one exception of `close declined` from the
+assigned helper; the receiver checks this against the sender of the stored request, so another member cannot
+hijack or close a swap. A client takes part in at most one swap at a time and drops one whose `close` was lost
+after 300 seconds without messages. Like `PVP_KILL`, a step is never queued during an encounter lockdown.
 
 ## Guild blacklist
 

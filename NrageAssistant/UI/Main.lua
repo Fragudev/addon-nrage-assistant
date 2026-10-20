@@ -201,6 +201,12 @@ UI.PvPChanged = throttledRedraw(function()
   return currentTab == "pvp"
 end, ns.Constants.PVP_REDRAW_SECONDS)
 
+-- The own layer, a received layer or the swap changed (a whole guild logging in sends one state each): the Layers tab
+-- is drawn again if it is the one on screen, at most once per LAYER_REDRAW_SECONDS.
+UI.LayersChanged = throttledRedraw(function()
+  return currentTab == "layers"
+end, ns.Constants.LAYER_REDRAW_SECONDS)
+
 -- A blacklist entry arrived from the guild (a snapshot brings the whole list), or the group changed.
 UI.BlacklistChanged = throttledRedraw(function()
   return currentTab == "blacklist"

@@ -34,6 +34,8 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
   Both are untested on Forever. A value that is secret or unreadable leaves the slot or buff out (unknown, never
   met). The Profile tab shows what was read, with its source.
 
+- The layer feature (reading the layer from creature GUIDs, group invites and leaves, nameplate units) is built on
+  unmeasured assumptions: see "Layers (assumed, not measured yet)" below.
 - The libraries (Ace3 parts, LibSerialize, LibDeflate) load on the Forever build.
 - The `sender` of `CHAT_MSG_ADDON` is the full name, with or without the realm suffix. If it turns out to be the
   first word only, like `UnitName`, permission lookups by sender will not work. `/nrage debug senders` (after
@@ -43,6 +45,31 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
   (`/nrage debug lockdown start | send | log | clear`) exists; the two-client test has not been run.
 - Whether `CHAT_MSG_LOOT` and item links arrive as secret values during an encounter. Loot sessions currently take
   the item from a link typed after the encounter.
+
+## Layers (assumed, not measured yet)
+
+The whole layer feature (`docs/LAYER_SWAP_PLAN.md`) was built on the assumptions below **without measuring them on
+Forever** (decided 2026-10-20). Every client call is guarded, so a wrong assumption turns the feature off quietly
+(nil or false means unavailable) instead of raising. **All of this must be verified in game before release**, with
+two clients: `/nrage debug layer start`, target and mouse over NPCs, group up, then `/nrage debug layer log` and
+`/nrage debug layer status`, and copy the result here.
+
+| # | Question | API | Assumption in the code | Result |
+|---|---|---|---|---|
+| 1 | Does `UnitGUID` return a readable creature GUID for `target`, `mouseover` and `nameplateN`, outside combat? In combat? | `UnitGUID` | yes; a secret or unreadable value is skipped (`LayerModel.Parse`) | not measured yet |
+| 2 | Is the fifth field of `Creature-0-<server>-<instance>-<zoneUid>-<npc>-<spawn>` stable for one layer and different between layers of one continent? | GUID | yes: the layer key is `(instanceId, zoneUid)`, and two readings from different spawns confirm it | not measured yet |
+| 3 | Does `zoneUid` change after a realm restart? | GUID | yes, hence a 15 minute time to live and no saved layer | not measured yet |
+| 4 | After joining a group led by someone on another layer: is the move automatic, how long does it take, is there a cooldown, what blocks it? | game behaviour | automatic after a short delay, not in combat or an instance; the addon waits 120 s for a confirmed layer, never moves anyone itself | not measured yet |
+| 5 | Does `C_PartyInfo.InviteUnit` / `InviteUnit` invite the right character for a multi-word name (`Yonemon Gg`) and for the `sender` of `CHAT_MSG_ADDON`? Does it need a hardware event? | invite | the name as the guild roster gives it works; always called from a button click | not measured yet |
+| 6 | Are `C_PartyInfo.LeaveParty` / `LeaveParty` available, and do they need a hardware event? | leave | available; always called from a button click | not measured yet |
+| 7 | Are `NAME_PLATE_UNIT_ADDED` and `nameplateN` available and readable? | event, unit | yes; registered with `TryRegisterEvent`, so a refusal only drops that source | not measured yet |
+| 8 | `InCombatLockdown`, `UnitIsGroupLeader("player")`, `IsInInstance`, `GetNumGroupMembers`, `IsInRaid` behave as on Mainline | group | yes; each is read through `pcall` and a missing one reads as false/unknown | not measured yet |
+| 9 | Does the game ever move a player who is a group *leader* to another layer, or can a leader invite someone from another layer without effect? | game behaviour | the helper (leader) stays on their layer and the invited player moves | not measured yet |
+
+The probe logs every GUID read (raw string and parsed fields), the zone and group events, the confirmed layer and the
+result of the invite and leave calls made from the swap popup. `/nrage debug layer status` also prints which of
+the invite and leave APIs exist on the client. If question 1 or 2 turns out to be false, the layer cannot be read
+and the feature should be removed; if question 5 or 6 fails, the popup buttons will say that the client refused.
 
 ## PvP (to be measured, issue #92)
 
