@@ -1,0 +1,23 @@
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_96b53beb93db33::t_daabeb5192f865 1-927
+NrageAssistant/NrageAssistant.toc
+  s_96b53beb93db33::t_c974b04227abbd 35
+tests/pvp_season_model_spec.lua
+  s_96b53beb93db33::t_9f2522814279f3 1-682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "555ec010f14a6830e27c7251fb219030c919e128",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
