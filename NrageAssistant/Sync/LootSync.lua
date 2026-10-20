@@ -9,8 +9,10 @@ local _, ns = ...
 --   LOOT_VOTE       vote for a candidate; the voter is the sender     (loot_vote)
 --   LOOT_AWARD      award the item and close the session              (loot_award)
 --
+-- Rosters: the sender needs a roster, and the event has to be of it (or of none yet); the guild master acts on any.
+-- A council member votes only on the sessions of their own roster. See RosterService.MayAct.
 -- Every function returns true, or false plus:
---   "unknown_sender" | "forbidden" | "unknown_event" | "unknown_session" | "closed" | "not_candidate"
+--   "unknown_sender" | "forbidden" | "other_roster" | "unknown_event" | "unknown_session" | "closed" | "not_candidate"
 --   | "stale" | "limit"
 local LootSync = {}
 
@@ -28,6 +30,15 @@ local function findSession(ctx, payload)
     return event, nil, "unknown_session"
   end
   return event, session
+end
+
+-- nil when `sender` (with `role`) may act on the loot of `event`, else "other_roster".
+local function rosterGuard(ctx, sender, role, event)
+  local senderRoster = ns.RosterService.SenderRoster(ctx, sender)
+  if ns.RosterService.MayAct(role, senderRoster, event.rosterId) then
+    return nil
+  end
+  return "other_roster"
 end
 
 local function newSession(event, payload)
@@ -54,6 +65,10 @@ local function applySession(ctx, payload, sender, role)
   local event = ctx.events[payload.eventId]
   if not event then
     return false, "unknown_event"
+  end
+  local blocked = rosterGuard(ctx, sender, role, event)
+  if blocked then
+    return false, blocked
   end
   event.loot = event.loot or {}
 
@@ -88,6 +103,10 @@ local function applyAward(ctx, payload, sender, role)
   if not event then
     return false, "unknown_event"
   end
+  local blocked = rosterGuard(ctx, sender, role, event)
+  if blocked then
+    return false, blocked
+  end
   event.loot = event.loot or {}
 
   local updatedAt = Rules.ClampTimestamp(ctx, payload.updatedAt)
@@ -115,9 +134,13 @@ local function applyCandidate(ctx, payload, sender, role)
   if denied then
     return false, denied
   end
-  local _, session, reason = findSession(ctx, payload)
+  local event, session, reason = findSession(ctx, payload)
   if not session then
     return false, reason
+  end
+  local blocked = rosterGuard(ctx, sender, role, event)
+  if blocked then
+    return false, blocked
   end
   if session.status ~= "open" then
     return false, "closed"
@@ -147,9 +170,13 @@ local function applyVote(ctx, payload, sender, role)
   if denied then
     return false, denied
   end
-  local _, session, reason = findSession(ctx, payload)
+  local event, session, reason = findSession(ctx, payload)
   if not session then
     return false, reason
+  end
+  local blocked = rosterGuard(ctx, sender, role, event)
+  if blocked then
+    return false, blocked
   end
   if session.status ~= "open" then
     return false, "closed"

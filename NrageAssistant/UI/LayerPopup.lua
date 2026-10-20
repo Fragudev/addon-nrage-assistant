@@ -3,11 +3,12 @@ local _, ns = ...
 -- The popup of a layer swap, for both sides: the requester follows the request step by step, a helper is asked to
 -- help and, when picked, to invite. It never appears during an encounter lockdown (it waits and tries again) and it
 -- only ever prompts: every action that invites or leaves a group is a button the player clicks.
--- What to show comes from ViewModel.LayerSwapView; this file only builds the frame. Client only.
+-- What to show comes from ViewModel.LayerSwapView; this file only builds the frame with the kit. Client only.
 local LayerPopup = {}
 
-local WIDTH = 420
-local HEIGHT = 170
+local L = ns.L
+
+local WIDTH = 380
 
 -- The decisions, apart from the frame so they can be tested with fakes.
 --   deps: status() -> LayerSwap:Status() or nil, isLockedDown() -> boolean, after(seconds, fn), show(view),
@@ -105,13 +106,19 @@ end
 LayerPopup.Controller = Controller
 
 local frame
+local content
+local countdownLabel
 local controller
 
 local function close()
   if frame then
-    LibStub("AceGUI-3.0"):Release(frame)
-    frame = nil
+    frame:Hide()
   end
+  if content then
+    content:Release()
+    content = nil
+  end
+  countdownLabel = nil
 end
 
 local function say(text)
@@ -141,45 +148,105 @@ local function press(id)
   LayerPopup.Refresh()
 end
 
-local function build(view)
-  local AceGUI = LibStub("AceGUI-3.0")
-  close()
-  frame = AceGUI:Create("Frame")
-  frame:SetTitle("Nrage Layers")
-  frame:SetStatusText(view.countdown or "")
-  ns.UI.ApplyWindowStatus(frame, "layerPopup", WIDTH, HEIGHT)
-  frame:SetWidth(WIDTH)
-  frame:SetHeight(HEIGHT)
-  frame:SetLayout("List")
-  frame:SetCallback("OnClose", function()
-    controller:Closed()
-    close()
-    -- A helper who closes the window only stops seeing the request.
-    local status = ns.layerSwap and ns.layerSwap:Status()
-    if status and status.role == "helper" and status.stage == "request" then
-      ns.layerSwap:Ignore()
+-- Draws the view into `stack`: the text, the time left and one button per action. The frame around it is built apart,
+-- so this can be tested with the fake kit. Returns the label of the time left (nil when there is none).
+function LayerPopup.Draw(stack, view, onPress)
+  local Kit = ns.Kit
+  Kit.Label(stack, { text = view.text, wrap = true })
+  local countdown
+  if view.countdown then
+    countdown = Kit.Label(stack, { text = view.countdown, style = "small", color = "muted" })
+  end
+  local row = Kit.Row(stack, { gap = 8, align = "center" })
+  for index, spec in ipairs(view.buttons) do
+    Kit.Button(row, {
+      text = spec.text,
+      variant = index == 1 and "primary" or "secondary",
+      layout = { weight = 1 },
+      onClick = function()
+        onPress(spec.id)
+      end,
+    })
+  end
+  return countdown
+end
+
+local statusTarget = {
+  SetStatusTable = function(_, status)
+    frame.status = status
+    if type(status.left) == "number" and type(status.top) == "number" then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", status.left, status.top)
+    end
+  end,
+}
+
+-- The floating card: made once, then filled again whenever the swap moves to another step.
+local function ensureFrame()
+  if frame then
+    return frame
+  end
+  local Kit = ns.Kit
+  local Theme = Kit.Theme
+  frame = CreateFrame("Frame", "NrageAssistantLayerPopup", UIParent)
+  frame:SetFrameStrata("DIALOG")
+  frame:SetClampedToScreen(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:RegisterForDrag("LeftButton")
+  frame:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+  frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+  frame.bg:SetAllPoints(frame)
+  frame.bg:SetColorTexture(Theme.Color("panel"))
+  frame.border = Kit.Pixel.Border(frame, "border")
+  frame.title = frame:CreateFontString(nil, "OVERLAY")
+  frame.title:SetPoint("TOPLEFT", 16, -14)
+  frame.title:SetFontObject(Theme.StyleFont("window"))
+  Kit.SetTextColor(frame.title, "text")
+  frame.title:SetText("Nrage Layers")
+  frame:SetScript("OnDragStart", function(self)
+    self:StartMoving()
+  end)
+  frame:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local status = self.status
+    local left, top = self:GetLeft(), self:GetTop()
+    if status and type(left) == "number" and type(top) == "number" then
+      status.left, status.top = left, top
     end
   end)
+  frame.hide = Kit.IconButton(frame, {
+    icon = "close",
+    tooltip = L("Close"),
+    onClick = function()
+      controller:Closed()
+      close()
+      -- A helper who closes the window only stops seeing the request.
+      local status = ns.layerSwap and ns.layerSwap:Status()
+      if status and status.role == "helper" and status.stage == "request" then
+        ns.layerSwap:Ignore()
+      end
+    end,
+  })
+  frame.hide:Layout(28)
+  frame.hide.frame:ClearAllPoints()
+  frame.hide.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -8)
+  ns.UI.ApplyWindowStatus(statusTarget, "layerPopup", WIDTH, 0)
+  frame:Hide()
+  return frame
+end
 
-  local label = AceGUI:Create("Label")
-  label:SetText(view.text)
-  label:SetFullWidth(true)
-  label:SetFontObject(GameFontNormalLarge)
-  frame:AddChild(label)
-
-  local row = AceGUI:Create("SimpleGroup")
-  row:SetLayout("Flow")
-  row:SetFullWidth(true)
-  for _, spec in ipairs(view.buttons) do
-    local button = AceGUI:Create("Button")
-    button:SetText(spec.text)
-    button:SetRelativeWidth(0.45)
-    button:SetCallback("OnClick", function()
-      press(spec.id)
-    end)
-    row:AddChild(button)
+local function build(view)
+  ensureFrame()
+  if content then
+    content:Release()
   end
-  frame:AddChild(row)
+  content = ns.Kit.Stack(frame, { gap = 12 })
+  countdownLabel = LayerPopup.Draw(content, view, press)
+  local height = content:Layout(WIDTH - 32)
+  ns.Kit.Place(content, frame, 16, 48)
+  frame:SetSize(WIDTH, height + 48 + 16)
+  frame:Show()
 end
 
 function LayerPopup.Refresh()
@@ -203,8 +270,8 @@ function LayerPopup.Start()
       ns.Platform.PlayAlertSound()
     end,
     countdown = function(text)
-      if frame then
-        frame:SetStatusText(text)
+      if countdownLabel then
+        countdownLabel:SetText(text)
       end
     end,
   })

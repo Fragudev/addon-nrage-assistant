@@ -45,17 +45,20 @@ describe("PermissionService.RoleForRank", function()
   end)
 end)
 
-describe("PermissionService.RoleOf", function()
-  it("reads the sender's role from the local guild roster", function()
+describe("PermissionService.RoleOf with the rank as the source", function()
+  local options = { source = "rank" }
+
+  it("reads the sender's role from the rank in the local guild roster", function()
     local roster = roster_with({
       ["Boss-Realm"] = { rankName = "Officer" },
       ["Raider-Realm"] = { rankName = "roster" },
     })
-    assert.are.equal("admin", Service.RoleOf(roster, "Boss-Realm"))
-    assert.are.equal("member", Service.RoleOf(roster, "Raider-Realm"))
+    assert.are.equal("admin", Service.RoleOf(roster, "Boss-Realm", options))
+    assert.are.equal("member", Service.RoleOf(roster, "Raider-Realm", options))
   end)
 
   it("gives no role to someone the roster does not know", function()
+    assert.is_nil(Service.RoleOf(roster_with({}), "Stranger-Realm", options))
     assert.is_nil(Service.RoleOf(roster_with({}), "Stranger-Realm"))
   end)
 end)
@@ -108,7 +111,7 @@ describe("PermissionService.Can", function()
   end)
 end)
 
-describe("PermissionService.OwnRole", function()
+describe("PermissionService.OwnRole with the rank as the source", function()
   it("derives the own role from the own rank", function()
     local platform = {
       GetOwnGuildRank = function()
@@ -118,7 +121,7 @@ describe("PermissionService.OwnRole", function()
         return "Someone-Realm"
       end,
     }
-    assert.are.equal("rl", Service.OwnRole(platform))
+    assert.are.equal("rl", Service.OwnRole(platform, { source = "rank" }))
   end)
 end)
 
@@ -157,98 +160,134 @@ describe("PermissionService council and loot", function()
   end)
 end)
 
-describe("PermissionService beta admin exception", function()
-  local Constants = ConstantsTable
-
-  local function roster_of(entries)
-    return {
-      Lookup = function(_, name)
-        return entries[name]
-      end,
-    }
-  end
-
-  local function platform_of(rank, identityKey)
+describe("PermissionService with assigned roles (the default)", function()
+  local function platform_of(rank, index, key, leader)
     return {
       GetOwnGuildRank = function()
-        return rank
+        return rank, index
       end,
       GetIdentityKey = function()
-        return identityKey
+        return key
       end,
+      IsGuildLeader = leader and function()
+        return leader == true
+      end or nil,
     }
   end
 
-  it("recognises the listed name, ignoring case, spaces and the realm suffix", function()
-    for _, key in ipairs({
-      "Yonemon Gg",
-      "yonemon gg",
-      "YONEMON GG-ClassicBetaPvP",
-      "Yonemon Gg-Realm", -- the full name
-      "Yonemon-Realm",
-      "yonemon",
-      "YONEMON-ClassicBetaPvP",
-      "Yonemon", -- what UnitName gives
-    }) do
-      assert.is_true(Service.IsBetaAdmin(key), key)
-    end
+  it("is the default, with the beta admin list gone", function()
+    assert.are.equal("assigned", ConstantsTable.ROLE_SOURCE)
+    assert.is_false(ConstantsTable.BETA_ADMIN_ENABLED)
+    assert.is_nil(ConstantsTable.BETA_ADMIN_NAMES)
+    assert.is_nil(Service.IsBetaAdmin)
   end)
 
-  it("does not recognise anyone else", function()
-    for _, key in ipairs({
-      "Yonemon Gh",
-      "Yonemon G",
-      "Gg-Realm",
-      "Someone-Realm",
-      "Yonemo-Realm",
-      "Other Yonemon Gg",
-      "",
-      "-Realm",
-    }) do
-      assert.is_false(Service.IsBetaAdmin(key), key)
-    end
-    assert.is_false(Service.IsBetaAdmin(nil))
-    assert.is_false(Service.IsBetaAdmin(5))
-  end)
-
-  it("can be switched off in one place", function()
-    Constants.BETA_ADMIN_ENABLED = false
-    local recognised = Service.IsBetaAdmin("Yonemon-Realm")
-    local role = Service.RoleOf(roster_of({ ["Yonemon-Realm"] = { rankName = "member" } }), "Yonemon-Realm")
-    Constants.BETA_ADMIN_ENABLED = true
-    assert.is_false(recognised)
-    assert.are.equal("member", role)
-  end)
-
-  it("makes a guild member on the list an admin whatever their rank", function()
-    local roster = roster_of({
-      ["Yonemon-Realm"] = { rankName = "alter" },
-      ["Other-Realm"] = { rankName = "alter" },
+  describe("RoleOf", function()
+    local roster = roster_with({
+      ["Boss-Realm"] = { rankName = "Maestro", rankIndex = 0 },
+      ["Officer-Realm"] = { rankName = "officer", rankIndex = 1 },
+      ["Leader-Realm"] = { rankName = "Raider", rankIndex = 4 },
+      ["Plain-Realm"] = { rankName = "Raider", rankIndex = 4 },
+      ["Yonemon Gg"] = { rankName = "Raider", rankIndex = 4 },
     })
-    assert.are.equal("admin", Service.RoleOf(roster, "Yonemon-Realm"))
-    assert.are.equal("member", Service.RoleOf(roster, "Other-Realm"))
-    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemon-Realm"), "moderate"))
-    assert.is_true(Service.Can(Service.RoleOf(roster, "Yonemon-Realm"), "loot_award"))
+    local members = {
+      ["Leader-Realm"] = { role = "rl", rosterId = "r1" },
+      ["Officer-Realm"] = { role = "council" },
+      ["Boss-Realm"] = { role = "member" },
+    }
+
+    it("makes the guild master, by rank index 0, the admin whatever the rank is called", function()
+      assert.are.equal("admin", Service.RoleOf(roster, "Boss-Realm", { members = members }))
+    end)
+
+    it("does not let an assignment take the guild master's admin away", function()
+      assert.are.equal(
+        "admin",
+        Service.RoleOf(roster, "Boss-Realm", { members = { ["Boss-Realm"] = { role = "rl" } } })
+      )
+    end)
+
+    it("gives every other rank the assigned role, or member: an officer is not an admin", function()
+      assert.are.equal("rl", Service.RoleOf(roster, "Leader-Realm", { members = members }))
+      assert.are.equal("council", Service.RoleOf(roster, "Officer-Realm", { members = members }))
+      assert.are.equal("member", Service.RoleOf(roster, "Plain-Realm", { members = members }))
+      assert.are.equal("member", Service.RoleOf(roster, "Plain-Realm", { members = {} }))
+    end)
+
+    it("ignores the rank name for everybody but the guild master", function()
+      local ranked = roster_with({
+        ["A-Realm"] = { rankName = "GM", rankIndex = 2 },
+        ["B-Realm"] = { rankName = "rl", rankIndex = 3 },
+      })
+      assert.are.equal("member", Service.RoleOf(ranked, "A-Realm", { members = {} }))
+      assert.are.equal("member", Service.RoleOf(ranked, "B-Realm", { members = {} }))
+    end)
+
+    it("never turns an assignment into admin, nor accepts a role it does not know", function()
+      for _, role in ipairs({ "admin", "root", 5 }) do
+        local forged = { ["Plain-Realm"] = { role = role } }
+        assert.are.equal("member", Service.RoleOf(roster, "Plain-Realm", { members = forged }), tostring(role))
+      end
+      assert.is_nil(Service.AssignedRole({ x = { role = "admin" } }, "x"))
+      assert.are.equal("rl", Service.AssignedRole({ x = { role = "rl" } }, "x"))
+      assert.is_nil(Service.AssignedRole(nil, "x"))
+    end)
+
+    it("is not fooled by a name: a multi-word name is just a member unless assigned", function()
+      assert.are.equal("member", Service.RoleOf(roster, "Yonemon Gg", { members = members }))
+    end)
+
+    it("gives no role to someone the roster does not know, even with an assignment", function()
+      assert.is_nil(Service.RoleOf(roster, "Ghost-Realm", { members = { ["Ghost-Realm"] = { role = "rl" } } }))
+    end)
+
+    it("reads the configured assignments when none are passed", function()
+      Service.Configure({ members = members })
+      assert.are.equal("rl", Service.RoleOf(roster, "Leader-Realm"))
+      Service.Configure({ members = {} })
+      assert.are.equal("member", Service.RoleOf(roster, "Leader-Realm"))
+    end)
   end)
 
-  it("finds the full name in the roster, as the client writes it, and makes it admin", function()
-    local roster = roster_of({
-      ["Yonemon Gg"] = { rankName = "Soldado" },
-      ["Black Coffee"] = { rankName = "Soldado" },
-    })
-    assert.are.equal("admin", Service.RoleOf(roster, "Yonemon Gg"))
-    assert.are.equal("member", Service.RoleOf(roster, "Black Coffee"))
+  describe("OwnRole", function()
+    it("is admin for rank index 0, or when the client says the player is the guild master", function()
+      assert.are.equal("admin", Service.OwnRole(platform_of("Whatever", 0, "Me-Realm"), { members = {} }))
+      assert.are.equal("admin", Service.OwnRole(platform_of("Whatever", nil, "Me-Realm", true), { members = {} }))
+      assert.are.equal("member", Service.OwnRole(platform_of("GM", 2, "Me-Realm", false), { members = {} }))
+    end)
+
+    it("is the assigned role, or member, for everybody else", function()
+      local members = { ["Me-Realm"] = { role = "council", rosterId = "r1" } }
+      assert.are.equal("council", Service.OwnRole(platform_of("Raider", 3, "Me-Realm"), { members = members }))
+      assert.are.equal("member", Service.OwnRole(platform_of("Officer", 1, "Other-Realm"), { members = members }))
+    end)
+
+    it("is nothing for somebody who is not in a guild", function()
+      assert.is_nil(Service.OwnRole(platform_of(nil, nil, "Me-Realm"), { members = {} }))
+      assert.is_nil(Service.OwnRole(platform_of("", 0, "Me-Realm"), { members = {} }))
+    end)
+
+    it("is not changed by the name of the character", function()
+      for _, key in ipairs({ "Yonemon Gg", "Yonemon", "Yonemon-Realm" }) do
+        assert.are.equal("member", Service.OwnRole(platform_of("alter", 7, key), { members = {} }), key)
+      end
+    end)
   end)
 
-  it("gives nothing to a listed name the guild roster does not know", function()
-    assert.is_nil(Service.RoleOf(roster_of({}), "Yonemon-Realm"))
-  end)
+  describe("roster actions", function()
+    it("keeps managing rosters and seeing all of them for the admin", function()
+      for _, action in ipairs({ "roster_manage", "roster_view_all" }) do
+        assert.is_true(Service.Can("admin", action), action)
+        for _, role in ipairs({ "rl", "council", "member" }) do
+          assert.is_false(Service.Can(role, action), role .. " " .. action)
+        end
+      end
+    end)
 
-  it("applies to the own role only for someone who is in a guild", function()
-    assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemon Gg")))
-    assert.are.equal("admin", Service.OwnRole(platform_of("alter", "Yonemon-Realm")))
-    assert.are.equal("member", Service.OwnRole(platform_of("alter", "Other-Realm")))
-    assert.is_nil(Service.OwnRole(platform_of(nil, "Yonemon-Realm")))
-    assert.is_nil(Service.OwnRole(platform_of("", "Yonemon-Realm")))
+    it("lets everybody publish their recipes", function()
+      for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+        assert.is_true(Service.Can(role, "recipes_publish"), role)
+      end
+    end)
   end)
 end)

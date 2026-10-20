@@ -10,6 +10,8 @@ local function load_modules()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -23,6 +25,8 @@ local function load_modules()
     "Sync/PvPSync",
     "Sync/BlacklistSync",
     "Sync/ReadinessRulesSync",
+    "Sync/RosterSync",
+    "Sync/RecipeSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -42,6 +46,7 @@ local function store()
       tombstones = s.tombstones,
       role = role or "rl",
       actor = "Leader-Realm",
+      rosterId = "r1",
       now = function()
         return s.clock
       end,
@@ -78,7 +83,15 @@ local function populated()
 end
 
 local function import_into(target, text, role)
-  local ctx = { events = target.events, tombstones = target.tombstones, now = target.ctx().now }
+  -- An import is applied under the importer's own role and roster (here roster r1).
+  local ctx = {
+    events = target.events,
+    tombstones = target.tombstones,
+    now = target.ctx().now,
+    rosterOf = function()
+      return "r1"
+    end,
+  }
   return Transfer.Import(libs, text, ctx, role)
 end
 
@@ -89,7 +102,8 @@ describe("Transfer export and import", function()
     assert.are.equal("NRAGE1:", text:sub(1, 7))
 
     local target = store()
-    local summary = assert(import_into(target, text, "rl"))
+    -- The deletion of an event this store never saw is only the guild master's to remember.
+    local summary = assert(import_into(target, text, "admin"))
     assert.are.equal(0, next(summary.skipped) and 1 or 0)
     assert.are.equal(summary.total, summary.applied)
 
@@ -224,7 +238,7 @@ describe("Transfer permissions and hostile input", function()
   it("skips items that are unsupported or invalid and still applies the good ones", function()
     local text = encode({
       items = {
-        { t = "EVENT_UPSERT", p = { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Good" } },
+        { t = "EVENT_UPSERT", p = { eventId = "ev-1", rosterId = "r1", rev = 1, updatedAt = 10, title = "Good" } },
         { t = "PROFILE", p = { rev = 1, class = "MAGE", level = 60 } },
         { t = "EVENT_UPSERT", p = { eventId = "bad id", rev = 1, updatedAt = 10, title = "Bad" } },
         { t = "EVENT_UPSERT", p = { eventId = "ev-2", rev = 1, updatedAt = 10, title = "|cffff0000Red" } },
@@ -250,7 +264,10 @@ describe("Transfer permissions and hostile input", function()
   it("clamps timestamps dated in the future", function()
     local text = encode({
       items = {
-        { t = "EVENT_UPSERT", p = { eventId = "ev-1", rev = 1, updatedAt = 4000000000, title = "Future" } },
+        {
+          t = "EVENT_UPSERT",
+          p = { eventId = "ev-1", rosterId = "r1", rev = 1, updatedAt = 4000000000, title = "Future" },
+        },
       },
     })
     local target = store()
@@ -265,7 +282,7 @@ describe("Transfer permissions and hostile input", function()
     end
     local text = encode({
       items = {
-        { t = "EVENT_UPSERT", p = { eventId = "new", rev = 1, updatedAt = 10, title = "One more" } },
+        { t = "EVENT_UPSERT", p = { eventId = "new", rosterId = "r1", rev = 1, updatedAt = 10, title = "One more" } },
       },
     })
     local summary = assert(import_into(target, text, "rl"))
@@ -328,9 +345,16 @@ describe("Transfer.BuildSnapshot and ApplyItems", function()
 
   it("applies items as the given sender, under the given role", function()
     local target = store()
-    local ctx = { events = target.events, tombstones = target.tombstones, now = target.ctx().now }
+    local ctx = {
+      events = target.events,
+      tombstones = target.tombstones,
+      now = target.ctx().now,
+      rosterOf = function()
+        return "r1"
+      end,
+    }
     local items = {
-      { t = "EVENT_UPSERT", p = { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Shared" } },
+      { t = "EVENT_UPSERT", p = { eventId = "ev-1", rosterId = "r1", rev = 1, updatedAt = 10, title = "Shared" } },
     }
     local summary = Transfer.ApplyItems(items, ctx, "Lead-Realm", "rl")
     assert.are.equal(1, summary.applied)
@@ -625,8 +649,9 @@ describe("Transfer blacklist items in a snapshot", function()
     local target = context()
     local summary = Transfer.ApplyItems(items, target, "Lead-Realm", "rl")
     assert.are.equal(2, summary.blacklist)
-    -- The two entries and the removal of an event, which a leader may apply.
-    assert.are.equal(3, summary.applied)
+    -- The two entries. The removal of an event this store never saw is only the guild master's to remember.
+    assert.are.equal(2, summary.applied)
+    assert.are.equal(1, summary.skipped.unknown_event)
     assert.are.equal("Bob-Realm", target.blacklist.ann.addedBy)
     assert.are.equal(500, target.blacklist.ann.addedAt)
     assert.are.equal("Lead-Realm", target.blacklist.ann.updatedBy)

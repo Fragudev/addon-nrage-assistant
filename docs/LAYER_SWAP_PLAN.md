@@ -156,7 +156,7 @@ disabled with a reason). An open popup waits and retries like the loot popup Con
 
 ### 4.1 Layers tab (decided 2026-10-20)
 
-New tab `layers` in `ViewModel.TABS` (after `pvp`), `DrawLayers` in `UI/Main.lua`, all roles. The minimap menu
+New tab `layers` in `ViewModel.TABS` (after `pvp`), `UI/Tabs/Layers.lua` (view model in `UI/ViewModelLayers.lua`), all roles. The minimap menu
 picks it up through `TABS`.
 
 Content, built by a tested `ViewModel.LayersView(state)`:
@@ -176,7 +176,7 @@ Label (default): `zoneUid` values are not readable as "layer 1/2/3", so the labe
 ### 4.2 Swap popup: `UI/LayerPopup.lua`
 
 Same split as `UI/LootPopup.lua`: a pure `Controller.New(deps)` that turns `LayerSwap` state into one view
-(title, text, buttons, countdown), and a thin AceGUI frame. It is placed with `ns.UI.ApplyWindowStatus(frame,
+(title, text, buttons, countdown), and a thin frame built with the kit. It is placed with `ns.UI.ApplyWindowStatus(frame,
 "layerPopup", w, h)`. The same popup serves both sides:
 
 | State | Requester sees | Helper sees |
@@ -198,7 +198,7 @@ change.
 
 ## 5. Protocol (`docs/PROTOCOL.md`)
 
-`PROTOCOL_MINOR` 4 → 5. Older clients drop both types with `unknown_type`. GUILD channel only (the whisper path
+`PROTOCOL_MINOR` 5 → 6 (minor 5 went to the Professions messages on main). Older clients drop both types with `unknown_type`. GUILD channel only (the whisper path
 stays `SYNC_DATA`-only). Permission action `layer_share` for every role in `PermissionService.ACTIONS`.
 
 | Type | Payload | Notes |
@@ -227,7 +227,7 @@ the usage string in `Slash.lua` and to `ViewModel.HelpLines()`.
 
 | File | Change |
 |---|---|
-| `Core/Constants.lua` | `PROTOCOL_MINOR = 5`, `LAYER_*` constants above |
+| `Core/Constants.lua` | `PROTOCOL_MINOR = 6`, `LAYER_*` constants above |
 | `Core/Platform.lua` | `GetUnitGUID(unit)`, `InviteByName(name)`, `LeaveGroup()`, `IsGroupLeader()`, `IsInCombat()`, `GetNumGroupMembers` if missing; each guarded |
 | `Core/LayerProbe.lua` (+ log) | new, TOC after `PvPProbe` |
 | `Domain/LayerModel.lua`, `LayerTracker.lua`, `LayerDirectory.lua`, `LayerSwap.lua` | new, TOC after `BlacklistWatcher` |
@@ -265,7 +265,7 @@ the usage string in `Slash.lua` and to `ViewModel.HelpLines()`.
 - `tests/layer_sync_spec.lua` (mirrors `pvp_sync_spec.lua`), plus cases in `protocol_spec.lua` (validators, bad
   enums, out-of-range ints) and `comm_spec.lua` (dispatch, GUILD only).
 - `tests/layer_popup_spec.lua`: Controller states from 4.2, lockdown retry.
-- `tests/view_model_spec.lua` (`LayersView` states, disabled reasons) and `tests/ui_smoke_spec.lua` (the tab draws
+- `tests/view_model_layers_spec.lua` (`LayersView` states, disabled reasons) and `tests/ui_smoke_spec.lua` (the tab draws
   for every role).
 - `tests/locale_spec.lua` passes (every string translated, no unused entry).
 - `tests/stubs/wow_api.lua`: only what the specs need.

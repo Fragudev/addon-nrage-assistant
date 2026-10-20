@@ -4,15 +4,17 @@ local Constants = ns.Constants
 local L = ns.L
 local PREFIX = "|cff33ff99Nrage Assistant|r"
 
-local NOTICES = {
-  not_in_guild = L("disabled: you are not in a guild."),
-  wrong_guild = L("disabled: this addon is only for the Nrage guild."),
-  wrong_faction = L("disabled: this addon is only for the Alliance."),
-  wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
-  incompatible_data = L(
-    "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
-  ),
-}
+local NOTICES = ns.Locale.Table(function()
+  return {
+    not_in_guild = L("disabled: you are not in a guild."),
+    wrong_guild = L("disabled: this addon is only for the Nrage guild."),
+    wrong_faction = L("disabled: this addon is only for the Alliance."),
+    wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
+    incompatible_data = L(
+      "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
+    ),
+  }
+end)
 
 function ns.GetVersion()
   local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
@@ -27,6 +29,8 @@ local function InitDatabase()
   if db then
     NrageAssistantDB = db
     ns.db = db
+    -- The saved language is applied before anything is drawn, so every text is read in it.
+    ns.Locale.UsePreference(ns.Settings.Language(db), ns.Platform.GetLocale())
   else
     -- Leave NrageAssistantDB as it is so nothing is lost on a downgrade.
     ns.dbError = err
@@ -183,7 +187,10 @@ local function StartBlacklist()
       local line = ns.ViewModel.BlacklistAlertLine(match)
       print(("%s: %s"):format(PREFIX, line))
       ns.Platform.ShowRaidNotice(line)
-      ns.Platform.PlayAlertSound()
+      -- The chat line and the warning always show; only the sound can be switched off (settings).
+      if ns.Settings.BlacklistSound(ns.db) then
+        ns.Platform.PlayAlertSound()
+      end
     end,
   })
   ns.blacklistWatcher = watcher
@@ -195,6 +202,8 @@ local function StartBlacklist()
   blacklistFrame:SetScript("OnEvent", function()
     if ns.active then
       pcall(watcher.Check, watcher)
+      -- The Blacklist tab marks the listed players that are in the group: it follows the group.
+      ns.UI.BlacklistChanged()
     end
   end)
   -- A group that already exists when the addon starts.
@@ -344,22 +353,161 @@ local function StartLayer()
   end)
 end
 
--- The profile is shared with the guild without a switch (issue #36): once after login, when the roster has had time
--- to load, and again whenever what would be shared differs from what was last sent.
+-- The events that change what is shared in the profile: gear, level and professions.
+local PROFILE_EVENTS = {
+  "PLAYER_EQUIPMENT_CHANGED",
+  "PLAYER_LEVEL_UP",
+  "SKILL_LINES_CHANGED",
+  "PLAYER_AVG_ITEM_LEVEL_UPDATE",
+}
+
+-- The profile is shared with the guild without a switch (issue #36, plan 0.1): once after login, when the roster has
+-- had time to load; a few seconds after any event that changes it; and every PUBLISH_CHECK_SECONDS as a safety net.
+-- A change made inside the publish cooldown is published when it ends (AutoPublisher), and nothing is read or sent
+-- during an encounter lockdown.
+local autoPublishStarted = false
+
 local function StartAutoPublish()
-  local function check()
-    if ns.active and ns.character and ns.comm then
-      ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
-      ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
+  if autoPublishStarted then
+    return
+  end
+  autoPublishStarted = true
+  local publisher = ns.AutoPublisher.New({
+    refresh = function()
+      if ns.active and ns.character then
+        ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+      end
+    end,
+    publish = function()
+      if ns.active and ns.character and ns.comm then
+        return ns.PublishService.PublishIfChanged(ns.comm, ns.character, ns.Platform)
+      end
+      return false, "inactive"
+    end,
+    cooldownLeft = function()
+      return ns.character and ns.PublishService.CooldownLeft(ns.character, ns.Platform) or 0
+    end,
+    schedule = C_Timer.After,
+    isLocked = ns.Platform.IsChatMessagingLockedDown,
+    debounce = Constants.PUBLISH_EVENT_DEBOUNCE_SECONDS,
+  })
+  ns.autoPublisher = publisher
+
+  local profileFrame = CreateFrame("Frame")
+  for _, event in ipairs(PROFILE_EVENTS) do
+    ns.Platform.TryRegisterEvent(profileFrame, event)
+  end
+  profileFrame:SetScript("OnEvent", function()
+    if ns.active then
+      publisher:Changed()
+    end
+  end)
+
+  C_Timer.After(
+    math.random(Constants.SYNC_LOGIN_REQUEST_DELAY_MIN, Constants.SYNC_LOGIN_REQUEST_DELAY_MAX) + 1,
+    function()
+      publisher:Run()
+    end
+  )
+  C_Timer.NewTicker(Constants.PUBLISH_CHECK_SECONDS, function()
+    publisher:Run()
+  end)
+end
+
+-- The items of the last corpse looted, for the "Last boss loot" strip of the Loot tab. Kept in memory only, and only
+-- when
+-- the client lets the addon read the loot window (Platform.LootWindowAvailable): otherwise the strip is not shown.
+local function StartBossLoot()
+  if not ns.Platform.LootWindowAvailable() then
+    return
+  end
+  local lootFrame = CreateFrame("Frame")
+  if not ns.Platform.TryRegisterEvent(lootFrame, "LOOT_OPENED") then
+    return
+  end
+  lootFrame:SetScript("OnEvent", function()
+    if ns.active then
+      local items = ns.Platform.GetLootWindowItems()
+      if items and #items > 0 then
+        ns.bossLoot = items
+      end
+    end
+  end)
+end
+
+-- Recipes (plan 3.10): the recipes a profession window shows are read when it opens or changes, kept, and published
+-- when
+-- they differ from the last scan. Only when the client has the profession API (Platform.RecipeScanAvailable); the
+-- client
+-- fires its events several times while a list loads, so a burst is one scan a moment after the last one.
+local RECIPE_EVENTS = { "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE" }
+local recipesStarted = false
+
+local function SkillOf(name)
+  for _, profession in ipairs(ns.character.profile.professions or {}) do
+    if profession.name == name then
+      return profession.skill
     end
   end
-  C_Timer.After(math.random(Constants.SYNC_LOGIN_REQUEST_DELAY_MIN, Constants.SYNC_LOGIN_REQUEST_DELAY_MAX) + 1, check)
-  C_Timer.NewTicker(Constants.PUBLISH_CHECK_SECONDS, check)
+  return nil
+end
+
+local function ScanRecipes()
+  if not (ns.active and ns.character) then
+    return
+  end
+  local scan = ns.Platform.ScanKnownRecipes()
+  if not scan then
+    return
+  end
+  local record, changed =
+    ns.RecipeService.StoreScan(ns.character.recipes, scan, ns.Platform.ServerTime(), SkillOf(scan.professionName))
+  if record and changed and ns.comm then
+    ns.comm:SendRecipes(scan.professionId, record)
+  end
+  if record then
+    ns.recipesVersion = (ns.recipesVersion or 0) + 1
+    ns.UI.RecipesChanged()
+  end
+end
+
+local function StartRecipes()
+  if recipesStarted or not ns.Platform.RecipeScanAvailable() then
+    return
+  end
+  recipesStarted = true
+  local throttle = ns.Throttle.New({
+    run = ScanRecipes,
+    now = ns.Platform.Now,
+    schedule = C_Timer.After,
+    interval = Constants.RECIPE_SCAN_DELAY_SECONDS,
+  })
+  local recipeFrame = CreateFrame("Frame")
+  for _, event in ipairs(RECIPE_EVENTS) do
+    ns.Platform.TryRegisterEvent(recipeFrame, event)
+  end
+  recipeFrame:SetScript("OnEvent", function()
+    if ns.active then
+      throttle:Call()
+    end
+  end)
+  -- The saved lists go out once after login, for the members who were not there when they changed.
+  C_Timer.After(math.random(Constants.RECIPE_LOGIN_SEND_DELAY_MIN, Constants.RECIPE_LOGIN_SEND_DELAY_MAX), function()
+    if ns.active and ns.comm then
+      for professionId, record in pairs(ns.character.recipes) do
+        if record.ids then
+          ns.comm:SendRecipes(professionId, record)
+        end
+      end
+    end
+  end)
 end
 
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
+  -- The roles the guild master assigned are read from the saved assignments.
+  ns.PermissionService.Configure({ members = ns.db.global.members })
   ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetLegacyIdentityKey())
   ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
   ns.EventService.Purge({
@@ -383,6 +531,8 @@ local function Activate()
   StartPvP()
   StartBlacklist()
   StartLayer()
+  StartBossLoot()
+  StartRecipes()
   StartAutoPublish()
   ScheduleSelfTest()
   print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))

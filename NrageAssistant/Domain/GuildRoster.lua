@@ -117,6 +117,7 @@ function GuildRoster:Rebuild()
           level = entry.level,
           class = entry.class,
           guid = entry.guid,
+          online = entry.online,
         }
       end
     end

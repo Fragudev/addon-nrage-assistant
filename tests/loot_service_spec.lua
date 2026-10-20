@@ -4,6 +4,8 @@ local function load_modules()
     "Core/Constants",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/LootModel",
     "Domain/LootService",
   }) do
@@ -29,6 +31,7 @@ local function build_ctx(role, actor)
     },
     role = role or "council",
     actor = actor or "Boss-Realm",
+    rosterId = "r1",
     clock = 1000,
     locked = false,
   }

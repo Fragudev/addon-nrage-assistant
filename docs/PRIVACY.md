@@ -27,9 +27,23 @@ secret store.
 | The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
-| Assignment templates | you; never shared |
+| Assignment templates (each keeps the roster of the event it was saved from) | you; never shared |
+| Raid rosters and the role and roster the guild master assigned to each member | the guild master, received over the guild channel |
 
 Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
+
+## Rosters are a filter, not a lock
+
+The guild can split its raiders into rosters (teams). A player sees in the window only the events, reports and loot
+of their own roster, and the loot popup and the voting window only open for the members of the roster of a session.
+**This is a visibility filter in the interface, not access control.** Raid data still travels over the guild addon
+channel, which is not private: every guild member with the addon receives all of it (all rosters), and anyone who
+reads their saved data or the channel can see it. What the roster does enforce is who may change what (a raid
+leader only acts on the events of their roster). Real confidentiality would need each roster's data to be whispered
+member by member, which this addon does not do.
+
+The addon role of a member (member, raid leader, loot council) and their roster are set by the guild master and
+shared with the whole guild: everybody can see who is in which roster.
 
 ## Your sheet is shared automatically
 
@@ -43,10 +57,10 @@ receive theirs. It holds:
 | item level | when known |
 | professions and skill | when known |
 | declared role and main | when you set them |
+| recipes you have learned | after you open each profession window |
 
 Never shared: your **declared notes** (they stay on this computer), the enchants and buffs the readiness checks read
-from your character, your guid, your inventory and chat. The Profile tab lists what is shared, and *Publish now*
-sends it at once. Text you declare has escape characters (`|`) and control characters stripped before it is sent. Like
+from your character, your guid, your inventory and chat. The Profile tab lists what is shared and when it was last published. Text you declare has escape characters (`|`) and control characters stripped before it is sent. Like
 every addon message the sheet is **not encrypted**, and the only way not to share it is not to run the addon.
 
 **PvP counters are shared automatically, without a consent switch.** Every guild member running the addon

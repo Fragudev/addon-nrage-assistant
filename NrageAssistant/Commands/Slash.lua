@@ -100,10 +100,25 @@ local COMMANDS = {
       for _, line in ipairs(ns.Diagnostics.Info(ns)) do
         print(line)
       end
+    elseif sub == "sync" then
+      -- Troubleshooting only: sync is automatic, so the window has no button for this.
+      if ns.comm then
+        say(ns.ViewModel.SyncRequestResult(ns.comm:RequestSync()))
+      else
+        say("no sync yet (addon disabled).")
+      end
+    elseif sub == "publish" then
+      -- Troubleshooting only: the profile is published by itself whenever it changes.
+      if ns.comm and ns.character then
+        local ok, reason = ns.PublishService.Publish(ns.comm, ns.character, ns.Platform)
+        say(ok and "profile published." or ("not published: " .. ns.ViewModel.PublishError(reason)))
+      else
+        say("no sync yet (addon disabled).")
+      end
     else
       say(
-        "usage: /nrage debug identity | roster | senders | selftest | info | lockdown <action> | pvp <action>"
-          .. " | layer <action>"
+        "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
+          .. " | pvp <action> | layer <action>"
       )
     end
   end,

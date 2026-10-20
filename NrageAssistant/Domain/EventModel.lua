@@ -58,6 +58,13 @@ function EventModel.ValidateEvent(fields, partial)
     end
     clean.status = fields.status
   end
+  -- The roster the event belongs to (protocol 1.5). Optional: an event with none is a legacy one.
+  if fields.rosterId ~= nil then
+    if not V.Id(fields.rosterId) then
+      return nil, "invalid:rosterId"
+    end
+    clean.rosterId = fields.rosterId
+  end
   return clean
 end
 

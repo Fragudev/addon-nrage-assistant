@@ -6,6 +6,7 @@ local function load_controller()
     "Core/Validate",
     "Domain/LayerModel",
     "UI/ViewModel",
+    "UI/ViewModelLayers",
     "UI/LayerPopup",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)

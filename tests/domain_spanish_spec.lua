@@ -7,6 +7,8 @@ local function load_spanish(locale)
     "Locales/esES",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/ReadinessService",
     "Domain/ReadinessRules",

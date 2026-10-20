@@ -30,7 +30,10 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ```
 
 - `v` must equal the receiver's major version (currently 1); a different major is reported as an incompatible
-  peer and the local data is left alone. `m` only adds optional fields.
+  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 6): a client
+  that does not know a field drops it while validating, and a client that does not know a message type drops the
+  message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
+  below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -42,8 +45,8 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | Type | Channel | Payload (validated fields) | Who may send it |
 |---|---|---|---|
 | `HELLO` | guild | `version` | anyone |
-| `PROFILE` | guild | `rev`, `class`, `level`, optional `ilvl`, `professions[]`, `fields{role, main, notes}` | anyone, for themselves |
-| `EVENT_UPSERT` | guild | `eventId`, `rev`, `updatedAt`, `title`, optional `instance`, `startAt`, `status` | rl, admin |
+| `PROFILE` | guild | `rev`, `class`, `level`, optional `ilvl`, `professions[]` (`name`, `skill`, optional `max`, optional `secondary` = true for cooking, fishing and archaeology), `fields{role, main, notes}` | anyone, for themselves |
+| `EVENT_UPSERT` | guild | `eventId`, `rev`, `updatedAt`, `title`, optional `instance`, `startAt`, `status`, `rosterId` | rl of the roster of the event, admin |
 | `ATTENDANCE_UPSERT` | guild | `eventId`, `characterKey`, `state`, `rev`, `updatedAt` | rl, admin |
 | `ASSIGN_UPSERT` | guild | `eventId`, `assignmentId`, `rev`, `updatedAt`, `encounter`, `characterKey`, optional `group`, `task`, `note` | rl, admin |
 | `DELETE` | guild | `kind` (`event` or `assignment`), `eventId`, optional `assignmentId`, `rev` | rl, admin |
@@ -55,12 +58,17 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
 | `BLACKLIST_UPSERT` | guild | `key`, `name` (1 to 40 bytes), `reason` (1 to 100 bytes), `rev`, `updatedAt` | anyone; the author is the sender |
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
+| `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
+| `ROSTER_UPSERT` | guild | `rosterId`, `name` (1 to 30 bytes, plain text), `rev`, `updatedAt` | admin |
+| `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
+| `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), `role` (`member`, `rl` or `council`: never `admin`), optional `rosterId`, `rev`, `updatedAt` | admin |
+| `MEMBER_DELETE` | guild | `key`, `rev` | admin |
 | `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
 | `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `SYNC_REQ` | guild | none | anyone |
-| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist or readiness rules messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
+| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules or roster messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
 `guid` is deliberately never sent.
 
@@ -132,7 +140,7 @@ inbox. The kill is validated and then ignored: the Recent kills list only holds 
 
 ## Layers
 
-Protocol minor version 5. Older clients drop both types with `unknown_type`. Both are **guild channel only** (never a
+Protocol minor version 6. Older clients drop both types with `unknown_type`. Both are **guild channel only** (never a
 whisper, never part of a snapshot) and live only: nothing is saved. A sender must be a known guild member
 (`layer_share`, every role).
 
@@ -221,6 +229,51 @@ that an admin replaces as a whole with `READINESS_RULES`. The protocol minor ver
   under the role of the sender, so a leader who is not an admin cannot relay (or forge) rules. For the members who
   were not online, an admin also sends the set once after login.
 
+## Rosters and assigned roles
+
+Raid rosters (teams) and the addon role of each member are set by the guild master inside the addon (protocol
+minor 5, plan 3.4.1 and 3.4.2).
+
+- **Records:** `rosters[id] = { id, name, rev, updatedAt, updatedBy }` and `members[key] = { role, rosterId,
+  rev, updatedAt, updatedBy }`. A member is in at most one roster (`rosterId` is a single value; a record that leaves
+  it out means no roster). Messages: `ROSTER_UPSERT` and `ROSTER_DELETE` for the definitions, `MEMBER_UPSERT` and
+  `MEMBER_DELETE` for the assignments.
+- **Authority:** `roster_manage`, which is the guild master only. The guild master is recognised from the receiver's
+  own guild roster by **rank index 0** (never by a character name; the beta admin list is gone), and the other roles
+  of a sender are the ones assigned in `members`. `admin` can never be assigned: a `MEMBER_UPSERT` whose `role` is
+  anything but `member`, `rl` or `council` does not pass validation, and a stored record that says `admin` counts as
+  nothing.
+- **Conflicts and deletions:** like the blacklist (higher `rev`, then `updatedAt`, then sender). Removals leave
+  tombstones `R:<rosterId>` and `M:<key>` in the shared tombstones, with the deleted revision plus one.
+- **Events carry their roster:** `EVENT_UPSERT` has an optional `rosterId`; templates and loot sessions follow the
+  roster of their event, so they need nothing of their own. The receiver checks it with the roster it holds for the
+  sender (never from the message): a raid leader's new event has to say it is of their roster, they cannot move an
+  event to another roster, and attendance, assignments, deletions and every loot message (session, candidacy, vote,
+  award) from somebody who is not in the roster of the event, or has none, are refused as `other_roster`. The guild
+  master acts on any roster. An event with no `rosterId` (made before rosters, or by an older client) stays open to
+  the members who have a roster until the guild master assigns one. A message that leaves `rosterId` out never
+  clears the roster an event already has, so an older client editing it does not undo the assignment. Only the
+  guild master can delete something of an event the receiver has never seen.
+- **Late joiners:** the rosters, the 300 most recently updated assignments and the newest removals are part of a
+  snapshot only when the sender is an admin, and the receiver applies them under the role of the sender (a raid
+  leader cannot relay or forge them). An admin also sends the roster definitions after login; the assignments of a
+  member who was offline are only learned from an admin's snapshot, so a client that has never met the guild
+  master online does not know its own assigned role yet.
+- **Visibility is not access control.** Every client with the addon still receives every message on the guild
+  channel; the roster only decides what the window shows and who may change what. See `docs/PRIVACY.md`.
+
+## Recipes
+
+`RECIPES` carries the recipes a member has learned in one profession, as numeric ids (names and icons are looked up
+in the client). A profession can have hundreds of recipes and a message is limited to 255 encoded bytes, so a list
+is sent as `parts` messages of at most 150 ids. The receiver keeps the parts aside, in memory, until all of them
+arrived and only then replaces the stored list, so a list that never completes changes nothing. A newer `rev`
+starts a new list and drops the half-received one; a `rev` that does not beat the stored one is ignored. The record
+belongs to the sender (there is no name in the payload) and any member may send their own. Bounds: 3000 ids per
+profession, 12 professions per member, 500 members, 100 half-received lists. The revision only goes up when the
+recipes changed, so an unchanged scan sends nothing. Recipes are not part of the snapshot: they are resent 30 to 60
+seconds after login and whenever a scan finds a change.
+
 ## Deletions
 
 A `DELETE` removes the record and leaves a **tombstone** (`E:<eventId>` or `A:<eventId>:<assignmentId>`; the
@@ -261,7 +314,7 @@ text export.
 
 ## Limits on stored data
 
-100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
+20 rosters, 1000 role and roster assignments, 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
 and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 200 blacklist entries, 20 templates. Events are purged 90 days after their start.
 
 ## Text import and export

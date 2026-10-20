@@ -11,6 +11,8 @@ local function load_addon()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RosterService",
+    "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/LootModel",
@@ -27,6 +29,8 @@ local function load_addon()
     "Sync/PvPSync",
     "Sync/BlacklistSync",
     "Sync/ReadinessRulesSync",
+    "Sync/RosterSync",
+    "Sync/RecipeSync",
     "Sync/LayerSync",
     "Sync/Transfer",
     "Sync/Comm",
@@ -59,6 +63,14 @@ local function build_env()
     readinessRules = {},
     rulesChanges = {},
     ownResets = {},
+    rosterChanges = {},
+    -- Everybody is a member of roster r1 unless a test sets their entry.
+    rosters = { r1 = { id = "r1", name = "Main", rev = 1, updatedAt = 1 } },
+    members = setmetatable({}, {
+      __index = function()
+        return { role = "member", rosterId = "r1" }
+      end,
+    }),
   }
 
   env.platform = {
@@ -119,6 +131,11 @@ local function build_env()
     readinessRules = env.readinessRules,
     onRulesChange = function(messageType)
       env.rulesChanges[#env.rulesChanges + 1] = messageType
+    end,
+    rosters = env.rosters,
+    members = env.members,
+    onRosterChange = function(messageType)
+      env.rosterChanges[#env.rosterChanges + 1] = messageType
     end,
     roleOf = function(sender)
       return env.roles[sender]
@@ -354,7 +371,11 @@ describe("Comm raid operations", function()
   end)
 
   local function event_text(id)
-    return env.wire("EVENT_UPSERT", { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Molten Core" }, id)
+    return env.wire(
+      "EVENT_UPSERT",
+      { eventId = "ev-1", rosterId = "r1", rev = 1, updatedAt = 10, title = "Molten Core" },
+      id
+    )
   end
 
   it("applies an event sent by someone whose roster rank allows it", function()
@@ -380,7 +401,8 @@ describe("Comm raid operations", function()
   end)
 
   it("sends local changes as valid, keyed messages that a receiver accepts", function()
-    local event = { eventId = "ev-1", rev = 1, updatedAt = 10, title = "Molten Core", status = "planned" }
+    local event =
+      { eventId = "ev-1", rosterId = "r1", rev = 1, updatedAt = 10, title = "Molten Core", status = "planned" }
     assert.is_true(env.comm:SendEvent(event))
     assert.is_true(env.comm:SendAttendance("ev-1", "A-Realm", { state = "present", rev = 1, updatedAt = 10 }))
     assert.is_true(env.comm:SendAssignment("ev-1", {
@@ -428,6 +450,7 @@ describe("Comm snapshot for late joiners", function()
   local function seed(env)
     env.events["ev-1"] = {
       eventId = "ev-1",
+      rosterId = "r1",
       title = "Molten Core",
       status = "open",
       startAt = 5000,
@@ -485,10 +508,11 @@ describe("Comm snapshot for late joiners", function()
     assert.are.equal("Ragnaros", event.assignments["as-1"].encounter)
     assert.are.equal("Lead-Realm", event.updatedBy)
     assert.are.equal("received", event.source)
-    assert.are.equal(2, joiner.tombstones["E:ev-0"].rev)
+    -- A leader cannot make this client remember the deletion of an event it never saw: only the guild master can.
+    assert.is_nil(joiner.tombstones["E:ev-0"])
 
     local status = table.concat(joiner.comm:Status(), "\n")
-    assert.is_truthy(status:find("last snapshot: 4 of 4 record(s) applied, from Lead-Realm", 1, true))
+    assert.is_truthy(status:find("last snapshot: 3 of 4 record(s) applied, from Lead-Realm", 1, true))
   end)
 
   it("does not answer unless the responder is a leader", function()
@@ -562,6 +586,7 @@ describe("Comm snapshot for late joiners", function()
       local id = "ev-" .. i
       leader.events[id] = {
         eventId = id,
+        rosterId = "r1",
         title = table.concat(noise),
         status = "planned",
         startAt = 1000 * i,
@@ -595,7 +620,10 @@ describe("Comm whisper guards", function()
   end
 
   local function event_item(eventId)
-    return { t = "EVENT_UPSERT", p = { eventId = eventId, rev = 1, updatedAt = 10, title = "From snapshot" } }
+    return {
+      t = "EVENT_UPSERT",
+      p = { eventId = eventId, rosterId = "r1", rev = 1, updatedAt = 10, title = "From snapshot" },
+    }
   end
 
   before_each(function()
@@ -952,7 +980,8 @@ describe("Comm loot change notification", function()
 
   it("says nothing when the message is refused, and nothing for other kinds of message", function()
     assert.is_false(env.comm:HandleMessage(session_text("m-1"), "Lead-Realm", "GUILD"))
-    local event = env.wire("EVENT_UPSERT", { eventId = "ev-2", rev = 1, updatedAt = 10, title = "Other" }, "m-2")
+    local event =
+      env.wire("EVENT_UPSERT", { eventId = "ev-2", rosterId = "r1", rev = 1, updatedAt = 10, title = "Other" }, "m-2")
     assert.is_true(env.comm:HandleMessage(event, "Lead-Realm", "GUILD"))
     assert.are.same({}, changes)
   end)

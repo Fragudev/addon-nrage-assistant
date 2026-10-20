@@ -112,6 +112,56 @@ a single-word group name that equals the first word of a listed multi-word name 
 verify-in-game: record the answers above here, and if the full name is available the first-word fallback can be
 removed. Every call is guarded, so a missing API or a secret value leaves a name out instead of raising.
 
+## Redesign APIs (phase P0, to be measured in the game)
+
+The UI redesign (`docs/REDESIGN_PLAN.md`) depends on a few client APIs nobody has measured on Forever yet. Each one is
+wrapped in `Core/Platform.lua` behind `pcall` and an availability check, and the feature that needs it ships
+**disabled or hidden** when the check says it is missing. Record the result of every row, then update the table and
+remove the "not measured yet" marker.
+
+| # | Question | API (through `Platform`) | Feature that depends on it | If unavailable | Result |
+|---|---|---|---|---|---|
+| 1 | Does `GetGuildInfo("player")` return the rank index (third value), and is 0 the guild master? | `GetGuildInfo` (`Platform.GetOwnGuildRank`) | Admin = the guild master only (plan 3.4.2) | Nobody is admin: fix before shipping | not measured yet |
+| 2 | Does `IsGuildLeader()` exist and answer a boolean? | `IsGuildLeader` (`Platform.IsGuildLeader`) | Second source for "I am the guild master" | The rank index alone decides | not measured yet |
+| 3 | Does `GetGuildRosterInfo` return `isOnline` as the ninth value? Is it kept up to date without a new request? | `GetGuildRosterInfo` (`Platform.GetGuildRosterEntry`, `online`) | Online crafters first, "Connected only", disabled "Ask" for offline members | Every crafter shows as offline-unknown; "Ask" stays enabled | not measured yet |
+| 4 | `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("partyN")`: do they exist, and do they return the full multi-word name or only the first word? | `Platform.GroupApiAvailable`, `Platform.GetFullGroupNames` | "Fill from current group" (Raid, Attendance) | The button is hidden | not measured yet |
+| 5 | Does `GetProfessions()` also fill the secondary slots (archaeology, fishing, cooking), and does `GetProfessionInfo` give their skill? | `Platform.GetProfessions` (`secondary`) | Profile line 3 and the Members row detail | Only the primary professions are listed | not measured yet |
+| 6 | Does `C_TradeSkillUI.GetBaseProfessionInfo`, `GetAllRecipeIDs` and `GetRecipeInfo(id).learned` work while a profession window is open? Is `professionID` stable between clients? Do secondary professions (cooking, fishing) scan the same way? Do `IsTradeSkillLinked`, `IsTradeSkillGuild` and `IsNPCCrafting` exist? | `Platform.RecipeScanAvailable`, `Platform.ScanKnownRecipes` | Professions tab: scan, sync | The Professions tab shows "not available on this client" and nothing is scanned or sent | not measured yet |
+| 7 | Do the events `TRADE_SKILL_SHOW` and `TRADE_SKILL_LIST_UPDATE` fire, and is `TRADE_SKILL_LIST_UPDATE` fired before the recipe list is complete? | events (registered through `Platform.TryRegisterEvent`) | When to scan | Scan on `TRADE_SKILL_SHOW` only | not measured yet |
+| 8 | Does a recipe id give a name and icon through `C_TradeSkillUI.GetRecipeInfo(id)` when no window is open, or only through the spell (`C_Spell.GetSpellInfo(id)`)? Does `C_TradeSkillUI.GetRecipeOutputItemData(id)` give a link? | `Platform.GetRecipeInfo` | Recipe names, icons and the item link in the "Ask" text | The recipe shows as `Recipe <id>` without an icon | not measured yet |
+| 9 | Does `ChatFrameUtil.OpenChat(text)` or `ChatFrame_OpenChat(text)` exist, and does it fill the edit box without sending? | `Platform.CanPrefillChat`, `Platform.PrefillChat` | The "Ask" whisper | The "Ask" button is hidden | not measured yet |
+| 10 | Do `LOOT_OPENED`, `GetNumLootItems`, `GetLootSlotLink`, `GetLootSlotInfo` work on a boss corpse, and are the links readable (not secret values) right after the kill? Does `ENCOUNTER_LOOT_RECEIVED` fire and carry the link? | `Platform.LootWindowAvailable`, `Platform.GetLootWindowItems` | The "Last boss loot" strip in the Loot tab | The strip is not shown | not measured yet |
+| 11 | Does `GetPhysicalScreenSize` exist, so a border can be exactly one physical pixel? | `Kit/Pixel.lua` | 1px borders | Borders are one interface unit thick | not measured yet |
+| 12 | Does `Frame:SetResizeBounds` exist (else `SetMinResize`)? | `Kit/Shell.lua` | Resizable windows | Fixed size | not measured yet |
+
+### Checklist for the owner (run these in the game, then fill the Result column)
+
+```text
+/dump GetGuildInfo("player")                       -- 3rd value is the rank index; the GM should be 0
+/dump IsGuildLeader and IsGuildLeader()
+/dump select(9, GetGuildRosterInfo(1))             -- isOnline, repeat for a few rows (online and offline)
+/dump IsInRaid(), IsInGroup(), GetNumGroupMembers()
+/dump GetRaidRosterInfo(1)                         -- in a raid; is the name the full multi-word name?
+/dump UnitName("party1")                           -- in a party
+/dump GetProfessions()                             -- 5 values: prof1, prof2, archaeology, fishing, cooking
+/dump GetProfessionInfo((select(4, GetProfessions())))   -- fishing, when learned
+/dump C_TradeSkillUI.GetBaseProfessionInfo()       -- with a profession window open
+/dump #C_TradeSkillUI.GetAllRecipeIDs()
+/dump C_TradeSkillUI.GetRecipeInfo(C_TradeSkillUI.GetAllRecipeIDs()[1])   -- look at .learned, .name, .icon
+/dump C_TradeSkillUI.IsTradeSkillLinked and C_TradeSkillUI.IsTradeSkillLinked()
+/dump C_TradeSkillUI.GetRecipeOutputItemData and C_TradeSkillUI.GetRecipeOutputItemData(C_TradeSkillUI.GetAllRecipeIDs()[1])
+/dump C_Spell and C_Spell.GetSpellInfo(C_TradeSkillUI.GetAllRecipeIDs()[1])
+/dump ChatFrameUtil and ChatFrameUtil.OpenChat, ChatFrame_OpenChat
+/run ChatFrameUtil.OpenChat("/w Test hello")       -- the edit box must open with the text and send nothing
+/dump GetNumLootItems()                            -- while a boss corpse is open
+/dump GetLootSlotLink(1)
+/dump GetPhysicalScreenSize and GetPhysicalScreenSize()
+/dump CreateFrame("Frame").SetResizeBounds
+```
+
+For the two events, log them for a minute while opening professions and a corpse:
+`/run local f=CreateFrame("Frame") for _,e in ipairs{"TRADE_SKILL_SHOW","TRADE_SKILL_LIST_UPDATE","LOOT_OPENED","ENCOUNTER_LOOT_RECEIVED"} do pcall(f.RegisterEvent,f,e) end f:SetScript("OnEvent",function(_,e,...) print(e,...) end)`
+
 ## APIs the addon uses
 
 `/nrage debug selftest` checks each of these on the running client.
@@ -127,7 +177,7 @@ removed. Every call is guarded, so a missing API or a secret value leaves a name
 | PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
 | Group and warning (**not measured yet**) | `IsInGroup`, `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("party1".."party4")`, `RaidNotice_AddMessage`, `RaidWarningFrame`, `PlaySound`, events `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`. Each is guarded and registered in `pcall`; not in the self test on purpose |
 | Time | `GetServerTime`, `GetTime`, `date`, `time` |
-| UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata`, AceGUI |
+| UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata` |
 | Load | events `ADDON_LOADED`, `PLAYER_LOGIN`, `PLAYER_GUILD_UPDATE`, `## SavedVariables` |
 
 All access goes through `NrageAssistant/Core/Platform.lua`, so a change in the client API is fixed in one place,
