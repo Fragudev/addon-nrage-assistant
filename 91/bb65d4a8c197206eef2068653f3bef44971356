@@ -1,0 +1,26 @@
+docs/USER_GUIDE.md
+  s_96b53beb93db33::t_65df63bda749d7 262,281-305
+  s_96b53beb93db33::t_68047d4af7b5f8 306
+docs/PVP_MISSIONS_PLAN.md
+  s_96b53beb93db33::t_7965312b22ae92 11-12,583-659
+docs/API_NOTES.md
+  s_96b53beb93db33::t_c710468f9c5430 98-118,198-199
+docs/PRIVACY.md
+  s_96b53beb93db33::t_ed817a141455ca 32,100-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91bb65d4a8c197206eef2068653f3bef44971356",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
