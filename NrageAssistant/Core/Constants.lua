@@ -253,6 +253,38 @@ ns.Constants = {
   -- Points are never spent; at least this many are needed to be ranked (and to get a prize).
   PVP_MIN_POINTS = 1,
 
+  -- PvP missions: detection (docs/PVP_MISSIONS_PLAN.md, sections 2 and 5).
+  -- The own kill log of a character keeps at most PVP_MISSION_KILLS_MAX rows (oldest dropped first). A victim counts at
+  -- most PVP_VICTIM_DAILY_CAP times per server day across all missions. A battleground win is logged once per
+  -- instance; PVP_BG_WIN_DEDUPE_SECONDS covers a reload inside the same battleground.
+  PVP_MISSION_KILLS_MAX = 2000,
+  PVP_VICTIM_DAILY_CAP = 3,
+  PVP_BG_WIN_DEDUPE_SECONDS = 1800,
+  -- The unit cache (victim class and race) lives in memory only: at most PVP_UNIT_CACHE_MAX names, least recently
+  -- seen dropped first, and an entry older than PVP_UNIT_CACHE_TTL seconds is ignored.
+  PVP_UNIT_CACHE_MAX = 500,
+  PVP_UNIT_CACHE_TTL = 3600,
+  -- The enemy sets of the distinct = "class" | "race" | "class_race" missions: the Horde side, as upper-case file
+  -- tokens (the second return of UnitClass / UnitRace, upper-cased). The guild is Alliance (plan, section 7).
+  PVP_ENEMY_CLASSES = { "DRUID", "HUNTER", "MAGE", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR" },
+  PVP_ENEMY_RACES = { "ORC", "SCOURGE", "TAUREN", "TROLL" },
+  -- The zones an admin can pick for a mission: uiMapIds of the capitals and contested zones, with the English name
+  -- (a key for L()). The ids are from the Classic map tables and are TO BE MEASURED on Forever (plan, M1); a zone
+  -- whose id turns out wrong is fixed here, nothing else depends on the list.
+  PVP_MISSION_ZONES = {
+    { mapId = 1411, nameKey = "Orgrimmar" },
+    { mapId = 1453, nameKey = "Stormwind City" },
+    { mapId = 1455, nameKey = "Ironforge" },
+    { mapId = 1457, nameKey = "Darnassus" },
+    { mapId = 1456, nameKey = "Thunder Bluff" },
+    { mapId = 1458, nameKey = "Undercity" },
+    { mapId = 1434, nameKey = "Stranglethorn Vale" },
+    { mapId = 1424, nameKey = "Hillsbrad Foothills" },
+    { mapId = 1416, nameKey = "Alterac Mountains" },
+    { mapId = 1440, nameKey = "Ashenvale" },
+    { mapId = 1417, nameKey = "Arathi Highlands" },
+  },
+
   -- Guild blacklist: names and short free-text reasons, shared with the guild. A snapshot carries at most
   -- BLACKLIST_SNAPSHOT_MAX entries (the most recently updated) and as many removals (the newest). The tab redraws
   -- because of a received entry at most once per BLACKLIST_REDRAW_SECONDS.
