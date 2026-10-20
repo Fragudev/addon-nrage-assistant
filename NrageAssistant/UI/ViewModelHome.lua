@@ -346,7 +346,7 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Members
 
-ViewModel.MEMBER_COLUMNS = { "name", "class", "level", "ilvl", "spec", "spec2", "roster", "role", "updated" }
+ViewModel.MEMBER_COLUMNS = { "name", "class", "level", "ilvl", "spec", "spec2", "roster", "role", "pvp", "updated" }
 local MEMBER_SORTABLE =
   { name = true, class = true, level = true, ilvl = true, spec = true, roster = true, role = true, updated = true }
 ViewModel.MEMBER_FIRST_DESCENDING = { level = true, ilvl = true, updated = true }
@@ -357,6 +357,7 @@ ViewModel.MEMBER_FIRST_DESCENDING = { level = true, ilvl = true, updated = true 
 --   rosters, members   db.global.rosters and db.global.members
 --   now         server time (for the stale flag and the age)
 --   ownKey      the own name, to flag the own row
+--   pvpOfficers a set name -> true of the PvP officers (PvPSeasonService:Officers() with `active`), optional
 --   viewer      RosterService.Viewer: a roster leader / member only lists what they may see? (see below)
 --   search      part of a name; roster = rosterId | "none" | nil; spec = "Tank" | "Dps" | "Heal" | nil; addonOnly
 --   sort        { key, descending } (default: name)
@@ -408,6 +409,7 @@ function ViewModel.MemberRows(args)
       role = role,
       roleText = Escape(ViewModel.Word(role)),
       assigned = assignment ~= nil,
+      pvpOfficer = args.pvpOfficers ~= nil and args.pvpOfficers[name] == true,
       isGuildMaster = ns.PermissionService.IsGuildMasterIndex(guild.rankIndex),
       mine = args.ownKey ~= nil and args.ownKey == name,
       receivedAt = receivedAt,

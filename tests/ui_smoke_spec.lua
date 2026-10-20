@@ -20,6 +20,11 @@ local function load_window(locale)
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
+    "Domain/PvPSeasonModel",
+    "Domain/PvPSeasonService",
+    "Sync/Protocol",
+    "Sync/SyncRules",
+    "Sync/PvPSeasonSync",
     "Domain/RosterService",
     "Domain/RecipeService",
     "Domain/EventModel",
@@ -43,6 +48,7 @@ local function load_window(locale)
     "UI/ViewModelHome",
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
+    "UI/ViewModelPvP",
     "UI/ViewModelProfessions",
     "UI/ViewModelLayers",
     "UI/MinimapButton",
@@ -269,6 +275,29 @@ local function build(rank, locale)
       return true
     end
   end
+  -- The PvP seasons: the real ledger service over a fake guild. `env.asRole` lets a test act as the admin to seed a
+  -- season; `env.pvpSent` records what the service sent.
+  env.pvpSent = {}
+  env.pvpRoles = { ["Ann-Realm"] = "member", ["Boss-Realm"] = "admin", ["Yonemon Gg"] = "member" }
+  ns.db.global.pvpSeason = ns.PvPSeasonSync.NewLedger()
+  ns.pvpSeason = ns.PvPSeasonService.New({
+    ledger = ns.db.global.pvpSeason,
+    now = ns.Platform.ServerTime,
+    newId = function()
+      return ns.comm:NextId()
+    end,
+    ownName = ns.Platform.GetIdentityKey,
+    ownRole = function()
+      return env.asRole or ns.PermissionService.OwnRole(ns.Platform)
+    end,
+    roleOf = function(name)
+      return env.pvpRoles[name]
+    end,
+    send = function(messageType)
+      env.pvpSent[#env.pvpSent + 1] = messageType
+      return true
+    end,
+  })
   ns.VotingFrame = {
     Show = function()
       env.votingShown = true
@@ -1210,8 +1239,9 @@ describe("Window smoke test: PvP", function()
     for _, tab in ipairs(FakeKit.find(pvp, "TabStrip").opts.tabs) do
       values[#values + 1] = tab.value
     end
-    assert.are.same({ "mine", "ranking", "feed" }, values)
-    local grids = FakeKit.find_all(pvp, "StatGrid")
+    assert.are.same({ "season", "missions", "stats", "feed", "history" }, values)
+    FakeKit.find(pvp, "TabStrip").opts.onSelect("stats")
+    local grids = FakeKit.find_all(env.page(), "StatGrid")
     assert.are.equal(2, #grids)
     assert.are.equal("Open world", grids[1].opts.stats[1].caption)
   end)
@@ -1220,6 +1250,7 @@ describe("Window smoke test: PvP", function()
     env = build("Member")
     env.ns.pvpTracker.honorAvailable = false
     env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
     assert.is_truthy(env.text():find("Not available", 1, true))
   end)
 
@@ -1230,7 +1261,8 @@ describe("Window smoke test: PvP", function()
       ["Gone-Realm"] = { honor = { world = 99, bg = 99 }, updatedAt = 900, rev = 1 },
     }
     env.open("pvp")
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
     local rows = env.tableRows()
     assert.are.equal(2, #rows)
     assert.are.same({ "1", "gold" }, { rows[1].cells.position.text, rows[1].cells.position.color })
@@ -1243,21 +1275,27 @@ describe("Window smoke test: PvP", function()
     assert.is_true(FakeKit.find_all(env.page(), "Table")[1].opts.sort.descending)
     env.box("Search by name").opts.onChange("ann", true)
     assert.are.equal(1, #env.tableRows())
-    FakeKit.find(env.page(), "Segmented").opts.onChange("today")
+    FakeKit.find_all(env.page(), "Segmented")[2].opts.onChange("today")
     assert.is_truthy(env.text():find("Today's kills", 1, true))
   end)
 
-  it("offers the reset to the guild master only, with a second click to confirm", function()
+  it("offers the kill-counter reset to the guild master only, in Admin -> Season, with a second click", function()
     env = build("RL")
     env.ns.db.global.pvpStats = { ["Ann-Realm"] = { honor = { world = 3, bg = 0 }, updatedAt = 900, rev = 1 } }
     env.open("pvp")
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
     assert.is_nil(env.find(env.page(), "Button", "Reset PvP counters"))
     pcall(env.close)
     env = build("GM")
     env.ns.db.global.pvpStats = { ["Ann-Realm"] = { honor = { world = 3, bg = 0 }, updatedAt = 900, rev = 1 } }
     env.open("pvp")
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
+    assert.is_nil(env.find(env.page(), "Button", "Reset PvP counters"))
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("admin")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("season")
+    assert.is_truthy(env.text():find("Kill counters", 1, true))
     env.press("Reset PvP counters")
     assert.is_truthy(env.banner().opts.text:find("Pick a member first", 1, true))
     local dropdown
@@ -1280,7 +1318,8 @@ describe("Window smoke test: PvP", function()
       ["Ann-Realm"] = { honor = { world = 30, bg = 20 }, blows = { world = 5, bg = 1 }, updatedAt = 900, rev = 1 },
     }
     env.open("pvp")
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("ranking")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
     local tbl = FakeKit.find_all(env.page(), "Table")[1]
     assert.is_true(tbl.opts.fit)
     local fitted = {}
@@ -1292,14 +1331,16 @@ describe("Window smoke test: PvP", function()
     for _, key in ipairs({ "position", "rank", "world", "bg", "total", "blows", "updated" }) do
       assert.is_true(fitted[key], key)
     end
-    -- The reset button follows its (longer, in Spanish) text instead of a fixed width.
-    assert.are.equal("auto", env.find(env.page(), "Button", "Reset PvP counters").opts.layout.width)
     -- The footer notes wrap.
     for _, label in ipairs(FakeKit.find_all(env.page(), "Label")) do
       if label.opts.style == "small" then
         assert.is_true(label.opts.wrap, label.opts.text)
       end
     end
+    -- The reset button (Admin -> Season) follows its (longer, in Spanish) text instead of a fixed width.
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("admin")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("season")
+    assert.are.equal("auto", env.find(env.page(), "Button", "Reset PvP counters").opts.layout.width)
   end)
 
   it("shows a kill that is too long for its row whole in a tooltip", function()
@@ -1345,6 +1386,576 @@ describe("Window smoke test: PvP", function()
     count = #env.ns.Kit.fake.nodes
     env.ns.UI.PvPChanged()
     assert.are.equal(count, #env.ns.Kit.fake.nodes)
+  end)
+end)
+
+describe("Window smoke test: PvP seasons", function()
+  local env
+  local DAY = 86400
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  -- An active season (500 to 30 days later) with missions, prizes, twelve ranked players and two claims waiting.
+  local function seed(e)
+    local ns, svc = e.ns, e.ns.pvpSeason
+    e.asRole = "admin"
+    local season = assert(svc:CreateSeason({ name = "Autumn", startsAt = 500, endsAt = 500 + 30 * DAY }))
+    local goal = { kind = "kills", count = 10, zones = { 1454 }, place = "any", distinct = "none" }
+    assert(
+      svc:UpsertMission({ id = "m1", title = "Raid", desc = "Kill ten", points = 50, goal = goal, repeatKind = "once" })
+    )
+    assert(
+      svc:UpsertMission({ id = "m2", title = "Hug", points = 20, goal = { kind = "manual" }, repeatKind = "once" })
+    )
+    assert(
+      svc:UpsertMission({ id = "m3", title = "Hidden", points = 5, goal = goal, repeatKind = "once", active = false })
+    )
+    assert(svc:SetPrizes(season.id, { ["1"] = { { kind = "gold", amount = 500 } } }))
+    e.asRole = nil
+    local ledger = ns.db.global.pvpSeason
+    ledger.grants[season.id] = {}
+    for index = 1, 12 do
+      local who = index == 5 and "Leader-Realm" or ("P" .. index .. "-Realm")
+      local id = "g" .. index
+      ledger.grants[season.id][id] = {
+        id = id,
+        seasonId = season.id,
+        player = who,
+        missionId = "m1",
+        points = 1000 - index,
+        at = 900 + index,
+        by = "Boss-Realm",
+      }
+    end
+    for _, who in ipairs({ "Ann-Realm", "Yonemon Gg" }) do
+      local periodKey = ns.PvPSeasonModel.PeriodKey("once", 950)
+      local id = ns.PvPSeasonModel.ClaimId(who, "m1", periodKey, 1)
+      ledger.queue[id] = {
+        id = id,
+        missionId = "m1",
+        seasonId = season.id,
+        periodKey = periodKey,
+        player = who,
+        at = 950,
+        summary = { done = 10, total = 10 },
+        evidence = { { at = 900, victim = "Zed", mapId = 1454, place = "world" } },
+      }
+    end
+    return season
+  end
+
+  local function officer(e)
+    e.ns.db.global.pvpSeason.officers["Leader-Realm"] =
+      { player = "Leader-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
+  end
+
+  -- Every node of `kind` with that text.
+  local function named(root, kind, text)
+    return FakeKit.find_all(root, kind, function(node)
+      return node.opts.text == text
+    end)
+  end
+
+  local function strip(e)
+    return FakeKit.find(e.page(), "TabStrip")
+  end
+
+  local function go(e, sub, section)
+    e.open("pvp")
+    strip(e).opts.onSelect(sub)
+    if section then
+      FakeKit.find(e.page(), "Segmented").opts.onChange(section)
+    end
+  end
+
+  local function tracker(e)
+    local t = { claims = {}, states = {}, progress = {}, availability = nil }
+    function t:Progress(id)
+      return self.progress[id]
+    end
+    function t:Claim(id, note)
+      self.claims[#self.claims + 1] = { id, note }
+      return { id = "c" }, true
+    end
+    function t:ClaimState(id)
+      return self.states[id] or "none"
+    end
+    function t:Availability()
+      return self.availability
+    end
+    e.ns.pvpMissions = t
+    return t
+  end
+
+  it("draws every sub-tab and admin section as admin, officer, member and with no roster", function()
+    for _, who in ipairs({ "GM", "officer", "Member", "Norost" }) do
+      env = build(who == "officer" and "Member" or who)
+      seed(env)
+      if who == "officer" then
+        officer(env)
+      end
+      env.open("pvp")
+      local subs = {}
+      for _, tab in ipairs(strip(env).opts.tabs) do
+        subs[#subs + 1] = tab.value
+        strip(env).opts.onSelect(tab.value)
+        if tab.value == "admin" then
+          for _, section in ipairs(FakeKit.find(env.page(), "Segmented").opts.items) do
+            FakeKit.find(env.page(), "Segmented").opts.onChange(section.value)
+          end
+        end
+      end
+      local admin = who == "GM" or who == "officer"
+      assert.are.equal(admin and 6 or 5, #subs, who)
+      pcall(env.close)
+    end
+  end)
+
+  it("draws every sub-tab with no season service at all", function()
+    env = build("Member")
+    env.ns.pvpSeason = nil
+    env.open("pvp")
+    for _, tab in ipairs(strip(env).opts.tabs) do
+      strip(env).opts.onSelect(tab.value)
+    end
+    strip(env).opts.onSelect("season")
+    assert.is_truthy(env.text():find("No season is running", 1, true))
+  end)
+
+  it("gives an officer only approvals and deliveries", function()
+    env = build("Member")
+    seed(env)
+    officer(env)
+    go(env, "admin")
+    local values = {}
+    for _, item in ipairs(FakeKit.find(env.page(), "Segmented").opts.items) do
+      values[#values + 1] = item.value
+    end
+    assert.are.same({ "approvals", "deliveries" }, values)
+  end)
+
+  it("shows the season card, the prizes and the standings with the own row and a line under the tenth", function()
+    env = build("Member")
+    seed(env)
+    env.open("pvp")
+    local text = env.text()
+    assert.is_truthy(text:find("Autumn", 1, true))
+    assert.is_truthy(text:find("500 gold", 1, true))
+    local rows = env.tableRows()
+    assert.are.equal(13, #rows)
+    assert.is_true(rows[5].highlight)
+    assert.is_truthy(rows[11].cells.name.text:find("No prizes below this line", 1, true))
+    assert.are.equal("1st", rows[1].cells.tier.opts.text)
+    assert.are.equal("-", rows[12].cells.tier)
+  end)
+
+  it("says there is no season, and that one ended", function()
+    env = build("Member")
+    env.open("pvp")
+    assert.is_truthy(env.text():find("No season is running", 1, true))
+    strip(env).opts.onSelect("missions")
+    assert.is_truthy(env.text():find("No season is running", 1, true))
+    seed(env)
+    env.ns.Platform.ServerTime = function()
+      return 500 + 31 * DAY
+    end
+    strip(env).opts.onSelect("missions")
+    assert.is_truthy(env.banner().opts.text:find("has ended", 1, true))
+  end)
+
+  it("shows the missions without progress and with no claim when the tracker is missing", function()
+    env = build("Member")
+    seed(env)
+    go(env, "missions")
+    local text = env.text()
+    assert.is_truthy(text:find("Raid", 1, true))
+    assert.is_truthy(text:find("Not available on this client", 1, true))
+    assert.is_nil(text:find("Hidden", 1, true))
+    assert.is_nil(env.find(env.page(), "Button", "Claim"))
+  end)
+
+  it("claims a complete mission, and a manual one with a note", function()
+    env = build("Member")
+    seed(env)
+    local t = tracker(env)
+    t.progress.m1 = {
+      bars = { { label = "Kills", done = 10, total = 10 } },
+      unknown = 2,
+      complete = true,
+      claimable = true,
+    }
+    t.progress.m2 = { bars = {}, unknown = 0, complete = true, claimable = true }
+    go(env, "missions")
+    assert.is_truthy(env.text():find("without a known class", 1, true))
+    env.press("Claim")
+    assert.are.same({ { "m1" } }, t.claims)
+    assert.is_truthy(env.banner().opts.text:find("Claim sent", 1, true))
+    -- The manual mission has no plain Claim button: it asks for a note first.
+    local notes = named(env.page(), "Button", "Claim with note")
+    assert.are.equal(2, #notes)
+    FakeKit.press(notes[1])
+    env.press("Send claim")
+    assert.is_truthy(env.banner().opts.text:find("Write a note", 1, true))
+    env.box("Note for the approver (required)").opts.onChange("proof")
+    env.press("Send claim")
+    assert.are.same({ "m2", "proof" }, t.claims[2])
+  end)
+
+  it("shows a refused claim, the state chip and the availability of a criterion", function()
+    env = build("Member")
+    seed(env)
+    local t = tracker(env)
+    t.progress.m1 = { bars = {}, unknown = 0, complete = true, claimable = true }
+    t.Claim = function()
+      return nil, "limit"
+    end
+    go(env, "missions")
+    env.press("Claim")
+    assert.is_truthy(env.banner().opts.text:find("the limit was reached", 1, true))
+    t.states.m1 = "pending"
+    env.ns.UI.Redraw()
+    assert.is_truthy(env.text():find("Pending approval", 1, true))
+    assert.is_nil(env.find(env.page(), "Button", "Claim"))
+    t.availability = { kills = true, zones = false, classRace = true, bgWins = true }
+    env.ns.UI.Redraw()
+    assert.is_truthy(env.text():find("Not available on this client", 1, true))
+  end)
+
+  it("redraws on a season change and on a PvP officer change in Members", function()
+    env = build("GM")
+    env.open("pvp")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.PvPSeasonChanged("PVP_GRANT")
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+    env.open("roster")
+    count = #env.ns.Kit.fake.nodes
+    env.ns.UI.PvPSeasonChanged("PVP_OFFICER")
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+  end)
+
+  it("approves and rejects claims, with the evidence shown on demand", function()
+    env = build("GM")
+    local season = seed(env)
+    go(env, "admin")
+    assert.is_truthy(FakeKit.find(env.page(), "Segmented").opts.items[1].text:find("Approvals (2)", 1, true))
+    env.press("View evidence")
+    assert.is_truthy(env.text():find("Zed", 1, true))
+    env.press("Hide evidence")
+    local approve = named(env.page(), "Button", "Approve")[1]
+    FakeKit.press(approve)
+    local held = 0
+    for _ in pairs(env.ns.db.global.pvpSeason.grants[season.id]) do
+      held = held + 1
+    end
+    assert.are.equal(13, held)
+    assert.is_truthy(env.banner().opts.text:find("Claim approved", 1, true))
+    env.press("Reject")
+    assert.is_truthy(env.banner().opts.text:find("Claim rejected", 1, true))
+    assert.is_truthy(env.text():find("Rejected claims", 1, true))
+    env.press("Approve")
+    assert.is_truthy(env.banner().opts.text:find("Claim approved", 1, true))
+  end)
+
+  it("says so when nothing waits, and an officer cannot approve their own claim", function()
+    env = build("GM")
+    go(env, "admin")
+    assert.is_truthy(env.text():find("No claims waiting", 1, true))
+    pcall(env.close)
+    env = build("Member")
+    local season = seed(env)
+    officer(env)
+    local id = env.ns.PvPSeasonModel.ClaimId("Leader-Realm", "m1", "all", 1)
+    env.ns.db.global.pvpSeason.queue[id] = {
+      id = id,
+      missionId = "m1",
+      seasonId = season.id,
+      periodKey = "all",
+      player = "Leader-Realm",
+      at = 900,
+    }
+    go(env, "admin")
+    FakeKit.press(named(env.page(), "Button", "Approve")[1])
+    assert.is_truthy(env.banner().opts.text:find("Not saved", 1, true))
+  end)
+
+  it("creates, edits and pauses missions from the form", function()
+    env = build("GM")
+    local season = seed(env)
+    go(env, "admin", "missions")
+    env.press("New mission")
+    local function edit(maxLetters, text)
+      for _, box in ipairs(FakeKit.find_all(env.page(), "EditBox")) do
+        if box.opts.maxLetters == maxLetters then
+          box.opts.onChange(text)
+          return
+        end
+      end
+      error("no box " .. tostring(maxLetters))
+    end
+    edit(env.ns.Constants.PVP_MISSION_TITLE_MAX, "Duel")
+    edit(4, "x")
+    env.press("Create mission")
+    assert.is_truthy(env.banner().opts.text:find("'points' is not valid", 1, true))
+    edit(4, "30")
+    edit(3, "7")
+    for _, box in ipairs(FakeKit.find_all(env.page(), "EditBox")) do
+      if box.opts.placeholder == "Map ids, separated by commas" then
+        box.opts.onChange("1454, 1453")
+      end
+    end
+    env.press("Create mission")
+    assert.is_truthy(env.banner().opts.text:find("Mission saved", 1, true))
+    local found
+    for _, mission in pairs(env.ns.db.global.pvpSeason.missions) do
+      if mission.title == "Duel" then
+        found = mission
+      end
+    end
+    assert.are.same({ 7, { 1454, 1453 } }, { found.goal.count, found.goal.zones })
+    -- Edit it: the form starts from its values, and the status dropdown pauses it.
+    local edits = FakeKit.find_all(env.page(), "Table")[1].opts.rows
+    assert.are.equal(4, #edits)
+    for _, row in ipairs(edits) do
+      if row.cells.title == "Duel" then
+        row.cells.edit.opts.onClick()
+      end
+    end
+    assert.is_truthy(env.find(env.page(), "Button", "Save mission"))
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.value == true then
+        d.opts.onChange(false)
+      end
+    end
+    env.press("Save mission")
+    assert.is_false(env.ns.db.global.pvpSeason.missions[found.id].active)
+    assert.are.equal(season.id, env.ns.db.global.pvpSeason.missions[found.id].seasonId)
+  end)
+
+  it("changes the goal of the form, cancels it, and adds the current zone when the platform can read it", function()
+    env = build("GM")
+    seed(env)
+    env.ns.Platform.GetPlayerMapId = function()
+      return 1453
+    end
+    go(env, "admin", "missions")
+    env.press("New mission")
+    local goal
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.value == "kills" then
+        goal = d
+      end
+    end
+    goal.opts.onChange("manual")
+    assert.is_nil(env.find(env.page(), "Button", "Add current zone"))
+    goal.opts.onChange("kills")
+    env.press("Add current zone")
+    assert.is_truthy(env.box("Map ids, separated by commas").opts.text:find("1453", 1, true))
+    env.press("Cancel")
+    assert.is_nil(env.find(env.page(), "Button", "Create mission"))
+    env.ns.Platform.GetPlayerMapId = function()
+      return nil
+    end
+    env.press("New mission")
+    env.press("Add current zone")
+    assert.is_truthy(env.banner().opts.text:find("could not be read", 1, true))
+  end)
+
+  it("copies the missions of another season into the active one", function()
+    env = build("GM")
+    seed(env)
+    local ledger = env.ns.db.global.pvpSeason
+    ledger.seasons.old =
+      { id = "old", name = "Summer", startsAt = 1, endsAt = 2, state = "closed", rev = 1, updatedAt = 1 }
+    ledger.missions.o1 = {
+      id = "o1",
+      seasonId = "old",
+      title = "Old one",
+      desc = "",
+      points = 9,
+      goal = { kind = "kills", count = 3, zones = { 1 }, place = "any", distinct = "none" },
+      repeatKind = "daily",
+      perPlayer = 1,
+      active = true,
+      rev = 1,
+      updatedAt = 1,
+    }
+    go(env, "admin", "missions")
+    local dropdown
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.placeholder == "Copy from another season" then
+        dropdown = d
+      end
+    end
+    dropdown.opts.onChange("old")
+    assert.is_truthy(env.banner().opts.text:find("Copied 1 mission(s) into 'Autumn'", 1, true))
+    local copies = 0
+    for _, mission in pairs(ledger.missions) do
+      if mission.title == "Old one" then
+        copies = copies + 1
+      end
+    end
+    assert.are.equal(2, copies)
+  end)
+
+  it("creates a season, edits it and closes it with two clicks and a warning about pending claims", function()
+    env = build("GM")
+    go(env, "admin", "season")
+    for _, box in ipairs(FakeKit.find_all(env.page(), "EditBox")) do
+      if box.opts.maxLetters == env.ns.Constants.PVP_SEASON_NAME_MAX then
+        box.opts.onChange("Winter")
+      end
+    end
+    local dates = FakeKit.find_all(env.page(), "DateField")
+    dates[1].opts.onChange(600)
+    dates[2].opts.onChange(600 + 5 * DAY)
+    env.press("Create season")
+    assert.is_truthy(env.banner().opts.text:find("Season saved", 1, true))
+    local season = env.ns.pvpSeason:ActiveSeason()
+    assert.are.same({ "Winter", 600 }, { season.name, season.startsAt })
+  end)
+
+  it("closes the running season: first click arms with the warning, second freezes the ranking", function()
+    env = build("GM")
+    local season = seed(env)
+    go(env, "admin", "season")
+    env.press("Save")
+    assert.is_truthy(env.banner().opts.text:find("Season saved", 1, true))
+    env.press("Close season")
+    assert.is_truthy(env.text():find("2 claim(s) are still pending", 1, true))
+    env.press("Confirm: close and freeze the ranking")
+    assert.is_truthy(env.banner().opts.text:find("Season closed: 12 player(s) ranked, 2 claim(s) expired", 1, true))
+    assert.is_nil(env.ns.pvpSeason:ActiveSeason())
+    assert.is_truthy(env.ns.db.global.pvpSeason.finals[season.id])
+    -- The closed season is in the history, and its prizes are to be delivered.
+    strip(env).opts.onSelect("history")
+    assert.is_truthy(env.text():find("Autumn", 1, true))
+    FakeKit.find(env.page(), "Segmented").opts.onChange("total")
+    assert.are.equal(12, #env.tableRows())
+    FakeKit.find(env.page(), "Segmented").opts.onChange("season")
+    env.press("See the full standing")
+    assert.are.equal(12, #FakeKit.find_all(env.page(), "Table")[1].opts.rows)
+    env.press("Hide the full standing")
+  end)
+
+  it("edits the prizes: adds gold and an item, refuses bad input, and removes a reward", function()
+    env = build("GM")
+    local season = seed(env)
+    go(env, "admin", "prizes")
+    env.box("Gold amount").opts.onChange("300")
+    env.press("Add gold")
+    local tiers = env.ns.db.global.pvpSeason.prizes[season.id].tiers
+    assert.are.equal(2, #tiers["1"])
+    env.box("Gold amount").opts.onChange("x")
+    env.press("Add gold")
+    assert.is_truthy(env.banner().opts.text:find("'gold' is not valid", 1, true))
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.value == "1" then
+        d.opts.onChange("2")
+      end
+    end
+    env.box("Paste an item link").opts.onChange("|Hitem:19019::|h[Thunderfury]|h")
+    env.press("Add item")
+    tiers = env.ns.db.global.pvpSeason.prizes[season.id].tiers
+    assert.are.same({ "Thunderfury", 19019 }, { tiers["2"][1].name, tiers["2"][1].itemId })
+    env.box("Paste an item link").opts.onChange("nonsense")
+    env.press("Add item")
+    assert.is_truthy(env.banner().opts.text:find("'item' is not valid", 1, true))
+    local chip = named(env.page(), "Chip", "300 gold")[1]
+    FakeKit.press(chip)
+    tiers = env.ns.db.global.pvpSeason.prizes[season.id].tiers
+    assert.are.equal(1, #tiers["1"])
+  end)
+
+  it("lists the deliveries of a closed season and marks one delivered", function()
+    env = build("GM")
+    local season = seed(env)
+    env.ns.pvpSeason:CloseSeason(season.id)
+    go(env, "admin", "deliveries")
+    assert.is_truthy(env.text():find("0 of 10 delivered", 1, true))
+    local rows = env.tableRows()
+    assert.are.equal(10, #rows)
+    rows[1].cells.status.opts.onClick()
+    assert.is_truthy(env.text():find("1 of 10 delivered", 1, true))
+    assert.is_truthy(env.tableRows()[1].cells.status.text:find("Delivered", 1, true))
+  end)
+
+  it("says there is nothing to deliver before any season closed", function()
+    env = build("GM")
+    go(env, "admin", "deliveries")
+    assert.is_truthy(env.text():find("No closed seasons yet", 1, true))
+  end)
+
+  it("has a dropdown to pick among several closed seasons", function()
+    env = build("GM")
+    local season = seed(env)
+    env.ns.pvpSeason:CloseSeason(season.id)
+    local ledger = env.ns.db.global.pvpSeason
+    ledger.finals.older = {
+      seasonId = "older",
+      name = "Older",
+      startsAt = 1,
+      endsAt = 2,
+      closedAt = 3,
+      standings = {},
+      prizes = {},
+    }
+    go(env, "admin", "deliveries")
+    local picker = FakeKit.find(env.page(), "Dropdown")
+    picker.opts.onChange("older")
+    assert.is_truthy(env.text():find("Older", 1, true))
+    assert.is_truthy(env.text():find("Nobody won a prize", 1, true))
+  end)
+
+  it("shows the history empty, by season and cumulative", function()
+    env = build("Member")
+    go(env, "history")
+    assert.is_truthy(env.text():find("No closed seasons yet", 1, true))
+  end)
+
+  it("shows a PVP officer badge in Members, and the guild master gets the toggle", function()
+    env = build("Member")
+    officer(env)
+    env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
+      { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
+    env.open("roster")
+    local badge
+    for _, row in ipairs(env.tableRows()) do
+      if row.cells.pvp.widget == "badge" then
+        badge = row.cells.pvp
+      end
+    end
+    assert.are.equal("PVP OFFICER", badge.opts.text)
+    pcall(env.close)
+
+    env = build("GM")
+    env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
+      { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
+    env.open("roster")
+    local chips = {}
+    for _, row in ipairs(env.tableRows()) do
+      if row.cells.pvp.widget == "chip" then
+        chips[#chips + 1] = row.cells.pvp.opts
+      end
+    end
+    assert.is_true(#chips >= 2)
+    for _, chip in ipairs(chips) do
+      if chip.active then
+        chip.onToggle(false)
+        assert.is_false(env.ns.pvpSeason:IsOfficer("Ann-Realm"))
+        chip.onToggle(true)
+        assert.is_true(env.ns.pvpSeason:IsOfficer("Ann-Realm"))
+      end
+    end
+    -- A name the guild does not know cannot be switched on.
+    for _, chip in ipairs(chips) do
+      if not chip.active then
+        chip.onToggle(true)
+        assert.are.equal("danger", env.banner().opts.kind)
+        break
+      end
+    end
   end)
 end)
 

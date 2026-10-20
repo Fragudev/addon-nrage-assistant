@@ -86,6 +86,7 @@ UI\ViewModel.lua
 UI\ViewModelHome.lua
 UI\ViewModelRaid.lua
 UI\ViewModelGuild.lua
+UI\ViewModelPvP.lua
 UI\ViewModelProfessions.lua
 UI\ViewModelLayers.lua
 UI\Main.lua

@@ -994,14 +994,6 @@ describe("ViewModel PvP", function()
     return pvp
   end
 
-  it("has the own counters, the ranking and the recent kills as sub-tabs", function()
-    assert.are.same({
-      { value = "mine", text = "My stats" },
-      { value = "ranking", text = "Ranking" },
-      { value = "feed", text = "Recent kills" },
-    }, ViewModel.PvPSubTabs())
-  end)
-
   it("lists honourable kills and killing blows with totals and today", function()
     local pvp = stats()
     local text =
@@ -2108,6 +2100,15 @@ describe("ViewModel.MemberRows", function()
     assert.is_true(list[2].stale)
     assert.are.equal("1 min ago", rows({ now = 1060 })[1].updated)
     assert.is_nil(list[3].updated)
+  end)
+
+  it("flags the PvP officers it is told about", function()
+    local list = rows({ pvpOfficers = { Bob = true } })
+    assert.are.same(
+      { false, true, false, false },
+      { list[1].pvpOfficer, list[2].pvpOfficer, list[3].pvpOfficer, list[4].pvpOfficer }
+    )
+    assert.is_false(rows()[2].pvpOfficer)
   end)
 
   it("makes the guild master the admin, whatever is assigned", function()

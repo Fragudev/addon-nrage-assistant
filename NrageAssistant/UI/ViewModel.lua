@@ -256,15 +256,6 @@ ViewModel.PVP_PERIODS = ns.Locale.Table(function()
 end)
 ViewModel.PVP_PERIOD_ORDER = { "total", "today" }
 
--- The sub-tabs of the PvP tab: the own counters, the guild ranking and the own recent kills.
-function ViewModel.PvPSubTabs()
-  return {
-    { value = "mine", text = L("My stats") },
-    { value = "ranking", text = L("Ranking") },
-    { value = "feed", text = L("Recent kills") },
-  }
-end
-
 local FEED_PLACES = ns.Locale.Table(function()
   return { world = L("open world"), bg = L("battleground") }
 end)
