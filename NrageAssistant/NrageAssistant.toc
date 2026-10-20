@@ -46,6 +46,8 @@ Domain\PvPService.lua
 Domain\PvPTracker.lua
 Domain\PvPPublisher.lua
 Domain\PvPFeed.lua
+Domain\PvPUnitCache.lua
+Domain\PvPMissionTracker.lua
 Domain\BlacklistService.lua
 Domain\BlacklistWatcher.lua
 Domain\LayerModel.lua
