@@ -1,0 +1,41 @@
+NrageAssistant/Commands/PvPSeasonCommands.lua
+  s_96b53beb93db33::t_2d3772f8a47ed3 1-272
+NrageAssistant/Commands/Slash.lua
+  s_96b53beb93db33::t_b7bfbde177f585 78-88,91
+NrageAssistant/Core/Init.lua
+  s_96b53beb93db33::t_867cf320821f0d 506-555,579
+NrageAssistant/Domain/PvPSeasonService.lua
+  s_96b53beb93db33::t_5929657909a2bb 845-856
+NrageAssistant/Locales/esES.lua
+  s_96b53beb93db33::t_0bd0643c5b0e9b 747-795
+NrageAssistant/NrageAssistant.toc
+  s_96b53beb93db33::t_48748f93225503 109
+NrageAssistant/Sync/Comm.lua
+  s_96b53beb93db33::t_8e8012f5a21f18 17-19,52-60,267-269,363-372,379-380,383,399-404,408-414,543-695,1050-1060,1102-1103
+tests/comm_spec.lua
+  s_96b53beb93db33::t_c0d20bbe55bdbf 15,34,69-71,140-146,1749-2167
+tests/constants_spec.lua
+  s_96b53beb93db33::t_135ece461a57d7 94-98
+tests/pvp_season_commands_spec.lua
+  s_96b53beb93db33::t_f480f966acb32e 1-328
+tests/roster_sync_spec.lua
+  s_96b53beb93db33::t_0dbc7f39384b60 15,34
+tests/settings_spec.lua
+  s_96b53beb93db33::t_51ab26d9d2350b 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dcf9a0eb8ce6180f05e564230de5de4a2b7dad2",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
