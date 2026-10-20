@@ -454,12 +454,32 @@ describe("PvPSeasonSync claims", function()
     assert.are.equal("decided", reason)
   end)
 
-  it("takes a claim out of the queue when it is granted or rejected", function()
+  it("takes a claim out of the queue when it is granted, and keeps a rejected one for a change of mind", function()
     assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann"))
     assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Bob", 1), "Bob"))
     assert.is_true(client.deliver("PVP_GRANT", grantRecord("Ann:m1:20261020:1", "Ann", 10), "Off"))
     assert.is_true(client.deliver("PVP_REJECT", { claimId = "Bob:m1:20261020:1", seasonId = "s1", at = T0 + 5 }, "Off"))
+    assert.is_nil(client.ledger.queue["Ann:m1:20261020:1"])
+    assert.is_truthy(client.ledger.queue["Bob:m1:20261020:1"])
+    assert.is_truthy(client.ledger.rejects["Bob:m1:20261020:1"])
+    assert.is_true(client.deliver("PVP_GRANT", grantRecord("Bob:m1:20261020:1", "Bob", 10), "Off"))
     assert.is_nil(next(client.ledger.queue))
+  end)
+
+  it("lets rejected claims make room when the queue is full", function()
+    local old = Constants.PVP_QUEUE_MAX
+    Constants.PVP_QUEUE_MAX = 2
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann"))
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Bob", 1), "Bob"))
+    local ok, reason = client.deliver("PVP_CLAIM", claimRecord("Cat", 1), "Cat")
+    assert.is_false(ok)
+    assert.are.equal("limit", reason)
+    assert.is_true(client.deliver("PVP_REJECT", { claimId = "Ann:m1:20261020:1", seasonId = "s1", at = T0 + 5 }, "Off"))
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Cat", 1), "Cat"))
+    Constants.PVP_QUEUE_MAX = old
+    assert.is_nil(client.ledger.queue["Ann:m1:20261020:1"])
+    assert.is_truthy(client.ledger.queue["Bob:m1:20261020:1"])
+    assert.is_truthy(client.ledger.queue["Cat:m1:20261020:1"])
   end)
 
   it("limits the queue, and what one player can put in it", function()

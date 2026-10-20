@@ -33,6 +33,7 @@ Domain\GuildRoster.lua
 Domain\PermissionService.lua
 Domain\RosterService.lua
 Domain\PvPSeasonModel.lua
+Domain\PvPSeasonService.lua
 Domain\RecipeService.lua
 Domain\EventModel.lua
 Domain\EventService.lua

@@ -265,6 +265,18 @@ local function applyOfficer(ctx, payload, by)
   return true
 end
 
+-- How many claims wait in the queue, and how many of them are `player`'s.
+local function countQueue(ledger, player)
+  local total, own = 0, 0
+  for _, queued in pairs(ledger.queue) do
+    total = total + 1
+    if queued.player == player then
+      own = own + 1
+    end
+  end
+  return total, own
+end
+
 -- A claim. It is only kept by a client that approves claims, and only when it fits the active season and a mission the
 -- client knows; a claim it cannot place yet is refused, and the claimant announces it again later.
 local function applyClaim(ctx, payload, by)
@@ -325,12 +337,15 @@ local function applyClaim(ctx, payload, by)
   if ledger.queue[payload.id] then
     return false, "duplicate"
   end
-  local total, own = 0, 0
-  for _, queued in pairs(ledger.queue) do
-    total = total + 1
-    if queued.player == payload.player then
-      own = own + 1
+  local total, own = countQueue(ledger, payload.player)
+  if total >= constants.PVP_QUEUE_MAX then
+    -- A rejected claim only waits for an approver to change their mind: it makes room before a new claim is refused.
+    for claimId in pairs(ledger.queue) do
+      if ledger.rejects[claimId] then
+        ledger.queue[claimId] = nil
+      end
     end
+    total, own = countQueue(ledger, payload.player)
   end
   if total >= constants.PVP_QUEUE_MAX or own >= constants.PVP_QUEUE_PER_PLAYER_MAX then
     return false, "limit"
@@ -372,9 +387,9 @@ local function applyReject(ctx, payload, by)
   elseif countKeys(ledger.rejects) >= ns.Constants.PVP_REJECTS_MAX then
     return false, "limit"
   end
+  -- The claim stays in the queue, marked rejected by this record: an approver can still change their mind.
   ledger.rejects[payload.claimId] =
     { claimId = payload.claimId, seasonId = payload.seasonId, reason = payload.reason, at = payload.at, by = by }
-  ledger.queue[payload.claimId] = nil
   return true
 end
 
