@@ -901,6 +901,28 @@ function PvPSeasonModel.Cumulative(finals)
   return rows
 end
 
+-- The final standing as one guild message can carry it: the same record with its standings cut from the tail, ten rows
+-- at a time and never below the ten that win a prize, until `fits(final)` (a function that encodes it and says whether
+-- it is small enough) is true. Returns the record and whether all the rows were kept; the input is not changed.
+function PvPSeasonModel.FitFinal(final, fits)
+  local count = #final.standings
+  while true do
+    local rows = {}
+    for index = 1, count do
+      rows[index] = final.standings[index]
+    end
+    local candidate = {}
+    for key, value in pairs(final) do
+      candidate[key] = value
+    end
+    candidate.standings = rows
+    if count <= 10 or fits(candidate) then
+      return candidate, count == #final.standings
+    end
+    count = math.max(10, count - 10)
+  end
+end
+
 ---------------------------------------------------------------------------------------------------------------------
 -- Digest
 ---------------------------------------------------------------------------------------------------------------------

@@ -233,6 +233,10 @@ ns.Constants = {
   PVP_VOIDS_MAX = 3000,
   PVP_REJECTS_MAX = 3000,
   PVP_QUEUE_MAX = 300,
+  -- One player has at most this many claims waiting in a queue, so a single client cannot fill it.
+  PVP_QUEUE_PER_PLAYER_MAX = 20,
+  -- Positions 1 to 10 are the only ones that get a prize, so a season has at most this many deliveries.
+  PVP_DELIVERIES_MAX = 10,
   PVP_MISSIONS_MAX = 50,
   PVP_SEASONS_MAX = 60,
   PVP_FINALS_MAX = 50,

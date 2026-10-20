@@ -63,6 +63,7 @@ Sync\PvPSync.lua
 Sync\BlacklistSync.lua
 Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
+Sync\PvPSeasonSync.lua
 Sync\RecipeSync.lua
 Sync\LayerSync.lua
 Sync\Transfer.lua
