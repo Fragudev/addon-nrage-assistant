@@ -1,0 +1,19 @@
+docs/REDESIGN_PLAN.md
+  s_96b53beb93db33::t_ab0c7a82a28a7b 542-545,547,580-586,648
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55c6ae3191c635fb479127ec3a91d8c3c0c84c11",
+  "prompts": {},
+  "sessions": {
+    "s_96b53beb93db33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7eb73cd7-03c2-4925-8abe-308713193e2d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
