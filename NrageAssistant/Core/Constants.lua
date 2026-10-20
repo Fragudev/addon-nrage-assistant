@@ -248,8 +248,6 @@ ns.Constants = {
   PVP_LEDGER_SERVE_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_PAGE_ITEMS = 400,
   PVP_LEDGER_PAGES_MAX = 100,
-  PVP_LEDGER_LOGIN_REQUEST_DELAY_MIN = 10,
-  PVP_LEDGER_LOGIN_REQUEST_DELAY_MAX = 25,
   -- Prize tiers, best first: the keys of prizes.tiers and of a delivery. A position 1..10 maps to exactly one tier.
   PVP_PRIZE_TIERS = { "1", "2", "3", "4-6", "7-10" },
   -- Points are never spent; at least this many are needed to be ranked (and to get a prize).

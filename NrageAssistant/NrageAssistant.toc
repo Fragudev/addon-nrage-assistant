@@ -106,5 +106,6 @@ Commands\LootCommands.lua
 Commands\TemplateCommands.lua
 Commands\BlacklistCommands.lua
 Commands\RosterCommands.lua
+Commands\PvPSeasonCommands.lua
 Commands\Slash.lua
 Core\Init.lua

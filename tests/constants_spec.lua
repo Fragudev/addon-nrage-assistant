@@ -84,12 +84,16 @@ describe("Addon load", function()
       "minimap",
       "blacklist",
       "role",
-      "pvp",
     }) do
       local text = run(command)
       assert.is_truthy(text:find("unknown command '" .. command .. "'", 1, true), command)
       assert.is_truthy(text:find("/nrage help", 1, true), command)
     end
+  end)
+
+  it("keeps the interim PvP season commands out of the help, and says the addon is disabled", function()
+    assert.is_nil(run("help"):find("/nrage pvp", 1, true))
+    assert.is_truthy(run("pvp season"):find("addon disabled", 1, true))
   end)
 
   it("lists the layer probe in the debug usage", function()

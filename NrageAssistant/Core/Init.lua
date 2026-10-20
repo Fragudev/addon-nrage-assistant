@@ -503,6 +503,56 @@ local function StartRecipes()
   end)
 end
 
+-- A PvP season record changed here or arrived from the guild: the interface follows (the PvP tab, until it has its own
+-- sub-tabs, redraws like for any other PvP change).
+function ns.PvPSeasonChanged(messageType)
+  if ns.UI and ns.UI.PvPSeasonChanged then
+    ns.UI.PvPSeasonChanged(messageType)
+  elseif ns.UI and ns.UI.PvPChanged then
+    ns.UI.PvPChanged()
+  end
+end
+
+-- A season closed: the detail of it that this character kept (kills and claims) is dropped; only the final standing
+-- stays.
+function ns.PvPSeasonClosed(seasonId)
+  ns.PvPSeasonService.ClearMissionLog(ns.character and ns.character.pvpMissions, seasonId)
+end
+
+-- The PvP seasons (docs/PVP_MISSIONS_PLAN.md): the service the interface and the interim commands use. Runs once.
+local pvpSeasonStarted = false
+
+local function StartPvPSeason()
+  if pvpSeasonStarted then
+    return
+  end
+  pvpSeasonStarted = true
+  local platform = ns.Platform
+  ns.pvpSeason = ns.PvPSeasonService.New({
+    ledger = ns.db.global.pvpSeason,
+    now = platform.ServerTime,
+    newId = function()
+      return ns.comm:NextId()
+    end,
+    ownName = platform.GetIdentityKey,
+    ownRole = function()
+      return ns.PermissionService.OwnRole(platform)
+    end,
+    roleOf = function(name)
+      return ns.guildRoster and ns.PermissionService.RoleOf(ns.guildRoster, name) or nil
+    end,
+    send = function(messageType, payload, key)
+      return ns.comm:Send(messageType, payload, key)
+    end,
+    onChange = ns.PvPSeasonChanged,
+    onSeasonClosed = ns.PvPSeasonClosed,
+    fits = function(messageType, payload)
+      return ns.comm:Fits(messageType, payload)
+    end,
+  })
+  ns.pvpSeasonCommands = ns.PvPSeasonCommands.New({ service = ns.pvpSeason, formatDate = platform.FormatDate })
+end
+
 local function Activate()
   ns.active = true
   -- The saved data of this character keeps the key it always had; the shared name is resolved later.
@@ -526,6 +576,7 @@ local function Activate()
   })
   ns.guildRoster:Request()
   ns.guildRoster:Rebuild()
+  StartPvPSeason()
   ns.LootPopup.Start()
   ns.VotingFrame.Start()
   StartPvP()
