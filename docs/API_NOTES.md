@@ -125,6 +125,27 @@ is not available when neither source exists on the client.
 Decisions still open: the source of honourable kills (counter delta, chat event, or both) and whether killing
 blows are available.
 
+## PvP seasons (to be measured)
+
+The PvP missions (`docs/PVP_MISSIONS_PLAN.md`, sections 2 and 5) read the client in five places that nobody has
+measured on Forever yet. Each reader in `Core/Platform.lua` is guarded (a missing API, an error or a secret value gives
+nil) and a mission criterion whose source does not work is shown as "Not available on this client" instead of
+blocking anything. Run `/nrage debug pvp start` on a PvP realm, play, then `/nrage debug pvp log` and copy the
+lines here. The probe logs the map (`GetBestMapForUnit` and `C_Map.GetMapInfo` name) at start, on login and zone
+changes, the victim parsed from the honour message next to the names of the target (`victim` lines), each distinct
+unit seen on `target`, `mouseover` and nameplates (`unit` lines, with `UnitIsPlayer`, `UnitIsEnemy`, `UnitClass`,
+`UnitRace`, `GetUnitName(unit, true)` and `UnitName`), and the battleground winner on every
+`UPDATE_BATTLEFIELD_STATUS` (`winner` lines). It also registers the unit events in `pcall`; if the client shows the
+"blocked action" dialog at that moment, that is the answer to M4.
+
+| # | Question | API | Result |
+|---|---|---|---|
+| M1 | Does `C_Map.GetBestMapForUnit("player")` return a stable uiMapId (not secret) in cities and contested zones? Record the ids for Orgrimmar, Stormwind, Ironforge, Darnassus, Thunder Bluff, Undercity, Stranglethorn Vale, Hillsbrad Foothills, Alterac Mountains, Ashenvale, Arathi Highlands | `C_Map.GetBestMapForUnit`, `C_Map.GetMapInfo` | not measured yet. `PVP_MISSION_ZONES` in `Core/Constants.lua` holds the Classic map ids (1454, 1453, 1455, 1457, 1456, 1458, 1434, 1424, 1416, 1440, 1417) as a starting point; fix them there once measured. Without a map id a kill never matches a zone criterion |
+| M2 | Does the kill feed produce a victim name for honour kills (issue #92, questions 2, 6, 7)? Multi-word or first word? | `CHAT_MSG_COMBAT_HONOR_GAIN` text, `COMBATLOG_HONORGAIN` | not measured yet. Without a victim name no kill is logged for the missions |
+| M3 | Do `UnitClass` / `UnitRace` on `target`, `mouseover` and `nameplateN` return readable file tokens for enemy players? Does `GetUnitName(unit, true)` match the feed's victim name? | `UnitIsPlayer`, `UnitIsEnemy`, `UnitClass`, `UnitRace`, `GetUnitName` | not measured yet. The unit cache (`Domain/PvPUnitCache.lua`) keys by the name as `GetUnitName(unit, true)` gives it (without the own realm suffix), compared without case; if the feed uses another form (first word only) the class and race of its kills stay unknown and the approver decides from the evidence |
+| M4 | Do `NAME_PLATE_UNIT_ADDED` and `UPDATE_MOUSEOVER_UNIT` fire for enemy players without triggering the "blocked action" dialog? | events | not measured yet. The events are registered one by one in `pcall`; a refused one only removes its own source, and `distinct = class/race` missions show "Not available on this client" when none of the three could be registered |
+| M5 | Does `GetBattlefieldWinner()` return the winner after a battleground, and does `UPDATE_BATTLEFIELD_STATUS` fire then? | `GetBattlefieldWinner`, `UnitFactionGroup`, event | not measured yet. The addon assumes `1` is the Alliance and `0` the Horde (the Classic values) and compares it with `UnitFactionGroup("player")`; any other value, or no winner, logs nothing |
+
 ## Group names for the blacklist alert (to be measured)
 
 The blacklist alert compares the members of the party or raid with the blacklist. Nothing about group names has
@@ -206,6 +227,8 @@ For the two events, log them for a minute while opening professions and a corpse
 | PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo` (also the destination name, for the kill feed), the globals `COMBATLOG_HONORGAIN` and `COMBATLOG_HONORGAIN_NO_RANK`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
 | PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
 | Guild map (**not measured yet**) | `C_Map.GetBestMapForUnit`, `C_Map.GetPlayerMapPosition`, `UnitInParty`, `UnitInRaid`, `IsInInstance`, `ChatThrottleLib`, the globals `RAID_CLASS_COLORS`, `CLASS_ICON_TCOORDS`, `HBD_PINS_WORLDMAP_SHOW_CONTINENT`, events `CHAT_MSG_ADDON` (prefix `NRAGEPOS`), `GROUP_ROSTER_UPDATE`. Each is guarded; not in the self test on purpose |
+| PvP probe | the above plus `GetPVPLifetimeStats`, `C_Map`, the unit functions and `GetBattlefieldWinner` (`/nrage debug pvp`, to answer #99 and the PvP seasons questions M1 to M5) |
+| PvP missions (**not measured yet**) | `C_Map.GetBestMapForUnit`, `UnitIsPlayer`, `UnitIsEnemy`, `UnitClass`, `UnitRace`, `GetUnitName`, `GetBattlefieldWinner`, `UnitFactionGroup`, events `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT`, `NAME_PLATE_UNIT_ADDED`, `UPDATE_BATTLEFIELD_STATUS`. Each reader is guarded and each event registered in `pcall`; not in the self test, for the same reason as the PvP counters |
 | Group and warning (**not measured yet**) | `IsInGroup`, `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("party1".."party4")`, `RaidNotice_AddMessage`, `RaidWarningFrame`, `PlaySound`, events `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`. Each is guarded and registered in `pcall`; not in the self test on purpose |
 | Time | `GetServerTime`, `GetTime`, `date`, `time` |
 | UI | `CreateFrame`, `C_Timer.After`, `C_Timer.NewTicker`, `C_AddOns.GetAddOnMetadata` |

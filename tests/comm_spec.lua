@@ -12,6 +12,7 @@ local function load_addon()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/RosterService",
+    "Domain/PvPSeasonModel",
     "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/EventService",
@@ -30,6 +31,7 @@ local function load_addon()
     "Sync/BlacklistSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
+    "Sync/PvPSeasonSync",
     "Sync/RecipeSync",
     "Sync/LayerSync",
     "Sync/Transfer",
@@ -64,6 +66,9 @@ local function build_env()
     rulesChanges = {},
     ownResets = {},
     rosterChanges = {},
+    pvpSeason = ns.PvPSeasonSync.NewLedger(),
+    seasonChanges = {},
+    seasonClosed = {},
     -- Everybody is a member of roster r1 unless a test sets their entry.
     rosters = { r1 = { id = "r1", name = "Main", rev = 1, updatedAt = 1 } },
     members = setmetatable({}, {
@@ -131,6 +136,13 @@ local function build_env()
     readinessRules = env.readinessRules,
     onRulesChange = function(messageType)
       env.rulesChanges[#env.rulesChanges + 1] = messageType
+    end,
+    pvpSeason = env.pvpSeason,
+    onPvPSeasonChange = function(messageType)
+      env.seasonChanges[#env.seasonChanges + 1] = messageType
+    end,
+    onPvPSeasonClosed = function(seasonId)
+      env.seasonClosed[#env.seasonClosed + 1] = seasonId
     end,
     rosters = env.rosters,
     members = env.members,
@@ -1732,5 +1744,424 @@ describe("Comm layers", function()
     local message = Protocol.Validate(decoded)
     assert.are.equal("LAYER_STATE", message.t)
     assert.are.same({ map = 1, layer = 50 }, message.p)
+  end)
+end)
+
+describe("Comm PvP seasons", function()
+  local Sync = ns.PvPSeasonSync
+  local T = 5000
+
+  local function season(change)
+    local record = {
+      id = "s1",
+      name = "Season One",
+      startsAt = 1000,
+      endsAt = 100000,
+      state = "active",
+      rev = 1,
+      updatedAt = 10,
+    }
+    for key, value in pairs(change or {}) do
+      record[key] = value
+    end
+    return record
+  end
+
+  local mission = {
+    id = "m1",
+    seasonId = "s1",
+    title = "Hunt",
+    points = 10,
+    goal = { kind = "kills", count = 2 },
+    repeatKind = "once",
+    perPlayer = 1,
+    rev = 1,
+    updatedAt = 10,
+  }
+
+  local function claim(player, at)
+    return {
+      id = player .. ":m1:all:1",
+      missionId = "m1",
+      seasonId = "s1",
+      periodKey = "all",
+      player = player,
+      at = at or T,
+      evidence = { { at = T - 5, victim = "Grunt", place = "world" } },
+    }
+  end
+
+  local ids = 0
+  local function guild(env, messageType, payload, sender, id)
+    ids = ids + 1
+    return env.comm:HandleMessage(env.wire(messageType, payload, id or ("t-" .. ids)), sender, "GUILD")
+  end
+
+  -- Gives an env the roles every test uses and a running season with a mission, as a guild member who saw it all.
+  local function populated(env, ownRole)
+    env.ownRole = ownRole
+    env.roles["Boss-Realm"] = "admin"
+    env.roles["Off-Realm"] = "member"
+    env.roles["Ann-Realm"] = "member"
+    env.roles["Lead-Realm"] = "rl"
+    env.roles["Late-Realm"] = "member"
+    assert.is_true(guild(env, "PVP_SEASON", season(), "Boss-Realm"))
+    assert.is_true(guild(env, "PVP_MISSION", mission, "Boss-Realm"))
+    assert.is_true(
+      guild(
+        env,
+        "PVP_OFFICER",
+        { player = "Off-Realm", intervals = { { from = 100 } }, rev = 1, updatedAt = 10 },
+        "Boss-Realm"
+      )
+    )
+    return env
+  end
+
+  local env
+
+  before_each(function()
+    env = populated(build_env(), "admin")
+  end)
+
+  it("takes the records of an admin, tells the interface, and keeps the sender as the author", function()
+    assert.are.equal("s1", env.pvpSeason.activeId)
+    assert.are.equal("Boss-Realm", env.pvpSeason.seasons.s1.updatedBy)
+    assert.are.equal("Hunt", env.pvpSeason.missions.m1.title)
+    assert.are.same({ "PVP_SEASON", "PVP_MISSION", "PVP_OFFICER" }, env.seasonChanges)
+  end)
+
+  it("refuses the same records from a member, and an author named in the payload changes nothing", function()
+    local other = populated(build_env(), "admin")
+    local ok, reason =
+      guild(other, "PVP_SEASON", season({ id = "s2", state = "closed", rev = 1, by = "Boss-Realm" }), "Ann-Realm")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    ok, reason = guild(other, "PVP_MISSION", mission, "Ann-Realm", "x-1")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    ok, reason = guild(other, "PVP_SEASON", season({ id = "s2" }), "Stranger-Realm")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.is_nil(other.pvpSeason.seasons.s2)
+  end)
+
+  it("keeps a claim of the sender on a client that approves, and refuses one that names somebody else", function()
+    assert.is_true(guild(env, "PVP_CLAIM", claim("Ann-Realm"), "Ann-Realm"))
+    assert.is_truthy(env.pvpSeason.queue["Ann-Realm:m1:all:1"])
+    local ok, reason = guild(env, "PVP_CLAIM", claim("Bob-Realm"), "Ann-Realm")
+    assert.is_false(ok)
+    assert.are.equal("bad_player", reason)
+
+    local member = populated(build_env(), "member")
+    ok, reason = guild(member, "PVP_CLAIM", claim("Ann-Realm"), "Ann-Realm")
+    assert.is_false(ok)
+    assert.are.equal("not_approver", reason)
+  end)
+
+  it("knows an officer approves claims from the officer records, whatever the role", function()
+    local officer = populated(build_env(), "member")
+    officer.platform.GetIdentityKey = function()
+      return "Off-Realm"
+    end
+    assert.is_true(officer.comm:IsPvPApprover())
+    assert.is_true(guild(officer, "PVP_CLAIM", claim("Ann-Realm"), "Ann-Realm"))
+    assert.is_false(populated(build_env(), "member").comm:IsPvPApprover())
+    assert.is_true(populated(build_env(), "admin").comm:IsPvPApprover())
+  end)
+
+  it("applies a grant of an officer and one of the admin, and closes the season on the final", function()
+    local grant =
+      { id = "Ann-Realm:m1:all:1", seasonId = "s1", player = "Ann-Realm", missionId = "m1", points = 10, at = T }
+    assert.is_true(guild(env, "PVP_GRANT", grant, "Off-Realm"))
+    assert.is_true(
+      guild(
+        env,
+        "PVP_GRANT",
+        { id = "direct-1", seasonId = "s1", player = "Bob-Realm", missionId = "m1", points = 5, at = T },
+        "Boss-Realm"
+      )
+    )
+    local ok, reason = guild(
+      env,
+      "PVP_GRANT",
+      { id = "direct-2", seasonId = "s1", player = "Bob-Realm", missionId = "m1", points = 5, at = T },
+      "Off-Realm"
+    )
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+
+    local final = {
+      seasonId = "s1",
+      name = "Season One",
+      startsAt = 1000,
+      endsAt = 100000,
+      closedAt = T,
+      standings = {
+        { pos = 1, player = "Ann-Realm", points = 10, lastAt = T },
+        { pos = 2, player = "Bob-Realm", points = 5, lastAt = T },
+      },
+      prizes = {},
+    }
+    assert.is_true(guild(env, "PVP_FINAL", final, "Boss-Realm"))
+    assert.are.same({ "s1" }, env.seasonClosed)
+    assert.is_nil(env.pvpSeason.activeId)
+    assert.is_nil(env.pvpSeason.grants.s1)
+    assert.is_truthy(env.pvpSeason.deliveries.s1["Ann-Realm"])
+  end)
+
+  it("works without callbacks", function()
+    env.comm.onPvPSeasonChange, env.comm.onPvPSeasonClosed = nil, nil
+    assert.is_true(guild(env, "PVP_SEASON", season({ rev = 2 }), "Boss-Realm", "y-1"))
+  end)
+
+  describe("asking for the ledger", function()
+    it("sends the count and the digest of what is held, once per cooldown", function()
+      local asker = populated(build_env(), "member")
+      -- Learning of the season already asked once: wait out the cooldown.
+      asker.clock = asker.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(asker.comm:RequestLedger())
+      local request = Protocol.Validate(asker.codec:Decode(asker.sent[#asker.sent]))
+      assert.are.equal("PVP_LEDGER_REQ", request.t)
+      assert.are.equal("s1", request.p.seasonId)
+      local summary = Sync.Summary(asker.pvpSeason, "s1")
+      assert.are.same({ summary.count, summary.digest }, { request.p.count, request.p.digest })
+      local ok, reason = asker.comm:RequestLedger()
+      assert.is_false(ok)
+      assert.are.equal("cooldown", reason)
+      asker.clock = asker.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(asker.comm:RequestLedger())
+    end)
+
+    it("asks without a season when it knows none", function()
+      local fresh = build_env()
+      assert.is_true(fresh.comm:RequestLedger())
+      local request = Protocol.Validate(fresh.codec:Decode(fresh.sent[#fresh.sent]))
+      assert.is_nil(request.p.seasonId)
+      assert.are.equal(0, request.p.count)
+    end)
+
+    it("asks by itself when a season becomes active here", function()
+      local fresh = build_env()
+      fresh.roles["Boss-Realm"] = "admin"
+      assert.is_true(guild(fresh, "PVP_SEASON", season(), "Boss-Realm"))
+      assert.are.equal(1, #fresh.sent)
+      local request = Protocol.Validate(fresh.codec:Decode(fresh.sent[1]))
+      assert.are.equal("PVP_LEDGER_REQ", request.t)
+      assert.are.equal("s1", request.p.seasonId)
+      -- A new edit of the same season is not a new season.
+      assert.is_true(guild(fresh, "PVP_SEASON", season({ rev = 2 }), "Boss-Realm", "again"))
+      assert.are.equal(1, #fresh.sent)
+    end)
+  end)
+
+  describe("answering a request", function()
+    local relay, late
+
+    local function ask(from)
+      assert.is_true(from.comm:RequestLedger())
+      return from.sent[#from.sent]
+    end
+
+    before_each(function()
+      -- The relay saw everything, plus a grant; the late joiner saw nothing.
+      relay = populated(build_env(), "rl")
+      assert.is_true(
+        guild(
+          relay,
+          "PVP_GRANT",
+          { id = "Ann-Realm:m1:all:1", seasonId = "s1", player = "Ann-Realm", missionId = "m1", points = 10, at = T },
+          "Off-Realm"
+        )
+      )
+      assert.is_true(
+        guild(
+          relay,
+          "PVP_GRANT",
+          { id = "direct-1", seasonId = "s1", player = "Bob-Realm", missionId = "m1", points = 7, at = T + 1 },
+          "Boss-Realm"
+        )
+      )
+      relay.sent, relay.targets = {}, {}
+      late = build_env()
+      late.ownRole = "member"
+      late.roles["Lead-Realm"] = "rl"
+      late.roles["Boss-Realm"] = "admin"
+      late.roles["Off-Realm"] = "member"
+    end)
+
+    it("catches a late joiner up through request, whisper and apply", function()
+      local request = ask(late)
+      assert.is_true(relay.comm:HandleMessage(request, "Late-Realm", "GUILD"))
+      assert.are.equal(ns.Constants.SYNC_RESPONSE_DELAY_MIN, relay.scheduled[1].delay)
+      assert.are.equal(0, #relay.sent)
+      relay.scheduled[1].fn()
+      assert.is_true(#relay.sent >= 1)
+      for index, text in ipairs(relay.sent) do
+        assert.are.equal("Late-Realm", relay.targets[index])
+        assert.is_true(#text <= ns.Constants.SYNC_MAX_ENCODED_BYTES)
+        assert.is_true(late.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+      end
+      assert.are.equal("s1", late.pvpSeason.activeId)
+      assert.are.equal("Hunt", late.pvpSeason.missions.m1.title)
+      assert.is_truthy(late.pvpSeason.grants.s1["Ann-Realm:m1:all:1"])
+      assert.are.same(Sync.Summary(relay.pvpSeason, "s1"), Sync.Summary(late.pvpSeason, "s1"))
+      assert.is_truthy(late.seasonChanges[#late.seasonChanges])
+      assert.are.equal("Lead-Realm", late.comm.lastLedger.from)
+    end)
+
+    it("does not answer when the ledgers are the same, from a client that is not a relay, or to a stranger", function()
+      late.pvpSeason = relay.pvpSeason
+      late.comm.pvpSeason = relay.pvpSeason
+      local request = ask(late)
+      assert.are.equal("in_sync", select(2, relay.comm:HandleMessage(request, "Late-Realm", "GUILD")))
+
+      local fresh = build_env()
+      fresh.comm.counter = 100
+      request = ask(fresh)
+      local member = populated(build_env(), "member")
+      assert.are.equal("not_relay", select(2, member.comm:HandleMessage(request, "Late-Realm", "GUILD")))
+      relay.roles["Late-Realm"] = nil
+      assert.are.equal("unknown_sender", select(2, relay.comm:HandleMessage(request, "Late-Realm", "GUILD")))
+      assert.are.equal(0, #relay.scheduled)
+    end)
+
+    it("answers a requester at most once per cooldown", function()
+      local fresh = build_env()
+      local first = ask(fresh)
+      assert.is_true(relay.comm:HandleMessage(first, "Late-Realm", "GUILD"))
+      fresh.clock = fresh.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      local second = ask(fresh)
+      local ok, reason = relay.comm:HandleMessage(second, "Late-Realm", "GUILD")
+      assert.is_false(ok)
+      assert.are.equal("cooldown", reason)
+      relay.clock = relay.clock + ns.Constants.PVP_LEDGER_SERVE_COOLDOWN_SECONDS
+      fresh.clock = fresh.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(relay.comm:HandleMessage(ask(fresh), "Late-Realm", "GUILD"))
+    end)
+
+    it("answers an officer as well as a raid leader or an admin", function()
+      local officer = populated(build_env(), "member")
+      officer.platform.GetIdentityKey = function()
+        return "Off-Realm"
+      end
+      assert.is_true(officer.comm:IsLedgerRelay())
+      assert.is_true(populated(build_env(), "admin").comm:IsLedgerRelay())
+      assert.is_true(populated(build_env(), "rl").comm:IsLedgerRelay())
+      assert.is_false(populated(build_env(), "council").comm:IsLedgerRelay())
+    end)
+
+    it("says there is nothing to send when its ledger is empty", function()
+      local empty = build_env()
+      empty.ownRole = "rl"
+      local ok, reason = empty.comm:SendLedger("Late-Realm", { count = 3, digest = "00000000" })
+      assert.is_false(ok)
+      assert.are.equal("empty", reason)
+    end)
+
+    it("splits a big ledger into whispers that each fit", function()
+      -- Straight into the ledger: 600 guild messages from one sender would hit the rate limit first.
+      for index = 1, 600 do
+        local message = Protocol.Validate(Protocol.Build("PVP_GRANT", {
+          id = "bulk-" .. index,
+          seasonId = "s1",
+          player = "Player" .. (index % 50) .. "-Realm",
+          missionId = "m1",
+          points = 1 + index % 30,
+          at = T + index % 250,
+        }, "bulk"))
+        assert.is_true(Sync.Apply(relay.comm:PvPSeasonContext(), message, "Boss-Realm"))
+      end
+      relay.sent, relay.targets = {}, {}
+      relay.queue.maxItems = 1000
+      local ok, count = relay.comm:SendLedger("Late-Realm", { seasonId = "s1", count = 0, digest = "00000000" })
+      assert.is_true(ok)
+      assert.is_true(count >= 2)
+      assert.are.equal(count, #relay.sent)
+      for _, text in ipairs(relay.sent) do
+        assert.is_true(#text <= ns.Constants.SYNC_MAX_ENCODED_BYTES)
+        assert.is_true(late.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+      end
+      assert.are.same(Sync.Summary(relay.pvpSeason, "s1"), Sync.Summary(late.pvpSeason, "s1"))
+    end)
+  end)
+
+  describe("a catch-up whisper", function()
+    local function page(items, id)
+      return env.wire("PVP_LEDGER_DATA", { seasonId = "s1", page = 1, pages = 1, items = items }, id or "p-1")
+    end
+    local items = {
+      {
+        t = "PVP_GRANT",
+        p = { id = "direct-9", seasonId = "s1", player = "Ann-Realm", missionId = "m1", points = 3, at = T },
+        by = "Boss-Realm",
+      },
+    }
+
+    it("is accepted from a raid leader, an admin and a PvP officer, and applied as its author", function()
+      assert.is_true(env.comm:HandleMessage(page(items), "Lead-Realm", "WHISPER"))
+      assert.is_truthy(env.pvpSeason.grants.s1["direct-9"])
+      assert.are.equal("Boss-Realm", env.pvpSeason.grants.s1["direct-9"].by)
+      assert.is_true(env.comm:HandleMessage(page({}, "p-2"), "Boss-Realm", "WHISPER"))
+      assert.is_true(env.comm:HandleMessage(page({}, "p-3"), "Off-Realm", "WHISPER"))
+    end)
+
+    it("is refused from a member before anything is decoded", function()
+      local decoded = 0
+      local original = env.codec.Decode
+      env.codec.Decode = function(...)
+        decoded = decoded + 1
+        return original(...)
+      end
+      assert.are.equal("forbidden", select(2, env.comm:HandleMessage(page(items), "Ann-Realm", "WHISPER")))
+      assert.are.equal("unknown_sender", select(2, env.comm:HandleMessage(page(items), "Stranger-Realm", "WHISPER")))
+      assert.are.equal(0, decoded)
+      assert.is_nil(env.pvpSeason.grants.s1)
+    end)
+
+    it("lets an officer relay the ledger but not a snapshot", function()
+      local snapshot = env.wire("SYNC_DATA", { items = {} }, "s-1")
+      local ok, reason = env.comm:HandleMessage(snapshot, "Off-Realm", "WHISPER")
+      assert.is_false(ok)
+      assert.are.equal("forbidden", reason)
+      assert.is_true(env.comm:HandleMessage(snapshot, "Lead-Realm", "WHISPER"))
+    end)
+
+    it("is not applied twice, and not accepted on the guild channel", function()
+      local text = page(items)
+      assert.is_true(env.comm:HandleMessage(text, "Lead-Realm", "WHISPER"))
+      assert.are.equal("duplicate", select(2, env.comm:HandleMessage(text, "Lead-Realm", "WHISPER")))
+      assert.are.equal("wrong_channel", select(2, env.comm:HandleMessage(page(items, "p-9"), "Lead-Realm", "GUILD")))
+    end)
+
+    it("has a rate limit of its own that a burst of pages fits in", function()
+      for index = 1, ns.Constants.PVP_LEDGER_PAGES_MAX do
+        assert.is_true(env.comm:HandleMessage(page({}, "burst-" .. index), "Lead-Realm", "WHISPER"))
+      end
+      local ok, reason = env.comm:HandleMessage(page({}, "burst-next"), "Lead-Realm", "WHISPER")
+      assert.is_false(ok)
+      assert.are.equal("rate_limited", reason)
+    end)
+
+    it("skips what its author could not have written", function()
+      local forged = {
+        { t = "PVP_GRANT", p = items[1].p, by = "Ann-Realm" },
+        { t = "PVP_SEASON", p = season({ id = "s9", rev = 9 }), by = "Ann-Realm" },
+      }
+      assert.is_true(env.comm:HandleMessage(page(forged), "Lead-Realm", "WHISPER"))
+      assert.is_nil(env.pvpSeason.grants.s1)
+      assert.is_nil(env.pvpSeason.seasons.s9)
+      assert.are.equal(0, env.comm.lastLedger.applied)
+    end)
+  end)
+
+  it("measures whether a record fits one guild message", function()
+    assert.is_true(env.comm:Fits("PVP_SEASON", season()))
+    local noise, seed = {}, 3
+    for index = 1, 20000 do
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      noise[index] = string.char(33 + seed % 90)
+    end
+    assert.is_false(env.comm:Fits("PVP_SEASON", { name = table.concat(noise) }))
   end)
 end)

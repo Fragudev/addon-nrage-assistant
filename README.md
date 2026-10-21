@@ -2,7 +2,7 @@
 
 Private World of Warcraft: Forever addon for guild coordination and raid readiness, built exclusively for the **Nrage** guild (Alliance, PvP ruleset).
 
-> **Status:** beta. Character sheet, readiness, raid events with attendance and assignments, loot council, reports and text import/export are implemented and covered by automated tests. Most of it has not been verified on the game client yet; see the issues labelled `verify-in-game`.
+> **Status:** beta. Character sheet, readiness, raid events with attendance and assignments, loot council, professions, the guild blacklist, PvP counters and kill feed, PvP seasons (missions approved by admins and PvP officers, a points ranking and end-of-season rewards), the layer directory with swap requests, reports and text import/export are implemented and covered by automated tests. Most of it has not been verified on the game client yet; see the issues labelled `verify-in-game` and the pending measurements in [docs/API_NOTES.md](docs/API_NOTES.md).
 
 ## Access
 
@@ -39,14 +39,17 @@ Click the minimap button, or type `/nrage`, to open the window: everything is do
 - [Privacy and data](docs/PRIVACY.md)
 - [Client API notes](docs/API_NOTES.md)
 - [Layer swap plan](docs/LAYER_SWAP_PLAN.md)
+- [PvP missions, seasons and rewards plan](docs/PVP_MISSIONS_PLAN.md)
 
 ## Repository layout
 
 ```text
 NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
-  Domain/                Profile, readiness, events, loot, permissions, reports, templates, layers, diagnostics
-  Sync/                  Codec, protocol, inbox and outbound queue, event and loot sync, snapshot, import/export
+  Domain/                Profile, readiness, events, loot, permissions, reports, templates, PvP and PvP seasons,
+                         layers, diagnostics
+  Sync/                  Codec, protocol, inbox and outbound queue, event, loot and PvP season sync, snapshot,
+                         import/export
   UI/                    Window (own widget kit in Kit/), tabs and view models
   Commands/              Slash commands
   Libs/                  Vendored libraries, see Libs/README.md

@@ -18,7 +18,8 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ## Transport
 
 - Prefix `NRAGE`, registered only after the addon has passed its access checks (guild Nrage, Alliance, PvP ruleset).
-- AceComm on `GUILD` for shared data and on `WHISPER` for snapshots. Any other channel is ignored.
+- AceComm on `GUILD` for shared data and on `WHISPER` for snapshots and PvP ledger pages. Any other channel is
+  ignored.
 - Encoding: LibSerialize, then LibDeflate compression, then the addon-channel encoding. A guild message may be up to
   4096 characters encoded and 32 KB decoded; a snapshot up to 32 KB encoded and 256 KB decoded.
 - Secret values (encounter restrictions) raised while handling a message make the message be dropped silently.
@@ -30,10 +31,11 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ```
 
 - `v` must equal the receiver's major version (currently 1); a different major is reported as an incompatible
-  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 6): a client
+  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 7): a client
   that does not know a field drops it while validating, and a client that does not know a message type drops the
   message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
-  below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`).
+  below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`); minor 7 added the PvP season messages
+  (`PVP_SEASON` and the others of the "PvP seasons" section).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -67,6 +69,18 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
+| `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
+| `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct}`, `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
+| `PVP_PRIZES` | guild | `seasonId`, `tiers{["1"], ["2"], ["3"], ["4-6"], ["7-10"]}` (up to 5 gold or item rewards each), `rev`, `updatedAt` | admin |
+| `PVP_OFFICER` | guild | `player`, `intervals[]` (`from`, optional `to`; up to 10), `rev`, `updatedAt` | admin |
+| `PVP_CLAIM` | guild | `id`, `missionId`, `seasonId`, `periodKey`, `player`, `at`, `summary{}`, `evidence[]` (up to 60 rows), optional `note` | anyone; `player` must be the sender |
+| `PVP_REJECT` | guild | `claimId`, `seasonId`, optional `reason`, `at` | admin, PvP officer |
+| `PVP_GRANT` | guild | `id`, `seasonId`, `player`, `missionId`, `points`, `at` | admin, PvP officer (a direct grant: admin only) |
+| `PVP_VOID` | guild | `grantId`, `seasonId`, optional `reason`, `at` | admin |
+| `PVP_DELIVERY` | guild | `seasonId`, `player`, `tier`, `delivered`, `rev`, `updatedAt` | admin, PvP officer |
+| `PVP_FINAL` | guild | `seasonId`, `name`, `startsAt`, `endsAt`, `closedAt`, `standings[]` (up to 100), `prizes` | admin |
+| `PVP_LEDGER_REQ` | guild | optional `seasonId`, `count`, `digest` | anyone |
+| `PVP_LEDGER_DATA` | whisper | optional `seasonId`, `page`, `pages`, `items[]` (`{ t, p, by }`) | rl, admin, PvP officer (checked before decoding) |
 | `SYNC_REQ` | guild | none | anyone |
 | `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules or roster messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
@@ -296,6 +310,59 @@ minor 5, plan 3.4.1 and 3.4.2).
 - **Visibility is not access control.** Every client with the addon still receives every message on the guild
   channel; the roster only decides what the window shows and who may change what. See `docs/PRIVACY.md`.
 
+## PvP seasons
+
+A season system for PvP (protocol minor 7, `docs/PVP_MISSIONS_PLAN.md`): admins define missions that award points,
+members claim them, an admin or a PvP officer approves each claim, the points make a season ranking, and the top 10
+get a prize at the end. Points live in an **append-only ledger of grants**; the ranking is derived from it on every
+client, so nothing but the grants has to be trusted.
+
+- **Records:** season, mission, prizes, officer, claim, grant, void, reject, delivery and final, as listed in the table
+  of message types. Each is validated by `PvPSeasonModel` (bounds, plain text, whole numbers; unknown fields are
+  dropped). **No payload carries its author**: `by` is the message sender, or, inside a ledger catch-up, the author the
+  item names.
+- **Authority** is worked out by the receiver. An admin is the guild master of the receiver's own guild roster. A
+  **PvP officer** is a flag, not a role: the receiver's own `PVP_OFFICER` records say since when (a list of
+  `from`/`to` intervals, both ends included). Officers may approve and reject claims and mark deliveries; everything
+  else is admin only. A grant counts if its author was an admin, or a PvP officer at the time of the grant and not
+  approving a claim of their own; removing the flag does not undo earlier grants, and an admin voids any abusive one.
+  A direct grant (an id that is not a claim id) is admin only.
+- **Claims:** `id` is `<player>:<missionId>:<periodKey>:<n>` with the period `all`, `YYYYMMDD` (server day, UTC) or
+  `YYYYWww` (ISO week, UTC), so a claim sent twice is one. Approving a claim sends a `PVP_GRANT` whose `id` is the claim
+  id: two approvers make the same grant and the second is a no-op. Only a client that approves claims keeps them
+  (`queue`: at most 300, 20 per player), and only for the active season, a mission it knows and inside the dates of
+  the season; a claim it cannot place yet is refused and the claimant announces it again. A rejection leaves the claim
+  in the queue marked rejected, so an approver can change their mind: a grant beats a rejection.
+- **Conflicts:** season, mission, prizes, officer and delivery follow the usual rule (higher `rev`, then `updatedAt`,
+  then sender). A grant, a void and a final are append-only: the first record with that id wins and a replay is a
+  no-op. For a reject the latest `at` wins (then the larger author). A second active season is refused. The final of
+  a season is **authoritative**: after it, grants, voids and rejections of that season are ignored.
+- **Closing a season:** the closing admin sends `PVP_FINAL` (the standing, up to 100 rows, cut from the tail if it
+  does not fit one message, never below 10) and then the season as `closed`. Every client, on receiving the final,
+  deletes the grants, voids, rejections and queued claims of that season, creates one delivery per player in the
+  prize tiers (positions 1 to 10) and drops the detail of its own mission log. A season a client never saw is kept
+  as history. The addon never sends gold or mail: delivery is done in game and marked with `PVP_DELIVERY`.
+- **Ranking:** points per player from the grants that count; ties go to whoever reached the total first (the earlier
+  `at` of their last counted grant), then name. Nobody without points is ranked. Tiers: 1, 2, 3, 4 to 6, 7 to 10.
+- **Ledger catch-up (late joiners):** the ranking has to be complete, so it does not travel in `SYNC_DATA`. After
+  login (at the same moment as `SYNC_REQ`) and whenever a season becomes active, a client sends `PVP_LEDGER_REQ` with
+  the number of ledger records it holds for its active season and a digest (Adler-32 of the sorted record tokens: the
+  officers, the seasons, the finals and the deliveries, and for that season its missions, prizes, grants, voids and
+  rejections). A raid leader, admin or PvP officer whose own ledger differs answers, after a random 1 to 10 second
+  delay and at most once a minute per requester, by whispering `PVP_LEDGER_DATA` pages: officers first (they decide who
+  may write what), then the seasons, the missions, prizes, grants, voids, rejections of the requested season and the
+  relay's active one, every final and every delivery. A page holds at most 400 items and fits the snapshot limit (32 KB
+  encoded); there are at most 100 pages. The requester decodes a page only if the whisper comes from a raid leader,
+  admin or PvP officer according to its own data, and applies every item as if its `by` had sent it, through the same
+  validation, authority and conflict rules. Because `by` is read from the item, a relay is trusted to name the right
+  author, the same trust a `PVP_STATS` snapshot gives it. Pending claims are not relayed: they belong to their author,
+  who announces them again.
+- **Order:** a record that reaches a client before the one that authorises it (a grant of an officer before the officer
+  record, a claim before its mission) is refused and comes back with the next catch-up. Records an admin wrote do not
+  depend on any other and may arrive in any order (a void before its grant, a grant before its season).
+- **Interim commands:** until the PvP tab has its own sub-tabs, `/nrage pvp` (`season`, `officer`, `mission`, `claim`,
+  `queue`, `approve`, `reject`, `grant`) drives the same service, for testing.
+
 ## Recipes
 
 `RECIPES` carries the recipes a member has learned in one profession, as numeric ids (names and icons are looked up
@@ -319,7 +386,9 @@ are bounded (500) and expire after 30 days.
 ## Rate limits and queues
 
 - Received: at most 60 messages per minute per sender, checked before decoding; at most 200 tracked senders.
-- Snapshots: at most 4 per minute per sender, and only from senders whose role can manage events.
+- Snapshots: at most 4 per minute per sender, and only from senders whose role can manage events. PvP ledger pages
+  (whispers from a raid leader, admin or PvP officer) have their own limit of 100 per minute per sender, checked
+  before decoding.
 - Sent: everything goes through a queue of at most 100 messages, kept at most 120 seconds. While the encounter
   lockdown is active (`C_ChatInfo.InChatMessagingLockdown()`), nothing is sent; when it ends the queue drains with
   a random delay of up to 5 seconds. A newer message for the same record replaces a queued older one.
@@ -333,6 +402,8 @@ are bounded (500) and expire after 30 days.
    awards, plus every tombstone. If it does not fit, the number of events is halved until it does.
 3. The requester decodes it only if the whisper comes from someone whose role allows managing events, and applies
    every item as if that leader had sent it, through the same validation, authority and conflict rules.
+
+The PvP season ledger is not part of `SYNC_DATA` either: it has its own catch-up (see "PvP seasons").
 
 Loot candidates and votes are not part of a snapshot: on the wire they always belong to the sender and cannot be
 re-attributed to whoever relays them.
@@ -349,7 +420,9 @@ text export.
 ## Limits on stored data
 
 20 rosters, 1000 role and roster assignments, 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
-and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 200 blacklist entries, 20 templates. Events are purged 90 days after their start.
+and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 200 blacklist entries, 20 templates.
+PvP seasons: 60 seasons, 50 missions per season, 3000 grants per season (never evicted), 3000 voids, 3000 rejections,
+300 queued claims (20 per player), 50 finals, 20 officers with 10 intervals each, 10 deliveries per season. Events are purged 90 days after their start.
 
 ## Text import and export
 

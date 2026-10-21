@@ -194,3 +194,33 @@ describe("PvPProbeLog", function()
     end)
   end)
 end)
+
+describe("PvPProbeLog.DescribeRead", function()
+  local Log = load_log()
+
+  it("shows the values a reader gave, leaving out trailing nils", function()
+    assert.are.equal(
+      "UnitClass=Warrior, WARRIOR, 1",
+      Log.DescribeRead("UnitClass", true, "Warrior", "WARRIOR", 1, nil, nil)
+    )
+    assert.are.equal("mapId=1411", Log.DescribeRead("mapId", true, 1411))
+    assert.are.equal("winner=nil", Log.DescribeRead("winner", true))
+    assert.are.equal("winner=nil", Log.DescribeRead("winner", true, nil, nil))
+    assert.are.equal("x=nil, 2", Log.DescribeRead("x", true, nil, 2))
+  end)
+
+  it("says why a reader gave nothing", function()
+    assert.are.equal("mapId=<unavailable: missing>", Log.DescribeRead("mapId", nil, "missing"))
+    assert.are.equal("mapId=<unavailable: boom>", Log.DescribeRead("mapId", false, "boom"))
+  end)
+
+  it("shows a hidden value as such", function()
+    local hidden = setmetatable({}, {
+      __tostring = function()
+        error("hidden")
+      end,
+    })
+    assert.are.equal("name=<secret>, ok", Log.DescribeRead("name", true, hidden, "ok"))
+    assert.are.equal("name=<unavailable: <secret>>", Log.DescribeRead("name", nil, hidden))
+  end)
+end)

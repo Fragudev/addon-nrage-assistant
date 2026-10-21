@@ -351,6 +351,209 @@ describe("Platform chat prefill and loot window", function()
   end)
 end)
 
+describe("Platform PvP mission readers", function()
+  local function secret()
+    return setmetatable({}, {
+      __lt = function()
+        error("secret")
+      end,
+      __eq = function()
+        error("secret")
+      end,
+      __concat = function()
+        error("secret")
+      end,
+    })
+  end
+
+  it("reads the map id of the player and gives nil for anything else", function()
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          return 1411
+        end,
+      },
+    }, function()
+      assert.are.equal(1411, load_platform().GetPlayerMapId())
+    end)
+    for _, value in ipairs({ "x", 0, -3, 1.5 }) do
+      with_globals({
+        C_Map = {
+          GetBestMapForUnit = function()
+            return value
+          end,
+        },
+      }, function()
+        assert.is_nil(load_platform().GetPlayerMapId())
+      end)
+    end
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          return secret()
+        end,
+      },
+    }, function()
+      assert.is_nil(load_platform().GetPlayerMapId())
+    end)
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          error("restricted")
+        end,
+      },
+    }, function()
+      assert.is_nil(load_platform().GetPlayerMapId())
+    end)
+    with_globals({ C_Map = false }, function()
+      assert.is_nil(load_platform().GetPlayerMapId())
+    end)
+  end)
+
+  -- A fake unit API: `units` maps a unit token to its fields.
+  local function unit_api(units)
+    return {
+      UnitIsPlayer = function(unit)
+        return units[unit] and units[unit].player
+      end,
+      UnitIsEnemy = function(_, unit)
+        return units[unit] and units[unit].enemy
+      end,
+      GetUnitName = function(unit)
+        return units[unit] and units[unit].name
+      end,
+      UnitClass = function(unit)
+        return "Guerrero", units[unit] and units[unit].class
+      end,
+      UnitRace = function(unit)
+        return "No-muerto", units[unit] and units[unit].race
+      end,
+    }
+  end
+
+  it("reads name, class and race of an enemy player as upper-case file tokens", function()
+    with_globals(
+      unit_api({
+        target = { player = true, enemy = true, name = "Zed Gg", class = "WARRIOR", race = "Scourge" },
+      }),
+      function()
+        local info = load_platform().GetEnemyPlayerInfo("target")
+        assert.are.same({ name = "Zed Gg", class = "WARRIOR", race = "SCOURGE" }, info)
+      end
+    )
+  end)
+
+  it("keeps what is readable when only the class or only the race is", function()
+    with_globals(
+      unit_api({
+        target = { player = true, enemy = true, name = "Zed", class = "MAGE", race = secret() },
+        mouseover = { player = true, enemy = true, name = "Yan", class = "?1", race = "Orc" },
+      }),
+      function()
+        local platform = load_platform()
+        assert.are.same({ name = "Zed", class = "MAGE" }, platform.GetEnemyPlayerInfo("target"))
+        assert.are.same({ name = "Yan", race = "ORC" }, platform.GetEnemyPlayerInfo("mouseover"))
+      end
+    )
+  end)
+
+  it("ignores friendly units, non players, unreadable names and secret answers", function()
+    with_globals(
+      unit_api({
+        target = { player = true, enemy = false, name = "Ann", class = "MAGE", race = "Orc" },
+        mouseover = { player = false, enemy = true, name = "Boar", class = "MAGE", race = "Orc" },
+        nameplate1 = { player = true, enemy = true, name = secret(), class = "MAGE", race = "Orc" },
+        nameplate2 = { player = true, enemy = true, name = "Bob", class = secret(), race = secret() },
+        nameplate3 = { player = secret(), enemy = true, name = "Cat", class = "MAGE", race = "Orc" },
+      }),
+      function()
+        local platform = load_platform()
+        for _, unit in ipairs({ "target", "mouseover", "nameplate1", "nameplate2", "nameplate3", "nameplate9" }) do
+          assert.is_nil(platform.GetEnemyPlayerInfo(unit), unit)
+        end
+        assert.is_nil(platform.GetEnemyPlayerInfo(nil))
+      end
+    )
+  end)
+
+  it("gives nil when the unit API is missing or raises", function()
+    with_globals({ UnitIsPlayer = false }, function()
+      assert.is_nil(load_platform().GetEnemyPlayerInfo("target"))
+    end)
+    local api = unit_api({})
+    api.UnitIsPlayer = function()
+      error("restricted")
+    end
+    with_globals(api, function()
+      assert.is_nil(load_platform().GetEnemyPlayerInfo("target"))
+    end)
+  end)
+
+  it("falls back to UnitName when GetUnitName does not exist", function()
+    local api = unit_api({ target = { player = true, enemy = true, class = "MAGE", race = "Orc" } })
+    api.GetUnitName = false
+    api.UnitName = function()
+      return "Zed"
+    end
+    with_globals(api, function()
+      assert.are.equal("Zed", load_platform().GetEnemyPlayerInfo("target").name)
+    end)
+  end)
+
+  it("names the winner of a battleground only when it is decided", function()
+    local function winner(value)
+      local result
+      with_globals({
+        GetBattlefieldWinner = function()
+          return value
+        end,
+      }, function()
+        result = load_platform().GetBattlegroundWinner()
+      end)
+      return result
+    end
+    assert.are.equal("Alliance", winner(1))
+    assert.are.equal("Horde", winner(0))
+    assert.is_nil(winner(nil))
+    assert.is_nil(winner(255))
+    assert.is_nil(winner(secret()))
+    with_globals({ GetBattlefieldWinner = false }, function()
+      assert.is_false(load_platform().HasBattlegroundWinner())
+      assert.is_nil(load_platform().GetBattlegroundWinner())
+    end)
+    with_globals({
+      GetBattlefieldWinner = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_true(load_platform().HasBattlegroundWinner())
+      assert.is_nil(load_platform().GetBattlegroundWinner())
+    end)
+  end)
+
+  it("reads the faction of the player", function()
+    for faction, expected in pairs({ Alliance = "Alliance", Horde = "Horde", Neutral = false }) do
+      with_globals({
+        UnitFactionGroup = function()
+          return faction
+        end,
+      }, function()
+        assert.are.equal(expected or nil, load_platform().GetPlayerFaction())
+      end)
+    end
+    with_globals({ UnitFactionGroup = false }, function()
+      assert.is_nil(load_platform().GetPlayerFaction())
+    end)
+    with_globals({
+      UnitFactionGroup = function()
+        return secret()
+      end,
+    }, function()
+      assert.is_nil(load_platform().GetPlayerFaction())
+    end)
+  end)
+end)
+
 describe("Platform.PlayerMapPosition", function()
   local function map_api(map, x, y)
     return {

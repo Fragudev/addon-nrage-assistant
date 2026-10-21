@@ -43,7 +43,21 @@ local ACTIONS = {
   roster_view_all = { admin = true },
   -- Everybody shares the recipes of their own character (plan 3.10).
   recipes_publish = { member = true, rl = true, council = true, admin = true },
+  -- PvP seasons (docs/PVP_MISSIONS_PLAN.md section 3). Every member claims; an admin does everything else. A PvP
+  -- officer (a flag, not a role: see CanPvP) may also decide claims and mark deliveries.
+  pvp_claim = { member = true, rl = true, council = true, admin = true },
+  pvp_claim_decide = { admin = true },
+  pvp_delivery_mark = { admin = true },
+  pvp_grant_direct = { admin = true },
+  pvp_grant_void = { admin = true },
+  pvp_season_manage = { admin = true },
+  pvp_mission_manage = { admin = true },
+  pvp_prize_manage = { admin = true },
+  pvp_officer_assign = { admin = true },
 }
+
+-- What the PvP officer flag adds on top of the role. Anything else stays with the role.
+local OFFICER_ACTIONS = { pvp_claim_decide = true, pvp_delivery_mark = true }
 
 -- The assignments table the role lookups read when none is passed: db.global.members. Set once at startup.
 local configured = {}
@@ -136,6 +150,15 @@ end
 function PermissionService.Can(role, action)
   local allowed = ACTIONS[action]
   return allowed ~= nil and role ~= nil and allowed[role] == true
+end
+
+-- Like Can, plus the PvP officer flag. `isOfficer` comes from the receiver's own officer records (never from a
+-- message), and a sender the roster does not know (nil role) gets nothing either way.
+function PermissionService.CanPvP(role, isOfficer, action)
+  if PermissionService.Can(role, action) then
+    return true
+  end
+  return role ~= nil and isOfficer == true and OFFICER_ACTIONS[action] == true
 end
 
 ns.PermissionService = PermissionService

@@ -298,3 +298,58 @@ describe("PermissionService with assigned roles (the default)", function()
     end)
   end)
 end)
+
+describe("PermissionService PvP season actions", function()
+  local ADMIN_ONLY = {
+    "pvp_grant_direct",
+    "pvp_grant_void",
+    "pvp_season_manage",
+    "pvp_mission_manage",
+    "pvp_prize_manage",
+    "pvp_officer_assign",
+  }
+
+  it("lets every role claim", function()
+    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+      assert.is_true(Service.Can(role, "pvp_claim"), role)
+      assert.is_true(Service.CanPvP(role, false, "pvp_claim"), role)
+    end
+    assert.is_false(Service.Can(nil, "pvp_claim"))
+    assert.is_false(Service.CanPvP(nil, true, "pvp_claim"))
+  end)
+
+  it("keeps the role-based part of deciding and delivering to the admin", function()
+    for _, action in ipairs({ "pvp_claim_decide", "pvp_delivery_mark" }) do
+      assert.is_true(Service.Can("admin", action), action)
+      for _, role in ipairs({ "rl", "council", "member" }) do
+        assert.is_false(Service.Can(role, action), role .. " " .. action)
+      end
+    end
+  end)
+
+  it("adds deciding claims and marking deliveries for a PvP officer, whatever their role", function()
+    for _, role in ipairs({ "member", "rl", "council" }) do
+      for _, action in ipairs({ "pvp_claim_decide", "pvp_delivery_mark" }) do
+        assert.is_true(Service.CanPvP(role, true, action), role .. " " .. action)
+        assert.is_false(Service.CanPvP(role, false, action), role .. " " .. action)
+      end
+    end
+  end)
+
+  it("keeps everything else admin only, officer or not", function()
+    for _, action in ipairs(ADMIN_ONLY) do
+      assert.is_true(Service.CanPvP("admin", false, action), action)
+      for _, role in ipairs({ "rl", "council", "member" }) do
+        assert.is_false(Service.Can(role, action), role .. " " .. action)
+        assert.is_false(Service.CanPvP(role, true, action), role .. " " .. action)
+      end
+    end
+  end)
+
+  it("gives a sender the roster does not know nothing, officer flag or not", function()
+    for _, action in ipairs({ "pvp_claim_decide", "pvp_delivery_mark", "pvp_season_manage" }) do
+      assert.is_false(Service.CanPvP(nil, true, action), action)
+    end
+    assert.is_false(Service.CanPvP("member", true, "pvp_unknown_action"))
+  end)
+end)

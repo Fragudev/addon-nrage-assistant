@@ -75,8 +75,20 @@ local function HelpCommand()
   end
 end
 
+-- The interim PvP season commands (PvPSeasonCommands): they print what the service answers.
+local function PvPCommand(rest)
+  if not (ns.active and ns.pvpSeasonCommands) then
+    say(L("version %s (addon disabled, see the notice shown at login)"):format(ns.GetVersion()))
+    return
+  end
+  for _, line in ipairs(ns.pvpSeasonCommands:Run(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
+  pvp = PvPCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     if sub == "identity" then

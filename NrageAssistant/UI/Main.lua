@@ -201,6 +201,15 @@ UI.PvPChanged = throttledRedraw(function()
   return currentTab == "pvp"
 end, ns.Constants.PVP_REDRAW_SECONDS)
 
+-- A PvP season record changed here or arrived (`messageType`): the PvP tab follows like for a counter, and the Members
+-- tab too when the PvP officer flag moved.
+function UI.PvPSeasonChanged(messageType)
+  UI.PvPChanged()
+  if messageType == "PVP_OFFICER" and currentTab == "roster" then
+    UI.Redraw()
+  end
+end
+
 -- The own layer, a received layer or the swap changed (a whole guild logging in sends one state each): the Layers tab
 -- is drawn again if it is the one on screen, at most once per LAYER_REDRAW_SECONDS.
 UI.LayersChanged = throttledRedraw(function()

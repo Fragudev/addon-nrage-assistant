@@ -7,6 +7,7 @@ local function load_protocol()
   assert(loadfile("NrageAssistant/Domain/BlacklistService.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/ReadinessRules.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/PvPSeasonModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
 end
@@ -657,8 +658,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 6", function()
-    assert.are.equal(6, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 7", function()
+    assert.are.equal(7, Constants.PROTOCOL_MINOR)
   end)
 end)
 
@@ -832,5 +833,161 @@ describe("Protocol.Validate LAYER_SWAP", function()
       assert.are.equal("bad_payload", reason)
     end
     assert.are.equal("bad_payload", select(2, validate({ rid = "a1", s = "assign" })))
+  end)
+end)
+
+describe("Protocol.Validate PvP season messages", function()
+  local function validate(messageType, payload)
+    return Protocol.Validate(Protocol.Build(messageType, payload, "id-1"))
+  end
+
+  local GOOD = {
+    PVP_SEASON = {
+      id = "s1",
+      name = "Season One",
+      startsAt = 100,
+      endsAt = 200,
+      state = "active",
+      rev = 1,
+      updatedAt = 5,
+    },
+    PVP_MISSION = {
+      id = "m1",
+      seasonId = "s1",
+      title = "Hunt",
+      desc = "Kill ten",
+      points = 10,
+      goal = { kind = "kills", count = 10, zones = { 1424 }, place = "world", distinct = "name" },
+      repeatKind = "daily",
+      perPlayer = 1,
+      active = true,
+      rev = 1,
+      updatedAt = 5,
+    },
+    PVP_PRIZES = { seasonId = "s1", tiers = { ["1"] = { { kind = "gold", amount = 100 } } }, rev = 1, updatedAt = 5 },
+    PVP_OFFICER = { player = "Ann", intervals = { { from = 5 } }, rev = 1, updatedAt = 5 },
+    PVP_CLAIM = {
+      id = "Ann:m1:all:1",
+      missionId = "m1",
+      seasonId = "s1",
+      periodKey = "all",
+      player = "Ann",
+      at = 50,
+      summary = { done = 1, total = 1 },
+      evidence = { { at = 49, victim = "Grunt", place = "world", mapId = 1424 } },
+    },
+    PVP_REJECT = { claimId = "Ann:m1:all:1", seasonId = "s1", reason = "no", at = 60 },
+    PVP_GRANT = { id = "Ann:m1:all:1", seasonId = "s1", player = "Ann", missionId = "m1", points = 10, at = 60 },
+    PVP_VOID = { grantId = "Ann:m1:all:1", seasonId = "s1", reason = "abuse", at = 70 },
+    PVP_DELIVERY = { seasonId = "s1", player = "Ann", tier = "1", delivered = true, rev = 1, updatedAt = 80 },
+    PVP_FINAL = {
+      seasonId = "s1",
+      name = "Season One",
+      startsAt = 100,
+      endsAt = 200,
+      closedAt = 210,
+      standings = { { pos = 1, player = "Ann", points = 10, lastAt = 60 } },
+      prizes = { ["1"] = { { kind = "gold", amount = 100 } } },
+    },
+  }
+
+  it("accepts each record when it is clean", function()
+    for messageType, payload in pairs(GOOD) do
+      local accepted = validate(messageType, payload)
+      assert.is_truthy(accepted, messageType)
+      assert.are.equal(messageType, accepted.t)
+    end
+  end)
+
+  it("drops unknown fields and never takes an author from the payload", function()
+    for messageType, payload in pairs(GOOD) do
+      local copy = {}
+      for key, value in pairs(payload) do
+        copy[key] = value
+      end
+      copy.by, copy.updatedBy, copy.closedBy, copy.extra = "Boss", "Boss", "Boss", 1
+      local clean = assert(validate(messageType, copy), messageType)
+      assert.is_nil(clean.p.by, messageType)
+      assert.is_nil(clean.p.updatedBy, messageType)
+      assert.is_nil(clean.p.closedBy, messageType)
+      assert.is_nil(clean.p.extra, messageType)
+    end
+  end)
+
+  it("refuses each record when a field is out of bounds", function()
+    local bad = {
+      PVP_SEASON = { endsAt = 50 },
+      PVP_MISSION = { points = 0 },
+      PVP_PRIZES = { tiers = "gold" },
+      PVP_OFFICER = { player = "a:b" },
+      PVP_CLAIM = { player = "Bob" },
+      PVP_REJECT = { claimId = "plain" },
+      PVP_GRANT = { points = 5000 },
+      PVP_VOID = { grantId = "has space" },
+      PVP_DELIVERY = { tier = "11-20" },
+      PVP_FINAL = { standings = { { pos = 2, player = "Ann", points = 1, lastAt = 1 } } },
+    }
+    for messageType, change in pairs(bad) do
+      local payload = {}
+      for key, value in pairs(GOOD[messageType]) do
+        payload[key] = value
+      end
+      for key, value in pairs(change) do
+        payload[key] = value
+      end
+      local rejected, reason = validate(messageType, payload)
+      assert.is_nil(rejected, messageType)
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+
+  it("accepts a ledger request with and without a season", function()
+    local request = assert(validate("PVP_LEDGER_REQ", { seasonId = "s1", count = 12, digest = "0123abcd", x = 1 }))
+    assert.are.same({ seasonId = "s1", count = 12, digest = "0123abcd" }, request.p)
+    assert.are.same(
+      { count = 0, digest = "00000001" },
+      assert(validate("PVP_LEDGER_REQ", { count = 0, digest = "00000001" })).p
+    )
+  end)
+
+  it("refuses a ledger request with a bad season, count or digest", function()
+    for _, payload in ipairs({
+      { seasonId = "a b", count = 1, digest = "0123abcd" },
+      { count = -1, digest = "0123abcd" },
+      { count = 1.5, digest = "0123abcd" },
+      { count = 1000001, digest = "0123abcd" },
+      { count = 1, digest = "0123abc" },
+      { count = 1, digest = "0123abcg" },
+      { count = 1, digest = 5 },
+      { count = 1 },
+    }) do
+      assert.is_nil(validate("PVP_LEDGER_REQ", payload))
+    end
+  end)
+
+  it("checks only the size of a ledger page: each item is validated when it is applied", function()
+    local items = { { t = "PVP_GRANT", p = {}, by = "Boss" }, "anything" }
+    local page = assert(validate("PVP_LEDGER_DATA", { seasonId = "s1", page = 2, pages = 3, items = items, x = 1 }))
+    assert.are.equal(2, #page.p.items)
+    assert.are.equal(2, page.p.page)
+    assert.is_nil(page.p.x)
+    assert.is_truthy(validate("PVP_LEDGER_DATA", { page = 1, pages = 1, items = {} }))
+  end)
+
+  it("refuses a ledger page out of range or too big", function()
+    local tooMany = {}
+    for index = 1, Constants.PVP_LEDGER_PAGE_ITEMS + 1 do
+      tooMany[index] = {}
+    end
+    for _, payload in ipairs({
+      { page = 0, pages = 1, items = {} },
+      { page = 2, pages = 1, items = {} },
+      { page = 1, pages = Constants.PVP_LEDGER_PAGES_MAX + 1, items = {} },
+      { page = 1, pages = 1, items = "x" },
+      { page = 1, pages = 1, items = tooMany },
+      { seasonId = "a b", page = 1, pages = 1, items = {} },
+    }) do
+      assert.is_nil(validate("PVP_LEDGER_DATA", payload))
+    end
   end)
 end)
