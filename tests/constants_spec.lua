@@ -14,6 +14,17 @@ describe("Constants", function()
     assert.are.equal(11, ns.Constants.SCHEMA_VERSION)
   end)
 
+  it("keeps a position message inside its size limit and the directory inside the rate limit", function()
+    local constants = ns.Constants
+    assert.are.equal("NRAGEPOS", constants.POSITION_PREFIX)
+    assert.are_not.equal(constants.ADDON_PREFIX, constants.POSITION_PREFIX)
+    -- The longest message: "P1:" + a map of up to four digits + two coordinates of up to five digits + two colons.
+    local longest = #("P1:%d:%d:%d"):format(constants.LAYER_MAP_MAX, constants.POSITION_SCALE, constants.POSITION_SCALE)
+    assert.is_true(longest <= constants.POSITION_MAX_BYTES)
+    assert.is_true(constants.POSITION_HEARTBEAT_SECONDS > constants.POSITION_TICK_SECONDS)
+    assert.is_true(constants.POSITION_TTL > constants.POSITION_HEARTBEAT_SECONDS)
+  end)
+
   it("takes roles from assignments, with the guild master as the only admin", function()
     assert.are.equal("assigned", ns.Constants.ROLE_SOURCE)
     assert.are.equal(0, ns.Constants.GUILD_MASTER_RANK_INDEX)

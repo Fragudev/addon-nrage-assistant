@@ -14,6 +14,13 @@ globals = {
 -- WoW client API used by the addon. Extend as new APIs are adopted.
 read_globals = {
   "C_AddOns",
+  "C_Map",
+  "CLASS_ICON_TCOORDS",
+  "ChatThrottleLib",
+  "HBD_PINS_WORLDMAP_SHOW_CONTINENT",
+  "RAID_CLASS_COLORS",
+  "UnitInParty",
+  "UnitInRaid",
   "C_ChatInfo",
   "C_Club",
   "C_GuildInfo",

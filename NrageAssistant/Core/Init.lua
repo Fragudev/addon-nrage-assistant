@@ -353,6 +353,164 @@ local function StartLayer()
   end)
 end
 
+local positionStarted = false
+
+-- The "Share my position" switch: on publishes the position at once, off tells the guild to forget it.
+function ns.SetPositionShare(share)
+  ns.PositionModel.Settings(ns.db).share = share == true
+  if ns.positionPublisher then
+    if share then
+      ns.positionPublisher:Tick()
+    else
+      ns.positionPublisher:Forget()
+    end
+  end
+end
+
+-- The "Show guildmates on the minimap / world map" switches. `which` is "minimap" or "worldmap".
+function ns.SetPositionDisplay(which, on)
+  if which ~= "minimap" and which ~= "worldmap" then
+    return
+  end
+  ns.PositionModel.Settings(ns.db)[which] = on == true
+  if ns.mapPins then
+    ns.mapPins:Request()
+  end
+end
+
+-- Guild map. Positions travel on their own prefix, outside the NRAGE envelope (docs/PROTOCOL.md): a short strict text
+-- sent through ChatThrottleLib at "BULK" priority, so it never delays real traffic. Runs once, like StartLayer.
+local function StartPosition()
+  if positionStarted then
+    return
+  end
+  positionStarted = true
+  local platform = ns.Platform
+  platform.RegisterPrefix(Constants.POSITION_PREFIX)
+
+  local mapPins
+  local function redraw()
+    if mapPins then
+      mapPins:Request()
+    end
+  end
+  local directory = ns.PositionDirectory.New({ now = platform.Now, onChange = redraw })
+  local function ownPosition()
+    local position = platform.PlayerMapPosition()
+    if not position then
+      return nil
+    end
+    local x, y = ns.PositionModel.FromZone(position.x, position.y)
+    return x and { map = position.map, x = x, y = y } or nil
+  end
+  local publisher = ns.PositionPublisher.New({
+    now = platform.Now,
+    current = ownPosition,
+    enabled = function()
+      return ns.PositionModel.Settings(ns.db).share
+    end,
+    canSend = function()
+      return ns.lockdown:CanSend()
+    end,
+    send = function(text)
+      if not ChatThrottleLib then
+        return false
+      end
+      ChatThrottleLib:SendAddonMessage("BULK", Constants.POSITION_PREFIX, text, "GUILD")
+      return true
+    end,
+  })
+  local sync = ns.PositionSync.New({
+    platform = platform,
+    inbox = ns.Inbox.New({ maxPerWindow = Constants.POSITION_INBOX_MAX_PER_WINDOW }),
+    -- Looked up lazily, like the roles of Comm: the guild roster may not be ready yet.
+    roleOf = function(sender)
+      if not ns.guildRoster then
+        return nil
+      end
+      return ns.PermissionService.RoleOf(ns.guildRoster, sender)
+    end,
+    directory = directory,
+    now = platform.Now,
+  })
+
+  local function pins()
+    local roster = ns.guildRoster
+    if not roster then
+      return {}
+    end
+    local layers = {}
+    if ns.layerDirectory then
+      for _, entry in ipairs(ns.layerDirectory:Fresh()) do
+        layers[entry.name] = entry
+      end
+    end
+    return ns.PositionPins.Build({
+      list = directory:List(),
+      now = platform.Now,
+      lookup = function(name)
+        return roster:Lookup(name)
+      end,
+      profile = function(name)
+        return ns.db.global.roster[name]
+      end,
+      ownLayer = ns.layerTracker and ns.layerTracker:Current() or nil,
+      layerOf = function(name)
+        return layers[name]
+      end,
+      isGroupMember = platform.IsGroupMember,
+      settings = ns.PositionModel.Settings(ns.db),
+    })
+  end
+  mapPins = ns.MapPins.Start({
+    now = platform.Now,
+    after = C_Timer.After,
+    pins = pins,
+    settings = function()
+      return ns.PositionModel.Settings(ns.db)
+    end,
+  })
+  ns.positionDirectory, ns.positionPublisher, ns.positionSync, ns.mapPins = directory, publisher, sync, mapPins
+
+  -- A layer that arrives changes which pins are faded: the pins follow it, after what the Layers tab already does.
+  if ns.comm then
+    local onLayerChange = ns.comm.onLayerChange
+    ns.comm.onLayerChange = function(...)
+      if onLayerChange then
+        onLayerChange(...)
+      end
+      redraw()
+    end
+  end
+
+  local positionFrame = CreateFrame("Frame")
+  platform.TryRegisterEvent(positionFrame, "CHAT_MSG_ADDON")
+  platform.TryRegisterEvent(positionFrame, "GROUP_ROSTER_UPDATE")
+  positionFrame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
+    if not ns.active then
+      return
+    end
+    if event == "GROUP_ROSTER_UPDATE" then
+      redraw()
+      return
+    end
+    -- During an encounter the arguments can be secret values: any error means "drop it silently".
+    pcall(function()
+      if prefix == Constants.POSITION_PREFIX then
+        sync:Handle(text, channel, sender)
+      end
+    end)
+  end)
+
+  -- Nothing is sent on PLAYER_LEAVING_WORLD: the TTL clears the pins of the others.
+  C_Timer.NewTicker(Constants.POSITION_TICK_SECONDS, function()
+    if ns.active then
+      pcall(publisher.Tick, publisher)
+      directory:Prune()
+    end
+  end)
+end
+
 -- The events that change what is shared in the profile: gear, level and professions.
 local PROFILE_EVENTS = {
   "PLAYER_EQUIPMENT_CHANGED",
@@ -531,6 +689,7 @@ local function Activate()
   StartPvP()
   StartBlacklist()
   StartLayer()
+  StartPosition()
   StartBossLoot()
   StartRecipes()
   StartAutoPublish()

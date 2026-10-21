@@ -51,6 +51,10 @@ Domain\LayerTracker.lua
 Domain\LayerDirectory.lua
 Domain\LayerSwap.lua
 Domain\LayerPublisher.lua
+Domain\PositionModel.lua
+Domain\PositionPublisher.lua
+Domain\PositionDirectory.lua
+Domain\PositionPins.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -64,6 +68,7 @@ Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
 Sync\RecipeSync.lua
 Sync\LayerSync.lua
+Sync\PositionSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -98,6 +103,7 @@ UI\LootPopup.lua
 UI\LayerPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
+UI\MapPins.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\TemplateCommands.lua

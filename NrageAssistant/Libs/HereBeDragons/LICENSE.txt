@@ -1,0 +1,10 @@
+HereBeDragons
+
+Upstream:  https://github.com/Nevcairiel/HereBeDragons
+Tag:       2.18-release
+Commit:    90a7b2d8c065010dfb866e2b6bd56f5bc930029b
+Author:    Nevcairiel (h.leppkes@gmail.com)
+Files:     HereBeDragons-2.0.lua, HereBeDragons-Pins-2.0.lua (unmodified)
+
+Licensed under the BSD license as declared by the upstream TOC (## X-License: BSD).
+The upstream repository does not ship a license file.

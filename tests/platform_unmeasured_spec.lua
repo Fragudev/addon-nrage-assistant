@@ -350,3 +350,125 @@ describe("Platform chat prefill and loot window", function()
     end)
   end)
 end)
+
+describe("Platform.PlayerMapPosition", function()
+  local function map_api(map, x, y)
+    return {
+      GetBestMapForUnit = function()
+        return map
+      end,
+      GetPlayerMapPosition = function()
+        return {
+          GetXY = function()
+            return x, y
+          end,
+        }
+      end,
+    }
+  end
+
+  it("gives the map and the zone coordinates in the open world", function()
+    with_globals({ C_Map = map_api(1411, 0.25, 0.75) }, function()
+      assert.are.same({ map = 1411, x = 0.25, y = 0.75 }, load_platform().PlayerMapPosition())
+    end)
+  end)
+
+  it("gives nothing inside an instance", function()
+    with_globals({
+      C_Map = map_api(1411, 0.25, 0.75),
+      IsInInstance = function()
+        return true, "party"
+      end,
+    }, function()
+      assert.is_nil(load_platform().PlayerMapPosition())
+    end)
+  end)
+
+  it("gives nothing when the API is missing or either call has no usable answer", function()
+    with_globals({ C_Map = false }, function()
+      assert.is_nil(load_platform().PlayerMapPosition())
+    end)
+    for _, api in ipairs({
+      map_api(nil, 0.5, 0.5),
+      map_api(0, 0.5, 0.5),
+      map_api("1", 0.5, 0.5),
+      map_api(1, nil, 0.5),
+      map_api(1, 0.5, "0.5"),
+      map_api(1, 1.5, 0.5),
+      map_api(1, 0.5, -0.1),
+    }) do
+      with_globals({ C_Map = api }, function()
+        assert.is_nil(load_platform().PlayerMapPosition())
+      end)
+    end
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          return 1
+        end,
+        GetPlayerMapPosition = function() end,
+      },
+    }, function()
+      assert.is_nil(load_platform().PlayerMapPosition())
+    end)
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          return 1
+        end,
+        GetPlayerMapPosition = function()
+          return {}
+        end,
+      },
+    }, function()
+      assert.is_nil(load_platform().PlayerMapPosition())
+    end)
+  end)
+
+  it("gives nothing on an error or a secret value", function()
+    with_globals({
+      C_Map = {
+        GetBestMapForUnit = function()
+          error("secret value")
+        end,
+        GetPlayerMapPosition = function() end,
+      },
+    }, function()
+      assert.is_nil(load_platform().PlayerMapPosition())
+    end)
+  end)
+end)
+
+describe("Platform.IsGroupMember", function()
+  it("is true for a party member or a raid member", function()
+    with_globals({
+      UnitInParty = function(name)
+        return name == "Ann"
+      end,
+      UnitInRaid = function(name)
+        return name == "Bob" and 3 or nil
+      end,
+    }, function()
+      local platform = load_platform()
+      assert.is_true(platform.IsGroupMember("Ann"))
+      assert.is_true(platform.IsGroupMember("Bob"))
+      assert.is_false(platform.IsGroupMember("Cid"))
+    end)
+  end)
+
+  it("is false for a bad name, a missing API or an error", function()
+    local platform = load_platform()
+    assert.is_false(platform.IsGroupMember(nil))
+    assert.is_false(platform.IsGroupMember(""))
+    with_globals({ UnitInParty = false, UnitInRaid = false }, function()
+      assert.is_false(platform.IsGroupMember("Ann"))
+    end)
+    with_globals({
+      UnitInParty = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_false(platform.IsGroupMember("Ann"))
+    end)
+  end)
+end)

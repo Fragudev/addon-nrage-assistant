@@ -744,4 +744,13 @@ ns.Locale.Register("es", {
   ["The layer is read from the creatures you target or mouse over, and shared with the guild only."] = "La capa se lee de las criaturas que seleccionas o sobre las que pasas el ratón, y solo se comparte con la guild.",
   ["A swap needs a guildmate on that layer to invite you; leaving the group afterwards is your choice."] = "Un cambio necesita que un compañero de esa capa te invite; salir del grupo después es decisión tuya.",
   ["A guildmate wants to join your layer."] = "Un compañero de la guild quiere unirse a tu capa.",
+
+  -- Guild map (UI/MapPins.lua, UI/Main.lua)
+  ["Level %d"] = "Nivel %d",
+  ["Layer %s"] = "Capa %s",
+  ["%d s ago"] = "hace %d s",
+  ["Share my position"] = "Compartir mi posición",
+  ["Guildmates see where you are on the map. Turn it off and they forget it."] = "Los compañeros de la guild ven dónde estás en el mapa. Si lo apagas, se olvidan de ti.",
+  ["Show guildmates on the minimap"] = "Mostrar a la guild en el minimapa",
+  ["Show guildmates on the world map"] = "Mostrar a la guild en el mapa del mundo",
 })
