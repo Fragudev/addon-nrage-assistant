@@ -1,0 +1,19 @@
+release-notes/v0.1.0-beta.8.md
+  s_601d293f353ae3::t_979e9dd74347db 56-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bad860e9291614f027c1fb5ed76aab36a0add9a9",
+  "prompts": {},
+  "sessions": {
+    "s_601d293f353ae3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "013f4290-7a09-4a25-b420-4640106dbb21",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
