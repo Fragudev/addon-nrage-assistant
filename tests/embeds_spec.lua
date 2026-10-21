@@ -38,6 +38,7 @@ describe("Vendored libraries", function()
       "NrageAssistant/Libs/Ace3-LICENSE.txt",
       "NrageAssistant/Libs/LibSerialize/LICENSE",
       "NrageAssistant/Libs/LibDeflate/LICENSE.txt",
+      "NrageAssistant/Libs/HereBeDragons/LICENSE.txt",
     }) do
       local handle = io.open(path, "r")
       assert.is_truthy(handle, "missing " .. path)

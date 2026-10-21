@@ -50,3 +50,23 @@ _G.GetRaidRosterInfo = function() end
 _G.RaidNotice_AddMessage = function() end
 
 _G.PlaySound = function() end
+
+-- Map position: the player is in the open world on map 1 at the middle. Specs that need another answer replace these.
+_G.C_Map = {
+  GetBestMapForUnit = function()
+    return 1
+  end,
+  GetPlayerMapPosition = function()
+    return {
+      GetXY = function()
+        return 0.5, 0.5
+      end,
+    }
+  end,
+}
+
+_G.UnitInParty = function()
+  return false
+end
+
+_G.UnitInRaid = function() end

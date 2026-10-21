@@ -38,6 +38,7 @@ local function load_window(locale)
     "Domain/PublishService",
     "Domain/BlacklistService",
     "Domain/LayerModel",
+    "Domain/PositionModel",
     "Domain/ReportService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
@@ -2270,6 +2271,27 @@ describe("Window smoke test: settings, language and automatic refresh", function
     assert.is_true(switch.opts.checked)
     switch.opts.onChange(false)
     assert.is_false(env.ns.Settings.BlacklistSound(env.ns.db))
+  end)
+
+  it("saves the position switches: sharing off by default, the guild drawn on both maps by default", function()
+    local stack = open_settings()
+    local calls = {}
+    env.ns.SetPositionShare = function(share)
+      calls[#calls + 1] = { "share", share }
+    end
+    env.ns.SetPositionDisplay = function(which, on)
+      calls[#calls + 1] = { which, on }
+    end
+    local share = FakeKit.find(stack, "Switch", "Share my position")
+    local minimap = FakeKit.find(stack, "Switch", "Show guildmates on the minimap")
+    local worldmap = FakeKit.find(stack, "Switch", "Show guildmates on the world map")
+    assert.is_false(share.opts.checked)
+    assert.is_true(minimap.opts.checked)
+    assert.is_true(worldmap.opts.checked)
+    share.opts.onChange(true)
+    minimap.opts.onChange(false)
+    worldmap.opts.onChange(false)
+    assert.are.same({ { "share", true }, { "minimap", false }, { "worldmap", false } }, calls)
   end)
 
   it("changes the language and draws the window again in it", function()

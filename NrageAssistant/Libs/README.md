@@ -7,8 +7,11 @@ Copied from their upstream repositories. Update by re-copying a newer tag and ch
 | LibStub, CallbackHandler-1.0, AceComm-3.0 (with ChatThrottleLib) | https://github.com/WoWUIDev/Ace3 | Release-r1403 (`d295b12`) |
 | LibSerialize | https://github.com/rossnichols/LibSerialize | v1.2.2 (`40d96aa`) |
 | LibDeflate | https://github.com/SafeteeWoW/LibDeflate | 1.0.2-release (`6831edc`) |
+| HereBeDragons-2.0, HereBeDragons-Pins-2.0 | https://github.com/Nevcairiel/HereBeDragons | 2.18-release (`90a7b2d`) |
 
-Licenses: `Ace3-LICENSE.txt`, `LibSerialize/LICENSE`, `LibDeflate/LICENSE.txt`.
+Licenses: `Ace3-LICENSE.txt`, `LibSerialize/LICENSE`, `LibDeflate/LICENSE.txt`, `HereBeDragons/LICENSE.txt` (upstream ships no license file; the note records what its TOC declares: BSD).
+
+HereBeDragons is copied unmodified (only the two files the addon needs; the 7.x migration data is left out) and keeps its shared LibStub names, so the highest minor wins when another addon embeds its own copy. Scanned for divisions that could hit the Forever `Division by zero` behaviour (see below): none has a literal zero or `1 / x` operand; the divisors are map sizes that the code checks, fixed tables, and the minimap radius from `C_Minimap.GetViewRadius()`, which upstream does not check (see `docs/API_NOTES.md`).
 
 ## Patches
 

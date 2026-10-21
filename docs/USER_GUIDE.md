@@ -29,6 +29,10 @@ The **gear** in the header opens the settings, which are the same from every tab
 - **Language**: *Automatic (game language)*, *Español* or *English*. Automatic follows the game client: Spanish on a
   Spanish client (Spain or Latin America), English on any other. The window is drawn again at once when you change it.
 - **Show the minimap button**, and **Button position** with *Reset* to put it back in its default place.
+- **Share my position** (off by default): guildmates see where you are on the minimap and the world map. Turn it off
+  and the addon tells the guild to forget you. See *Guild map* below.
+- **Show guildmates on the minimap** and **Show guildmates on the world map** (both on by default): whether you see
+  the pins of your guildmates. They do not need you to share your own position.
 - **Blacklist alert sound**: when it is off, a listed player in your group still shows the chat line and the
   warning, but plays no sound.
 
@@ -588,6 +592,23 @@ or leading a party that is not full.
 
 The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
 on Forever is still being checked (see `docs/API_NOTES.md`).
+
+## Guild map
+
+Guildmates who share their position appear as small pins on the minimap and on the world map, drawn with the class
+icon and a border in the class colour (a grey dot when the class is not known). Hover a pin to see the name, the level,
+the layer (green when it is yours) and how many seconds ago the position arrived. A pin is half transparent when that
+member is on another layer than you. Members of your own party or raid are not drawn: the game already shows them.
+
+- Turning on **Share my position** in the settings is your decision and is off by default. Only the map and your
+  coordinates are sent, on the guild channel; nothing is saved, and the others forget you after 60 seconds without a
+  message or at once when you turn it off.
+- Nothing is sent from an instance or a battleground, and nothing during an encounter.
+- A pin disappears 60 seconds after the last message from that member (for instance when they log out).
+- The map library (HereBeDragons) is included with the addon. If the game cannot load it, no pins are drawn and
+  nothing else changes.
+- Whether the pins are placed correctly on the Forever client has not been checked in game yet (see
+  `docs/API_NOTES.md`).
 
 ## Sync
 

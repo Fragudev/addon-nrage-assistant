@@ -317,6 +317,24 @@ ns.Constants = {
   -- A party holds five players.
   LAYER_PARTY_SIZE = 5,
 
+  -- Guild map. Positions travel on their own addon prefix (not through the NRAGE envelope): a message is
+  -- "P1:<map>:<x>:<y>" of at most POSITION_MAX_BYTES bytes, x and y in 0..10000. The own position is checked every
+  -- POSITION_TICK_SECONDS and sent when it moved more than POSITION_MIN_MOVE units (0.2 % of the zone), when the map
+  -- changed, or after POSITION_HEARTBEAT_SECONDS. A received position is dropped after POSITION_TTL seconds; at most
+  -- POSITION_DIRECTORY_MAX members are kept and POSITION_INBOX_MAX_PER_WINDOW messages per sender are read per
+  -- INBOX_WINDOW_SECONDS.
+  POSITION_PREFIX = "NRAGEPOS",
+  POSITION_MAX_BYTES = 32,
+  POSITION_TICK_SECONDS = 5,
+  POSITION_HEARTBEAT_SECONDS = 20,
+  POSITION_MIN_MOVE = 20,
+  POSITION_TTL = 60,
+  POSITION_DIRECTORY_MAX = 200,
+  POSITION_INBOX_MAX_PER_WINDOW = 30,
+  POSITION_SCALE = 10000,
+  -- The map pins are redrawn at most once per this many seconds.
+  POSITION_REDRAW_SECONDS = 1,
+
   -- Received data kept in memory or SavedVariables.
   ROSTER_MAX_ENTRIES = 500,
   -- A received profile older than this is shown as stale, never as current.

@@ -71,6 +71,36 @@ result of the invite and leave calls made from the swap popup. `/nrage debug lay
 the invite and leave APIs exist on the client. If question 1 or 2 turns out to be false, the layer cannot be read
 and the feature should be removed; if question 5 or 6 fails, the popup buttons will say that the client refused.
 
+## Guild map (not measured yet)
+
+The guild map (`docs/GUILD_MAP_PLAN.md`) uses the APIs below, none of them measured on Forever. Each is guarded in
+`Core/Platform.lua`, so a wrong assumption leaves the feature quietly unavailable (no position is sent, no pin is
+drawn). **All of this must be verified in game before release.** Record the result and remove the marker.
+
+| # | Question | API (through `Platform`) | Assumption in the code | Result |
+|---|---|---|---|---|
+| 1 | `C_Map.GetBestMapForUnit("player")` and `C_Map.GetPlayerMapPosition(map, "player"):GetXY()`: what do they return in the open world, and nil in instances? | `Platform.PlayerMapPosition` | a map id and `x`, `y` in 0..1; nil in an instance (also checked with `IsInInstance`) | not measured yet |
+| 2 | Do `UnitInParty(name)` / `UnitInRaid(name)` find a guildmate by the name the guild roster gives (a multi-word name)? | `Platform.IsGroupMember` | yes; a miss only means the pin is also drawn | not measured yet |
+| 3 | Does HereBeDragons 2.18 draw minimap pins correctly on Forever (rotation, zoom, indoors) and place world map pins? | `HereBeDragons-Pins-2.0` in `UI/MapPins.lua` | yes; it has a `WoWForever` branch upstream | not measured yet |
+| 4 | Does `ChatThrottleLib` "BULK" traffic on `NRAGEPOS` with 20 or more members delay `NRAGE` messages? | `ChatThrottleLib:SendAddonMessage` | no: BULK is the lowest priority | not measured yet |
+| 5 | Do `CLASS_ICON_TCOORDS` and the texture `Interface\GLUES\CHARACTERCREATE\UI-CHARACTERCREATE-CLASSES` exist? | `UI/MapPins.lua` | yes; a grey dot is drawn when not | not measured yet |
+| 6 | Are the map ids of `C_Map.GetBestMapForUnit` all in 1..9999 (the wire limit, `LAYER_MAP_MAX`)? | wire format | yes; a position on another map is simply not sent | not measured yet |
+
+HereBeDragons was scanned for divisions that could raise `Division by zero` on this client (see the section above):
+there is no literal zero and no `1 / x` operand. Its divisors are map sizes and radii that the code checks
+(`data[1] == 0 or data[2] == 0` returns nil before the division) or that come from fixed tables, and the distance
+divisor sits behind `dist > 1`. The one divisor that comes from the client is the minimap radius
+(`C_Minimap.GetViewRadius()`, `HereBeDragons-Pins-2.0.lua`): it is not checked for zero upstream. If any division
+raises in game, report it here.
+
+```text
+/dump C_Map.GetBestMapForUnit("player")
+/dump C_Map.GetPlayerMapPosition(C_Map.GetBestMapForUnit("player"), "player"):GetXY()   -- 0..1 values; nil/error in an instance
+/dump UnitInParty("Name"), UnitInRaid("Name")
+/dump CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS.MAGE, RAID_CLASS_COLORS and RAID_CLASS_COLORS.MAGE
+/dump LibStub("HereBeDragons-Pins-2.0", true)
+```
+
 ## PvP (to be measured, issue #92)
 
 Nothing PvP-related has been measured on Forever yet. Run the probe on a PvP realm, in the open world and in a
@@ -195,6 +225,8 @@ For the two events, log them for a minute while opening professions and a corpse
 | Messaging | `C_ChatInfo.RegisterAddonMessagePrefix`, `C_ChatInfo.SendAddonMessage`, `C_ChatInfo.InChatMessagingLockdown`, event `CHAT_MSG_ADDON` |
 | Encounters and combat | events `ENCOUNTER_START`, `ENCOUNTER_END`, `PLAYER_REGEN_DISABLED`, `PLAYER_REGEN_ENABLED` (the lockdown probe) |
 | PvP counters (**not measured yet**, #99) | `GetPVPSessionStats`, `IsInInstance`, `CombatLogGetCurrentEventInfo` (also the destination name, for the kill feed), the globals `COMBATLOG_HONORGAIN` and `COMBATLOG_HONORGAIN_NO_RANK`, events `CHAT_MSG_COMBAT_HONOR_GAIN`, `PLAYER_PVP_KILLS_CHANGED`, `COMBAT_LOG_EVENT_UNFILTERED`. Each is guarded and registered in `pcall`, so a missing or restricted one disables only that counter; they are not in the self test on purpose, because a missing one would show a permanent warning on the minimap button |
+| PvP probe | the above plus `GetPVPLifetimeStats` (`/nrage debug pvp`, to answer #99) |
+| Guild map (**not measured yet**) | `C_Map.GetBestMapForUnit`, `C_Map.GetPlayerMapPosition`, `UnitInParty`, `UnitInRaid`, `IsInInstance`, `ChatThrottleLib`, the globals `RAID_CLASS_COLORS`, `CLASS_ICON_TCOORDS`, `HBD_PINS_WORLDMAP_SHOW_CONTINENT`, events `CHAT_MSG_ADDON` (prefix `NRAGEPOS`), `GROUP_ROSTER_UPDATE`. Each is guarded; not in the self test on purpose |
 | PvP probe | the above plus `GetPVPLifetimeStats`, `C_Map`, the unit functions and `GetBattlefieldWinner` (`/nrage debug pvp`, to answer #99 and the PvP seasons questions M1 to M5) |
 | PvP missions (**not measured yet**) | `C_Map.GetBestMapForUnit`, `UnitIsPlayer`, `UnitIsEnemy`, `UnitClass`, `UnitRace`, `GetUnitName`, `GetBattlefieldWinner`, `UnitFactionGroup`, events `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT`, `NAME_PLATE_UNIT_ADDED`, `UPDATE_BATTLEFIELD_STATUS`. Each reader is guarded and each event registered in `pcall`; not in the self test, for the same reason as the PvP counters |
 | Group and warning (**not measured yet**) | `IsInGroup`, `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("party1".."party4")`, `RaidNotice_AddMessage`, `RaidWarningFrame`, `PlaySound`, events `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`. Each is guarded and registered in `pcall`; not in the self test on purpose |

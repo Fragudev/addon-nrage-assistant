@@ -92,6 +92,13 @@ describe("PermissionService.Can", function()
     assert.is_false(Service.Can(nil, "pvp_publish"))
   end)
 
+  it("lets every role share its map position, like its layer", function()
+    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+      assert.is_true(Service.Can(role, "position_share"), role)
+    end
+    assert.is_false(Service.Can(nil, "position_share"))
+  end)
+
   it("lets every role add to the blacklist but only an admin remove from it", function()
     for _, role in ipairs({ "member", "rl", "council", "admin" }) do
       assert.is_true(Service.Can(role, "blacklist_add"), role)

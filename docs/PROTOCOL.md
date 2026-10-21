@@ -178,6 +178,40 @@ assigned helper; the receiver checks this against the sender of the stored reque
 hijack or close a swap. A client takes part in at most one swap at a time and drops one whose `close` was lost
 after 300 seconds without messages. Like `PVP_KILL`, a step is never queued during an encounter lockdown.
 
+## Guild map positions
+
+A second addon prefix, `NRAGEPOS`, carries the position of members who chose to share it. It does **not** use the
+`NRAGE` envelope, AceComm, LibSerialize or LibDeflate, so `PROTOCOL_MINOR` does not change and older clients simply
+never register the prefix. The reasons: with 40 members sending every few seconds, the `(sender, id)` seen cache of
+the main inbox (one ring for all senders, 200 entries) would be evicted within seconds, weakening duplicate
+protection for real data; and four numbers need no serialization, while a strict text pattern is a small attack
+surface.
+
+- Sent on `GUILD` only, through `ChatThrottleLib:SendAddonMessage("BULK", ...)`, so it never delays real traffic. A
+  message that arrives on any other channel is ignored. Live only: nothing is saved, queued during an encounter
+  lockdown or part of a snapshot.
+- A message is at most 32 bytes and one of:
+
+```text
+P1:<mapId>:<x>:<y>     a position; mapId 1 to 9999, x and y integers 0 to 10000 (zone coordinates times 10000)
+P1:0                   "forget me"
+```
+
+- It must match `^P1:(%d+):(%d+):(%d+)$` or `^P1:0$` exactly. Anything else is dropped, and a different leading version
+  (`P2`, ...) is dropped silently: a future format adds a new tag.
+- Name, class and level are not sent: the receiver has them from the guild roster and received profiles. The layer is
+  not sent either: it comes from the layer directory.
+- Sending: every 5 seconds the client checks its position and sends when it moved more than 20 units (0.2 % of the
+  zone), when the map changed or after 20 seconds without a message, and never more than one per 5 seconds. When the
+  position disappears (an instance, a loading screen) after one was sent, it sends one `P1:0`; so does switching
+  "Share my position" off, at once. Nothing is sent from an instance or while the lockdown is on.
+- Receiving, cheapest check first: the channel is `GUILD`; the sender is a non-empty string, normalized (realm
+  stripped), and not the own key; a dedicated inbox allows at most 30 messages per sender per 60 seconds (rate only,
+  never a seen cache); the sender is in the local guild roster (`position_share`, every role); then the strict parse. The
+  whole handler runs in `pcall`, because arguments can be secret values during an encounter.
+- The receiver keeps `{ map, x, y, at }` per sender, in memory, for 60 seconds, at most 200 senders (new ones are
+  refused when full).
+
 ## Guild blacklist
 
 A list of players the guild wants to be warned about, each with a short reason. Two messages, both on the guild

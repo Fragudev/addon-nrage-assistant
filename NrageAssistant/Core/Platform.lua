@@ -753,6 +753,49 @@ function Platform.IsInInstance()
   return nil
 end
 
+-- The own position on the map as { map, x, y }: the map id and the zone coordinates 0..1. nil inside an instance,
+-- when the API is missing, when either call gives nothing usable, or on an error or secret value. Not measured on
+-- Forever yet (docs/API_NOTES.md).
+function Platform.PlayerMapPosition()
+  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then
+    return nil
+  end
+  local ok, position = pcall(function()
+    if IsInInstance and IsInInstance() then
+      return nil
+    end
+    local map = C_Map.GetBestMapForUnit("player")
+    if type(map) ~= "number" or map <= 0 then
+      return nil
+    end
+    local point = C_Map.GetPlayerMapPosition(map, "player")
+    if type(point) ~= "table" or not point.GetXY then
+      return nil
+    end
+    local x, y = point:GetXY()
+    if type(x) ~= "number" or type(y) ~= "number" or x < 0 or x > 1 or y < 0 or y > 1 then
+      return nil
+    end
+    return { map = map, x = x, y = y }
+  end)
+  if ok then
+    return position
+  end
+  return nil
+end
+
+-- true when `name` is in the player's party or raid (UnitInRaid gives the raid index, UnitInParty a flag); false when
+-- not, when the API is missing or on an error.
+function Platform.IsGroupMember(name)
+  if type(name) ~= "string" or name == "" then
+    return false
+  end
+  local ok, member = pcall(function()
+    return (UnitInParty and UnitInParty(name)) or (UnitInRaid and UnitInRaid(name))
+  end)
+  return ok and (member == true or type(member) == "number")
+end
+
 -- true while the player is in combat; false when not or when the client does not say.
 function Platform.IsInCombat()
   local lockdown = InCombatLockdown or UnitAffectingCombat and function()

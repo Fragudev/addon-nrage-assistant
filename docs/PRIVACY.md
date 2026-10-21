@@ -24,6 +24,7 @@ secret store.
 | PvP counters received from other members | the guild channel |
 | Recent guild kills (killer, victim, place), in memory only | the guild channel, and your own kills |
 | Your layer, and the layers other members share, in memory only | read from the creatures you target, and the guild channel |
+| Your map position, if you chose to share it, and the positions other members share, in memory only | read from the game map, and the guild channel (prefix `NRAGEPOS`) |
 | The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
@@ -116,6 +117,17 @@ memory only** (never saved), shared with the guild only, and forgotten by everyo
 message. **Share my layer** (Layers tab, on by default) stops sharing it: the addon then tells the guild once to
 forget you and sends nothing more. With sharing off you can still ask for a swap: the request carries the layer you
 want, not the one you are on. A guildmate who answers a request tells the requester that they are on that layer.
+
+## Your map position
+
+Your position on the map is finer than your layer, so **Share my position** (settings, the gear of the window) is
+**off by default**. While it is on, the addon sends the map and your coordinates to the guild channel every few
+seconds while you move, on its own addon prefix (`NRAGEPOS`); the message carries only the map and two numbers, not
+your name, class or level (the others already know those from the guild roster). Guildmates see you as a pin on the
+minimap and the world map. Nothing is saved: positions are kept **in memory only** and forgotten by everyone after 60
+seconds without a new message. Switching sharing off tells the guild once to forget you and sends nothing more.
+Nothing is sent from an instance or a battleground. Receiving and drawing do not need sharing: **Show guildmates on
+the minimap** and **Show guildmates on the world map** (both on by default) only control what you see.
 
 ## Taking data back
 

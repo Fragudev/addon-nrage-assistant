@@ -395,6 +395,29 @@ local function buildSettings(stack)
       ns.MinimapButton.ResetPosition(ns.db)
     end,
   })
+  local sharing = ns.PositionModel.Settings(ns.db)
+  Kit.Switch(stack, {
+    label = L("Share my position"),
+    description = L("Guildmates see where you are on the map. Turn it off and they forget it."),
+    checked = sharing.share,
+    onChange = function(on)
+      ns.SetPositionShare(on)
+    end,
+  })
+  Kit.Switch(stack, {
+    label = L("Show guildmates on the minimap"),
+    checked = sharing.minimap,
+    onChange = function(on)
+      ns.SetPositionDisplay("minimap", on)
+    end,
+  })
+  Kit.Switch(stack, {
+    label = L("Show guildmates on the world map"),
+    checked = sharing.worldmap,
+    onChange = function(on)
+      ns.SetPositionDisplay("worldmap", on)
+    end,
+  })
   Kit.Switch(stack, {
     label = L("Blacklist alert sound"),
     checked = settings.BlacklistSound(ns.db),
