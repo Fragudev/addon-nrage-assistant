@@ -23,8 +23,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+
+      # Every tag needs hand-written release notes in release-notes/<tag>.md. They are the
+      # changelog on both GitHub and CurseForge, so the release stops before publishing anything.
+      - name: Check release notes
+        run: |
+          if [[ ! -s "release-notes/${GITHUB_REF_NAME}.md" ]]; then
+            echo "::error::Missing release-notes/${GITHUB_REF_NAME}.md. Add it and tag again."
+            exit 1
+          fi
 
       - name: Build zip
         run: tools/package.sh "${GITHUB_REF_NAME}"
@@ -39,7 +46,7 @@ jobs:
           fi
           gh release create "${GITHUB_REF_NAME}" "NrageAssistant-${GITHUB_REF_NAME}.zip" \
             --title "Nrage Assistant ${GITHUB_REF_NAME}" \
-            --generate-notes $prerelease
+            --notes-file "release-notes/${GITHUB_REF_NAME}.md" $prerelease
 
       # The CurseForge game version is derived from the TOC Interface (16001 -> 1.60.1) and
       # resolved to its ID. The optional CF_GAME_VERSION_ID repository variable (comma-separated
@@ -74,15 +81,7 @@ jobs:
           if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
             release_type="beta"
           fi
-          # Changelog: user-facing commits (feat/fix/perf) that touch the addon folder since the
-          # previous release. Workflow, tooling and packaging changes never reach CurseForge.
-          previous="$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
-          changelog="$(git log --no-merges --format='%s' ${previous:+"${previous}..${GITHUB_REF_NAME}"} -- NrageAssistant/ \
-            | grep -E '^(feat|fix|perf)(\([^)]*\))?!?: ' \
-            | sed -E 's/^(feat|fix|perf)(\([^)]*\))?!?: (.*)/- \1: \3/' || true)"
-          if [[ -z "${changelog}" ]]; then
-            changelog="Maintenance release."
-          fi
+          changelog="$(cat "release-notes/${GITHUB_REF_NAME}.md")"
           metadata="$(jq -n \
             --arg name "Nrage Assistant ${GITHUB_REF_NAME}" \
             --arg log "${changelog}" \
