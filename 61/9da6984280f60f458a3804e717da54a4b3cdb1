@@ -1,0 +1,123 @@
+.luacheckrc
+  s_80f29c239bcec0::t_51aca6c788807b 41-46
+NrageAssistant/Commands/PvPSeasonCommands.lua
+  s_80f29c239bcec0::t_488cf2a29c548f 1-280
+NrageAssistant/Commands/Slash.lua
+  s_80f29c239bcec0::t_502687fa8adc21 78-88,91
+NrageAssistant/Core/Constants.lua
+  s_80f29c239bcec0::t_d98fc0cf1f4bde 5,21,209-287
+NrageAssistant/Core/Init.lua
+  s_80f29c239bcec0::t_951a3ef042aab4 58-118,184-189,193,732-787,811
+NrageAssistant/Core/Platform.lua
+  s_80f29c239bcec0::t_18cd74a43948f3 474-559
+NrageAssistant/Core/PvPProbe.lua
+  s_80f29c239bcec0::t_f0e1825caca78b 6-9,22-26,33-34,53-65,90-130,145-156,217-229,231-237,244,269-270,272-279,321-328
+NrageAssistant/Core/PvPProbeLog.lua
+  s_80f29c239bcec0::t_71843b12af2c70 129-152
+NrageAssistant/Core/Store.lua
+  s_80f29c239bcec0::t_38036d186e5666 8-12,93-117,154-156
+NrageAssistant/Domain/PermissionService.lua
+  s_80f29c239bcec0::t_f915ddd52b3fed 46-56,59-61,155-163
+NrageAssistant/Domain/PvPFeed.lua
+  s_80f29c239bcec0::t_ba3d73ca730bbe 20-24,140-151
+NrageAssistant/Domain/PvPMissionService.lua
+  s_80f29c239bcec0::t_5ec70098e10b8d 1-361
+NrageAssistant/Domain/PvPMissionTracker.lua
+  s_80f29c239bcec0::t_2e321585331625 1-274
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_80f29c239bcec0::t_9279cd228677c1 1-949
+NrageAssistant/Domain/PvPSeasonService.lua
+  s_80f29c239bcec0::t_fefc23032d9031 1-857
+NrageAssistant/Domain/PvPUnitCache.lua
+  s_80f29c239bcec0::t_21a5ce1a529e5a 1-90
+NrageAssistant/Locales/esES.lua
+  s_80f29c239bcec0::t_d727e5492a8b3f 754-1004
+NrageAssistant/NrageAssistant.toc
+  s_80f29c239bcec0::t_8804b060bdbb42 35-36,49-51,74,94,119
+NrageAssistant/Sync/Comm.lua
+  s_80f29c239bcec0::t_81e8d4730bb6cb 17-19,52-60,267-269,363-372,379-380,383,399-404,408-414,543-695,1050-1060,1102-1103
+NrageAssistant/Sync/Protocol.lua
+  s_80f29c239bcec0::t_4f4fac855d6ab3 501-542,573-584
+NrageAssistant/Sync/PvPSeasonSync.lua
+  s_80f29c239bcec0::t_1006f22ddd9694 1-874
+NrageAssistant/UI/Main.lua
+  s_80f29c239bcec0::t_3d1f0d58864070 204-212
+NrageAssistant/UI/Tabs/Members.lua
+  s_80f29c239bcec0::t_5324c57beead77 166,181,195,198-217,257-261,263,281
+NrageAssistant/UI/Tabs/PvP.lua
+  s_80f29c239bcec0::t_cd048df6aafa7b 3-6,12-14,17-20,25-33,36-98,125-129,142-148,254,262,271-274,354-1602,1606,1608-1609,1611,1618-1621,1624-1627,1629
+NrageAssistant/UI/ViewModelHome.lua
+  s_80f29c239bcec0::t_d07cbc3f2c7747 349,360,412
+NrageAssistant/UI/ViewModelPvP.lua
+  s_80f29c239bcec0::t_0d62890881e7b4 1-939
+README.md
+  s_80f29c239bcec0::t_76efa233825719 5,42,49-52
+docs/API_NOTES.md
+  s_80f29c239bcec0::t_0fcf93e44e39b3 128-148,230-231
+docs/PRIVACY.md
+  s_80f29c239bcec0::t_2fb69f745ee5a5 33-34,96-112
+docs/PROTOCOL.md
+  s_80f29c239bcec0::t_59dadae4451990 21-22,34,37-38,72-83,313-365,389-391,406-407,423-425
+docs/PVP_MISSIONS_PLAN.md
+  s_80f29c239bcec0::t_f622de220ec1ec 1-659
+docs/REDESIGN_PLAN.md
+  s_80f29c239bcec0::t_a7450e3354f251 542-545,547,580-586,648
+docs/USER_GUIDE.md
+  s_80f29c239bcec0::t_00b8084701a61b 72-74,211-213,229,231,244,260-533,642
+tests/comm_spec.lua
+  s_80f29c239bcec0::t_77b9a909ed2e86 15,34,69-71,140-146,1749-2167
+tests/constants_spec.lua
+  s_80f29c239bcec0::t_a2869c58a5eb17 13-14,105-109
+tests/permission_service_spec.lua
+  s_80f29c239bcec0::t_df387ced3fbfcd 301-355
+tests/platform_unmeasured_spec.lua
+  s_80f29c239bcec0::t_09ef577d0c924f 354-556
+tests/protocol_spec.lua
+  s_80f29c239bcec0::t_1aa6263f170407 10,661-662,838-993
+tests/pvp_feed_spec.lua
+  s_80f29c239bcec0::t_7c1d89548d988b 23,54-59,79-106
+tests/pvp_mission_service_spec.lua
+  s_80f29c239bcec0::t_62551f811066bc 1-549
+tests/pvp_mission_tracker_spec.lua
+  s_80f29c239bcec0::t_65d637cf1527c4 1-356
+tests/pvp_probe_log_spec.lua
+  s_80f29c239bcec0::t_482c53252b0fbe 197-226
+tests/pvp_season_commands_spec.lua
+  s_80f29c239bcec0::t_47f220afe9ab20 1-358
+tests/pvp_season_model_spec.lua
+  s_80f29c239bcec0::t_08953104660a26 1-682
+tests/pvp_season_service_spec.lua
+  s_80f29c239bcec0::t_fcc5dbf5437154 1-928
+tests/pvp_season_sync_spec.lua
+  s_80f29c239bcec0::t_505fd4b273fc29 1-1311
+tests/pvp_unit_cache_spec.lua
+  s_80f29c239bcec0::t_c26f9e38f57994 1-94
+tests/roster_sync_spec.lua
+  s_80f29c239bcec0::t_3caf734c504f4f 15,34,77,79
+tests/settings_spec.lua
+  s_80f29c239bcec0::t_bce8a5763681e9 112
+tests/store_spec.lua
+  s_80f29c239bcec0::t_bec996504f099a 28,36,50,57,92,120,147,207,216,236,266,283,308,324-366
+tests/ui_smoke_spec.lua
+  s_80f29c239bcec0::t_b12e4776fe2428 23-27,52,279-301,1243-1245,1254,1265-1266,1279,1283,1287-1288,1294-1299,1322-1323,1341-1344,1393-1978
+tests/view_model_pvp_spec.lua
+  s_80f29c239bcec0::t_9d694aeddb8939 1-825
+tests/view_model_spec.lua
+  s_80f29c239bcec0::t_a8afdd8bf3c98a 2105-2113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "619da6984280f60f458a3804e717da54a4b3cdb1",
+  "prompts": {},
+  "sessions": {
+    "s_80f29c239bcec0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f342a01-0fb7-413e-ad85-4ab18de2b9f2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
