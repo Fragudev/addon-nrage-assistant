@@ -105,8 +105,9 @@ jobs:
             --arg type "${release_type}" \
             --argjson versions "[${CF_GAME_VERSION_ID}]" \
             '{displayName: $name, changelog: $log, changelogType: "markdown", releaseType: $type, gameVersions: $versions}')"
-          # --fail-with-body keeps CurseForge's error message in the log.
+          # --fail-with-body keeps CurseForge's error message in the log. The metadata goes as
+          # --form-string because -F cuts the value at the first ';' in the changelog.
           curl -sS --fail-with-body -H "X-Api-Token: ${CF_API_TOKEN}" \
-            -F "metadata=${metadata}" \
+            --form-string "metadata=${metadata}" \
             -F "file=@NrageAssistant-${TAG}.zip" \
             "https://wow.curseforge.com/api/projects/${CF_PROJECT_ID}/upload-file"
