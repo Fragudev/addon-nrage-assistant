@@ -1,0 +1,95 @@
+.luacheckrc
+  s_80f29c239bcec0::t_de6e935d790644 17-23
+NrageAssistant/Core/Init.lua
+  s_80f29c239bcec0::t_5b1d6bff58347c 356-513,692
+NrageAssistant/Core/Platform.lua
+  s_80f29c239bcec0::t_32eaa0a9fd8837 670-712
+NrageAssistant/Domain/PermissionService.lua
+  s_80f29c239bcec0::t_81a1bc0c18f041 27-28
+NrageAssistant/Domain/PositionDirectory.lua
+  s_80f29c239bcec0::t_133cb0e0dff65b 1-99
+NrageAssistant/Domain/PositionModel.lua
+  s_80f29c239bcec0::t_b5b791242acd1d 1-99
+NrageAssistant/Domain/PositionPins.lua
+  s_80f29c239bcec0::t_244eda42f62b7c 1-69
+NrageAssistant/Domain/PositionPublisher.lua
+  s_80f29c239bcec0::t_e5ebf4e9b9688e 1-79
+NrageAssistant/Libs/HereBeDragons/HereBeDragons-2.0.lua
+  s_80f29c239bcec0::t_ec5554866449a1 1-697
+NrageAssistant/Libs/HereBeDragons/HereBeDragons-Pins-2.0.lua
+  s_80f29c239bcec0::t_c0846b6f5f336c 1-816
+NrageAssistant/Libs/HereBeDragons/LICENSE.txt
+  s_80f29c239bcec0::t_3332aa82d1cbf8 1-10
+NrageAssistant/Libs/README.md
+  s_80f29c239bcec0::t_f58aadc93fb73d 10,12-14
+NrageAssistant/Locales/esES.lua
+  s_80f29c239bcec0::t_693870677e9cfa 747-755
+NrageAssistant/NrageAssistant.toc
+  s_80f29c239bcec0::t_67e78c76ba7aee 54-57,71,106
+NrageAssistant/Sync/PositionSync.lua
+  s_80f29c239bcec0::t_d4581e760e0aba 1-52
+NrageAssistant/UI/Main.lua
+  s_80f29c239bcec0::t_a2a694056f5491 389-411
+NrageAssistant/UI/MapPins.lua
+  s_80f29c239bcec0::t_c2478cc4ecd7ed 1-190
+NrageAssistant/embeds.xml
+  s_80f29c239bcec0::t_c744edba23cc4e 4-5
+docs/API_NOTES.md
+  s_80f29c239bcec0::t_d50d553cc088c1 74-103,208
+docs/PRIVACY.md
+  s_80f29c239bcec0::t_d80b49bf472b3f 27,102-112
+docs/PROTOCOL.md
+  s_80f29c239bcec0::t_f670952ad52f61 167-200
+docs/USER_GUIDE.md
+  s_80f29c239bcec0::t_fb5cf5b31ccbc0 32-35,318-334
+tests/constants_spec.lua
+  s_80f29c239bcec0::t_1e3da064cace7a 17-27
+tests/embeds_spec.lua
+  s_80f29c239bcec0::t_9a7b5f3e150e22 41
+tests/map_pins_spec.lua
+  s_80f29c239bcec0::t_667d8e22446cd3 1-336
+tests/permission_service_spec.lua
+  s_80f29c239bcec0::t_69d6138d28ced8 95-101
+tests/platform_unmeasured_spec.lua
+  s_80f29c239bcec0::t_101d8876631df5 353-474
+tests/position_directory_spec.lua
+  s_80f29c239bcec0::t_bb169a05fa291f 1-165
+tests/position_model_spec.lua
+  s_80f29c239bcec0::t_1ac88e4609a828 1-186
+tests/position_pins_spec.lua
+  s_80f29c239bcec0::t_4da25bc43a7d54 1-181
+tests/position_publisher_spec.lua
+  s_80f29c239bcec0::t_864a4bdb5906ca 1-201
+tests/position_sync_spec.lua
+  s_80f29c239bcec0::t_31c2dda3d89e81 1-157
+tests/stubs/wow_api.lua
+  s_80f29c239bcec0::t_bf522e95ca45ac 53-72
+tests/ui_smoke_spec.lua
+  s_80f29c239bcec0::t_7d83766cd49fda 36,1649-1669
+docs/GUILD_MAP_PLAN.md
+  s_408762919a9467::t_0b54ad3bbd7097 1-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "621dd85ca1753e460243c5772a2246249aa6c158",
+  "prompts": {},
+  "sessions": {
+    "s_408762919a9467": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa61aeeafa4baeeab",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_80f29c239bcec0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f342a01-0fb7-413e-ad85-4ab18de2b9f2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
