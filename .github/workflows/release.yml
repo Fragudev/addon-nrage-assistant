@@ -4,16 +4,27 @@ on:
   push:
     tags:
       - "v*"
+  # Re-publishes an existing tag, for example after a failed CurseForge upload. The tag's own
+  # files are built; the GitHub release is created only when it does not exist yet.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish (for example v0.1.0-beta.8)
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 env:
+  TAG: ${{ inputs.tag || github.ref_name }}
   CF_PROJECT_ID: "1757381"
 
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
 
   release:
     needs: ci
@@ -23,30 +34,36 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       # Every tag needs hand-written release notes in release-notes/<tag>.md. They are the
       # changelog on both GitHub and CurseForge, so the release stops before publishing anything.
       - name: Check release notes
         run: |
-          if [[ ! -s "release-notes/${GITHUB_REF_NAME}.md" ]]; then
-            echo "::error::Missing release-notes/${GITHUB_REF_NAME}.md. Add it and tag again."
+          if [[ ! -s "release-notes/${TAG}.md" ]]; then
+            echo "::error::Missing release-notes/${TAG}.md. Add it and tag again."
             exit 1
           fi
 
       - name: Build zip
-        run: tools/package.sh "${GITHUB_REF_NAME}"
+        run: tools/package.sh "${TAG}"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "GitHub release ${TAG} already exists, skipping."
+            exit 0
+          fi
           prerelease=""
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+          if [[ "${TAG}" == *-* ]]; then
             prerelease="--prerelease"
           fi
-          gh release create "${GITHUB_REF_NAME}" "NrageAssistant-${GITHUB_REF_NAME}.zip" \
-            --title "Nrage Assistant ${GITHUB_REF_NAME}" \
-            --notes-file "release-notes/${GITHUB_REF_NAME}.md" $prerelease
+          gh release create "${TAG}" "NrageAssistant-${TAG}.zip" \
+            --title "Nrage Assistant ${TAG}" \
+            --notes-file "release-notes/${TAG}.md" $prerelease
 
       # The CurseForge game version is derived from the TOC Interface (16001 -> 1.60.1) and
       # resolved to its ID. The optional CF_GAME_VERSION_ID repository variable (comma-separated
@@ -78,17 +95,18 @@ jobs:
           fi
           # Tags with a pre-release suffix (v0.1.0-beta.7) ship as beta, the rest as release.
           release_type="release"
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+          if [[ "${TAG}" == *-* ]]; then
             release_type="beta"
           fi
-          changelog="$(cat "release-notes/${GITHUB_REF_NAME}.md")"
+          changelog="$(cat "release-notes/${TAG}.md")"
           metadata="$(jq -n \
-            --arg name "Nrage Assistant ${GITHUB_REF_NAME}" \
+            --arg name "Nrage Assistant ${TAG}" \
             --arg log "${changelog}" \
             --arg type "${release_type}" \
             --argjson versions "[${CF_GAME_VERSION_ID}]" \
             '{displayName: $name, changelog: $log, changelogType: "markdown", releaseType: $type, gameVersions: $versions}')"
-          curl -fsS -H "X-Api-Token: ${CF_API_TOKEN}" \
+          # --fail-with-body keeps CurseForge's error message in the log.
+          curl -sS --fail-with-body -H "X-Api-Token: ${CF_API_TOKEN}" \
             -F "metadata=${metadata}" \
-            -F "file=@NrageAssistant-${GITHUB_REF_NAME}.zip" \
+            -F "file=@NrageAssistant-${TAG}.zip" \
             "https://wow.curseforge.com/api/projects/${CF_PROJECT_ID}/upload-file"
