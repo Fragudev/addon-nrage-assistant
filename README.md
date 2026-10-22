@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.curseforge.com/projects/1757381"><b>Get it on CurseForge</b></a> ·
+  <a href="https://www.curseforge.com/wow/addons/nrage-assistant"><b>Get it on CurseForge</b></a> ·
   <a href="https://github.com/Fragudev/addon-nrage-assistant/releases"><b>Download from Releases</b></a> ·
   <a href="docs/USER_GUIDE.md"><b>User guide</b></a>
 </p>
@@ -16,7 +16,7 @@
   <img alt="World of Warcraft: Forever, client 1.60.1" src="https://img.shields.io/badge/WoW-Forever_1.60.1-94c9ff?style=flat-square&labelColor=1c1a17">
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-fabf4d?style=flat-square&labelColor=1c1a17">
   <img alt="Guild: Nrage, Alliance" src="https://img.shields.io/badge/guild-Nrage_·_Alliance-3d6fd1?style=flat-square&labelColor=1c1a17">
-  <a href="https://www.curseforge.com/projects/1757381"><img alt="CurseForge: Nrage Assistant" src="https://img.shields.io/badge/CurseForge-Nrage_Assistant-f16436?style=flat-square&logo=curseforge&logoColor=white&labelColor=1c1a17"></a>
+  <a href="https://www.curseforge.com/wow/addons/nrage-assistant"><img alt="CurseForge: Nrage Assistant" src="https://img.shields.io/badge/CurseForge-Nrage_Assistant-f16436?style=flat-square&logo=curseforge&logoColor=white&labelColor=1c1a17"></a>
 </p>
 
 <p align="center">
@@ -42,7 +42,7 @@
 ## Quick start
 
 1. **Install it with the CurseForge app** (search for
-   [Nrage Assistant](https://www.curseforge.com/projects/1757381)), then skip to step 3.
+   [Nrage Assistant](https://www.curseforge.com/wow/addons/nrage-assistant)), then skip to step 3.
    **Or download** `NrageAssistant-<version>.zip` from the newest release on the
    [Releases page](https://github.com/Fragudev/addon-nrage-assistant/releases), under *Assets* (not "Source code").
 2. **Unzip it into the game's AddOns folder**:
