@@ -1,0 +1,19 @@
+README.md
+  s_d9c8371c63f351::t_4e899f66988b08 1-55,57,59-66,68,70-73,75-76,78-81,83-106,108,110-132,138-146,150-158,160-190,201,203,208,214-216,222-224,226,228-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69f3b522d2ab7764d619c6ea25aa1834084522ef",
+  "prompts": {},
+  "sessions": {
+    "s_d9c8371c63f351": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c659a2da-6bff-4aaa-9843-4954a5bb3d2a",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
