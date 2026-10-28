@@ -203,7 +203,7 @@ local function build(rank, locale)
       sync = { tombstones = {} },
       pvpStats = {},
       blacklist = {},
-      readinessRules = {},
+      readinessRulesByRoster = {},
       rosters = {},
       members = {},
       recipes = {},
@@ -254,15 +254,17 @@ local function build(rank, locale)
       env.sent[#env.sent + 1] = "ResetPvP:" .. target
       return true, 3, true
     end,
-    SetReadinessRules = function(_, rules)
+    SetReadinessRules = function(_, rosterId, rules)
       local clean, reason = ns.ReadinessRules.Validate(rules)
       if not clean then
         return false, reason
       end
-      local record = ns.db.global.readinessRules
+      local record = ns.db.global.readinessRulesByRoster[rosterId] or {}
+      ns.db.global.readinessRulesByRoster[rosterId] = record
       record.rev = (record.rev or 0) + 1
       record.rules = clean
       env.sent[#env.sent + 1] = "SetReadinessRules"
+      env.rulesRoster = rosterId
       return true, record.rev
     end,
   }
@@ -726,6 +728,55 @@ describe("Window smoke test", function()
       local header = env.find(ready, "PageHeader")
       assert.are.equal("Raid check", header.opts.title)
       assert.is_truthy(header.opts.badge.text:find("met", 1, true))
+    end)
+
+    local function with_second_roster(target, rules)
+      target.ns.db.global.rosters.r2 = { id = "r2", name = "Second", rev = 1, updatedAt = 1 }
+      target.ns.db.global.readinessRulesByRoster.r2 = { rev = 1, rules = rules }
+    end
+
+    local ONE_RULE = { { id = "only", label = "Only rule", check = "confirm", evidenceMode = "manual" } }
+
+    it("measures a roster player against its own roster, with no selector", function()
+      env = build("Roster")
+      with_second_roster(env, ONE_RULE)
+      local ready = env.open("ready")
+      assert.are.equal(5, #FakeKit.find_all(ready, "List")[1].opts.rows)
+      assert.is_nil(FakeKit.find(ready, "Dropdown"))
+      assert.is_truthy(env.text():find("Roster: Main", 1, true))
+    end)
+
+    it("lets gm and cogm pick the roster whose rules to measure", function()
+      for _, rank in ipairs({ "GM", "CoGM" }) do
+        env = build(rank)
+        with_second_roster(env, ONE_RULE)
+        local ready = env.open("ready")
+        local selector = FakeKit.find(ready, "Dropdown")
+        assert.are.equal(2, #selector.opts.items, rank)
+        -- No roster of their own: the first by name.
+        assert.are.equal("r1", selector.opts.value, rank)
+        assert.are.equal(5, #FakeKit.find_all(ready, "List")[1].opts.rows, rank)
+        selector.opts.onChange("r2")
+        local rows = FakeKit.find_all(env.page(), "List")[1].opts.rows
+        assert.are.equal(1, #rows, rank)
+        assert.are.equal("Only rule", rows[1].title, rank)
+        pcall(env.close)
+      end
+    end)
+
+    it("says there is no roster to check against when a gm has none", function()
+      env = build("GM")
+      env.ns.db.global.rosters = {}
+      env.open("ready")
+      assert.is_truthy(env.text():find("There is no roster to check against.", 1, true))
+    end)
+
+    it("redraws when the rules change", function()
+      env = build("GM")
+      env.open("ready")
+      local count = #env.ns.Kit.fake.nodes
+      env.ns.UI.RulesChanged()
+      assert.is_true(#env.ns.Kit.fake.nodes > count)
     end)
   end)
 
@@ -2372,16 +2423,82 @@ describe("Window smoke test: Rules", function()
     return FakeKit.find_all(env.page(), "Card")
   end
 
-  it("says it is for the guild master and the co-guild master when anyone else gets there", function()
-    for _, rank in ipairs({ "RL", "Council", "Roster", "Member" }) do
+  it("shows nothing to edit to roster, member and alter", function()
+    for _, rank in ipairs({ "Roster", "Member", "Alter" }) do
       env = build(rank)
       env.forceTabs = true
       env.open("rules")
-      assert.is_truthy(
-        env.text():find("Only the guild master and the co-guild master can edit the readiness rules.", 1, true),
-        rank
-      )
+      assert.is_truthy(env.text():find("There is no roster to show rules for.", 1, true), rank)
       assert.is_nil(env.find(env.page(), "List"), rank)
+      pcall(env.close)
+    end
+  end)
+
+  local function all_disabled(nodes)
+    assert.is_true(#nodes > 0)
+    for _, node in ipairs(nodes) do
+      assert.is_true(node.opts.disabled, node.opts.text or node.opts.tooltip or node.opts.label)
+    end
+  end
+
+  local function with_second_roster(target)
+    target.ns.db.global.rosters.r2 = { id = "r2", name = "Second", rev = 1, updatedAt = 1 }
+  end
+
+  it("shows the officer every roster with the selector, read only", function()
+    env = build("Officer")
+    with_second_roster(env)
+    env.open("rules")
+    local selector = FakeKit.find_all(env.page(), "Dropdown")[1]
+    assert.are.equal(2, #selector.opts.items)
+    assert.are.equal("r1", selector.opts.value)
+    selector.opts.onChange("r2")
+    assert.are.equal("r2", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
+    assert.are.equal(5, #FakeKit.find(env.page(), "List").opts.rows)
+    assert.is_truthy(env.text():find("Read only", 1, true))
+    assert.is_nil(env.text():find("Sent to the guild automatically", 1, true))
+    -- Controls are there, but disabled.
+    local row = FakeKit.find(env.page(), "List").opts.rows[1]
+    all_disabled({ row.rights[1], row.rights[2] })
+    local boxes = FakeKit.find_all(env.page(), "EditBox")
+    all_disabled(boxes)
+    all_disabled({ FakeKit.find_all(env.page(), "Dropdown")[2] })
+    all_disabled({
+      FakeKit.find(env.page(), "Button", "Add rule"),
+      FakeKit.find(env.page(), "Button", "Use the starting list"),
+    })
+    env.press("Add rule")
+    assert.are.same({}, env.sent)
+  end)
+
+  it("lets an rl edit its own roster, with no selector", function()
+    env = build("RL")
+    with_second_roster(env)
+    env.open("rules")
+    assert.is_truthy(env.text():find("Roster: Main", 1, true))
+    assert.are.equal("Kind", FakeKit.find_all(env.page(), "Field")[1].opts.label)
+    assert.is_nil(FakeKit.find_all(env.page(), "Dropdown")[2])
+    assert.is_truthy(env.text():find("Sent to the guild automatically", 1, true))
+    local boxes = FakeKit.find_all(env.page(), "EditBox")
+    boxes[1].opts.onChange("Tough")
+    boxes[2].opts.onChange("70")
+    env.press("Add rule")
+    assert.are.same({ "SetReadinessRules", "r1" }, { env.sent[1], env.rulesRoster })
+  end)
+
+  it("lets gm and cogm pick a roster and edit it without touching the others", function()
+    for _, rank in ipairs({ "GM", "CoGM" }) do
+      env = build(rank)
+      with_second_roster(env)
+      env.open("rules")
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("r2")
+      local boxes = FakeKit.find_all(env.page(), "EditBox")
+      boxes[1].opts.onChange("Tough")
+      boxes[2].opts.onChange("70")
+      env.press("Add rule")
+      assert.are.equal("r2", env.rulesRoster, rank)
+      assert.are.equal(6, #env.ns.db.global.readinessRulesByRoster.r2.rules, rank)
+      assert.is_nil(env.ns.db.global.readinessRulesByRoster.r1, rank)
       pcall(env.close)
     end
   end)
@@ -2407,7 +2524,7 @@ describe("Window smoke test: Rules", function()
     env.press("Add rule")
     assert.are.equal("SetReadinessRules", env.sent[1])
     assert.are.equal("success", env.banner().opts.kind)
-    local rules = env.ns.db.global.readinessRules.rules
+    local rules = env.ns.db.global.readinessRulesByRoster.r1.rules
     assert.are.equal("Tough", rules[#rules].label)
     assert.are.equal(70, rules[#rules].min)
   end)
@@ -2430,11 +2547,11 @@ describe("Window smoke test: Rules", function()
   it("builds each kind of rule from its controls", function()
     env = build("GM")
     env.open("rules")
-    local kind = FakeKit.find_all(env.page(), "Dropdown")[1]
+    local kind = FakeKit.find_all(env.page(), "Dropdown")[2]
     for _, check in ipairs({ "ilvl", "enchants", "buff", "profession", "field", "confirm" }) do
       kind.opts.onChange(check)
       env.open("rules")
-      kind = FakeKit.find_all(env.page(), "Dropdown")[1]
+      kind = FakeKit.find_all(env.page(), "Dropdown")[2]
       assert.are.equal(check, kind.opts.value)
     end
     kind.opts.onChange("enchants")
@@ -2446,17 +2563,17 @@ describe("Window smoke test: Rules", function()
       end
     end
     env.press("Add rule")
-    local rules = env.ns.db.global.readinessRules.rules
+    local rules = env.ns.db.global.readinessRulesByRoster.r1.rules
     assert.are.same({ 5 }, rules[#rules].slots)
 
-    kind = FakeKit.find_all(env.page(), "Dropdown")[1]
+    kind = FakeKit.find_all(env.page(), "Dropdown")[2]
     kind.opts.onChange("profession")
     env.open("rules")
     FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("Alchemist")
-    FakeKit.find_all(env.page(), "Dropdown")[2].opts.onChange("Alchemy")
+    FakeKit.find_all(env.page(), "Dropdown")[3].opts.onChange("Alchemy")
     FakeKit.find_all(env.page(), "EditBox")[2].opts.onChange("300")
     env.press("Add rule")
-    rules = env.ns.db.global.readinessRules.rules
+    rules = env.ns.db.global.readinessRulesByRoster.r1.rules
     assert.are.same({ "Alchemy", 300 }, { rules[#rules].profession, rules[#rules].min })
   end)
 
@@ -2471,7 +2588,7 @@ describe("Window smoke test: Rules", function()
     boxes[1].opts.onChange("Level 70")
     boxes[2].opts.onChange("70")
     env.press("Save rule")
-    local rules = env.ns.db.global.readinessRules.rules
+    local rules = env.ns.db.global.readinessRulesByRoster.r1.rules
     assert.are.same({ "level", "Level 70", 70 }, { rules[1].id, rules[1].label, rules[1].min })
     assert.are.equal(5, #rules)
     FakeKit.find(env.page(), "List").opts.rows[2].rights[2].opts.onClick()
@@ -2484,24 +2601,24 @@ describe("Window smoke test: Rules", function()
     env.open("rules")
     FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
     FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
-    assert.are.equal(4, #env.ns.db.global.readinessRules.rules)
-    env.ns.db.global.readinessRules.rules = { env.ns.db.global.readinessRules.rules[1] }
+    assert.are.equal(4, #env.ns.db.global.readinessRulesByRoster.r1.rules)
+    env.ns.db.global.readinessRulesByRoster.r1.rules = { env.ns.db.global.readinessRulesByRoster.r1.rules[1] }
     env.ns.UI.Redraw()
     FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
     FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
     assert.are.equal("danger", env.banner().opts.kind)
-    assert.are.equal(1, #env.ns.db.global.readinessRules.rules)
+    assert.are.equal(1, #env.ns.db.global.readinessRulesByRoster.r1.rules)
   end)
 
   it("puts the starting list back only after a second click, and links to Readiness", function()
     env = build("GM")
-    env.ns.db.global.readinessRules =
+    env.ns.db.global.readinessRulesByRoster.r1 =
       { rev = 1, rules = { { id = "x", label = "X", check = "confirm", category = "c", evidenceMode = "manual" } } }
     env.open("rules")
     env.press("Use the starting list")
-    assert.are.equal(1, #env.ns.db.global.readinessRules.rules)
+    assert.are.equal(1, #env.ns.db.global.readinessRulesByRoster.r1.rules)
     env.press("Confirm: replace every rule with the starting list")
-    assert.are.equal(5, #env.ns.db.global.readinessRules.rules)
+    assert.are.equal(5, #env.ns.db.global.readinessRulesByRoster.r1.rules)
     env.press("See how members see it")
     assert.are.equal("ready", env.ns.UI.CurrentTab())
   end)

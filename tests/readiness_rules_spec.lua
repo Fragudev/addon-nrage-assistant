@@ -92,7 +92,7 @@ describe("ReadinessRules.Validate", function()
 end)
 
 describe("ReadinessRules.Active", function()
-  it("falls back to the starting rules until the guild sets its own", function()
+  it("falls back to the starting rules until the roster sets its own", function()
     assert.are.equal(ns.Constants.DEFAULT_RULES, Rules.Active({}))
     assert.are.equal(ns.Constants.DEFAULT_RULES, Rules.Active(nil))
     local own = { rule() }
@@ -100,63 +100,155 @@ describe("ReadinessRules.Active", function()
   end)
 end)
 
+describe("ReadinessRules.Current", function()
+  local own = { rule({ min = 55 }) }
+
+  before_each(function()
+    ns.db = { global = { readinessRulesByRoster = { r1 = { rev = 1, rules = own } } } }
+  end)
+
+  after_each(function()
+    ns.db = nil
+  end)
+
+  it("answers the rules of that roster", function()
+    assert.are.equal(own, Rules.Current("r1"))
+  end)
+
+  it("answers the starting rules for a roster without a record", function()
+    assert.are.equal(ns.Constants.DEFAULT_RULES, Rules.Current("r2"))
+  end)
+
+  it("answers no rules without a roster", function()
+    assert.are.same({}, Rules.Current(nil))
+  end)
+
+  it("finds the record of a roster", function()
+    assert.are.equal(ns.db.global.readinessRulesByRoster.r1, Rules.Record("r1"))
+    assert.is_nil(Rules.Record("r2"))
+    assert.is_nil(Rules.Record(nil))
+  end)
+end)
+
 local function message(overrides)
-  local payload = { rev = 1, updatedAt = NOW - 10, rules = { rule() } }
+  local payload = { rosterId = "r1", rev = 1, updatedAt = NOW - 10, rules = { rule() } }
   for k, v in pairs(overrides or {}) do
     payload[k] = v
   end
-  local clean, reason = Protocol.Validate(Protocol.Build("READINESS_RULES", payload, "id-1"))
+  local clean, reason = Protocol.Validate(Protocol.Build("ROSTER_RULES", payload, "id-1"))
   assert(clean, reason)
   return clean
 end
 
+-- Two rosters; Ann and Rita are in r1, Rob in r2, Nina in none.
 local function context()
   return {
-    record = {},
+    records = {},
+    rosters = { r1 = { id = "r1", name = "Alpha" }, r2 = { id = "r2", name = "Bravo" } },
+    members = {
+      Ann = { rosterId = "r1" },
+      Rita = { rosterId = "r1" },
+      Rob = { rosterId = "r2" },
+      Nina = {},
+    },
+    tombstones = {},
     now = function()
       return NOW
     end,
   }
 end
 
-describe("READINESS_RULES validation", function()
+describe("ROSTER_RULES validation", function()
   it("refuses a payload whose rules do not validate", function()
-    local built = Protocol.Build("READINESS_RULES", { rev = 1, updatedAt = 5, rules = { rule({ check = "x" }) } }, "id")
+    local built = Protocol.Build(
+      "ROSTER_RULES",
+      { rosterId = "r1", rev = 1, updatedAt = 5, rules = { rule({ check = "x" }) } },
+      "id"
+    )
+    assert.are.equal("bad_payload", select(2, Protocol.Validate(built)))
+  end)
+
+  it("needs a roster id", function()
+    local built = Protocol.Build("ROSTER_RULES", { rev = 1, updatedAt = 5, rules = { rule() } }, "id")
     assert.are.equal("bad_payload", select(2, Protocol.Validate(built)))
   end)
 
   it("bounds the revision and the time", function()
     local function reason(payload)
-      return select(2, Protocol.Validate(Protocol.Build("READINESS_RULES", payload, "id")))
+      return select(2, Protocol.Validate(Protocol.Build("ROSTER_RULES", payload, "id")))
     end
-    assert.are.equal("bad_payload", reason({ rev = 0, updatedAt = 5, rules = { rule() } }))
-    assert.are.equal("bad_payload", reason({ rev = 1, updatedAt = -1, rules = { rule() } }))
+    assert.are.equal("bad_payload", reason({ rosterId = "r1", rev = 0, updatedAt = 5, rules = { rule() } }))
+    assert.are.equal("bad_payload", reason({ rosterId = "r1", rev = 1, updatedAt = -1, rules = { rule() } }))
+  end)
+
+  it("no longer knows the guild-wide message", function()
+    local built = Protocol.Build("READINESS_RULES", { rev = 1, updatedAt = 5, rules = { rule() } }, "id")
+    assert.are.equal("unknown_type", select(2, Protocol.Validate(built)))
   end)
 end)
 
 describe("ReadinessRulesSync.Apply", function()
-  it("keeps the rules an admin sends and records who and when", function()
-    local ctx = context()
-    assert.is_true(Sync.Apply(ctx, message(), "Boss", "gm"))
-    assert.are.equal(1, ctx.record.rev)
-    assert.are.equal("Boss", ctx.record.updatedBy)
-    assert.are.equal(60, ctx.record.rules[1].min)
+  it("keeps the rules gm and cogm send for any roster and records who and when", function()
+    for _, role in ipairs({ "gm", "cogm" }) do
+      for _, rosterId in ipairs({ "r1", "r2" }) do
+        local ctx = context()
+        assert.is_true(Sync.Apply(ctx, message({ rosterId = rosterId }), "Boss", role))
+        local record = ctx.records[rosterId]
+        assert.are.same({ 1, "Boss", 60 }, { record.rev, record.updatedBy, record.rules[1].min })
+        assert.is_nil(ctx.records[rosterId == "r1" and "r2" or "r1"])
+      end
+    end
   end)
 
-  it("refuses anyone who is not an admin, and a sender the roster does not know", function()
-    for _, role in ipairs({ "member", "rl", "officer" }) do
+  it("keeps what an rl sends for its own roster", function()
+    local ctx = context()
+    assert.is_true(Sync.Apply(ctx, message(), "Ann", "rl"))
+    assert.are.equal("Ann", ctx.records.r1.updatedBy)
+  end)
+
+  it("refuses an rl for another roster, without a roster or unknown to the receiver", function()
+    for _, sender in ipairs({ "Rob", "Nina", "Ghost" }) do
       local ctx = context()
-      local ok, reason = Sync.Apply(ctx, message(), "Someone", role)
+      local ok, reason = Sync.Apply(ctx, message(), sender, "rl")
       assert.is_false(ok)
-      assert.are.equal("forbidden", reason)
-      assert.is_nil(ctx.record.rules)
+      assert.are.equal("forbidden", reason, sender)
+      assert.is_nil(ctx.records.r1)
     end
+  end)
+
+  it("refuses an rl whose roster no longer exists at the receiver", function()
+    local ctx = context()
+    ctx.rosters.r1 = nil
+    local ok, reason = Sync.Apply(ctx, message(), "Ann", "rl")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+  end)
+
+  it("refuses officer, roster, member and alter, even on their own roster", function()
+    for _, role in ipairs({ "officer", "roster", "member", "alter" }) do
+      local ctx = context()
+      local ok, reason = Sync.Apply(ctx, message(), "Ann", role)
+      assert.is_false(ok)
+      assert.are.equal("forbidden", reason, role)
+      assert.is_nil(ctx.records.r1)
+    end
+  end)
+
+  it("refuses a sender the roster does not know", function()
     local ok, reason = Sync.Apply(context(), message(), "Ghost", nil)
     assert.is_false(ok)
     assert.are.equal("unknown_sender", reason)
   end)
 
-  it("takes a newer revision, ignores an older one and a replay", function()
+  it("refuses the rules of a roster that was deleted", function()
+    local ctx = context()
+    ctx.tombstones["R:r1"] = { rev = 3, at = 1 }
+    local ok, reason = Sync.Apply(ctx, message(), "Boss", "gm")
+    assert.is_false(ok)
+    assert.are.equal("tombstoned", reason)
+  end)
+
+  it("takes a newer revision per roster, ignores an older one and a replay", function()
     local ctx = context()
     Sync.Apply(ctx, message({ rev = 2, rules = { rule({ min = 58 }) } }), "Boss", "gm")
     local ok, reason = Sync.Apply(ctx, message({ rev = 1, rules = { rule({ min = 40 }) } }), "Boss", "gm")
@@ -164,22 +256,70 @@ describe("ReadinessRulesSync.Apply", function()
     assert.are.equal("stale", reason)
     assert.is_false((Sync.Apply(ctx, message({ rev = 2, rules = { rule({ min = 58 }) } }), "Boss", "gm")))
     assert.is_true(Sync.Apply(ctx, message({ rev = 3, rules = { rule({ min = 60 }) } }), "Boss", "gm"))
-    assert.are.equal(60, ctx.record.rules[1].min)
+    assert.are.equal(60, ctx.records.r1.rules[1].min)
+    -- Another roster has its own revision line.
+    assert.is_true(Sync.Apply(ctx, message({ rosterId = "r2", rev = 1 }), "Boss", "gm"))
+    assert.are.equal(3, ctx.records.r1.rev)
+  end)
+
+  it("breaks a tie by time and then by sender", function()
+    local ctx = context()
+    Sync.Apply(ctx, message({ rev = 2, updatedAt = NOW - 20 }), "Boss", "gm")
+    assert.is_true(Sync.Apply(ctx, message({ rev = 2, updatedAt = NOW - 10 }), "Aaron", "cogm"))
+    assert.is_false((Sync.Apply(ctx, message({ rev = 2, updatedAt = NOW - 15 }), "Zed", "gm")))
   end)
 
   it("does not let a sender date a set in the future to win", function()
     local ctx = context()
     Sync.Apply(ctx, message({ updatedAt = NOW + 999999 }), "Boss", "gm")
-    assert.are.equal(NOW + 300, ctx.record.updatedAt)
+    assert.are.equal(NOW + 300, ctx.records.r1.updatedAt)
   end)
 
   it("builds the payload of a stored set, and none while there is no set", function()
-    assert.is_nil(Sync.Payload({}))
+    assert.is_nil(Sync.Payload("r1", {}))
+    assert.is_nil(Sync.Payload(nil, { rules = {} }))
     local ctx = context()
     Sync.Apply(ctx, message(), "Boss", "gm")
-    local payload = Sync.Payload(ctx.record)
-    assert.are.equal(1, payload.rev)
-    assert.is_table(Sync.SnapshotItem(ctx.record))
-    assert.is_nil(Sync.SnapshotItem({}))
+    local payload = Sync.Payload("r1", ctx.records.r1)
+    assert.are.same({ "r1", 1 }, { payload.rosterId, payload.rev })
+    assert.is_table(Sync.SnapshotItem("r1", ctx.records.r1))
+    assert.is_nil(Sync.SnapshotItem("r1", {}))
+  end)
+
+  it("puts every roster that has a set in a snapshot, and no deleted one", function()
+    local ctx = context()
+    Sync.Apply(ctx, message({ rosterId = "r1" }), "Boss", "gm")
+    Sync.Apply(ctx, message({ rosterId = "r2" }), "Boss", "gm")
+    ctx.records.gone = ctx.records.r1
+    local items = Sync.SnapshotItems(ctx.records, ctx.rosters)
+    assert.are.same({ "r1", "r2" }, { items[1].p.rosterId, items[2].p.rosterId })
+    assert.are.equal(2, #items)
+    ctx.rosters.r2 = nil
+    assert.are.equal(1, #Sync.SnapshotItems(ctx.records, ctx.rosters))
+  end)
+
+  it("lists the sets the own role may author", function()
+    local ctx = context()
+    Sync.Apply(ctx, message({ rosterId = "r1" }), "Boss", "gm")
+    Sync.Apply(ctx, message({ rosterId = "r2" }), "Boss", "gm")
+    local function ids(role, own)
+      local list = {}
+      for _, payload in ipairs(Sync.Authored(ctx.records, role, own)) do
+        list[#list + 1] = payload.rosterId
+      end
+      return list
+    end
+    assert.are.same({ "r1", "r2" }, ids("gm"))
+    assert.are.same({ "r1", "r2" }, ids("cogm"))
+    assert.are.same({ "r2" }, ids("rl", "r2"))
+    assert.are.same({}, ids("rl", nil))
+    assert.are.same({}, ids("officer", "r1"))
+  end)
+
+  it("drops the rules of a deleted roster", function()
+    local ctx = context()
+    Sync.Apply(ctx, message(), "Boss", "gm")
+    Sync.Forget(ctx.records, "r1")
+    assert.is_nil(ctx.records.r1)
   end)
 end)

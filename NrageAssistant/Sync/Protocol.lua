@@ -414,16 +414,16 @@ local function validateLayerSwap(payload)
   return clean
 end
 
--- The guild's readiness rules: the whole set, validated rule by rule (ReadinessRules.Validate).
-local function validateReadinessRules(payload)
-  if not validateRevision(payload) then
+-- The readiness rules of one roster: the whole set, validated rule by rule (ReadinessRules.Validate).
+local function validateRosterRules(payload)
+  if not (isId(payload.rosterId) and validateRevision(payload)) then
     return nil
   end
   local rules = ns.ReadinessRules.Validate(payload.rules)
   if not rules then
     return nil
   end
-  return { rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
+  return { rosterId = payload.rosterId, rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
 end
 
 -- Raid rosters and the roster assignments (protocol 1.5). Who may send them is decided by the receiver from its own
@@ -583,7 +583,7 @@ local VALIDATORS = {
   PVP_KILL = validatePvPKill,
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
-  READINESS_RULES = validateReadinessRules,
+  ROSTER_RULES = validateRosterRules,
   LAYER_STATE = validateLayerState,
   LAYER_SWAP = validateLayerSwap,
   RECIPES = validateRecipes,

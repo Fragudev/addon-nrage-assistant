@@ -31,11 +31,12 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ```
 
 - `v` must equal the receiver's major version (currently 1); a different major is reported as an incompatible
-  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 7): a client
+  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 9): a client
   that does not know a field drops it while validating, and a client that does not know a message type drops the
   message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
   below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`); minor 7 added the PvP season messages
-  (`PVP_SEASON` and the others of the "PvP seasons" section).
+  (`PVP_SEASON` and the others of the "PvP seasons" section); minor 8 added event sign-up (`SIGNUP_UPSERT`); minor 9
+  replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`.
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -68,7 +69,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `MEMBER_DELETE` | guild | `key`, `rev` | gm, cogm; rl, only for a member of its own roster |
 | `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
 | `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
-| `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |
+| `ROSTER_RULES` | guild | `rosterId`, `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Readiness rules per roster) | gm, cogm; rl for its own roster |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
 | `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct}`, `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
@@ -263,20 +264,26 @@ recently updated entries and the 200 newest removals, and shrinks together with 
 (halved until the snapshot fits in 32 KB). The blacklist is not part of the text export, and an imported blacklist
 item is skipped.
 
-## Guild readiness rules
+## Readiness rules per roster
 
-One set of readiness rules for the whole guild (issue #32), in a single record `{ rev, updatedAt, updatedBy, rules }`
-that an admin replaces as a whole with `READINESS_RULES`. The protocol minor version was raised to 4 for it.
+Each roster has its own set of readiness rules (issue #32, `docs/NAV_PERMISSIONS_PLAN.md` 5.1), a record
+`{ rev, updatedAt, updatedBy, rules }` per roster that is replaced as a whole with `ROSTER_RULES`. The protocol minor
+version was raised to 9 for it: the guild-wide `READINESS_RULES` (minor 4) is gone, so a new client drops it as
+`unknown_type`, and an old client drops `ROSTER_RULES` the same way.
 
-- **Authority:** `rules_edit`, admin only, read from the receiver's own guild roster. A newer `rev` wins, then
-  `updatedAt` (clamped), then the sender; a replay is a no-op. Until a set arrives, the starting checklist applies.
+- **Authority:** `rules_edit`, read from the receiver's own guild roster. gm and cogm may set the rules of any
+  roster; an rl only those of the roster it belongs to, read from the receiver's own assignments. Officer, roster,
+  member and alter are refused. A newer `rev` wins per roster, then `updatedAt` (clamped), then the sender; a replay is
+  a no-op. A roster without a record uses the starting checklist; a deleted roster (tombstone `R:<id>`) takes no rules
+  and its record is dropped.
 - **Rule validation:** every rule is checked field by field, and unknown fields are dropped. `check` is one of
   `field`, `confirm`, `level`, `ilvl`, `profession`, `enchants` or `buff`, with the numbers or lists that check
   needs (levels and item levels 1 to 999, enchant slots 1 to 18, up to 20 spell ids or names). `evidenceMode`
   is worked out from the check and never taken from the message. Ids are unique, up to 32 characters of `[%w_]`.
-- **Late joiners:** the set is part of a snapshot only when the sender is an admin, and the receiver applies it
-  under the role of the sender, so a leader who is not an admin cannot relay (or forge) rules. For the members who
-  were not online, an admin also sends the set once after login.
+- **Late joiners:** a gm or cogm snapshot carries the set of every roster (after the rosters themselves), and the
+  receiver applies each under the role of the sender. After login, gm and cogm send every stored set and an rl the
+  one of its own roster, for the members who were not online. Existing rosters start with a copy of the former
+  guild-wide set (schema 13); a new roster starts with none.
 
 ## Rosters and assigned roles
 

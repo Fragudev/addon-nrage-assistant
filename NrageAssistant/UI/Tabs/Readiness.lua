@@ -18,15 +18,27 @@ end
 
 UI.Register("ready", function(page)
   local character = ns.character
-  local rules = ns.ReadinessRules.Current()
+  -- The player's own character, measured against the rules of the selected roster: gm and cogm pick it, everyone else
+  -- is on their own.
+  local selection = UI.RosterSelection("ready", "raidcheck_view")
+  local rules = ns.ReadinessRules.Current(selection.selected)
   local results, summary = ns.ReadinessService.Evaluate(rules, character.profile, character.readiness)
   local data = ViewModel.ReadinessRows(rules, results, summary)
 
   Kit.PageHeader(page, {
     title = L("Raid check"),
-    description = L("The guild's checklist, measured on your own character."),
+    description = L("The checklist of the roster, measured on your own character."),
     badge = data.badge,
   })
+  UI.DrawRosterSelector(page, "ready", selection)
+  if selection.selected == nil then
+    Kit.EmptyState(page, {
+      icon = "check-circle",
+      title = L("There is no roster to check against."),
+      hint = L("Rosters are created in the Members tab."),
+    })
+    return
+  end
 
   local rows = {}
   for _, row in ipairs(data.rows) do

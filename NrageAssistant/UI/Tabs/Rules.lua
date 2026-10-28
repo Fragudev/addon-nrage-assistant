@@ -1,18 +1,22 @@
 local _, ns = ...
 
--- Rules (plan 3.9, the guild master only): the guild's readiness rules as a list with an Automatic or Manual badge,
--- edit in
--- place (the rule keeps its id, so the confirmations members gave stay attached) and delete with a two-click confirm;
--- a form
--- with the controls of each kind of rule, errors shown under the field they belong to; and "Use the starting list"
--- with a
--- two-click confirm. Every change replaces the whole set, sent to the guild by itself (Comm:SetReadinessRules).
+-- Roster rules (docs/NAV_PERMISSIONS_PLAN.md 4.1): the readiness rules of the selected roster as a list with an
+-- Automatic or Manual badge, edit in place (the rule keeps its id, so the confirmations members gave stay attached)
+-- and delete with a two-click confirm; a form with the controls of each kind of rule, errors shown under the field they
+-- belong to; and "Use the starting list" with a two-click confirm. Every change replaces the whole set of that roster,
+-- sent to the guild by itself (Comm:SetReadinessRules). gm and cogm pick any roster and edit it, an rl edits its own,
+-- an officer sees every roster with every control disabled.
+
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
 local ViewModel = ns.ViewModel
 
 -- The form: the kind, and the controls of each kind. `editing` is the id of the rule being edited.
+-- What the tab being drawn works on: the roster, and whether this player may change its rules (controls are disabled
+-- otherwise, never hidden).
+local view = { rosterId = nil, locked = true }
+
 local state = {
   editing = nil,
   check = "level",
@@ -47,7 +51,7 @@ end
 -- Sends a new whole set to the guild and says so in the banner.
 local function saveRules(rules)
   -- On success the second value is the revision, otherwise the reason.
-  local ok, outcome = ns.comm:SetReadinessRules(rules)
+  local ok, outcome = ns.comm:SetReadinessRules(view.rosterId, rules)
   if ok then
     UI.Notify("success", L("Rules saved as revision %d and sent to the guild."):format(outcome))
   else
@@ -70,6 +74,7 @@ local function ruleList(page, rules)
         opts = {
           text = L("Confirm: delete"),
           variant = "dangerSolid",
+          disabled = view.locked,
           layout = {},
           onClick = function()
             UI.Disarm()
@@ -92,6 +97,7 @@ local function ruleList(page, rules)
           icon = "trash",
           variant = "danger",
           tooltip = L("Delete the rule"),
+          disabled = view.locked,
           layout = {},
           onClick = function()
             UI.Arm(key)
@@ -110,6 +116,7 @@ local function ruleList(page, rules)
           opts = {
             icon = "pencil",
             tooltip = L("Edit the rule"),
+            disabled = view.locked,
             layout = {},
             onClick = function()
               state.editing = row.id
@@ -138,6 +145,7 @@ local function kindControls(card, fields)
       text = fields.min,
       numeric = true,
       maxLetters = 3,
+      disabled = view.locked,
       error = details ~= nil,
       onChange = function(text)
         fields.min = text
@@ -150,6 +158,7 @@ local function kindControls(card, fields)
       Kit.Chip(flow, {
         text = slot.text,
         active = fields.slots[slot.slot] == true,
+        disabled = view.locked,
         onToggle = function(active)
           fields.slots[slot.slot] = active or nil
         end,
@@ -159,6 +168,7 @@ local function kindControls(card, fields)
     local field = Kit.Field(card, { label = L("Spell names or ids, separated by commas"), error = details })
     Kit.EditBox(field, {
       text = fields.buffs,
+      disabled = view.locked,
       error = details ~= nil,
       onChange = function(text)
         fields.buffs = text
@@ -175,6 +185,7 @@ local function kindControls(card, fields)
       items = items,
       value = fields.profession ~= "" and fields.profession or nil,
       placeholder = L("Pick a profession"),
+      disabled = view.locked,
       onChange = function(value)
         fields.profession = value
       end,
@@ -184,6 +195,7 @@ local function kindControls(card, fields)
       text = fields.min,
       numeric = true,
       maxLetters = 4,
+      disabled = view.locked,
       onChange = function(text)
         fields.min = text
       end,
@@ -193,6 +205,7 @@ local function kindControls(card, fields)
     Kit.Dropdown(field, {
       items = ViewModel.FieldChoices(),
       value = fields.field,
+      disabled = view.locked,
       onChange = function(value)
         fields.field = value
       end,
@@ -211,7 +224,7 @@ local function ruleForm(page, rules)
   Kit.Dropdown(kind, {
     items = ViewModel.RuleKindChoices(),
     value = state.check,
-    disabled = editing ~= nil,
+    disabled = view.locked or editing ~= nil,
     onChange = function(value)
       state.check = value
       state.errors = {}
@@ -222,6 +235,7 @@ local function ruleForm(page, rules)
   Kit.EditBox(name, {
     text = fields.label,
     maxLetters = 60,
+    disabled = view.locked,
     error = state.errors.label ~= nil,
     onChange = function(text)
       fields.label = text
@@ -233,6 +247,7 @@ local function ruleForm(page, rules)
   Kit.Button(buttons, {
     text = editing and L("Save rule") or L("Add rule"),
     variant = "primary",
+    disabled = view.locked,
     layout = { width = "auto" },
     onClick = function()
       local rule, reason = ViewModel.RuleFromFields(state.check, fields, rules, editing)
@@ -256,6 +271,7 @@ local function ruleForm(page, rules)
   if editing then
     Kit.Button(buttons, {
       text = L("Cancel"),
+      disabled = view.locked,
       layout = { width = "auto" },
       onClick = function()
         resetForm()
@@ -268,43 +284,78 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- The tab
 
+-- May this player change the rules of `rosterId`? "all" scope anywhere, "own" on the own roster only. Without a sync
+-- transport nothing could be sent, so the tab stays read-only.
+local function mayEdit(role, rosterId)
+  local own = UI.OwnRosterId()
+  local scope = ns.PermissionService.Scope(role, "rules_edit", own)
+  return ns.comm ~= nil and (scope == "all" or (scope == "own" and rosterId == own))
+end
+
+-- The Raid check tab shows the same roster when the player may pick it (or it is the own roster).
+local function openRaidCheck(role, rosterId)
+  local own = UI.OwnRosterId()
+  local scope = ns.PermissionService.Scope(role, "raidcheck_view", own)
+  if scope == "all" then
+    UI.nav.rosters = UI.nav.rosters or {}
+    UI.nav.rosters.ready = rosterId
+  end
+  UI.OpenTab("ready")
+end
+
 UI.Register("rules", function(page)
   local role = UI.Role()
-  if not ns.PermissionService.CanAll(role, "rules_edit") then
+  local selection = UI.RosterSelection("rules", "rules_view")
+  local rosterId = selection.selected
+  Kit.PageHeader(page, {
+    title = L("Roster rules"),
+    description = L("The checklist each roster is measured against."),
+  })
+  UI.DrawRosterSelector(page, "rules", selection, function()
+    resetForm()
+    UI.Disarm()
+  end)
+  if rosterId == nil then
     Kit.EmptyState(page, {
       icon = "list",
-      title = L("Only the guild master and the co-guild master can edit the readiness rules."),
-      hint = "",
+      title = L("There is no roster to show rules for."),
+      hint = L("Rosters are created in the Members tab."),
     })
     return
   end
-  local rules = ns.ReadinessRules.Current()
-  local revision = ns.ReadinessRules.Describe(ns.db.global.readinessRules)[1]
+
+  view.rosterId, view.locked = rosterId, not mayEdit(role, rosterId)
+  local rules = ns.ReadinessRules.Current(rosterId)
+  local revision = ns.ReadinessRules.Describe(ns.ReadinessRules.Record(rosterId))[1]
   local header = Kit.Row(page, { gap = 12, align = "center" })
   local left = Kit.Stack(header, { gap = 4, layout = { weight = 1 } })
-  Kit.Label(left, { text = L("Roster rules"), style = "title" })
-  Kit.Label(
-    left,
-    { text = ViewModel.Escape(revision) .. " \194\183 " .. L("Sent to the guild automatically"), color = "dim" }
-  )
-  Kit.Button(header, {
-    text = L("See how members see it"),
-    variant = "ghost",
-    icon = "chevron",
-    layout = { width = "auto" },
-    onClick = function()
-      UI.OpenTab("ready")
-    end,
+  Kit.Label(left, {
+    text = ViewModel.Escape(revision) .. " \194\183 " .. (view.locked and L("Read only") or L(
+      "Sent to the guild automatically"
+    )),
+    color = "dim",
   })
+  if ns.PermissionService.Scope(role, "raidcheck_view", UI.OwnRosterId()) ~= "none" then
+    Kit.Button(header, {
+      text = L("See how members see it"),
+      variant = "ghost",
+      icon = "chevron",
+      layout = { width = "auto" },
+      onClick = function()
+        openRaidCheck(role, rosterId)
+      end,
+    })
+  end
 
   ruleList(page, rules)
   ruleForm(page, rules)
 
   local key = "rules:default"
-  local armed = UI.IsArmed(key)
+  local armed = UI.IsArmed(key) and not view.locked
   Kit.Button(page, {
     text = armed and L("Confirm: replace every rule with the starting list") or L("Use the starting list"),
     variant = armed and "dangerSolid" or "secondary",
+    disabled = view.locked,
     layout = { width = 360 },
     onClick = function()
       if not armed then
@@ -317,7 +368,7 @@ UI.Register("rules", function(page)
     end,
   })
   Kit.Label(page, {
-    text = L("These rules are the same for the whole guild and are measured on each player's own game."),
+    text = L("These rules apply to the players of this roster and are measured on each player's own game."),
     style = "small",
     color = "muted",
     wrap = true,

@@ -123,8 +123,9 @@ end
 -- includes them (BuildItems is used for it). `blacklist` (optional) is the blacklist table and `maxBlacklist` how
 -- many of its entries and of its removals ("B:" tombstones) to add, after the PvP items; its entries carry their
 -- author, as an item of a snapshot may. The text export leaves the blacklist out as well. `readinessRules`
--- (optional) is the stored set of guild readiness rules; its item goes last and only counts at the receiver when
--- whoever sends the snapshot is an admin (see ReadinessRulesSync).
+-- (optional) is the table of stored rule sets by roster; it needs `rosters` too, `maxRules` (default: all) limits how
+-- many sets go, and the items go last: they only count at the receiver when whoever sends the snapshot is a gm or
+-- cogm (see ReadinessRulesSync).
 -- `rosters` (optional) is a RosterSync context ({ rosters, members, tombstones, now }) and `maxMembers` how many member
 -- assignments and removals to add; like the rules they are only worth carrying from an admin.
 function Transfer.BuildSnapshot(
@@ -137,7 +138,8 @@ function Transfer.BuildSnapshot(
   maxBlacklist,
   readinessRules,
   rosters,
-  maxMembers
+  maxMembers,
+  maxRules
 )
   local list = {}
   for _, event in pairs(events) do
@@ -166,14 +168,17 @@ function Transfer.BuildSnapshot(
       items[#items + 1] = item
     end
   end
-  if readinessRules then
-    local item = ns.ReadinessRulesSync.SnapshotItem(readinessRules)
-    if item then
+  if rosters and maxMembers and maxMembers > 0 then
+    for _, item in ipairs(ns.RosterSync.SnapshotItems(rosters, maxMembers)) do
       items[#items + 1] = item
     end
   end
-  if rosters and maxMembers and maxMembers > 0 then
-    for _, item in ipairs(ns.RosterSync.SnapshotItems(rosters, maxMembers)) do
+  -- The rules of the rosters go after the rosters themselves, so a receiver knows each roster by then.
+  if readinessRules and rosters and maxRules ~= 0 then
+    for index, item in ipairs(ns.ReadinessRulesSync.SnapshotItems(readinessRules, rosters.rosters)) do
+      if maxRules and index > maxRules then
+        break
+      end
       items[#items + 1] = item
     end
   end
@@ -217,12 +222,16 @@ local function applyRosterItem(item, ctx, sender, role)
   if not message then
     return false, invalid
   end
-  return ns.RosterSync.Apply(
+  local ok, why = ns.RosterSync.Apply(
     { rosters = ctx.rosters, members = ctx.members, tombstones = ctx.tombstones, now = ctx.now },
     message,
     sender,
     role
   )
+  if ok and item.t == "ROSTER_DELETE" and ctx.readinessRules then
+    ns.ReadinessRulesSync.Forget(ctx.readinessRules, message.p.rosterId)
+  end
+  return ok, why
 end
 
 -- The readiness rules of a snapshot, applied as if the sender had sent them.
@@ -231,7 +240,13 @@ local function applyRulesItem(item, ctx, sender, role)
   if not message then
     return false, invalid
   end
-  return ns.ReadinessRulesSync.Apply({ record = ctx.readinessRules, now = ctx.now }, message, sender, role)
+  return ns.ReadinessRulesSync.Apply({
+    records = ctx.readinessRules,
+    rosters = ctx.rosters,
+    members = ctx.members,
+    tombstones = ctx.tombstones,
+    now = ctx.now,
+  }, message, sender, role)
 end
 
 -- Applies a list of { t, p } items as if `sender` had sent each one: every item goes through the
@@ -239,7 +254,7 @@ end
 -- now } as for EventSync; PvP items are only applied when `ctx.pvpStats` is there (see PvPSync) and blacklist items
 -- when `ctx.blacklist` is (see BlacklistSync), which a text import never provides; the readiness rules likewise
 -- when `ctx.readinessRules` is there. Returns { total, applied, pvp (how many of those were PvP), blacklist (how
--- many were blacklist), rules (1 when the guild rules were applied), skipped = { [reason] = count } }.
+-- many were blacklist), rules (how many roster rule sets were applied), skipped = { [reason] = count } }.
 function Transfer.ApplyItems(items, ctx, sender, role)
   local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, rules = 0, rosters = 0, skipped = {} }
   local function skip(why)

@@ -1,8 +1,9 @@
 local _, ns = ...
 
--- The guild's readiness rules: one set for the whole guild, edited by admins and shared like the other guild data.
--- `db.global.readinessRules` holds { rev, updatedAt, updatedBy, rules }; while `rules` is nil the starting
--- checklist (Constants.DEFAULT_RULES) applies.
+-- The readiness rules of each roster, edited by gm, cogm and the rl of that roster and shared like the other guild
+-- data. `db.global.readinessRulesByRoster[rosterId]` holds { rev, updatedAt, updatedBy, rules }; a roster without a
+-- record uses the starting checklist (Constants.DEFAULT_RULES). The old guild-wide `db.global.readinessRules` is only
+-- read by the migration that copies it into every roster.
 --
 -- A rule is plain data and is validated whole, both when an admin sets it and when one arrives from the guild:
 --   id (unique, short), label, check, plus what the check needs:
@@ -170,9 +171,19 @@ function ReadinessRules.Active(record)
   return ns.Constants.DEFAULT_RULES
 end
 
--- The rules of this client's saved data.
-function ReadinessRules.Current()
-  return ReadinessRules.Active(ns.db and ns.db.global.readinessRules)
+-- The record of a roster in this client's saved data, or nil.
+function ReadinessRules.Record(rosterId)
+  local byRoster = ns.db and ns.db.global.readinessRulesByRoster
+  return rosterId ~= nil and byRoster and byRoster[rosterId] or nil
+end
+
+-- The rules of a roster in this client's saved data: its own, or the starting checklist while it has none. Without a
+-- roster there is nothing to measure against: an empty list.
+function ReadinessRules.Current(rosterId)
+  if rosterId == nil then
+    return {}
+  end
+  return ReadinessRules.Active(ReadinessRules.Record(rosterId))
 end
 
 -- One line per rule, for the command that shows them.
@@ -180,7 +191,8 @@ function ReadinessRules.Describe(record)
   local rules = ReadinessRules.Active(record)
   local custom = rules ~= ns.Constants.DEFAULT_RULES
   local lines = {
-    custom and L("Guild rules, revision %d:"):format(record.rev or 0) or L("Starting rules (none set by the guild):"),
+    custom and L("Roster rules, revision %d:"):format(record.rev or 0)
+      or L("Starting rules (none set for this roster):"),
   }
   for _, rule in ipairs(rules) do
     lines[#lines + 1] = ("  %s - %s [%s]"):format(rule.id, rule.label, rule.check)
