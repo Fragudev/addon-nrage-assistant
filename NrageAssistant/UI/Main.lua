@@ -213,7 +213,7 @@ end
 -- The own layer, a received layer or the swap changed (a whole guild logging in sends one state each): the Layers tab
 -- is drawn again if it is the one on screen, at most once per LAYER_REDRAW_SECONDS.
 UI.LayersChanged = throttledRedraw(function()
-  return currentTab == "layers"
+  return currentTab == "layers" or currentTab == "home"
 end, ns.Constants.LAYER_REDRAW_SECONDS)
 
 -- A blacklist entry arrived from the guild (a snapshot brings the whole list), or the group changed.
@@ -229,7 +229,7 @@ end, 1)
 
 -- The guild's readiness rules changed: rare (one message per change), so no throttling.
 function UI.RulesChanged()
-  if UI.IsOpen() and (currentTab == "ready" or currentTab == "rules" or currentTab == "home") then
+  if UI.IsOpen() and (currentTab == "ready" or currentTab == "rules") then
     UI.Redraw()
   end
 end

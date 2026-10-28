@@ -2732,7 +2732,7 @@ describe("Window smoke test: Layers", function()
     assert.is_false(share)
   end)
 
-  it("redraws when the layers change, at most once per interval, and only on its own tab", function()
+  it("redraws when the layers change, at most once per interval, and only on the tabs that show them", function()
     install()
     env.open("layers")
     local count = #env.ns.Kit.fake.nodes
@@ -2744,9 +2744,17 @@ describe("Window smoke test: Layers", function()
     env.ns.UI.LayersChanged()
     assert.are.equal(count, #env.ns.Kit.fake.nodes)
     assert.are.equal(1, #env.timers)
-    env.ns.UI.SelectTab("home")
+    env.ns.UI.SelectTab("professions")
     count = #env.ns.Kit.fake.nodes
     env.ns.UI.LayersChanged()
     assert.are.equal(count, #env.ns.Kit.fake.nodes)
+  end)
+
+  it("redraws Home when the layers change, since Home shows them", function()
+    install()
+    env.open("home")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LayersChanged()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
   end)
 end)
