@@ -1,0 +1,31 @@
+NrageAssistant/Commands/TemplateCommands.lua
+  s_d6dcc83579493e::t_2120b37295fc09 59-64,93-95
+NrageAssistant/Sync/LootSync.lua
+  s_d6dcc83579493e::t_b8c89b6a8b623b 7,9-10
+tests/event_service_spec.lua
+  s_d6dcc83579493e::t_5181a67103c6d4 324-385
+tests/event_sync_spec.lua
+  s_d6dcc83579493e::t_0d910c0d522cc9 440-470
+tests/loot_service_spec.lua
+  s_d6dcc83579493e::t_774e3a4ac5a737 171-231
+tests/loot_sync_spec.lua
+  s_d6dcc83579493e::t_4a5224ad4e248c 574-584
+tests/template_commands_spec.lua
+  s_d6dcc83579493e::t_3b6605a6be20f6 170-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "2f68b18c7ba4a57b0fbaa65c88da00a93aac696f",
+  "prompts": {},
+  "sessions": {
+    "s_d6dcc83579493e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a2655ce-8606-4ba9-abc4-46dbb51b0ac6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
