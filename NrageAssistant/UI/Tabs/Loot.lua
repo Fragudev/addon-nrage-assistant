@@ -1,11 +1,10 @@
 local _, ns = ...
 
--- Loot (plan 3.3): the roster selector (shared, plan 2.2) and the event selector, a form to open a session (with a live preview of the pasted item
--- and a
--- strip with the items of the last boss you looted), one card per session with its candidates table and per-row Vote
--- and
--- Award (the award asks for its reason under the row), the minutes, and the answer buttons for everybody. Every control
--- calls the same LootCommands method as the old slash commands, so the checks and the messages sent are the same.
+-- Loot (plan 3.3): the shared roster selector (plan 2.2) and the event selector, a form to open a session (with a live
+-- preview of the pasted item and a strip with the items of the last boss you looted), one card per session with its
+-- candidates table and per-row Vote and Award (the award asks for its reason under the row), and the minutes. The
+-- roster rank sees it read-only: it answers for an item only from the loot popup. Every control calls the same
+-- LootCommands method as the old slash commands, so the checks and the messages sent are the same.
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L

@@ -212,7 +212,7 @@ end)
 describe("LootPopup.Pending", function()
   local Roles = dofile("tests/support/roles.lua")
 
-  local function event(id, rosterId)
+  local function rosterEvent(id, rosterId)
     return {
       eventId = id,
       title = id,
@@ -221,7 +221,7 @@ describe("LootPopup.Pending", function()
     }
   end
 
-  local function build(rank)
+  local function buildFor(rank)
     local fresh = { UI = { lootListeners = {} } }
     for _, path in ipairs({
       "Core/Constants",
@@ -247,7 +247,7 @@ describe("LootPopup.Pending", function()
       global = {
         members = members,
         rosters = rosters,
-        events = { own = event("own", "r1"), other = event("other", "r2") },
+        events = { own = rosterEvent("own", "r1"), other = rosterEvent("other", "r2") },
       },
     }
     fresh.Platform = {
@@ -261,8 +261,8 @@ describe("LootPopup.Pending", function()
 
   local function ids(list)
     local out = {}
-    for _, entry in ipairs(list) do
-      out[#out + 1] = entry.sessionId
+    for _, item in ipairs(list) do
+      out[#out + 1] = item.sessionId
     end
     table.sort(out)
     return out
@@ -270,23 +270,23 @@ describe("LootPopup.Pending", function()
 
   it("never asks a member or an alter", function()
     for _, rank in ipairs({ "Member", "Alter" }) do
-      assert.are.same({}, ids(build(rank).LootPopup.Pending({})), rank)
+      assert.are.same({}, ids(buildFor(rank).LootPopup.Pending({})), rank)
     end
   end)
 
   it("asks roster, rl and officer about the sessions of the own roster only", function()
     for _, rank in ipairs({ "Roster", "RL", "Officer" }) do
-      assert.are.same({ "own" }, ids(build(rank).LootPopup.Pending({})), rank)
+      assert.are.same({ "own" }, ids(buildFor(rank).LootPopup.Pending({})), rank)
     end
   end)
 
   it("asks the guild master and the co-guild master about every roster", function()
     for _, rank in ipairs({ "GM", "CoGM" }) do
-      assert.are.same({ "other", "own" }, ids(build(rank).LootPopup.Pending({})), rank)
+      assert.are.same({ "other", "own" }, ids(buildFor(rank).LootPopup.Pending({})), rank)
     end
   end)
 
   it("leaves out what was dismissed", function()
-    assert.are.same({}, ids(build("Roster").LootPopup.Pending({ own = true })))
+    assert.are.same({}, ids(buildFor("Roster").LootPopup.Pending({ own = true })))
   end)
 end)
