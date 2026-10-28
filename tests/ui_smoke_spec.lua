@@ -526,78 +526,55 @@ describe("Window smoke test", function()
   end)
 
   describe("Home", function()
-    it("shows the readiness, the sync state, the next event and the open loot sessions", function()
+    it("shows the identity, the specs and the layer, and nothing else", function()
       env = build("Member")
-      env.ns.db.global.events["e1"] = event("e1", "Molten Core", {
-        loot = {
-          s1 = {
-            sessionId = "s1",
-            itemId = 5,
-            itemName = "Sword",
-            status = "open",
-            rev = 1,
-            updatedAt = 3,
-            candidates = {},
-            votes = {},
-          },
-        },
-      })
+      env.ns.db.global.events["e1"] = event("e1", "Molten Core")
       local home = env.open("home")
       local text = env.text()
-      assert.is_truthy(text:find("Your readiness", 1, true))
-      assert.is_truthy(text:find("Members with the addon", 1, true))
-      assert.is_truthy(text:find("Molten Core", 1, true))
-      assert.is_truthy(text:find("Sword", 1, true))
+      assert.is_truthy(text:find("Mage", 1, true))
+      assert.is_truthy(text:find("Your declared details", 1, true))
+      assert.is_truthy(text:find("Your layer", 1, true))
+      assert.is_nil(text:find("Your readiness", 1, true))
+      assert.is_nil(text:find("Members with the addon", 1, true))
+      assert.is_nil(text:find("Molten Core", 1, true))
       assert.is_nil(env.find(home, "Button", "Request a sync"))
     end)
 
-    it("links to the Readiness tab, the event in the Raid tab and the session in the Loot tab", function()
-      env = build("Member")
-      env.ns.db.global.events["e1"] = event("e1", "Molten Core", {
-        loot = {
-          s1 = {
-            sessionId = "s1",
-            itemId = 5,
-            itemName = "Sword",
-            status = "open",
-            rev = 1,
-            updatedAt = 3,
-            candidates = {},
-            votes = {},
-          },
-        },
-      })
-      env.open("home")
-      env.press("Open in Raid")
-      assert.are.equal("raid", env.ns.UI.CurrentTab())
-      env.open("home")
-      env.press("Open in Loot")
-      assert.are.equal("loot", env.ns.UI.CurrentTab())
-      env.open("home")
-      env.press("See details")
-      assert.are.equal("ready", env.ns.UI.CurrentTab())
+    it("draws the identity, the specs and the layers for every rank", function()
+      for _, rank in ipairs({ "GM", "RL", "Council", "Member", "Norost" }) do
+        env = build(rank)
+        local home = env.open("home")
+        assert.is_truthy(FakeKit.find(home, "StatGrid"), rank)
+        assert.are.equal(2, #FakeKit.find_all(home, "Dropdown"), rank)
+        assert.is_truthy(env.text():find("Your layer", 1, true), rank)
+        pcall(env.close)
+      end
     end)
 
-    it("says there are no events or sessions, and tells a member with no roster to ask for one", function()
+    it("says the layer feature is not available before it starts, and keeps the sharing switch", function()
       env = build("Member")
       env.open("home")
-      assert.is_truthy(env.text():find("No upcoming events", 1, true))
-      assert.is_truthy(env.text():find("No open loot sessions", 1, true))
-      pcall(env.close)
-      env = build("Norost")
-      env.ns.db.global.events["e1"] = event("e1", "Molten Core")
-      env.open("home")
-      assert.is_truthy(env.text():find("You are not in a roster yet", 1, true))
-      assert.is_nil(env.text():find("Molten Core", 1, true))
+      assert.is_truthy(env.text():find("not available", 1, true))
+      assert.is_truthy(FakeKit.find(env.page(), "Switch", "Share my layer"))
     end)
 
-    it("shows the events of the own roster only", function()
+    it("saves a spec through ProfileService.SetField when its dropdown changes, and publishes it", function()
       env = build("Member")
-      env.ns.db.global.events["mine"] = event("mine", "Mine")
-      env.ns.db.global.events["theirs"] = event("theirs", "Theirs", { rosterId = "r9" })
+      local keys = {}
+      local setField = env.ns.ProfileService.SetField
+      env.ns.ProfileService.SetField = function(platform, profile, key, value)
+        keys[#keys + 1] = key
+        return setField(platform, profile, key, value)
+      end
       env.open("home")
-      assert.is_truthy(env.text():find("Mine", 1, true))
-      assert.is_nil(env.text():find("Theirs", 1, true))
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("Tank")
+      assert.are.same({ "role" }, keys)
+      assert.are.equal("Tank", env.ns.character.profile.fields.role.value)
+      assert.are.same({ "PROFILE" }, env.messages)
+      env.open("home")
+      FakeKit.find_all(env.page(), "Dropdown")[2].opts.onChange("Heal")
+      assert.are.same({ "role", "role2" }, keys)
+      assert.are.equal("Heal", env.ns.character.profile.fields.role2.value)
     end)
   end)
 
@@ -2272,7 +2249,7 @@ describe("Window smoke test: settings, language and automatic refresh", function
     dropdown.opts.onChange("es")
     assert.are.equal("es", env.ns.Settings.Language(env.ns.db))
     assert.are.equal("Inicio", env.ns.ViewModel.TABS[1].text)
-    assert.is_truthy(env.text():find("Tu preparación", 1, true))
+    assert.is_truthy(env.text():find("Quién eres", 1, true))
     dropdown.opts.onChange("en")
     assert.are.equal("Home", env.ns.ViewModel.TABS[1].text)
   end)
