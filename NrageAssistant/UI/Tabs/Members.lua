@@ -1,10 +1,10 @@
 local _, ns = ...
 
--- Members (plan 3.8 and 3.4.2): the whole guild in one table, merged with the profiles received from the members that
--- run
--- the addon. Everybody sees it read-only; the guild master also gets the Rosters card and a Role and a Roster
--- dropdown on
--- each row, which save on change and sync by themselves. Clicking a row opens its detail under it.
+-- Members (plan 4.2): the guild in one table, merged with the profiles received from the members that run the addon.
+-- gm, cogm and officer see every member (the roster chips filter by roster); an rl sees its own roster plus the members
+-- with no roster, so it can add them. Only gm and cogm get the Rosters card and a Roster dropdown with every roster on
+-- each row; an rl gets one with its own roster and "No roster" on the rows it may change; the officer reads only. The
+-- dropdowns save on change and sync by themselves. Clicking a row opens its detail under it.
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
@@ -177,7 +177,7 @@ local function updatedCell(row)
   return row.updated or "-"
 end
 
-local function cellsOf(row, canAssign, cmd, global)
+local function cellsOf(row, choices, cmd)
   local muted = row.noAddon and "muted" or nil
   local cells = {
     name = { text = row.name, color = row.mine and "accent" or muted },
@@ -194,11 +194,11 @@ local function cellsOf(row, canAssign, cmd, global)
     role = { text = row.roleText, color = row.role ~= "member" and "text" or "dim" },
     updated = updatedCell(row),
   }
-  if canAssign and not row.isGuildMaster then
+  if choices then
     cells.roster = {
       widget = "dropdown",
       opts = {
-        items = ViewModel.RosterChoices(global.rosters, true),
+        items = choices,
         value = row.rosterId or false,
         onChange = function(value)
           UI.Report(cmd:AssignMember(row.key, { rosterId = value }))
@@ -219,11 +219,10 @@ local function detailOf(row)
   end
 end
 
-local function drawTable(region, role)
+local function drawTable(region, role, selection)
   local global = ns.db.global
-  -- Until the roster scoping of docs/NAV_PERMISSIONS_PLAN.md phase 5, only gm and cogm assign members.
-  local canAssign = ns.PermissionService.CanAll(role, "members_manage")
-  local cmd = canAssign and commands() or nil
+  local ownRosterId = UI.OwnRosterId()
+  local cmd = ns.PermissionService.Can(role, "members_manage") and commands() or nil
   local rows, total = ViewModel.MemberRows({
     entries = ns.guildRoster and ns.guildRoster.entries or {},
     received = global.roster,
@@ -233,6 +232,7 @@ local function drawTable(region, role)
     ownKey = ns.Platform.GetIdentityKey(),
     search = state.search,
     roster = state.roster,
+    onlyRoster = not selection.visible and selection.selected or nil,
     spec = state.spec,
     addonOnly = state.addonOnly,
     sort = state.sort,
@@ -242,7 +242,7 @@ local function drawTable(region, role)
   for index = 1, shown do
     local row = rows[index]
     tableRows[index] = {
-      cells = cellsOf(row, canAssign, cmd, global),
+      cells = cellsOf(row, cmd and ViewModel.MemberRosterChoices(role, ownRosterId, row, global.rosters), cmd),
       highlight = row.mine,
       detail = state.expanded == row.key and detailOf(row) or nil,
       onClick = function()
@@ -289,7 +289,7 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- The tab
 
-local function toolbar(page, getRegion, role)
+local function toolbar(page, getRegion, role, selection)
   local global = ns.db.global
   local bar = Kit.Row(page, { gap = 10, align = "center" })
   Kit.EditBox(bar, {
@@ -302,7 +302,7 @@ local function toolbar(page, getRegion, role)
         state.limit = ROWS_STEP
         local region = getRegion()
         region:Clear()
-        drawTable(region, role)
+        drawTable(region, role, selection)
         UI.Relayout()
       end
     end,
@@ -345,17 +345,20 @@ end
 
 UI.Register("roster", function(page)
   local role = UI.Role()
+  -- gm, cogm and officer pick any roster with the chips below; an rl is fixed to its own, shown as a label.
+  local selection = UI.RosterSelection("roster", "members_view")
   Kit.PageHeader(page, {
     title = L("Members"),
-    description = L("The whole guild, with what each member shares. Click a row for details."),
+    description = L("The guild members and what each one shares. Click a row for details."),
   })
+  UI.DrawRosterSelector(page, "roster", { visible = false, label = selection.label })
   if ns.PermissionService.CanAll(role, "members_manage") then
     rostersCard(page)
   end
   local region
   toolbar(page, function()
     return region
-  end, role)
+  end, role, selection)
   region = Kit.Stack(page, { gap = 0 })
-  drawTable(region, role)
+  drawTable(region, role, selection)
 end)

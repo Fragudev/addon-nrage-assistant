@@ -1,9 +1,9 @@
 local _, ns = ...
 
 -- The operations the Members tab calls to manage rosters and the roster of members: only the guild master and the
--- co-guild master can. Each method returns the lines to show, so the whole thing is testable without a client. A
--- change is applied locally
--- through RosterService (which checks the role) and then sent to the guild through Comm.
+-- co-guild master manage rosters, and a raid leader also moves members into and out of its own roster. Each method
+-- returns the lines to show, so the whole thing is testable without a client. A change is applied locally through
+-- RosterService (which checks the role) and then sent to the guild through Comm.
 --   deps: rosters, members, tombstones, platform, comm, onChange (optional, called after a change made here)
 local RosterCommands = {}
 RosterCommands.__index = RosterCommands
@@ -40,6 +40,7 @@ end
 local ERRORS = ns.Locale.Table(function()
   return {
     forbidden = L("only the guild master and the co-guild master can manage rosters."),
+    out_of_scope = L("you can only manage the members of your own roster."),
     ["invalid:name"] = L("give a plain-text roster name (up to 30 characters)."),
     ["invalid:key"] = L("that is not a valid member name."),
     ["invalid:roster"] = L("that roster does not exist."),

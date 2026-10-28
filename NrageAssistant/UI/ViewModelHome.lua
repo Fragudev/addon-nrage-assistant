@@ -256,6 +256,7 @@ ViewModel.MEMBER_FIRST_DESCENDING = { level = true, ilvl = true, updated = true 
 --   now         server time (for the stale flag and the age)
 --   ownKey      the own name, to flag the own row
 --   viewer      RosterService.Viewer: a roster leader / member only lists what they may see? (see below)
+--   onlyRoster  a roster id: only its members and the ones with no roster are listed (a raid leader's view)
 --   search      part of a name; roster = rosterId | "none" | nil; spec = "Tank" | "Dps" | "Heal" | nil; addonOnly
 --   sort        { key, descending } (default: name)
 -- Every guild member is listed (the whole guild is the point of the tab); `viewer.mode == "roster"` for a raid leader
@@ -319,6 +320,9 @@ function ViewModel.MemberRows(args)
   local filtered = {}
   for _, row in ipairs(rows) do
     local keep = needle == "" or row.sortName:find(needle, 1, true) ~= nil
+    if keep and args.onlyRoster then
+      keep = row.rosterId == nil or row.rosterId == args.onlyRoster
+    end
     if keep and args.addonOnly and row.noAddon then
       keep = false
     end
@@ -374,19 +378,20 @@ function ViewModel.MemberRows(args)
 end
 
 -- The filter chips of the roster column: one per roster plus "No roster", each with how many of the guild it holds.
--- `counts` is RosterService.Counts. Raid leaders only get their own roster's chip, members none (the chips are an
--- admin and raid leader tool).
+-- `counts` is RosterService.Counts. Whoever sees every roster in Members (gm, cogm, officer) gets all of them; an rl
+-- only its own roster's chip; the other ranks none.
 function ViewModel.RosterChips(rosters, counts, role, ownRosterId)
   local chips = {}
-  if not (ns.PermissionService.IsGlobal(role) or role == "rl") then
+  local scope = ns.PermissionService.Scope(role, "members_view", ownRosterId)
+  if scope == "none" then
     return chips
   end
   for _, roster in ipairs(ns.RosterService.List(rosters)) do
-    if role ~= "rl" or roster.id == ownRosterId then
+    if scope == "all" or roster.id == ownRosterId then
       chips[#chips + 1] = { value = roster.id, text = ("%s (%d)"):format(Escape(roster.name), counts[roster.id] or 0) }
     end
   end
-  if role ~= "rl" then
+  if scope == "all" then
     chips[#chips + 1] = { value = "none", text = L("No roster (%d)"):format(counts.none or 0) }
   end
   return chips
@@ -409,6 +414,24 @@ function ViewModel.MemberDetail(row)
     updated = row.updated or L("No profile received"),
     hasProfile = not row.noAddon,
   }
+end
+
+-- The roster dropdown of a member row, or nil when the player may not change it (the row shows the roster as text).
+-- gm and cogm: every roster or none, on any member but the guild master. rl: only its own roster or none, and only on a
+-- member who is in it or in no roster. Everybody else (officer included): read-only. `row` = a MemberRows row.
+function ViewModel.MemberRosterChoices(role, ownRosterId, row, rosters)
+  if row.isGuildMaster then
+    return nil
+  end
+  if ns.PermissionService.CanAll(role, "members_manage") then
+    return ViewModel.RosterChoices(rosters, true)
+  end
+  if ns.RosterService.MayAssign(role, ownRosterId, row.rosterId, ownRosterId) ~= nil then
+    return nil
+  end
+  local items = { { value = false, text = L("No roster") } }
+  items[#items + 1] = { value = ownRosterId, text = Escape(rosters[ownRosterId].name) }
+  return items
 end
 
 -- The rosters as dropdown items with a "No roster" first entry (value false).

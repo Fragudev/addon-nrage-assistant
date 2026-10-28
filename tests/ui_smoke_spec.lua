@@ -760,16 +760,47 @@ describe("Window smoke test", function()
       end
     )
 
-    it("gives rl and officer no Rosters card and no dropdown until the roster scoping lands", function()
-      for _, rank in ipairs({ "RL", "Council" }) do
-        env = build(rank)
-        env.open("roster")
-        assert.is_nil(env.find(env.page(), "Card", "Rosters"), rank)
-        for _, row in ipairs(env.tableRows()) do
-          assert.is_nil(row.cells.roster.widget, rank)
-        end
-        pcall(env.close)
+    it("gives the officer every roster read-only: no Rosters card, no dropdown", function()
+      env = build("Council")
+      env.ns.db.global.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+      env.ns.db.global.members["Ann-Realm"] = { rosterId = "r2", rev = 1, updatedAt = 1 }
+      env.open("roster")
+      assert.is_nil(env.find(env.page(), "Card", "Rosters"))
+      assert.are.equal(3, #env.tableRows())
+      for _, row in ipairs(env.tableRows()) do
+        assert.is_nil(row.cells.roster.widget)
       end
+      assert.is_truthy(FakeKit.find(env.page(), "Chip", "Alts (1)"))
+    end)
+
+    it("gives an rl its own roster and the players with no roster, with a limited dropdown", function()
+      env = build("RL")
+      env.ns.db.global.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+      env.ns.db.global.members["Ann-Realm"] = { rosterId = "r2", rev = 1, updatedAt = 1 }
+      env.open("roster")
+      assert.is_nil(env.find(env.page(), "Card", "Rosters"))
+      assert.is_truthy(env.text():find("Roster: Main", 1, true))
+      -- Ann is in another roster: she is not listed.
+      local names = {}
+      for _, row in ipairs(env.tableRows()) do
+        names[#names + 1] = row.cells.name.text
+        assert.are.equal("dropdown", row.cells.roster.widget)
+        local values = {}
+        for _, item in ipairs(row.cells.roster.opts.items) do
+          values[#values + 1] = tostring(item.value)
+        end
+        assert.are.same({ "false", "r1" }, values)
+      end
+      table.sort(names)
+      assert.are.same({ "Leader-Realm", "Yonemon Gg" }, names)
+      -- Taking a player of the own roster out of it, and putting a free player in.
+      for _, row in ipairs(env.tableRows()) do
+        if row.cells.name.text == "Yonemon Gg" then
+          row.cells.roster.opts.onChange("r1")
+        end
+      end
+      assert.are.equal("r1", env.ns.db.global.members["Yonemon Gg"].rosterId)
+      assert.are.same({ "SendMember" }, env.sent)
     end)
 
     it("creates, assigns, renames and deletes from the Rosters card and the rows", function()
