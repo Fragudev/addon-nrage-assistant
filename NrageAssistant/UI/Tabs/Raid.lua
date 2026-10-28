@@ -352,6 +352,7 @@ local function attendanceTab(parent, event, raid)
               end,
             },
           },
+          signup = { text = row.signupText, color = "dim" },
           when = { text = row.recordedAt or "-", color = "muted" },
         },
       }
@@ -360,9 +361,29 @@ local function attendanceTab(parent, event, raid)
       columns = {
         { key = "name", title = L("Name"), weight = 2 },
         { key = "state", title = L("State"), weight = 2 },
+        { key = "signup", title = L("Sign-up"), weight = 1 },
         { key = "when", title = L("Recorded"), weight = 1 },
       },
       rows = tableRows,
+    })
+  end
+
+  -- What the players said they would do; read-only, a leader records attendance above.
+  local signups = ViewModel.SignupRows(event)
+  local signupCard = Kit.Card(parent, { title = L("Sign-ups (%d)"):format(#signups), gap = 10 })
+  if #signups == 0 then
+    Kit.Label(signupCard, { text = L("Nobody has signed up yet."), color = "muted" })
+  else
+    local signupRows = {}
+    for _, row in ipairs(signups) do
+      signupRows[#signupRows + 1] = { cells = { name = row.label, signup = { text = row.statusText, color = "dim" } } }
+    end
+    Kit.Table(signupCard, {
+      columns = {
+        { key = "name", title = L("Name"), weight = 2 },
+        { key = "signup", title = L("Sign-up"), weight = 1 },
+      },
+      rows = signupRows,
     })
   end
 

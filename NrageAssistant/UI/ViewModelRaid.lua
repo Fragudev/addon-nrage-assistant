@@ -179,7 +179,8 @@ function ViewModel.FillFromGroup(event, groupNames, guildNames)
   return { toMark = toMark, alreadyRecorded = already, unmatched = unmatched }
 end
 
--- The recorded members of an event as table rows: { name, label, state, recordedBy, recordedAt }.
+-- The recorded members of an event as table rows: { name, label, state, signupText, recordedBy, recordedAt }.
+-- `signupText` is what the player said ("Going", "Not going" or "-"); it is read-only here.
 function ViewModel.AttendanceRows(event, now)
   local rows = {}
   for name, record in pairs(event.attendance) do
@@ -187,8 +188,26 @@ function ViewModel.AttendanceRows(event, now)
       name = name,
       label = Escape(name),
       state = record.state,
+      signupText = ViewModel.SignupText(event.signups and event.signups[name]),
       recordedBy = record.recordedBy and Escape(record.recordedBy) or nil,
       recordedAt = record.updatedAt and now and ViewModel.AgeText(math.max(0, now - record.updatedAt)) or nil,
+    }
+  end
+  table.sort(rows, function(a, b)
+    return a.name < b.name
+  end)
+  return rows
+end
+
+-- Everybody who answered the sign-up of an event, by name: { name, label, status, statusText }.
+function ViewModel.SignupRows(event)
+  local rows = {}
+  for name, record in pairs(event.signups or {}) do
+    rows[#rows + 1] = {
+      name = name,
+      label = Escape(name),
+      status = record.status,
+      statusText = ViewModel.SignupText(record),
     }
   end
   table.sort(rows, function(a, b)
