@@ -1,0 +1,51 @@
+NrageAssistant/Core/Constants.lua
+  s_d6dcc83579493e::t_fbf9d48d945bac 21
+NrageAssistant/Domain/EventModel.lua
+  s_d6dcc83579493e::t_c1b4a7b24c1c84 21-23,111-114
+NrageAssistant/Domain/EventService.lua
+  s_d6dcc83579493e::t_772bc194f9f4d6 14,89,178-220
+NrageAssistant/Sync/Comm.lua
+  s_d6dcc83579493e::t_c6a7c8663a1b0f 420,737-741
+NrageAssistant/Sync/EventSync.lua
+  s_d6dcc83579493e::t_d4662a44a77f1c 75,131-181,276,324-333
+NrageAssistant/Sync/Protocol.lua
+  s_d6dcc83579493e::t_5aa496720ba02a 142-157,610
+NrageAssistant/Sync/Transfer.lua
+  s_d6dcc83579493e::t_4fb85f8a6293c4 36-38,305-310
+docs/PROTOCOL.md
+  s_d6dcc83579493e::t_03daab4cefed86 53,367-387
+tests/protocol_spec.lua
+  s_d6dcc83579493e::t_e7fdd3feffe08e 661-662
+tests/roster_sync_spec.lua
+  s_d6dcc83579493e::t_57c287a0f8360a 77,79
+tests/transfer_spec.lua
+  s_d6dcc83579493e::t_5109b882b78117 375-436
+tests/event_service_spec.lua
+  s_8bd3f84731ad96::t_05063d7d249660 244-353
+tests/event_sync_spec.lua
+  s_8bd3f84731ad96::t_a60bbb9b51c459 245-353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "6254ff43525e349a281b6e662433681206663e73",
+  "prompts": {},
+  "sessions": {
+    "s_8bd3f84731ad96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa144e0c08b1b9cea",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_d6dcc83579493e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a2655ce-8606-4ba9-abc4-46dbb51b0ac6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
