@@ -2137,7 +2137,7 @@ describe("ViewModel.MemberRows", function()
     assert.are.equal("||r", list[1].main)
   end)
 
-  it("builds the roster chips for the guild master, a raid leader and a member", function()
+  it("builds the roster chips for whoever sees every roster, a raid leader and a member", function()
     local counts = { r1 = 2, r2 = 1, none = 5 }
     local admin = ViewModel.RosterChips(rosters, counts, "gm", nil)
     assert.are.same({
@@ -2147,8 +2147,42 @@ describe("ViewModel.MemberRows", function()
     }, admin)
     assert.are.same({ { value = "r1", text = "Main (2)" } }, ViewModel.RosterChips(rosters, counts, "rl", "r1"))
     assert.are.same({}, ViewModel.RosterChips(rosters, counts, "member", "r1"))
-    assert.are.same({}, ViewModel.RosterChips(rosters, counts, "officer", "r1"))
+    assert.are.same(admin, ViewModel.RosterChips(rosters, counts, "officer", "r1"))
     assert.are.same(admin, ViewModel.RosterChips(rosters, counts, "cogm", nil))
+  end)
+
+  it("lists the own roster and the players with no roster for a raid leader's view", function()
+    local list = ViewModel.MemberRows({
+      entries = { A = {}, B = {}, C = {} },
+      rosters = { r1 = { id = "r1", name = "Main" }, r2 = { id = "r2", name = "Alts" } },
+      members = { A = { rosterId = "r1" }, B = { rosterId = "r2" } },
+      now = 1,
+      onlyRoster = "r1",
+    })
+    assert.are.same({ "A", "C" }, { list[1].key, list[2].key })
+    assert.are.equal(2, #list)
+  end)
+
+  it("gives the roster dropdown of a row by rank and roster", function()
+    local two = { r1 = { id = "r1", name = "Main" }, r2 = { id = "r2", name = "Alts" } }
+    local function values(items)
+      local out = {}
+      for _, item in ipairs(items or {}) do
+        out[#out + 1] = tostring(item.value)
+      end
+      return out
+    end
+    local free, mine, other = { rosterId = nil }, { rosterId = "r1" }, { rosterId = "r2" }
+    assert.are.same({ "false", "r2", "r1" }, values(ViewModel.MemberRosterChoices("gm", nil, free, two)))
+    assert.are.same({ "false", "r2", "r1" }, values(ViewModel.MemberRosterChoices("cogm", nil, other, two)))
+    assert.is_nil(ViewModel.MemberRosterChoices("gm", nil, { isGuildMaster = true }, two))
+    assert.are.same({ "false", "r1" }, values(ViewModel.MemberRosterChoices("rl", "r1", free, two)))
+    assert.are.same({ "false", "r1" }, values(ViewModel.MemberRosterChoices("rl", "r1", mine, two)))
+    assert.is_nil(ViewModel.MemberRosterChoices("rl", "r1", other, two))
+    assert.is_nil(ViewModel.MemberRosterChoices("rl", nil, free, two))
+    for _, role in ipairs({ "officer", "roster", "member", "alter" }) do
+      assert.is_nil(ViewModel.MemberRosterChoices(role, "r1", free, two), role)
+    end
   end)
 
   it("describes the detail of a row", function()

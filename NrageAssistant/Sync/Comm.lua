@@ -332,8 +332,8 @@ function Comm:SendSnapshot(target)
       -- Only a gm or cogm snapshot carries the rules: a receiver applies them under the role of the sender (and, until
       -- the roster scoping of docs/NAV_PERMISSIONS_PLAN.md lands, only those two may set them).
       ns.PermissionService.CanAll(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil,
-      -- The same goes for the rosters and the assignments of members.
-      ns.PermissionService.CanAll(self.ownRole and self.ownRole(), "members_manage") and self:RosterContext() or nil,
+      -- The same goes for the rosters and the assignments of members; an rl only carries those of its own roster.
+      self:SnapshotRosterContext(),
       math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
     )
     if #items == 0 then
@@ -528,6 +528,25 @@ function Comm:RosterContext()
     tombstones = self.tombstones,
     now = self.platform.ServerTime,
   }
+end
+
+-- What a snapshot carries of the rosters: everything from a gm or cogm, the assignments to the own roster from an rl,
+-- nothing from anybody else (the receiver would refuse them).
+function Comm:SnapshotRosterContext()
+  local role = self.ownRole and self.ownRole()
+  if ns.PermissionService.CanAll(role, "members_manage") then
+    return self:RosterContext()
+  end
+  if not ns.PermissionService.Can(role, "members_manage") then
+    return nil
+  end
+  local ownRosterId = ns.RosterService.RosterOf(self.members, self.rosters, self.platform.GetIdentityKey())
+  if not ownRosterId then
+    return nil
+  end
+  local context = self:RosterContext()
+  context.onlyRoster = ownRosterId
+  return context
 end
 
 -- ROSTER_* and MEMBER_*: the sender's role is read from the local guild roster; only the guild master's are kept.

@@ -7,10 +7,11 @@ local _, ns = ...
 --   MEMBER_UPSERT  { key, rosterId?, rev, updatedAt }                    the roster of a member
 --   MEMBER_DELETE  { key, rev }                                          take the assignment of a member away
 --
--- Authority: the sender's role comes from the receiver's own guild roster (`role`), never from the message, and every
--- one of these needs `members_manage` and, until phases 4 and 5 of docs/NAV_PERMISSIONS_PLAN.md add roster scoping,
--- a global rank (gm or cogm): rl would pass `members_manage` at its own scope, but is not accepted yet. The author of a
--- record is always the message sender.
+-- Authority: the sender's role comes from the receiver's own guild roster (`role`), never from the message. Roster
+-- upserts and deletes need `members_manage` on every roster (gm or cogm). Member upserts and deletes also come from an
+-- rl, but only into or out of its own roster: the receiver reads the roster of the sender and the previous roster of
+-- the member from its own records, before applying (RosterService.MayAssign). The author of a record is always the
+-- message sender.
 --
 -- Conflicts follow the other shared data: the higher `rev` wins, then the later (clamped) `updatedAt`, then the larger
 -- sender; an identical message is a no-op. A removal leaves a tombstone ("R:<id>", "M:<key>"), and an upsert whose
@@ -74,8 +75,25 @@ local function applyRosterDelete(ctx, payload, _, role)
   return true
 end
 
+-- nil when `role` (the sender) may move the member `key` into `targetRosterId` (nil: out of every roster), else the
+-- reason. `isDelete` is the removal of the assignment, which an rl only does for a member of its own roster.
+local function authorizeMember(ctx, role, sender, key, targetRosterId, isDelete)
+  if role == nil then
+    return "unknown_sender"
+  end
+  local ownRosterId = ns.RosterService.SenderRoster(ctx, sender)
+  local previousRosterId = ns.RosterService.RosterOf(ctx.members, ctx.rosters, key)
+  local denied
+  if isDelete then
+    denied = ns.RosterService.MayUnassign(role, ownRosterId, previousRosterId)
+  else
+    denied = ns.RosterService.MayAssign(role, ownRosterId, previousRosterId, targetRosterId)
+  end
+  return denied and "forbidden" or nil
+end
+
 local function applyMemberUpsert(ctx, payload, sender, role)
-  local denied = authorizeGlobal(role, "members_manage")
+  local denied = authorizeMember(ctx, role, sender, payload.key, payload.rosterId)
   if denied then
     return false, denied
   end
@@ -105,8 +123,8 @@ local function applyMemberUpsert(ctx, payload, sender, role)
   return true
 end
 
-local function applyMemberDelete(ctx, payload, _, role)
-  local denied = authorizeGlobal(role, "members_manage")
+local function applyMemberDelete(ctx, payload, sender, role)
+  local denied = authorizeMember(ctx, role, sender, payload.key, nil, true)
   if denied then
     return false, denied
   end
@@ -177,11 +195,12 @@ local function validPayload(messageType, payload)
 end
 
 -- Items for a snapshot: every roster, the `maxMembers` most recently updated assignments, and the newest removals of
--- either kind (`maxMembers` of each at most). Only a gm or cogm snapshot carries them (the receiver applies them under
--- the role of whoever sends the snapshot). What does not validate is left out.
+-- either kind (`maxMembers` of each at most). The receiver applies them under the role of whoever sends the snapshot,
+-- so only a gm or cogm snapshot carries the rosters; with `ctx.onlyRoster` (an rl) the snapshot has no rosters and only
+-- the assignments to that roster. What does not validate is left out.
 function RosterSync.SnapshotItems(ctx, maxMembers)
   local items = {}
-  for _, roster in ipairs(ns.RosterService.List(ctx.rosters)) do
+  for _, roster in ipairs(ctx.onlyRoster and {} or ns.RosterService.List(ctx.rosters)) do
     local payload = validPayload("ROSTER_UPSERT", RosterSync.RosterPayload(roster))
     if payload then
       items[#items + 1] = { t = "ROSTER_UPSERT", p = payload }
@@ -190,7 +209,11 @@ function RosterSync.SnapshotItems(ctx, maxMembers)
 
   local list = {}
   for key, record in pairs(ctx.members) do
-    if type(record) == "table" and type(record.updatedAt) == "number" then
+    if
+      type(record) == "table"
+      and type(record.updatedAt) == "number"
+      and (not ctx.onlyRoster or record.rosterId == ctx.onlyRoster)
+    then
       list[#list + 1] = { key = key, record = record }
     end
   end
@@ -216,6 +239,10 @@ function RosterSync.SnapshotItems(ctx, maxMembers)
   for tombstoneKey, tombstone in pairs(ctx.tombstones) do
     local rosterId = tombstoneKey:match("^R:(.+)$")
     local memberKey = tombstoneKey:match("^M:(.+)$")
+    if ctx.onlyRoster and rosterId then
+      rosterId = nil
+      memberKey = nil
+    end
     if (rosterId or memberKey) and type(tombstone) == "table" and type(tombstone.at) == "number" then
       removals[#removals + 1] = { rosterId = rosterId, key = memberKey, rev = tombstone.rev, at = tombstone.at }
     end

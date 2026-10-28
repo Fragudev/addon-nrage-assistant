@@ -12,16 +12,15 @@ local _, ns = ...
 --
 -- This is a VISIBILITY filter in the interface, not access control: raid data still travels over the guild addon
 -- channel and every member with the addon receives all of it (docs/PRIVACY.md). What the receivers do enforce is
--- who may change what: only the guild master and the co-guild master change rosters and assignments (until the later
--- phases of docs/NAV_PERMISSIONS_PLAN.md let a raid leader assign to their own roster), and every other rank only acts
--- on the events of their own roster (MayAct).
+-- who may change what: only the guild master and the co-guild master change rosters, they and the raid leader of a
+-- roster change its assignments (MayAssign, MayUnassign), and every other rank only acts on the events of their own
+-- roster (MayAct).
 --
 -- ctx = { rosters, members, tombstones, role, actor, now = function(), newId = function() }
 local RosterService = {}
 
--- Rosters and assignments are the guild master's and the co-guild master's. An rl or officer would pass Can at
--- their own scope, but the roster scoping arrives with phase 5 of docs/NAV_PERMISSIONS_PLAN.md, so until then only the
--- global ranks may change them.
+-- Creating, renaming and deleting rosters is the guild master's and the co-guild master's. An rl passes Can at its own
+-- scope, but that scope only covers the assignments (MayAssign), not the rosters.
 local function canManage(role)
   return ns.PermissionService.CanAll(role, "members_manage")
 end
@@ -160,12 +159,48 @@ function RosterService.Delete(ctx, id)
   return true
 end
 
+-- May a player with `role` and the roster `ownRosterId` move a member from `previousRosterId` to `targetRosterId` (nil:
+-- no roster)? gm and cogm: any move. rl: only into its own roster, or out of it, and only a member who is in no roster
+-- or in its own. Returns nil when allowed, else "forbidden" (the rank cannot) | "out_of_scope" (not their roster).
+function RosterService.MayAssign(role, ownRosterId, previousRosterId, targetRosterId)
+  local permissions = ns.PermissionService
+  if permissions.CanAll(role, "members_manage") then
+    return nil
+  end
+  if not permissions.Can(role, "members_manage") then
+    return "forbidden"
+  end
+  if permissions.Scope(role, "members_manage", ownRosterId) ~= "own" then
+    return "out_of_scope"
+  end
+  if
+    (targetRosterId ~= nil and targetRosterId ~= ownRosterId)
+    or (previousRosterId ~= nil and previousRosterId ~= ownRosterId)
+  then
+    return "out_of_scope"
+  end
+  return nil
+end
+
+-- May they take the assignment of a member away? As MayAssign, but the member has to be in the own roster.
+function RosterService.MayUnassign(role, ownRosterId, previousRosterId)
+  local reason = RosterService.MayAssign(role, ownRosterId, previousRosterId, nil)
+  if reason or ns.PermissionService.CanAll(role, "members_manage") then
+    return reason
+  end
+  if previousRosterId ~= ownRosterId then
+    return "out_of_scope"
+  end
+  return nil
+end
+
 -- Sets the roster of a member. `fields` = { rosterId = a roster id, or false to take the member out of every roster
 -- (default: unchanged) }. One roster per member: assigning another roster moves them. The role of a member is their
 -- guild rank, so it is not set here.
--- Returns the record, or nil plus "forbidden" | "invalid:key" | "invalid:roster" | "limit".
+-- A raid leader only moves members into or out of its own roster (MayAssign).
+-- Returns the record, or nil plus "forbidden" | "out_of_scope" | "invalid:key" | "invalid:roster" | "limit".
 function RosterService.Assign(ctx, key, fields)
-  if not canManage(ctx.role) then
+  if not ns.PermissionService.Can(ctx.role, "members_manage") then
     return nil, "forbidden"
   end
   if not RosterService.IsMemberKey(key) then
@@ -180,6 +215,15 @@ function RosterService.Assign(ctx, key, fields)
   elseif not ctx.rosters[rosterId] then
     return nil, "invalid:roster"
   end
+  local denied = RosterService.MayAssign(
+    ctx.role,
+    RosterService.SenderRoster(ctx, ctx.actor),
+    RosterService.RosterOf(ctx.members, ctx.rosters, key),
+    rosterId
+  )
+  if denied then
+    return nil, denied
+  end
   if not record and countKeys(ctx.members) >= ns.Constants.MEMBER_ASSIGNMENTS_MAX then
     return nil, "limit"
   end
@@ -193,14 +237,22 @@ function RosterService.Assign(ctx, key, fields)
 end
 
 -- Takes the assignment of a member away (they have no roster again) and leaves a tombstone.
--- Returns true, or false plus "forbidden" | "not_found".
+-- Returns true, or false plus "forbidden" | "out_of_scope" | "not_found".
 function RosterService.Unassign(ctx, key)
-  if not canManage(ctx.role) then
+  if not ns.PermissionService.Can(ctx.role, "members_manage") then
     return false, "forbidden"
   end
   local record = ctx.members[key]
   if not record then
     return false, "not_found"
+  end
+  local denied = RosterService.MayUnassign(
+    ctx.role,
+    RosterService.SenderRoster(ctx, ctx.actor),
+    RosterService.RosterOf(ctx.members, ctx.rosters, key)
+  )
+  if denied then
+    return false, denied
   end
   ctx.members[key] = nil
   ns.EventService.AddTombstone(ctx, "M:" .. key, record.rev + 1)

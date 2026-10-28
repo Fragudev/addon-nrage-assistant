@@ -212,7 +212,7 @@ describe("RosterSync.Apply", function()
   end)
 
   it(
-    "refuses every rank but gm and cogm (rl and officer too, until roster scoping), and a sender nobody knows",
+    "refuses every rank but gm and cogm for rosters, officer and below for assignments, and a sender nobody knows",
     function()
       for _, role in ipairs({ "rl", "officer", "roster", "member", "alter" }) do
         for _, case in ipairs({
@@ -233,6 +233,59 @@ describe("RosterSync.Apply", function()
       assert.is_nil(next(receiver.members))
     end
   )
+
+  describe("assignments from a raid leader", function()
+    before_each(function()
+      receiver.rosters["r-1"] = { id = "r-1", name = "Main", rev = 1, updatedAt = 1 }
+      receiver.rosters["r-2"] = { id = "r-2", name = "Alts", rev = 1, updatedAt = 1 }
+      receiver.members["Lead-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 1 }
+      receiver.members["Ann-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 1 }
+      receiver.members["Bob-Realm"] = { rosterId = "r-2", rev = 1, updatedAt = 1 }
+    end)
+
+    local function lead(messageType, payload)
+      return deliver(receiver, messageType, payload, "Lead-Realm", "rl")
+    end
+
+    it("accepts a player with no roster going into the own roster", function()
+      assert.is_true(lead("MEMBER_UPSERT", member({ key = "Cid-Realm" })))
+      assert.are.equal("r-1", receiver.members["Cid-Realm"].rosterId)
+    end)
+
+    it("accepts a player of the own roster going out of it, by upsert or delete", function()
+      assert.is_true(lead("MEMBER_UPSERT", { key = "Ann-Realm", rev = 2, updatedAt = 100 }))
+      assert.is_nil(receiver.members["Ann-Realm"].rosterId)
+      receiver.members["Dee-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 1 }
+      assert.is_true(lead("MEMBER_DELETE", { key = "Dee-Realm", rev = 2 }))
+      assert.is_nil(receiver.members["Dee-Realm"])
+    end)
+
+    it("refuses an assignment to another roster", function()
+      assert.are.equal("forbidden", select(2, lead("MEMBER_UPSERT", member({ key = "Cid-Realm", rosterId = "r-2" }))))
+      assert.is_nil(receiver.members["Cid-Realm"])
+    end)
+
+    it("refuses to move a player out of, or away from, another roster", function()
+      assert.are.equal("forbidden", select(2, lead("MEMBER_UPSERT", member({ key = "Bob-Realm", rev = 2 }))))
+      assert.are.equal("forbidden", select(2, lead("MEMBER_UPSERT", { key = "Bob-Realm", rev = 2, updatedAt = 100 })))
+      assert.are.equal("forbidden", select(2, lead("MEMBER_DELETE", { key = "Bob-Realm", rev = 2 })))
+      assert.are.equal("r-2", receiver.members["Bob-Realm"].rosterId)
+    end)
+
+    it("refuses rosters, and an rl that is in no roster", function()
+      assert.are.equal("forbidden", select(2, lead("ROSTER_UPSERT", roster({ rosterId = "r-3" }))))
+      assert.are.equal("forbidden", select(2, lead("ROSTER_DELETE", { rosterId = "r-1", rev = 5 })))
+      receiver.members["Lead-Realm"] = nil
+      assert.are.equal("forbidden", select(2, lead("MEMBER_UPSERT", member({ key = "Cid-Realm" }))))
+    end)
+
+    it("refuses an officer", function()
+      assert.are.equal(
+        "forbidden",
+        select(2, deliver(receiver, "MEMBER_UPSERT", member({ key = "Cid-Realm" }), "Lead-Realm", "officer"))
+      )
+    end)
+  end)
 
   it("takes the newer revision, ignores an older or identical one, and clamps the time", function()
     assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2, name = "Two" }), "Boss-Realm", "gm"))
@@ -596,6 +649,40 @@ describe("Rosters through Comm", function()
     end
   end)
 
+  it("puts only the assignments to its own roster in the snapshot of a raid leader", function()
+    local env = build_comm("rl")
+    env.rosters["r-1"] = { id = "r-1", name = "Main", rev = 1, updatedAt = 1 }
+    env.rosters["r-2"] = { id = "r-2", name = "Alts", rev = 1, updatedAt = 1 }
+    env.members["Me-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 1 }
+    env.members["Ann-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 2 }
+    env.members["Bob-Realm"] = { rosterId = "r-2", rev = 1, updatedAt = 3 }
+    env.tombstones["R:old"] = { at = 5, rev = 2 }
+    env.events["ev-1"] = {
+      eventId = "ev-1",
+      title = "Raid",
+      status = "open",
+      rev = 1,
+      updatedAt = 1,
+      attendance = {},
+      assignments = {},
+      loot = {},
+    }
+    assert.is_true(env.comm:SendSnapshot("Joiner-Realm"))
+    local decoded = env.codec:Decode(env.sent[1].text, {
+      encoded = Constants.SYNC_MAX_ENCODED_BYTES,
+      decompressed = Constants.SYNC_MAX_DECOMPRESSED_BYTES,
+    })
+    local keys = {}
+    for _, item in ipairs(decoded.p.items) do
+      if RosterSync.IsRosterMessage(item.t) then
+        assert.are.equal("MEMBER_UPSERT", item.t)
+        keys[#keys + 1] = item.p.key
+      end
+    end
+    table.sort(keys)
+    assert.are.same({ "Ann-Realm", "Me-Realm" }, keys)
+  end)
+
   it("applies a snapshot's roster items only when an admin sent it, and tells the window", function()
     local env = build_comm("member")
     env.roles["Boss-Realm"] = "gm"
@@ -630,7 +717,7 @@ describe("RosterCommands", function()
       tombstones = env.tombstones,
       platform = {
         GetOwnGuildRank = function()
-          return "Rank", role == "gm" and 0 or 4
+          return role == "rl" and "RL" or "Rank", role == "gm" and 0 or 4
         end,
         GetIdentityKey = function()
           return "Me-Realm"
@@ -677,6 +764,26 @@ describe("RosterCommands", function()
     assert.are.equal("not found.", env.commands:UnassignMember("Ann-Realm")[1])
     assert.are.equal("not found.", env.commands:DeleteRoster("ghost")[1])
     assert.are.equal(1, #env.sent)
+  end)
+
+  it("lets a raid leader move members into and out of its own roster only", function()
+    build("rl")
+    env.rosters.r1 = { id = "r1", name = "Main", rev = 1 }
+    env.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+    env.members["Me-Realm"] = { rosterId = "r1", rev = 1 }
+    env.members["Bob-Realm"] = { rosterId = "r2", rev = 1 }
+    assert.are.equal("saved the roster of Ann-Realm.", env.commands:AssignMember("Ann-Realm", { rosterId = "r1" })[1])
+    assert.are.equal("Ann-Realm has no roster again.", env.commands:UnassignMember("Ann-Realm")[1])
+    local own = "you can only manage the members of your own roster."
+    assert.are.equal(own, env.commands:AssignMember("Ann-Realm", { rosterId = "r2" })[1])
+    assert.are.equal(own, env.commands:AssignMember("Bob-Realm", { rosterId = false })[1])
+    assert.are.equal(own, env.commands:UnassignMember("Bob-Realm")[1])
+    assert.are.equal(
+      "only the guild master and the co-guild master can manage rosters.",
+      env.commands:DeleteRoster("r1")[1]
+    )
+    assert.are.same({ "SendMember", "SendDeleteMember" }, { env.sent[1].kind, env.sent[2].kind })
+    assert.are.equal(2, #env.sent)
   end)
 
   it("notes a change that was saved but could not be sent", function()

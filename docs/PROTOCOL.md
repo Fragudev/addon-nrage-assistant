@@ -64,8 +64,8 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
 | `ROSTER_UPSERT` | guild | `rosterId`, `name` (1 to 30 bytes, plain text), `rev`, `updatedAt` | admin |
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
-| `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), optional `rosterId`, `rev`, `updatedAt` (older clients also sent a `role`: it is tolerated and ignored) | gm, cogm |
-| `MEMBER_DELETE` | guild | `key`, `rev` | admin |
+| `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), optional `rosterId`, `rev`, `updatedAt` (older clients also sent a `role`: it is tolerated and ignored) | gm, cogm; rl, only into or out of its own roster, for a member in no roster or in its own |
+| `MEMBER_DELETE` | guild | `key`, `rev` | gm, cogm; rl, only for a member of its own roster |
 | `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
 | `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `READINESS_RULES` | guild | `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Guild readiness rules) | admin |

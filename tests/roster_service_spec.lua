@@ -58,16 +58,22 @@ describe("RosterService rosters", function()
     assert(Service.Assign(ctx, "Ann-Realm", {}))
   end)
 
-  it("refuses everybody but gm and cogm, rl and officer included, until the roster scoping exists", function()
+  it("leaves creating, renaming and deleting rosters to gm and cogm, rl and officer included", function()
     for _, role in ipairs({ "rl", "officer", "roster", "member", "alter" }) do
       local ctx = build_ctx(role)
       assert.are.same({ nil, "forbidden" }, { Service.Create(ctx, "Main") })
       ctx.rosters.r1 = { id = "r1", name = "Main", rev = 1 }
       assert.are.same({ nil, "forbidden" }, { Service.Rename(ctx, "r1", "Other") })
       assert.are.same({ false, "forbidden" }, { Service.Delete(ctx, "r1") })
+      assert.are.equal("Main", ctx.rosters.r1.name)
+    end
+    for _, role in ipairs({ "officer", "roster", "member", "alter" }) do
+      local ctx = build_ctx(role)
+      ctx.rosters.r1 = { id = "r1", name = "Main", rev = 1 }
+      ctx.members["Ann-Realm"] = { rosterId = "r1", rev = 1 }
       assert.are.same({ nil, "forbidden" }, { Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }) })
       assert.are.same({ false, "forbidden" }, { Service.Unassign(ctx, "Ann-Realm") })
-      assert.are.equal("Main", ctx.rosters.r1.name)
+      assert.are.equal("r1", ctx.members["Ann-Realm"].rosterId)
     end
     local nobody = build_ctx()
     nobody.role = nil
@@ -178,6 +184,69 @@ describe("RosterService assignments", function()
     assert(Service.Delete(ctx, "r1"))
     assert.is_nil(Service.RosterOf(ctx.members, ctx.rosters, "Ann-Realm"))
     assert.are.same({ r2 = 0, none = 1 }, Service.Counts(ctx.rosters, ctx.members, { "Ann-Realm" }))
+  end)
+end)
+
+describe("RosterService assignments by a raid leader", function()
+  local ctx
+
+  before_each(function()
+    ctx = build_ctx("rl")
+    ctx.rosters.r1 = { id = "r1", name = "Main", rev = 1 }
+    ctx.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+    ctx.members["Boss-Realm"] = { rosterId = "r1", rev = 1 }
+    ctx.members["Ann-Realm"] = { rosterId = "r1", rev = 1 }
+    ctx.members["Bob-Realm"] = { rosterId = "r2", rev = 1 }
+  end)
+
+  it("assigns a player with no roster to the own roster", function()
+    local record = assert(Service.Assign(ctx, "Cid-Realm", { rosterId = "r1" }))
+    assert.are.equal("r1", record.rosterId)
+    assert.are.equal("Boss-Realm", record.updatedBy)
+  end)
+
+  it("moves a player of the own roster out of it", function()
+    local record = assert(Service.Assign(ctx, "Ann-Realm", { rosterId = false }))
+    assert.is_nil(record.rosterId)
+  end)
+
+  it("refuses to assign to another roster", function()
+    assert.are.same({ nil, "out_of_scope" }, { Service.Assign(ctx, "Cid-Realm", { rosterId = "r2" }) })
+    assert.is_nil(ctx.members["Cid-Realm"])
+    assert.are.same({ nil, "out_of_scope" }, { Service.Assign(ctx, "Ann-Realm", { rosterId = "r2" }) })
+  end)
+
+  it("refuses to take a player out of another roster, or move one into the own", function()
+    assert.are.same({ nil, "out_of_scope" }, { Service.Assign(ctx, "Bob-Realm", { rosterId = false }) })
+    assert.are.same({ nil, "out_of_scope" }, { Service.Assign(ctx, "Bob-Realm", { rosterId = "r1" }) })
+    assert.are.equal("r2", ctx.members["Bob-Realm"].rosterId)
+  end)
+
+  it("takes the assignment of a player of the own roster away, not of another roster's", function()
+    assert.is_true(Service.Unassign(ctx, "Ann-Realm"))
+    assert.is_nil(ctx.members["Ann-Realm"])
+    assert.are.same({ false, "out_of_scope" }, { Service.Unassign(ctx, "Bob-Realm") })
+    assert.is_truthy(ctx.members["Bob-Realm"])
+  end)
+
+  it("needs a roster of its own", function()
+    ctx.members["Boss-Realm"] = nil
+    assert.are.same({ nil, "out_of_scope" }, { Service.Assign(ctx, "Cid-Realm", { rosterId = "r1" }) })
+  end)
+
+  it("does not let an rl create, rename or delete a roster", function()
+    assert.are.same({ nil, "forbidden" }, { Service.Create(ctx, "New") })
+    assert.are.same({ nil, "forbidden" }, { Service.Rename(ctx, "r1", "New") })
+    assert.are.same({ false, "forbidden" }, { Service.Delete(ctx, "r1") })
+  end)
+
+  it("lets gm and cogm move anybody anywhere", function()
+    for _, role in ipairs({ "gm", "cogm" }) do
+      ctx.role = role
+      assert(Service.Assign(ctx, "Bob-Realm", { rosterId = "r1" }))
+      assert(Service.Assign(ctx, "Bob-Realm", { rosterId = "r2" }))
+      assert.is_true(Service.Unassign(ctx, "Bob-Realm"))
+    end
   end)
 end)
 
