@@ -135,16 +135,20 @@ LootPopup.Controller = Controller
 local frame, content, lastEntries, footer
 local controller
 
--- Only the players who may apply (rank roster and above) and belong to the roster of a session are asked about it
--- (and gm and cogm).
-local function pending(dismissed)
-  if not ns.PermissionService.Can(ns.PermissionService.OwnRole(ns.Platform), "loot_apply") then
-    return {}
-  end
+-- Only the players who may apply (rank roster and above) to the roster of a session are asked about it
+-- (ViewModel.PendingLoot checks it).
+function LootPopup.Pending(dismissed)
   local global = ns.db.global
   local viewer = ns.RosterService.OwnViewer(ns.Platform, global.rosters, global.members)
   local events = ns.RosterService.FilterEvents(global.events, viewer)
-  return ns.ViewModel.PendingLoot(events, ns.Platform.GetIdentityKey(), dismissed)
+  local ownRosterId = ns.RosterService.RosterOf(global.members, global.rosters, ns.Platform.GetIdentityKey())
+  return ns.ViewModel.PendingLoot(
+    events,
+    ns.Platform.GetIdentityKey(),
+    dismissed,
+    ns.PermissionService.OwnRole(ns.Platform),
+    ownRosterId
+  )
 end
 
 local NEED_BUTTONS = ns.Locale.Table(function()
@@ -354,7 +358,7 @@ end
 -- Starts the popup. Sessions already open at login are not popped up: only ones that open from now on.
 function LootPopup.Start()
   controller = Controller.New({
-    pending = pending,
+    pending = LootPopup.Pending,
     isLockedDown = ns.Platform.IsChatMessagingLockedDown,
     after = C_Timer.After,
     show = build,

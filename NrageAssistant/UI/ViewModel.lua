@@ -561,14 +561,29 @@ function ViewModel.AttendanceView(event, memberNames, filter, limit)
   return recorded, matches, matched
 end
 
--- What the Loot tab offers a role: the same checks as the commands (LootService repeats them on every change).
-function ViewModel.LootActions(role)
-  local can = ns.PermissionService.Can
+-- Does `role` have `action` on an event of `eventRosterId`? gm and cogm on any roster; the others on their own roster
+-- (an event no roster owns counts, as RosterService.MayAct does). Without an event it asks whether the role has the
+-- action on some roster.
+local function allowedOn(role, action, ownRosterId, event)
+  local scope = ns.PermissionService.Scope(role, action, ownRosterId)
+  if scope == "all" then
+    return true
+  elseif scope == "own" then
+    return event == nil or event.rosterId == nil or event.rosterId == ownRosterId
+  end
+  return false
+end
+
+-- What the Loot tab offers a role on an event (nil: on some roster): the same checks as the commands (LootService
+-- repeats them on every change). `apply` is the apply row of the tab, which the roster rank never gets: a roster
+-- player applies only from the popup.
+function ViewModel.LootActions(role, ownRosterId, event)
+  local manage = allowedOn(role, "loot_manage", ownRosterId, event)
   return {
-    open = can(role, "loot_manage"),
-    apply = can(role, "loot_apply"),
-    vote = can(role, "loot_manage"),
-    award = can(role, "loot_manage"),
+    open = manage,
+    apply = manage and allowedOn(role, "loot_apply", ownRosterId, event),
+    vote = manage,
+    award = manage,
   }
 end
 
@@ -774,19 +789,23 @@ end
 
 -- The loot sessions waiting for an answer from `actor`: open, no candidacy of theirs yet, and not passed on or
 -- dismissed (`dismissed[sessionId] = true`). Sorted by event title, item name, then id so the popup is stable.
+-- Only the sessions `role` may apply to (loot_apply on the roster of the event, `ownRosterId` being the roster of the
+-- actor) are returned: nothing for a member or an alter, nor for another roster's session.
 -- Returns { eventId, sessionId, eventTitle, itemName } entries, text unescaped (escape when drawing).
-function ViewModel.PendingLoot(events, actor, dismissed)
+function ViewModel.PendingLoot(events, actor, dismissed, role, ownRosterId)
   local pending = {}
   for _, event in pairs(events) do
-    for _, session in ipairs(ns.LootService.Sessions(event)) do
-      if session.status == "open" and not session.candidates[actor] and not dismissed[session.sessionId] then
-        pending[#pending + 1] = {
-          eventId = event.eventId,
-          sessionId = session.sessionId,
-          eventTitle = event.title,
-          itemId = session.itemId,
-          itemName = session.itemName,
-        }
+    if allowedOn(role, "loot_apply", ownRosterId, event) then
+      for _, session in ipairs(ns.LootService.Sessions(event)) do
+        if session.status == "open" and not session.candidates[actor] and not dismissed[session.sessionId] then
+          pending[#pending + 1] = {
+            eventId = event.eventId,
+            sessionId = session.sessionId,
+            eventTitle = event.title,
+            itemId = session.itemId,
+            itemName = session.itemName,
+          }
+        end
       end
     end
   end

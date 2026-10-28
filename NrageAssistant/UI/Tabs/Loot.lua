@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- Loot (plan 3.5): the event and roster selectors, a form to open a session (with a live preview of the pasted item
+-- Loot (plan 3.3): the roster selector (shared, plan 2.2) and the event selector, a form to open a session (with a live preview of the pasted item
 -- and a
 -- strip with the items of the last boss you looted), one card per session with its candidates table and per-row Vote
 -- and
@@ -13,7 +13,6 @@ local ViewModel = ns.ViewModel
 
 local state = {
   selectedId = nil,
-  roster = nil,
   itemText = "",
   upgrade = "",
   awarding = nil,
@@ -379,9 +378,13 @@ end
 UI.Register("loot", function(page)
   local global = ns.db.global
   local role = UI.Role()
-  -- Without a sync transport nothing could be sent, so the tab stays read-only.
-  local actions = ViewModel.LootActions(ns.comm and role or nil)
-  local viewer = UI.Viewer(state.roster)
+  local ownRosterId = UI.OwnRosterId()
+  local selection = UI.RosterSelection("loot", "loot_view")
+  local viewer = UI.Viewer(selection.selected)
+  if viewer.mode == "roster" and ns.PermissionService.IsGlobal(role) then
+    -- Events no roster owns yet stay in sight of who can give them one.
+    viewer.legacy = true
+  end
   local events = ns.RosterService.FilterEvents(global.events, viewer)
   if UI.nav.eventId and events[UI.nav.eventId] then
     state.selectedId = UI.nav.eventId
@@ -400,6 +403,10 @@ UI.Register("loot", function(page)
     return
   end
 
+  UI.DrawRosterSelector(page, "loot", selection, function()
+    state.selectedId, state.awarding = nil, nil
+  end)
+
   local bar = Kit.Row(page, { gap = 10, align = "center" })
   Kit.Dropdown(bar, {
     items = ViewModel.LootEventChoices(events),
@@ -412,22 +419,8 @@ UI.Register("loot", function(page)
       UI.Redraw()
     end,
   })
-  if viewer.canSelect then
-    local items = { { value = "all", text = L("All rosters") }, { value = "none", text = L("No roster") } }
-    for _, roster in ipairs(ns.RosterService.List(global.rosters)) do
-      items[#items + 1] = { value = roster.id, text = ViewModel.Escape(roster.name) }
-    end
-    Kit.Dropdown(bar, {
-      items = items,
-      value = viewer.mode == "all" and "all" or (viewer.mode == "none" and "none" or viewer.rosterId),
-      layout = { width = 200 },
-      onChange = function(value)
-        state.roster, state.selectedId = value, nil
-        UI.Redraw()
-      end,
-    })
-  end
-  if actions.vote then
+  -- Without a sync transport nothing could be sent, so the tab stays read-only.
+  if ViewModel.LootActions(ns.comm and role or nil, ownRosterId).vote then
     Kit.Button(bar, {
       text = L("Open the voting window"),
       layout = { width = "auto" },
@@ -447,6 +440,8 @@ UI.Register("loot", function(page)
     return
   end
 
+  -- Without a sync transport nothing could be sent, so the tab stays read-only.
+  local actions = ViewModel.LootActions(ns.comm and role or nil, ownRosterId, event)
   local commands = loot()
   if actions.open then
     openCard(page, event, commands)
