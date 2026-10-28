@@ -95,6 +95,7 @@ UI\ViewModelPvP.lua
 UI\ViewModelProfessions.lua
 UI\ViewModelLayers.lua
 UI\Main.lua
+UI\Cards.lua
 UI\Tabs\Home.lua
 UI\Tabs\Profile.lua
 UI\Tabs\Readiness.lua

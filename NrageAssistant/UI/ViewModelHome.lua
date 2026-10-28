@@ -1,7 +1,8 @@
 local _, ns = ...
 
--- Structured rows for the Home, Profile, Readiness and Members tabs (plan 3.1 to 3.3 and 3.8): functions that return
--- tables of values, not lines of text, so the frames only draw them and every decision is tested here.
+-- Structured rows for the Profile, Readiness and Members tabs, and the next-event row that the Events tab reuses
+-- (plan 3.4): functions that return tables of values, not lines of text, so the frames only draw them and every
+-- decision is tested here.
 local ViewModel = ns.ViewModel
 local L = ns.L
 local Escape = ViewModel.Escape
@@ -89,75 +90,6 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Home
 
--- The readiness card from ReadinessService.Evaluate: the state word and its status token, a progress ratio and what is
--- missing. `results` and `summary` are what Evaluate returned.
-function ViewModel.ReadinessCard(results, summary)
-  local missing = {}
-  for _, outcome in ipairs(results) do
-    if outcome.status == "missing" or outcome.status == "unknown" then
-      missing[#missing + 1] = Escape(outcome.label)
-    end
-  end
-  local failing = 0
-  for _, outcome in ipairs(results) do
-    if outcome.status == "missing" then
-      failing = failing + 1
-    end
-  end
-  local countable = summary.countable
-  local state, status, text
-  if countable == 0 then
-    state, status, text = "none", "muted", L("No requirements")
-  elseif summary.met == countable then
-    state, status, text = "ready", "met", L("Ready")
-  elseif failing > 0 then
-    state, status, text = "notReady", "missing", L("Not ready")
-  else
-    state, status, text = "pending", "pending", L("Pending")
-  end
-  return {
-    state = state,
-    status = status,
-    stateText = text,
-    met = summary.met,
-    countable = countable,
-    ratio = countable > 0 and summary.met / countable or 0,
-    line = L("%d of %d requirements met"):format(summary.met, countable),
-    missing = missing,
-    missingText = #missing > 0 and (L("Missing: %s"):format(table.concat(missing, ", "))) or nil,
-  }
-end
-
--- The rows of the sync card from Comm:StatusInfo(): { label, value, dot } and the incompatible peers as warnings.
-function ViewModel.SyncRows(info, now)
-  if not info then
-    return { rows = { { label = L("Status"), value = L("Sync off"), dot = "muted" } }, warnings = {} }
-  end
-  local rows = {}
-  if info.paused then
-    rows[#rows + 1] = { label = L("Status"), value = L("Paused during an encounter"), dot = "warning" }
-  else
-    rows[#rows + 1] = { label = L("Status"), value = L("Ready"), dot = "success" }
-  end
-  rows[#rows + 1] = { label = L("Queued messages"), value = tostring(info.queued) }
-  if info.snapshot then
-    local snapshot = info.snapshot
-    local age = snapshot.at and now and (" - " .. ageText(math.max(0, now - snapshot.at))) or ""
-    rows[#rows + 1] = {
-      label = L("Last snapshot"),
-      value = L("%d of %d applied"):format(snapshot.applied, snapshot.total) .. age,
-    }
-  else
-    rows[#rows + 1] = { label = L("Last snapshot"), value = L("none yet") }
-  end
-  rows[#rows + 1] = { label = L("Members with the addon"), value = tostring(info.peers) }
-  local warnings = {}
-  for _, name in ipairs(info.incompatible) do
-    warnings[#warnings + 1] = L("%s: incompatible addon version"):format(Escape(name))
-  end
-  return { rows = rows, warnings = warnings }
-end
-
 -- The nearest upcoming event for the Home card: { eventId, title, when, status, statusText } or nil when none is
 -- planned. Past and cancelled events are ignored (an open event is kept until it is closed). `events` is what the
 -- viewer sees (RosterService.FilterEvents).
@@ -189,40 +121,6 @@ function ViewModel.NextEventCard(events, now)
     statusText = ViewModel.Word(best.status),
     statusToken = ns.Kit.Theme.StatusToken(best.status),
   }
-end
-
--- The open loot sessions of the events given, for the Home card: up to `limit` rows { eventId, sessionId, itemId,
--- itemName, eventTitle, candidates } sorted by event then item, and the total. Closed sessions are left out.
-function ViewModel.OpenLootSessions(events, limit)
-  local rows = {}
-  for _, event in pairs(events) do
-    for _, session in ipairs(ns.LootService.Sessions(event)) do
-      if session.status == "open" then
-        local candidates = 0
-        for _ in pairs(session.candidates) do
-          candidates = candidates + 1
-        end
-        rows[#rows + 1] = {
-          eventId = event.eventId,
-          sessionId = session.sessionId,
-          itemId = session.itemId,
-          itemName = Escape(session.itemName),
-          eventTitle = Escape(event.title),
-          candidates = candidates,
-          candidatesText = L("%d candidate(s)"):format(candidates),
-          sort = event.title .. "\n" .. session.itemName .. "\n" .. session.sessionId,
-        }
-      end
-    end
-  end
-  table.sort(rows, function(a, b)
-    return a.sort < b.sort
-  end)
-  local total = #rows
-  while #rows > (limit or total) do
-    table.remove(rows)
-  end
-  return rows, total
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
