@@ -1,0 +1,19 @@
+NrageAssistant/UI/Tabs/Layers.lua
+  s_64059d3038b404::t_065575f2fc3fe6 106-108,111,123-125,133-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "85ef1642fc9e6fa363d6a1f6f9668fc0747abc27",
+  "prompts": {},
+  "sessions": {
+    "s_64059d3038b404": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a83de46daba10407f",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+NrageAssistant/UI/ViewModelHome.lua
+  s_d6dcc83579493e::t_c760478f797cba 3-5
+tests/view_model_spec.lua
+  s_d6dcc83579493e::t_12abb7ed9e1127 1776
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "1af50c54cdb4ce707c917ad5288062af0f902cef",
+  "prompts": {},
+  "sessions": {
+    "s_d6dcc83579493e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a2655ce-8606-4ba9-abc4-46dbb51b0ac6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
