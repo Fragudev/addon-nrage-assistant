@@ -27,7 +27,7 @@ function SyncRules.Authorize(role, action)
 end
 
 -- Like Authorize, but only for gm and cogm (the ranks that act on every roster). For what a rank may do only on its
--- own roster (members_manage, rules_edit) and the code that checks that roster does not exist yet.
+-- own roster (members_manage) and the code that checks that roster does not exist yet.
 function SyncRules.AuthorizeGlobal(role, action)
   if role == nil then
     return "unknown_sender"

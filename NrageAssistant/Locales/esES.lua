@@ -51,8 +51,8 @@ ns.Locale.Register("es", {
   ["Readiness: %s"] = "Preparación: %s",
 
   -- Domain/ReadinessRules.lua
-  ["Guild rules, revision %d:"] = "Reglas de la guild, revisión %d:",
-  ["Starting rules (none set by the guild):"] = "Reglas iniciales (la guild no ha fijado ninguna):",
+  ["Roster rules, revision %d:"] = "Reglas del roster, revisión %d:",
+  ["Starting rules (none set for this roster):"] = "Reglas iniciales (este roster no ha fijado ninguna):",
 
   -- Domain/PublishService.lua
   ["Nothing can be shared yet: class or level is unknown."] = "Todavía no se puede compartir nada: la clase o el nivel son desconocidos.",
@@ -317,7 +317,7 @@ ns.Locale.Register("es", {
   ["Kind"] = "Tipo",
   ["Add rule"] = "Añadir regla",
   ["Use the starting list"] = "Usar la lista inicial",
-  ["These rules are the same for the whole guild and are measured on each player's own game."] = "Estas reglas son las mismas para toda la guild y se miden en el propio juego de cada jugador.",
+  ["These rules apply to the players of this roster and are measured on each player's own game."] = "Estas reglas valen para los jugadores de este roster y se miden en el propio juego de cada jugador.",
   ["Level, item level, professions, enchants and buffs are checked automatically; the rest are confirmed by hand."] = "El nivel, el item level, las profesiones, los encantamientos y los buffs se comprueban automáticamente; el resto se confirma a mano.",
   ["your guild rank does not allow importing raid data."] = "tu rango de guild no permite importar datos de raid.",
   ["nothing to import."] = "no hay nada que importar.",
@@ -555,7 +555,8 @@ ns.Locale.Register("es", {
   ["Task (optional)"] = "Tarea (opcional)",
   ["That time does not exist on that day (the clocks change)."] = "Esa hora no existe ese día (cambio de hora).",
   ["Title"] = "Título",
-  ["The guild's checklist, measured on your own character."] = "La lista de la hermandad, medida en tu propio personaje.",
+  ["The checklist of the roster, measured on your own character."] = "La lista del roster, medida en tu propio personaje.",
+  ["There is no roster to check against."] = "No hay ningún roster con el que comparar.",
   ["Alchemy"] = "Alquimia",
   ["Blacksmithing"] = "Herrería",
   ["Cancel"] = "Cancelar",
@@ -573,7 +574,10 @@ ns.Locale.Register("es", {
   ["Minimum"] = "Mínimo",
   ["Minimum skill"] = "Habilidad mínima",
   ["Mining"] = "Minería",
-  ["Only the guild master and the co-guild master can edit the readiness rules."] = "Solo el maestro de hermandad y el co-maestro pueden editar las reglas de preparación.",
+  ["There is no roster to show rules for."] = "No hay ningún roster para mostrar reglas.",
+  ["Rosters are created in the Members tab."] = "Los rosters se crean en la pestaña Miembros.",
+  ["The checklist each roster is measured against."] = "La lista con la que se mide cada roster.",
+  ["Read only"] = "Solo lectura",
   ["Pick a profession"] = "Elige una profesión",
   ["Save rule"] = "Guardar la regla",
   ["See how members see it"] = "Ver cómo lo ven los miembros",

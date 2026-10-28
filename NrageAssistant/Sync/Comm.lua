@@ -329,12 +329,13 @@ function Comm:SendSnapshot(target)
       pvpMax,
       self.blacklist,
       blacklistMax,
-      -- Only a gm or cogm snapshot carries the rules: a receiver applies them under the role of the sender (and, until
-      -- the roster scoping of docs/NAV_PERMISSIONS_PLAN.md lands, only those two may set them).
+      -- Only a gm or cogm snapshot carries the rules of the rosters: a receiver applies them under the role of the
+      -- sender, and an rl sets the rules of its own roster only.
       ns.PermissionService.CanAll(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil,
       -- The same goes for the rosters and the assignments of members; an rl only carries those of its own roster.
       self:SnapshotRosterContext(),
-      math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
+      math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS),
+      math.floor(constants.ROSTERS_MAX * count / constants.SYNC_MAX_EVENTS)
     )
     if #items == 0 then
       return false, "empty"
@@ -552,6 +553,9 @@ end
 -- ROSTER_* and MEMBER_*: the sender's role is read from the local guild roster; only the guild master's are kept.
 function Comm:HandleRoster(sender, message)
   local ok, reason = ns.RosterSync.Apply(self:RosterContext(), message, sender, self.roleOf(sender))
+  if ok and message.t == "ROSTER_DELETE" then
+    ns.ReadinessRulesSync.Forget(self.readinessRules, message.p.rosterId)
+  end
   if ok and self.onRosterChange then
     self.onRosterChange(message.t)
   end
@@ -708,9 +712,21 @@ function Comm:HandleLedgerData(sender, payload)
   return true
 end
 
--- READINESS_RULES: the sender's role is read from the local guild roster; only a gm or cogm set is kept.
+-- The tables the readiness rules of the rosters work with.
+function Comm:RulesContext()
+  return {
+    records = self.readinessRules,
+    rosters = self.rosters,
+    members = self.members,
+    tombstones = self.tombstones,
+    now = self.platform.ServerTime,
+  }
+end
+
+-- ROSTER_RULES: the sender's role is read from the local guild roster and its roster from the local assignments; the
+-- set of a roster is kept when a gm or cogm sent it, or the rl of that roster.
 function Comm:HandleReadinessRules(sender, message)
-  local ctx = { record = self.readinessRules, now = self.platform.ServerTime }
+  local ctx = self:RulesContext()
   local ok, reason = ns.ReadinessRulesSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onRulesChange then
     self.onRulesChange(message.t)
@@ -854,21 +870,36 @@ function Comm:SendBlacklistDelete(key)
   return self:Send("BLACKLIST_DELETE", payload, "BL:" .. key)
 end
 
--- Tells the guild the stored set of readiness rules (one message, replacing one still waiting in the queue).
-function Comm:SendReadinessRules()
-  local payload = ns.ReadinessRulesSync.Payload(self.readinessRules)
+-- Tells the guild the stored set of readiness rules of a roster (one message, replacing one still waiting in the
+-- queue).
+function Comm:SendReadinessRules(rosterId)
+  local payload = ns.ReadinessRulesSync.Payload(rosterId, rosterId and self.readinessRules[rosterId])
   if not payload then
     return false, "no_rules"
   end
-  return self:Send("READINESS_RULES", payload, "RR")
+  return self:Send("ROSTER_RULES", payload, "RR:" .. rosterId)
 end
 
--- Admin only: replaces the guild's rules with `rules`. They are validated and applied here first (own messages are
--- never received), then told to the guild. Returns true, the revision used and whether it was queued; or false plus
--- the reason ("forbidden" or a ReadinessRules.Validate reason).
-function Comm:SetReadinessRules(rules)
+-- Tells the guild every set the own role may author: all of them for a gm or cogm, the own roster's for an rl. Once
+-- after login, for the members who were not there when they were set.
+function Comm:SendAuthoredReadinessRules()
+  local ownRoster = ns.RosterService.RosterOf(self.members, self.rosters, self.platform.GetIdentityKey())
+  for _, payload in ipairs(ns.ReadinessRulesSync.Authored(self.readinessRules, self.ownRole(), ownRoster)) do
+    self:Send("ROSTER_RULES", payload, "RR:" .. payload.rosterId)
+  end
+end
+
+-- Replaces the rules of a roster with `rules`: a gm or cogm for any roster, an rl for its own. They are validated and
+-- applied here first (own messages are never received), then told to the guild. Returns true, the revision used and
+-- whether it was queued; or false plus the reason ("forbidden", "unknown_roster" or a ReadinessRules.Validate reason).
+function Comm:SetReadinessRules(rosterId, rules)
   local role = self.ownRole()
-  if not ns.PermissionService.CanAll(role, "rules_edit") then
+  local ctx = self:RulesContext()
+  local sender = self.platform.GetIdentityKey()
+  if rosterId == nil or not self.rosters[rosterId] then
+    return false, "unknown_roster"
+  end
+  if ns.ReadinessRulesSync.Authorize(role, ns.RosterService.SenderRoster(ctx, sender), rosterId) then
     return false, "forbidden"
   end
   local clean, reason = ns.ReadinessRules.Validate(rules)
@@ -876,27 +907,23 @@ function Comm:SetReadinessRules(rules)
     return false, reason
   end
   local payload = {
-    rev = (self.readinessRules.rev or 0) + 1,
+    rosterId = rosterId,
+    rev = ((self.readinessRules[rosterId] or {}).rev or 0) + 1,
     updatedAt = self.platform.ServerTime(),
     rules = clean,
   }
-  local message = ns.Protocol.Validate(ns.Protocol.Build("READINESS_RULES", payload, "local"))
+  local message = ns.Protocol.Validate(ns.Protocol.Build("ROSTER_RULES", payload, "local"))
   if not message then
     return false, "bad_rules"
   end
-  local ok, applied = ns.ReadinessRulesSync.Apply(
-    { record = self.readinessRules, now = self.platform.ServerTime },
-    message,
-    self.platform.GetIdentityKey(),
-    role
-  )
+  local ok, applied = ns.ReadinessRulesSync.Apply(ctx, message, sender, role)
   if not ok then
     return false, applied
   end
   if self.onRulesChange then
     self.onRulesChange(message.t)
   end
-  return true, payload.rev, (self:SendReadinessRules())
+  return true, payload.rev, (self:SendReadinessRules(rosterId))
 end
 
 -- Local roster changes -> wire. Keyed, so a newer edit replaces one still waiting in the queue.
@@ -909,6 +936,7 @@ function Comm:SendDeleteRoster(id)
   if not payload then
     return false, "no_tombstone"
   end
+  ns.ReadinessRulesSync.Forget(self.readinessRules, id)
   return self:Send("ROSTER_DELETE", payload, "RO:" .. id)
 end
 
@@ -1060,7 +1088,7 @@ function Comm.Start()
         ns.BlacklistChanged()
       end
     end,
-    readinessRules = ns.db.global.readinessRules,
+    readinessRules = ns.db.global.readinessRulesByRoster,
     onRulesChange = function()
       if ns.UI and ns.UI.RulesChanged then
         ns.UI.RulesChanged()
@@ -1126,10 +1154,9 @@ function Comm.Start()
       comm:RequestSync()
       -- And what the guild holds of the PvP season, in case it moved on while this client was away.
       comm:RequestLedger()
-      -- A gm or cogm also tells the guild the rules once, for the members who were not there when they were set.
-      if ns.PermissionService.CanAll(comm.ownRole(), "rules_edit") then
-        comm:SendReadinessRules()
-      end
+      -- Whoever can set rules tells the guild the sets of their rosters once, for the members who were not there
+      -- when they were set.
+      comm:SendAuthoredReadinessRules()
       -- And the roster definitions (the assignments of the members travel in the snapshot an admin answers).
       if ns.PermissionService.CanAll(comm.ownRole(), "members_manage") then
         for _, roster in ipairs(ns.RosterService.List(comm.rosters)) do

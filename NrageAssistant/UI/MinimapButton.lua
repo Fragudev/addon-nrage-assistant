@@ -81,7 +81,8 @@ local function showTooltip(self)
   GameTooltip:AddLine("Nrage Assistant " .. ns.GetVersion())
   if ns.active and ns.character and ns.db then
     local character = ns.character
-    local _, summary = ns.ReadinessService.Evaluate(ns.ReadinessRules.Current(), character.profile, character.readiness)
+    local rules = ns.ReadinessRules.Current(ns.UI.OwnRosterId())
+    local _, summary = ns.ReadinessService.Evaluate(rules, character.profile, character.readiness)
     local queue = ns.comm and ns.comm.queue
     for _, line in
       ipairs(ns.ViewModel.MinimapTooltip({

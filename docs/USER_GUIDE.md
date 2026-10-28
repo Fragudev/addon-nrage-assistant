@@ -95,7 +95,7 @@ A rank with any other name counts as **Alter**. **If you rename a rank in the ga
 in that rank becomes an Alter** until the addon knows the new name (`RANK_ROLES` in `Core/Constants.lua`).
 
 The PvP officer flag is gone: approving claims, marking deliveries and the rest of the PvP administration are for GM
-and CoGM only. Rosters, assignments and the readiness rules can only be changed by GM and CoGM for now.
+and CoGM only. Rosters and assignments can only be changed by GM and CoGM for now; the readiness rules of a roster by GM, CoGM and the RL of that roster.
 
 **Rosters.** The guild master defines the rosters (teams) and puts each player in at most one. A player sees the
 events, reports and loot of their own roster only (events made before rosters existed stay visible to every
@@ -138,8 +138,9 @@ The checklist keeps itself up to date: while the Readiness tab (or the readiness
 read again when your auras, gear, level or skills change, so a flask that ran out stops counting as met without you
 doing anything. Nothing about your readiness is sent to the guild.
 
-The rules are the same for the whole guild and only an admin can change them. Until the guild sets its own, the
-starting list applies (level 60, item level, role, consumables and enchants). Items measured from the game
+Each roster has its own rules. GM and CoGM change those of any roster, the RL those of their own roster, and the
+Officer sees them all read-only. A roster that never had its own rules uses the starting list (level 60, item level, role, consumables and enchants); GM and CoGM pick which roster to measure against in the
+Raid check tab, everybody else is measured against their own. Items measured from the game
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
@@ -147,7 +148,7 @@ The **Roster rules** tab of the Admin group is the editor of the readiness rules
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
-Every change replaces the whole set for the guild; **Use the starting list** puts the starting rules back.
+Every change replaces the whole set of the selected roster; **Use the starting list** puts the starting rules back.
 
 ## Raid events
 
@@ -336,8 +337,9 @@ The checklist keeps itself up to date: while the Readiness tab (or the readiness
 read again when your auras, gear, level or skills change, so a flask that ran out stops counting as met without you
 doing anything. Nothing about your readiness is sent to the guild.
 
-The rules are the same for the whole guild and only an admin can change them. Until the guild sets its own, the
-starting list applies (level 60, item level, role, consumables and enchants). Items measured from the game
+Each roster has its own rules. GM and CoGM change those of any roster, the RL those of their own roster, and the
+Officer sees them all read-only. A roster that never had its own rules uses the starting list (level 60, item level, role, consumables and enchants); GM and CoGM pick which roster to measure against in the
+Raid check tab, everybody else is measured against their own. Items measured from the game
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
@@ -345,7 +347,7 @@ The **Roster rules** tab of the Admin group is the editor of the readiness rules
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
-Every change replaces the whole set for the guild; **Use the starting list** puts the starting rules back.
+Every change replaces the whole set of the selected roster; **Use the starting list** puts the starting rules back.
 
 ## Raid events
 

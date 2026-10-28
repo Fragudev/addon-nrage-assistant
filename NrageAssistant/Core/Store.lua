@@ -3,7 +3,7 @@ local _, ns = ...
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, language,
 --                 blacklistSound, layer, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
---                 blacklist = {}, readinessRules = { rev, updatedAt, updatedBy, rules },
+--                 blacklist = {}, readinessRulesByRoster = { [rosterId] = { rev, updatedAt, updatedBy, rules } },
 --                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
 --                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
@@ -17,6 +17,17 @@ local function ensureTable(parent, key)
     parent[key] = {}
   end
   return parent[key]
+end
+
+local function deepCopy(value)
+  if type(value) ~= "table" then
+    return value
+  end
+  local copy = {}
+  for key, inner in pairs(value) do
+    copy[key] = deepCopy(inner)
+  end
+  return copy
 end
 
 -- Each entry upgrades a db to that version. All of them must be idempotent.
@@ -112,6 +123,25 @@ local MIGRATIONS = {
     for _, char in pairs(ensureTable(db, "chars")) do
       if type(char) == "table" then
         ensureTable(char, "pvpMissions")
+      end
+    end
+  end,
+  -- v13: readiness rules per roster (readinessRulesByRoster[rosterId], see ReadinessRules). Every existing roster
+  -- starts with a copy of the guild-wide record (readinessRules, or the starting list while none was set); the old key
+  -- stays but nothing reads it any more. A roster created later has no record and uses the starting list.
+  [13] = function(db)
+    local global = ensureTable(db, "global")
+    local byRoster = ensureTable(global, "readinessRulesByRoster")
+    local old = type(global.readinessRules) == "table" and global.readinessRules or {}
+    local rules = type(old.rules) == "table" and #old.rules > 0 and old.rules or ns.Constants.DEFAULT_RULES
+    for id in pairs(ensureTable(global, "rosters")) do
+      if type(byRoster[id]) ~= "table" then
+        byRoster[id] = {
+          rev = type(old.rev) == "number" and old.rev or 0,
+          updatedAt = type(old.updatedAt) == "number" and old.updatedAt or 0,
+          updatedBy = old.updatedBy,
+          rules = deepCopy(rules),
+        }
       end
     end
   end,
