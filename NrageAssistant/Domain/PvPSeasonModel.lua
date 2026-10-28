@@ -789,28 +789,21 @@ function PvPSeasonModel.TierRange(tier)
   return nil
 end
 
-local function roleIs(roleOf, name, role)
-  return roleOf ~= nil and roleOf(name) == role
-end
-
--- Does the author of a grant count? An admin always does. A PvP officer does when the grant approves a claim (its id is
--- a claim id), was stamped while their flag was on, and is not for themselves. A direct grant needs an admin.
-function PvPSeasonModel.GrantCounts(grant, officers, roleOf)
+-- Does the author of a grant count? Only gm and cogm: the PvP officer flag gives no power any more.
+function PvPSeasonModel.GrantCounts(grant, roleOf)
   local by = grant.by
-  if type(by) ~= "string" then
+  if type(by) ~= "string" or roleOf == nil then
     return false
   end
-  if roleIs(roleOf, by, "admin") then
-    return true
-  end
-  return PvPSeasonModel.IsClaimId(grant.id)
-    and by ~= grant.player
-    and PvPSeasonModel.IsOfficerAt(officers and officers[by], grant.at)
+  return ns.PermissionService.IsGlobal(roleOf(by))
 end
 
--- A void counts when an admin wrote it.
+-- A void counts when gm or cogm wrote it.
 function PvPSeasonModel.VoidCounts(void, roleOf)
-  return type(void) == "table" and type(void.by) == "string" and roleIs(roleOf, void.by, "admin")
+  return type(void) == "table"
+    and type(void.by) == "string"
+    and roleOf ~= nil
+    and ns.PermissionService.IsGlobal(roleOf(void.by))
 end
 
 local function compareRows(a, b)
@@ -828,17 +821,18 @@ local function compareRows(a, b)
 end
 
 -- The ranking of a season, derived from its grants (plan 1.8). `grants` and `voids` are maps or lists of the records
--- stored by PvPSeasonSync (each grant with its `by`), `officers` the officer records by player, `roleOf(name)` the role
--- of an author according to the guild roster. With `seasonId` only the grants of that season are read.
+-- stored by PvPSeasonSync (each grant with its `by`), `_officers` unused (the PvP officer flag gives no power any
+-- more), `roleOf(name)` the role of an author according to the guild roster. With `seasonId` only the grants of that
+-- season are read.
 -- Returns a list of { pos, player, points, lastAt, tier } best first; a player with no points is not ranked, and
 -- `tier` is nil past position 10. Ties on points go to whoever reached the total first (earlier `lastAt`), then name.
-function PvPSeasonModel.Standings(grants, voids, officers, roleOf, seasonId)
+function PvPSeasonModel.Standings(grants, voids, _officers, roleOf, seasonId)
   local totals, rows = {}, {}
   for _, grant in pairs(grants or {}) do
     local voided = voids and voids[grant.id]
     if
       (seasonId == nil or grant.seasonId == seasonId)
-      and PvPSeasonModel.GrantCounts(grant, officers, roleOf)
+      and PvPSeasonModel.GrantCounts(grant, roleOf)
       and not (voided and PvPSeasonModel.VoidCounts(voided, roleOf))
     then
       local row = totals[grant.player]

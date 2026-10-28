@@ -5,7 +5,7 @@ local _, ns = ...
 -- with a reason: that closed record is the minutes (acta).
 --
 -- ctx = {
---   events = db.global.events,        role = "member" | "rl" | "council" | "admin",
+--   events = db.global.events,        role = a rank role,
 --   actor  = "Name-Realm",            now = function() -> server time,
 --   newId  = function() -> unique id, isLockedDown = function() -> boolean (optional),
 -- }
@@ -65,7 +65,7 @@ end
 -- Opens a session for one item. Only after the encounter: while chat messaging is locked down the
 -- session could not be announced, and item links may be unreadable.
 function LootService.OpenSession(ctx, eventId, fields)
-  if not Can(ctx.role, "loot_open") then
+  if not Can(ctx.role, "loot_manage") then
     return nil, "forbidden"
   end
   if ctx.isLockedDown and ctx.isLockedDown() then
@@ -133,7 +133,7 @@ end
 
 -- One vote per council member per session; voting again changes it.
 function LootService.Vote(ctx, eventId, sessionId, targetKey)
-  if not Can(ctx.role, "loot_vote") then
+  if not Can(ctx.role, "loot_manage") then
     return nil, "forbidden"
   end
   local _, session, reason = findOpenSession(ctx, eventId, sessionId)
@@ -159,7 +159,7 @@ end
 
 -- Awards the item to a candidate, with a reason, and closes the session.
 function LootService.Award(ctx, eventId, sessionId, targetKey, awardReason)
-  if not Can(ctx.role, "loot_award") then
+  if not Can(ctx.role, "loot_manage") then
     return nil, "forbidden"
   end
   local _, session, reason = findOpenSession(ctx, eventId, sessionId)
@@ -181,7 +181,7 @@ end
 
 -- Closes a session without awarding anything (the item is disenchanted, kept for later, etc.).
 function LootService.Close(ctx, eventId, sessionId)
-  if not Can(ctx.role, "loot_award") then
+  if not Can(ctx.role, "loot_manage") then
     return nil, "forbidden"
   end
   local _, session, reason = findOpenSession(ctx, eventId, sessionId)

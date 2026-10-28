@@ -33,10 +33,13 @@ local WORDS = ns.Locale.Table(function()
     main = L("main"),
     off = L("off"),
     other = L("other"),
-    member = L("member"),
-    rl = L("raid leader"),
-    council = L("loot council"),
-    admin = L("admin"),
+    gm = L("Guild master"),
+    cogm = L("Co-guild master"),
+    officer = L("Officer"),
+    rl = L("Raid leader"),
+    roster = L("Roster"),
+    member = L("Member"),
+    alter = L("Alter"),
   }
 end)
 
@@ -505,9 +508,9 @@ ViewModel.ATTENDANCE_STATES = { "invited", "confirmed", "present", "late", "left
 function ViewModel.RaidActions(role)
   local can = ns.PermissionService.Can
   return {
-    events = can(role, "manage_events"),
-    attendance = can(role, "record_attendance"),
-    assignments = can(role, "manage_assignments"),
+    events = can(role, "raid_manage"),
+    attendance = can(role, "raid_manage"),
+    assignments = can(role, "raid_manage"),
   }
 end
 
@@ -562,10 +565,10 @@ end
 function ViewModel.LootActions(role)
   local can = ns.PermissionService.Can
   return {
-    open = can(role, "loot_open"),
+    open = can(role, "loot_manage"),
     apply = can(role, "loot_apply"),
-    vote = can(role, "loot_vote"),
-    award = can(role, "loot_award"),
+    vote = can(role, "loot_manage"),
+    award = can(role, "loot_manage"),
   }
 end
 
@@ -1054,7 +1057,8 @@ function ViewModel.TabsFor(role)
   for index, tab in ipairs(ViewModel.TABS) do
     tabs[index] = tab
   end
-  if ns.PermissionService.Can(role, "rules_edit") then
+  -- Until the per-roster rules (docs/NAV_PERMISSIONS_PLAN.md phase 4), only gm and cogm edit the rules.
+  if ns.PermissionService.CanAll(role, "rules_edit") then
     tabs[#tabs + 1] = ViewModel.RULES_TAB
   end
   return tabs
@@ -1102,7 +1106,7 @@ ViewModel.ENCHANT_SLOTS = {
 
 ViewModel.RULE_ERRORS = ns.Locale.Table(function()
   return {
-    forbidden = L("only the guild master and officers can change the rules."),
+    forbidden = L("only the guild master and the co-guild master can change the rules."),
     empty = L("keep at least one rule."),
     too_many = L("there is room for 30 rules at most."),
     bad_id = L("that rule name cannot be used."),

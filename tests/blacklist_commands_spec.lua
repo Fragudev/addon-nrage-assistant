@@ -49,7 +49,6 @@ local function build(rank)
     end,
   }
   env.members = Roles.assignments(rank, "Me-Realm")
-  ns.PermissionService.Configure({ members = env.members })
   env.commands = ns.BlacklistCommands.New({
     blacklist = env.blacklist,
     tombstones = env.tombstones,
@@ -110,11 +109,20 @@ describe("BlacklistCommands add", function()
     assert.are.equal(0, #env.sent)
   end)
 
-  it("lets an officer change the reason of any player", function()
+  it("lets the guild master and the co-guild master change the reason of any player", function()
+    for _, rank in ipairs({ "GM", "CoGM" }) do
+      local env = build(rank)
+      env.blacklist.ann = { name = "Ann", reason = "one", addedBy = "Other-Realm", addedAt = 1, rev = 1, updatedAt = 1 }
+      env.commands:Add("ann", "two")
+      assert.are.equal("two", env.blacklist.ann.reason, rank)
+    end
+  end)
+
+  it("does not let an officer change the reason of a player somebody else added", function()
     local env = build("officer")
     env.blacklist.ann = { name = "Ann", reason = "one", addedBy = "Other-Realm", addedAt = 1, rev = 1, updatedAt = 1 }
     env.commands:Add("ann", "two")
-    assert.are.equal("two", env.blacklist.ann.reason)
+    assert.are.equal("one", env.blacklist.ann.reason)
   end)
 
   it("refuses when the guild rank gives no role", function()
@@ -165,19 +173,23 @@ describe("BlacklistCommands remove", function()
   end)
 
   it("accepts a key and a realm suffix", function()
-    local env = listed("Officer")
+    local env = listed("CoGM")
     env.commands:Remove("yonemongg")
     assert.is_nil(env.blacklist.yonemongg)
-    env = listed("Officer")
+    env = listed("GM")
     env.commands:Remove("Yonemon Gg-ClassicBetaPvP")
     assert.is_nil(env.blacklist.yonemongg)
   end)
 
-  it("tells everyone else that only admins can remove, whether or not the player is listed", function()
-    for _, rank in ipairs({ "member", "RL", "council" }) do
+  it("tells everyone else that only gm and cogm can remove, whether or not the player is listed", function()
+    for _, rank in ipairs({ "member", "RL", "officer", "Roster", "Alter" }) do
       local env = listed(rank)
-      assert.is_truthy(text(env.commands:Remove("Yonemon Gg")):find("only the guild master and officers", 1, true))
-      assert.is_truthy(text(env.commands:Remove("Ghost")):find("only the guild master and officers", 1, true))
+      assert.is_truthy(
+        text(env.commands:Remove("Yonemon Gg")):find("only the guild master and the co-guild master", 1, true)
+      )
+      assert.is_truthy(
+        text(env.commands:Remove("Ghost")):find("only the guild master and the co-guild master", 1, true)
+      )
       assert.is_truthy(env.blacklist.yonemongg)
       assert.are.equal(0, #env.sent)
       assert.are.equal(0, env.changes)

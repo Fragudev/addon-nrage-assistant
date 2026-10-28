@@ -5,7 +5,7 @@ local _, ns = ...
 --
 -- ctx = {
 --   events     = db.global.events,             tombstones = db.global.sync.tombstones,
---   role       = "member" | "rl" | "admin",    actor      = "Name-Realm",
+--   role       = a rank role,                  actor      = "Name-Realm",
 --   now        = function() -> server time,    newId      = function() -> unique id,
 --   rosterId   = the roster of the actor (nil: none),
 -- }
@@ -59,7 +59,7 @@ end
 EventService.AddTombstone = addTombstone
 
 function EventService.Create(ctx, fields)
-  if not Can(ctx.role, "manage_events") then
+  if not Can(ctx.role, "raid_manage") then
     return nil, "forbidden"
   end
   local clean, reason = ns.EventModel.ValidateEvent(fields)
@@ -67,7 +67,7 @@ function EventService.Create(ctx, fields)
     return nil, reason
   end
   -- A raid leader's new event belongs to their roster; the guild master chooses (or leaves it with none).
-  if ctx.role ~= "admin" then
+  if not ns.PermissionService.IsGlobal(ctx.role) then
     if ctx.rosterId == nil or (clean.rosterId ~= nil and clean.rosterId ~= ctx.rosterId) then
       return nil, "other_roster"
     end
@@ -95,7 +95,7 @@ function EventService.Create(ctx, fields)
 end
 
 function EventService.Update(ctx, eventId, fields)
-  if not Can(ctx.role, "manage_events") then
+  if not Can(ctx.role, "raid_manage") then
     return nil, "forbidden"
   end
   local event = ctx.events[eventId]
@@ -111,7 +111,7 @@ function EventService.Update(ctx, eventId, fields)
     return nil, denied
   end
   -- Moving an event to another roster, or giving a legacy one a roster, is the guild master's.
-  if clean.rosterId ~= nil and ctx.role ~= "admin" then
+  if clean.rosterId ~= nil and not ns.PermissionService.IsGlobal(ctx.role) then
     return nil, "forbidden"
   end
 
@@ -123,7 +123,7 @@ function EventService.Update(ctx, eventId, fields)
 end
 
 function EventService.Delete(ctx, eventId)
-  if not Can(ctx.role, "manage_events") then
+  if not Can(ctx.role, "raid_manage") then
     return false, "forbidden"
   end
   local event = ctx.events[eventId]
@@ -142,7 +142,7 @@ end
 -- Records a member's attendance state. Nothing here ever infers "absent" from a disconnect:
 -- only an explicit call by someone allowed to record attendance changes a state.
 function EventService.SetAttendance(ctx, eventId, characterKey, state)
-  if not Can(ctx.role, "record_attendance") then
+  if not Can(ctx.role, "raid_manage") then
     return nil, "forbidden"
   end
   local event = ctx.events[eventId]
@@ -175,7 +175,7 @@ function EventService.SetAttendance(ctx, eventId, characterKey, state)
 end
 
 function EventService.AddAssignment(ctx, eventId, fields)
-  if not Can(ctx.role, "manage_assignments") then
+  if not Can(ctx.role, "raid_manage") then
     return nil, "forbidden"
   end
   local event = ctx.events[eventId]
@@ -209,7 +209,7 @@ function EventService.AddAssignment(ctx, eventId, fields)
 end
 
 function EventService.RemoveAssignment(ctx, eventId, assignmentId)
-  if not Can(ctx.role, "manage_assignments") then
+  if not Can(ctx.role, "raid_manage") then
     return false, "forbidden"
   end
   local event = ctx.events[eventId]

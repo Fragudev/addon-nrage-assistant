@@ -39,28 +39,23 @@ ns.Constants = {
   -- The readiness views read the character again and redraw at most this often while they are on screen.
   READINESS_REDRAW_SECONDS = 1,
 
-  -- Where the addon role of a player comes from (plan 3.4.2):
-  --   "assigned": the guild master (rank index 0) is the only admin, and every other role (member, rl, council) is
-  --               assigned by the guild master inside the addon (Members tab) and synced. The guild ranks are not
-  --               defined yet, so RANK_ROLES is ignored for everyone but the guild master.
-  --   "rank":     the old behaviour: the guild rank name decides, through RANK_ROLES. Kept so it can be switched
-  --               back once the ranks exist.
-  ROLE_SOURCE = "assigned",
+  -- Where the addon role of a player comes from: the guild rank, matched by name through RANK_ROLES. The role is
+  -- changed in the game, never in the addon (plan NAV_PERMISSIONS 1.1).
+  ROLE_SOURCE = "rank",
   -- The guild master is always rank index 0 in GetGuildRosterInfo / GetGuildInfo (measured? see API_NOTES).
   GUILD_MASTER_RANK_INDEX = 0,
-  -- The roles the guild master can assign. "admin" can never be granted from the addon.
-  ASSIGNABLE_ROLES = { "member", "rl", "council" },
 
-  -- Guild rank name (lowercase) -> addon role: "member" | "rl" | "council" | "admin". Placeholder ranks until Nrage
-  -- defines its own; a rank that is not listed here is treated as "member". Only used when ROLE_SOURCE = "rank".
+  -- Guild rank name (trimmed, lowercase) -> addon role: "gm" | "cogm" | "officer" | "rl" | "roster" | "member" |
+  -- "alter". A rank that is not listed here is treated as "alter" (least privilege), so renaming a rank in the game
+  -- demotes its members until this table is updated. The guild master is always "gm", whatever the rank is called.
   RANK_ROLES = {
-    gm = "admin",
-    officer = "admin",
-    council = "council",
+    gm = "gm",
+    cogm = "cogm",
+    oficial = "officer",
     rl = "rl",
-    roster = "member",
-    member = "member",
-    alter = "member",
+    roster = "roster",
+    miembro = "member",
+    alter = "alter",
   },
 
   -- The beta list of admins by character name is gone: nobody is an admin because of who they are, only because they

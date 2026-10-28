@@ -86,7 +86,12 @@ function TemplateService.Delete(templates, name, ctx)
   if not template then
     return false, "not_found"
   end
-  if ctx and ctx.role ~= "admin" and template.rosterId ~= nil and template.rosterId ~= ctx.rosterId then
+  if
+    ctx
+    and not ns.PermissionService.IsGlobal(ctx.role)
+    and template.rosterId ~= nil
+    and template.rosterId ~= ctx.rosterId
+  then
     return false, "other_roster"
   end
   templates[name] = nil
@@ -98,7 +103,7 @@ end
 -- can send them) and a table of skip reasons with counts, or nil plus "forbidden" | "not_found" | "other_roster" (the
 -- template belongs to another roster than the event).
 function TemplateService.Apply(ctx, templates, name, eventId)
-  if not ns.PermissionService.Can(ctx.role, "manage_assignments") then
+  if not ns.PermissionService.Can(ctx.role, "raid_manage") then
     return nil, "forbidden"
   end
   local template = templates[name]

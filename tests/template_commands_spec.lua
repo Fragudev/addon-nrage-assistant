@@ -46,7 +46,6 @@ local function build(rank)
     return env.sendResult
   end
   env.members, env.rosters = Roles.assignments(rank, "Leader-Realm")
-  ns.PermissionService.Configure({ members = env.members })
   env.commands = ns.TemplateCommands.New({
     events = env.events,
     templates = env.templates,

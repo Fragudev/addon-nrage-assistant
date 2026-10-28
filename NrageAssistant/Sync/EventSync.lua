@@ -36,7 +36,7 @@ end
 EventSync.RosterGuard = rosterGuard
 
 local function applyEventUpsert(ctx, payload, sender, role)
-  local denied = authorize(role, "manage_events")
+  local denied = authorize(role, "raid_manage")
   if denied then
     return false, denied
   end
@@ -57,7 +57,7 @@ local function applyEventUpsert(ctx, payload, sender, role)
   -- What the message says about the roster has to be the sender's own: a raid leader cannot move an event to another
   -- roster, and a new event has to say it is of theirs. A message with no roster is only fine for an event that already
   -- has one (an older client editing it).
-  if role ~= "admin" then
+  if not ns.PermissionService.IsGlobal(role) then
     local senderRoster = ns.RosterService.SenderRoster(ctx, sender)
     if (payload.rosterId ~= nil and payload.rosterId ~= senderRoster) or (payload.rosterId == nil and not event) then
       return false, "other_roster"
@@ -92,7 +92,7 @@ local function applyEventUpsert(ctx, payload, sender, role)
 end
 
 local function applyAttendanceUpsert(ctx, payload, sender, role)
-  local denied = authorize(role, "record_attendance")
+  local denied = authorize(role, "raid_manage")
   if denied then
     return false, denied
   end
@@ -129,7 +129,7 @@ local function applyAttendanceUpsert(ctx, payload, sender, role)
 end
 
 local function applyAssignUpsert(ctx, payload, sender, role)
-  local denied = authorize(role, "manage_assignments")
+  local denied = authorize(role, "raid_manage")
   if denied then
     return false, denied
   end
@@ -177,7 +177,7 @@ end
 
 local function applyDelete(ctx, payload, sender, role)
   local isEvent = payload.kind == "event"
-  local denied = authorize(role, isEvent and "manage_events" or "manage_assignments")
+  local denied = authorize(role, "raid_manage")
   if denied then
     return false, denied
   end
@@ -190,7 +190,7 @@ local function applyDelete(ctx, payload, sender, role)
     if blocked then
       return false, blocked
     end
-  elseif role ~= "admin" then
+  elseif not ns.PermissionService.IsGlobal(role) then
     return false, "unknown_event"
   end
   local key

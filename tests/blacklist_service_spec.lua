@@ -117,7 +117,7 @@ describe("BlacklistService.Add", function()
   end)
 
   it("is open to every role that has one", function()
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+    for _, role in ipairs({ "member", "rl", "officer", "gm" }) do
       assert.is_truthy(Service.Add(context(role), "Ann", "x"), role)
     end
     local entry, reason = Service.Add(context("stranger"), "Ann", "x")
@@ -166,7 +166,7 @@ describe("BlacklistService.Add", function()
   it("lets an admin change the reason of any entry and keeps who added it", function()
     local ctx = context()
     Service.Add(ctx, "Yonemon Gg", "x")
-    ctx.actor, ctx.role = "Boss-Realm", "admin"
+    ctx.actor, ctx.role = "Boss-Realm", "gm"
     local entry, _, updated = Service.Add(ctx, "yonemongg", "y")
     assert.is_true(updated)
     assert.are.equal("y", entry.reason)
@@ -177,7 +177,7 @@ describe("BlacklistService.Add", function()
   it("tells who may edit an entry", function()
     local entry = { addedBy = "Ann-Realm" }
     assert.is_true(Service.CanEdit(entry, "ann-realm", "member"))
-    assert.is_true(Service.CanEdit(entry, "Boss-Realm", "admin"))
+    assert.is_true(Service.CanEdit(entry, "Boss-Realm", "gm"))
     assert.is_false(Service.CanEdit(entry, "Bob-Realm", "member"))
     assert.is_false(Service.CanEdit(entry, "Bob-Realm", "rl"))
     assert.is_false(Service.CanEdit({}, "Bob-Realm", "member"))
@@ -195,7 +195,7 @@ describe("BlacklistService.Add", function()
   end)
 
   it("needs a revision above the removal it follows, and forgets the tombstone", function()
-    local ctx = context("admin")
+    local ctx = context("gm")
     Service.Add(ctx, "Ann", "x")
     Service.Remove(ctx, "ann")
     assert.are.equal(2, ctx.tombstones["B:ann"].rev)
@@ -207,7 +207,7 @@ end)
 
 describe("BlacklistService.Remove", function()
   it("removes the entry and leaves a tombstone above its revision", function()
-    local ctx = context("admin")
+    local ctx = context("gm")
     Service.Add(ctx, "Ann", "x")
     local ok, rev = Service.Remove(ctx, "ann")
     assert.is_true(ok)
@@ -218,7 +218,7 @@ describe("BlacklistService.Remove", function()
   end)
 
   it("is for admins only", function()
-    for _, role in ipairs({ "member", "rl", "council" }) do
+    for _, role in ipairs({ "member", "rl", "officer" }) do
       local ctx = context(role)
       ctx.blacklist.ann = { name = "Ann", rev = 1 }
       local ok, reason = Service.Remove(ctx, "ann")
@@ -230,7 +230,7 @@ describe("BlacklistService.Remove", function()
   end)
 
   it("reports a player who is not listed", function()
-    local ok, reason = Service.Remove(context("admin"), "ghost")
+    local ok, reason = Service.Remove(context("gm"), "ghost")
     assert.is_false(ok)
     assert.are.equal("not_found", reason)
   end)

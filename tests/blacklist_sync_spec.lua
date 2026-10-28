@@ -66,7 +66,7 @@ end
 
 describe("BlacklistSync BLACKLIST_UPSERT", function()
   it("lets any member add a player, with the sender as the author", function()
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+    for _, role in ipairs({ "member", "rl", "officer", "gm" }) do
       local ctx = context()
       assert.is_true(Sync.Apply(ctx, upsert(), "Ann-Realm", role), role)
       assert.are.same({
@@ -109,7 +109,7 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
   it("keeps the original author when an admin's later edit wins", function()
     local ctx = context()
     Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
-    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, reason = "afk" }), "Boss-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, reason = "afk" }), "Boss-Realm", "gm"))
     local entry = ctx.blacklist.yonemongg
     assert.are.equal("afk", entry.reason)
     assert.are.equal("Ann-Realm", entry.addedBy)
@@ -125,7 +125,7 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
   end)
 
   it("refuses an edit of a listed player from anyone else but an admin", function()
-    for _, role in ipairs({ "member", "rl", "council" }) do
+    for _, role in ipairs({ "member", "rl", "officer" }) do
       local ctx = context()
       Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
       local before = { reason = ctx.blacklist.yonemongg.reason, rev = ctx.blacklist.yonemongg.rev }
@@ -152,8 +152,8 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
     assert.are.equal("later time", ctx.blacklist.yonemongg.reason)
 
     -- Same rev and time: the larger sender wins, the smaller one does not.
-    assert.is_false(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "small" }), "Aaa-Realm", "admin"))
-    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "large" }), "Zed-Realm", "admin"))
+    assert.is_false(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "small" }), "Aaa-Realm", "gm"))
+    assert.is_true(Sync.Apply(ctx, upsert({ rev = 2, updatedAt = NOW - 40, reason = "large" }), "Zed-Realm", "gm"))
     assert.are.equal("large", ctx.blacklist.yonemongg.reason)
 
     assert.is_true(
@@ -196,7 +196,7 @@ describe("BlacklistSync BLACKLIST_UPSERT", function()
         ctx,
         message("BLACKLIST_UPSERT", upsert_payload({ key = "p1", name = "P1", rev = 2 })),
         "Boss-Realm",
-        "admin"
+        "gm"
       )
     )
     assert.are.equal(2, ctx.blacklist.p1.rev)
@@ -212,14 +212,14 @@ describe("BlacklistSync BLACKLIST_DELETE", function()
 
   it("lets an admin remove a player and leaves a tombstone", function()
     local ctx = listed()
-    assert.is_true(Sync.Apply(ctx, delete(), "Boss-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, delete(), "Boss-Realm", "gm"))
     assert.is_nil(ctx.blacklist.yonemongg)
     assert.are.equal(2, ctx.tombstones["B:yonemongg"].rev)
     assert.are.equal(NOW, ctx.tombstones["B:yonemongg"].at)
   end)
 
   it("forbids everyone else", function()
-    for _, role in ipairs({ "member", "rl", "council" }) do
+    for _, role in ipairs({ "member", "rl", "officer" }) do
       local ctx = listed()
       local ok, reason = Sync.Apply(ctx, delete(), "Ann-Realm", role)
       assert.is_false(ok)
@@ -239,7 +239,7 @@ describe("BlacklistSync BLACKLIST_DELETE", function()
 
   it("does not remove an entry that has a newer revision", function()
     local ctx = listed()
-    local ok, reason = Sync.Apply(ctx, delete({ rev = 1 }), "Boss-Realm", "admin")
+    local ok, reason = Sync.Apply(ctx, delete({ rev = 1 }), "Boss-Realm", "gm")
     assert.is_false(ok)
     assert.are.equal("stale", reason)
     assert.is_truthy(ctx.blacklist.yonemongg)
@@ -247,18 +247,18 @@ describe("BlacklistSync BLACKLIST_DELETE", function()
 
   it("remembers a removal of a player this client never saw", function()
     local ctx = context()
-    assert.is_true(Sync.Apply(ctx, delete({ rev = 5 }), "Boss-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, delete({ rev = 5 }), "Boss-Realm", "gm"))
     assert.are.equal(5, ctx.tombstones["B:yonemongg"].rev)
   end)
 
   it("treats a replay as a no-op", function()
     local ctx = listed()
-    assert.is_true(Sync.Apply(ctx, delete(), "Boss-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, delete(), "Boss-Realm", "gm"))
     local at = ctx.tombstones["B:yonemongg"].at
     ctx.now = function()
       return NOW + 50
     end
-    local ok, reason = Sync.Apply(ctx, delete(), "Boss-Realm", "admin")
+    local ok, reason = Sync.Apply(ctx, delete(), "Boss-Realm", "gm")
     assert.is_false(ok)
     assert.are.equal("stale", reason)
     assert.are.equal(at, ctx.tombstones["B:yonemongg"].at)
@@ -269,7 +269,7 @@ describe("BlacklistSync tombstones", function()
   it("blocks an older upsert and allows rev + 1 to add the player again", function()
     local ctx = context()
     Sync.Apply(ctx, upsert(), "Ann-Realm", "member")
-    Sync.Apply(ctx, delete(), "Boss-Realm", "admin")
+    Sync.Apply(ctx, delete(), "Boss-Realm", "gm")
 
     local ok, reason = Sync.Apply(ctx, upsert({ rev = 1 }), "Ann-Realm", "member")
     assert.is_false(ok)
@@ -284,7 +284,7 @@ describe("BlacklistSync tombstones", function()
     assert.is_nil(ctx.tombstones["B:yonemongg"])
 
     -- An admin can remove the new entry again.
-    assert.is_true(Sync.Apply(ctx, delete({ rev = 4 }), "Boss-Realm", "admin"))
+    assert.is_true(Sync.Apply(ctx, delete({ rev = 4 }), "Boss-Realm", "gm"))
     assert.is_nil(ctx.blacklist.yonemongg)
   end)
 
@@ -292,7 +292,7 @@ describe("BlacklistSync tombstones", function()
     local messages = {
       { upsert({ rev = 1 }), "Ann-Realm", "member" },
       { upsert({ rev = 3, reason = "again" }), "Ann-Realm", "member" },
-      { delete({ rev = 2 }), "Boss-Realm", "admin" },
+      { delete({ rev = 2 }), "Boss-Realm", "gm" },
     }
     local orders = {
       { 1, 2, 3 },

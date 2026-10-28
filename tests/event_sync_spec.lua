@@ -308,7 +308,7 @@ describe("EventSync assignments and deletes", function()
     local delete = { kind = "event", eventId = "ghost", rev = 5 }
     assert.are.equal("unknown_event", select(2, deliver(fresh, "DELETE", delete, "Leader-Realm", "rl")))
     assert.is_nil(fresh.tombstones["E:ghost"])
-    assert.is_true(deliver(fresh, "DELETE", delete, "Boss-Realm", "admin"))
+    assert.is_true(deliver(fresh, "DELETE", delete, "Boss-Realm", "gm"))
     assert.are.equal(5, fresh.tombstones["E:ghost"].rev)
     local stale = { eventId = "ghost", rev = 4, updatedAt = 1, title = "X" }
     assert.are.equal("tombstoned", select(2, deliver(fresh, "EVENT_UPSERT", stale, "Leader-Realm", "rl")))
@@ -397,7 +397,7 @@ describe("EventSync rosters", function()
     end
     local event = new_event(author)
     assert.are.equal("r1", event.rosterId)
-    assert.is_true(deliver(receiver, "EVENT_UPSERT", EventSync.EventPayload(event), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "EVENT_UPSERT", EventSync.EventPayload(event), "Boss-Realm", "gm"))
     return author, receiver, event
   end
 
@@ -440,9 +440,9 @@ describe("EventSync rosters", function()
   it("lets the guild master change any roster's event", function()
     local author, receiver, event = setup({})
     local edited = EventService.Update(author.local_ctx(), event.eventId, { title = "By the boss" })
-    assert.is_true(deliver(receiver, "EVENT_UPSERT", EventSync.EventPayload(edited), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "EVENT_UPSERT", EventSync.EventPayload(edited), "Boss-Realm", "gm"))
     local delete = { kind = "event", eventId = event.eventId, rev = 99 }
-    assert.is_true(deliver(receiver, "DELETE", delete, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "DELETE", delete, "Boss-Realm", "gm"))
     assert.is_nil(receiver.events[event.eventId])
   end)
 
@@ -460,7 +460,7 @@ describe("EventSync rosters", function()
     assert.are.equal("r1", receiver.events["new-1"].rosterId)
     -- The guild master may create one with no roster at all.
     local free = { eventId = "free-1", rev = 1, updatedAt = 1, title = "Open" }
-    assert.is_true(deliver(receiver, "EVENT_UPSERT", free, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "EVENT_UPSERT", free, "Boss-Realm", "gm"))
     assert.is_nil(receiver.events["free-1"].rosterId)
   end)
 
@@ -485,7 +485,7 @@ describe("EventSync rosters", function()
     local author, receiver, event = setup({})
     local payload = EventSync.EventPayload(EventService.Update(author.local_ctx(), event.eventId, { title = "Moved" }))
     payload.rosterId = "r2"
-    assert.is_true(deliver(receiver, "EVENT_UPSERT", payload, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "EVENT_UPSERT", payload, "Boss-Realm", "gm"))
     assert.are.equal("r2", receiver.events[event.eventId].rosterId)
   end)
 

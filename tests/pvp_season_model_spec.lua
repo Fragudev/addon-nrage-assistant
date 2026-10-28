@@ -1,7 +1,7 @@
 -- The pure rules of PvP seasons: period keys, claim ids, validation, officer intervals, the ranking and the digest.
 local function load_model()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PvPSeasonModel" }) do
+  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/PvPSeasonModel" }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns.PvPSeasonModel, ns.Constants
@@ -464,7 +464,7 @@ describe("PvPSeasonModel tiers", function()
 end)
 
 describe("PvPSeasonModel.Standings", function()
-  local roles = { Boss = "admin", Ann = "member", Bob = "member", Cat = "member", Off = "member" }
+  local roles = { Boss = "gm", Ann = "member", Bob = "member", Cat = "member", Off = "member" }
   local function roleOf(name)
     return roles[name]
   end
@@ -513,26 +513,27 @@ describe("PvPSeasonModel.Standings", function()
     assert.are.equal(0, #Model.Standings(grants, { g1 = { grantId = "g1", by = "Boss", at = 60 } }, officers, roleOf))
   end)
 
-  it("counts a claim approved by an officer only while their flag was on", function()
+  it("no longer counts a claim approved by a stored PvP officer, whatever their interval", function()
     local grants = {
       grant("Ann:m-1:all:1", "Ann", 10, 150, "Off"),
       grant("Bob:m-1:all:1", "Bob", 10, 250, "Off"),
       grant("Cat:m-1:all:1", "Cat", 10, 50, "Off"),
     }
-    local rows = Model.Standings(grants, {}, officers, roleOf)
-    assert.are.equal(1, #rows)
-    assert.are.equal("Ann", rows[1].player)
+    assert.are.equal(0, #Model.Standings(grants, {}, officers, roleOf))
   end)
 
-  it("does not count a direct grant, or a grant for themselves, from an officer", function()
+  it("counts the grants and the voids of gm and cogm, direct or for themselves", function()
+    roles.Co = "cogm"
     local grants = {
-      grant("direct-1", "Ann", 10, 150, "Off"),
-      grant("Off:m-1:all:1", "Off", 10, 150, "Off"),
+      grant("direct-1", "Ann", 10, 150, "Boss"),
+      grant("Boss:m-1:all:1", "Boss", 10, 150, "Boss"),
+      grant("direct-2", "Bob", 10, 150, "Co"),
+      grant("Co:m-1:all:1", "Co", 10, 150, "Co"),
     }
-    assert.are.equal(0, #Model.Standings(grants, {}, officers, roleOf))
-    -- An admin may do both.
-    grants = { grant("direct-1", "Ann", 10, 150, "Boss"), grant("Boss:m-1:all:1", "Boss", 10, 150, "Boss") }
-    assert.are.equal(2, #Model.Standings(grants, {}, officers, roleOf))
+    assert.are.equal(4, #Model.Standings(grants, {}, officers, roleOf))
+    local voids = { ["direct-2"] = { grantId = "direct-2", by = "Co", at = 160 } }
+    assert.are.equal(3, #Model.Standings(grants, voids, officers, roleOf))
+    roles.Co = nil
   end)
 
   it("ignores grants from members, from nobody and with no role lookup", function()

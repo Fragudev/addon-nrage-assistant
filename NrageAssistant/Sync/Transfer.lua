@@ -314,7 +314,7 @@ end
 -- Applies pasted text. `role` is the importer's own role: importing needs the same right as
 -- creating events. Returns the ApplyItems summary, or nil plus a Decode reason or "forbidden".
 function Transfer.Import(libs, text, ctx, role)
-  if not ns.PermissionService.Can(role, "manage_events") then
+  if not ns.PermissionService.Can(role, "raid_manage") then
     return nil, "forbidden"
   end
   local items, reason = Transfer.Decode(libs, text)

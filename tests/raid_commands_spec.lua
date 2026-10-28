@@ -60,7 +60,6 @@ local function build(rank)
     env.comm[kind] = record(kind)
   end
   env.members, env.rosters = Roles.assignments(rank, "Leader-Realm")
-  ns.PermissionService.Configure({ members = env.members })
   env.raid = ns.RaidCommands.New({
     events = env.events,
     tombstones = env.tombstones,

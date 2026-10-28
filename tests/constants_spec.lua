@@ -25,10 +25,19 @@ describe("Constants", function()
     assert.is_true(constants.POSITION_TTL > constants.POSITION_HEARTBEAT_SECONDS)
   end)
 
-  it("takes roles from assignments, with the guild master as the only admin", function()
-    assert.are.equal("assigned", ns.Constants.ROLE_SOURCE)
+  it("takes roles from the guild rank, matched by name", function()
+    assert.are.equal("rank", ns.Constants.ROLE_SOURCE)
     assert.are.equal(0, ns.Constants.GUILD_MASTER_RANK_INDEX)
-    assert.are.same({ "member", "rl", "council" }, ns.Constants.ASSIGNABLE_ROLES)
+    assert.is_nil(ns.Constants.ASSIGNABLE_ROLES)
+    assert.are.same({
+      gm = "gm",
+      cogm = "cogm",
+      oficial = "officer",
+      rl = "rl",
+      roster = "roster",
+      miembro = "member",
+      alter = "alter",
+    }, ns.Constants.RANK_ROLES)
     assert.is_false(ns.Constants.BETA_ADMIN_ENABLED)
     assert.is_nil(ns.Constants.BETA_ADMIN_NAMES)
   end)

@@ -73,7 +73,7 @@ local function stats(ctx, body, owner, role)
 end
 
 local function reset(ctx, target, rev, role)
-  return PvPSync.Apply(ctx, message("PVP_RESET", { target = target, rev = rev }), "Boss", role or "admin")
+  return PvPSync.Apply(ctx, message("PVP_RESET", { target = target, rev = rev }), "Boss", role or "gm")
 end
 
 describe("PvPSync.Apply PVP_STATS", function()
@@ -94,7 +94,7 @@ describe("PvPSync.Apply PVP_STATS", function()
   end)
 
   it("accepts every role and refuses a sender the roster does not know", function()
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+    for _, role in ipairs({ "member", "rl", "officer", "gm" }) do
       assert.is_true(stats(context(), payload(), "Ann", role))
     end
     local ctx = context()
@@ -240,7 +240,7 @@ describe("PvPSync.Apply PVP_RESET", function()
   end
 
   it("is refused to everyone but an admin", function()
-    for _, role in ipairs({ "member", "rl", "council" }) do
+    for _, role in ipairs({ "member", "rl", "officer" }) do
       local ctx = populated()
       local ok, reason = reset(ctx, "Ann", 6, role)
       assert.is_false(ok)
@@ -360,7 +360,7 @@ end)
 
 describe("PvPSync.Apply", function()
   it("does not handle other message types", function()
-    local ok, reason = PvPSync.Apply(context(), { t = "HELLO", p = {} }, "Ann", "admin")
+    local ok, reason = PvPSync.Apply(context(), { t = "HELLO", p = {} }, "Ann", "gm")
     assert.is_false(ok)
     assert.are.equal("unsupported", reason)
     assert.is_true(PvPSync.IsPvPMessage("PVP_STATS"))

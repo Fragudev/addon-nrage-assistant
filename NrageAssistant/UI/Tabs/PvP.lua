@@ -460,7 +460,7 @@ local function sendClaim(missionId)
   end
   state.noteOpen = nil
   state.notes[missionId] = nil
-  UI.Notify("success", L("Claim sent. An admin or PvP officer has to approve it."))
+  UI.Notify("success", L("Claim sent. An admin has to approve it."))
 end
 
 local function drawMissionCard(page, card)

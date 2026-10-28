@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- The voting window for the people who decide loot (GM, Officer, RL). It opens by itself when a session
+-- The voting window for the people who decide loot (GM, CoGM, Officer, RL). It opens by itself when a session
 -- opens, lists the candidates with their response, upgrade and votes, and lets the voter vote, award or close
 -- the session. Votes follow Constants.VOTE_VISIBILITY. It never opens during an encounter lockdown (it waits).
 -- What each row says comes from ViewModel; Controller holds the decisions about when to open. Client only.

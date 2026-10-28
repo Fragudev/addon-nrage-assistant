@@ -19,7 +19,7 @@ local _, ns = ...
 --
 -- Every action returns the record it made and whether it was queued for the guild (`false` means it was saved here
 -- but not sent: the lockdown, or a full queue); or nil plus the reason. Reasons: "forbidden", "invalid:<field>",
--- "no_season", "closed", "not_found", "decided", "unknown_mission", "unknown_player", "self_grant", "unchanged" and
+-- "no_season", "closed", "not_found", "decided", "unknown_mission", "unknown_player" and
 -- the ones of PvPSeasonSync.Apply ("limit", "active_exists", "stale", ...).
 local PvPSeasonService = {}
 PvPSeasonService.__index = PvPSeasonService
@@ -50,18 +50,12 @@ end
 -- Who am I
 ---------------------------------------------------------------------------------------------------------------------
 
--- Is `name` a PvP officer right now (an open interval in the officer records)?
-function PvPSeasonService:IsOfficer(name)
-  return Model.IsOfficer(self.ledger.officers[name])
-end
-
--- May the local player do `action` (a PermissionService action name, section 3 of the plan)? Takes the officer flag
--- into account.
+-- May the local player do `action` (a PermissionService action name, section 3 of the plan)?
 function PvPSeasonService:CanPvP(action)
-  return ns.PermissionService.CanPvP(self.ownRole(), self:IsOfficer(self.ownName()), action)
+  return ns.PermissionService.Can(self.ownRole(), action)
 end
 
--- Does this client approve claims (an admin, or a PvP officer)?
+-- Does this client approve claims (gm or cogm)?
 function PvPSeasonService:IsApprover()
   return self:CanPvP("pvp_claim_decide")
 end
@@ -170,13 +164,7 @@ function PvPSeasonService:Standings(seasonId)
     return rows
   end
   local ctx = self:Context()
-  return Model.Standings(
-    self.ledger.grants[seasonId] or {},
-    self.ledger.voids,
-    self.ledger.officers,
-    ctx.roleOf,
-    seasonId
-  )
+  return Model.Standings(self.ledger.grants[seasonId] or {}, self.ledger.voids, nil, ctx.roleOf, seasonId)
 end
 
 -- The row of a player (default: the local one) in the ranking of a season, or nil when they have no points.
@@ -207,7 +195,7 @@ function PvPSeasonService:Grants(seasonId)
       points = grant.points,
       at = grant.at,
       by = grant.by,
-      counts = Model.GrantCounts(grant, self.ledger.officers, ctx.roleOf),
+      counts = Model.GrantCounts(grant, ctx.roleOf),
       voided = void ~= nil and Model.VoidCounts(void, ctx.roleOf),
     }
   end
@@ -321,19 +309,6 @@ end
 -- The all-time ranking over every final: `{ pos, player, points, seasons, podiums }`.
 function PvPSeasonService:Cumulative()
   return Model.Cumulative(self.ledger.finals)
-end
-
--- Every PvP officer on record, by name: `{ player, active, since }`.
-function PvPSeasonService:Officers()
-  local list = {}
-  for player, officer in pairs(self.ledger.officers) do
-    local last = officer.intervals[#officer.intervals]
-    list[#list + 1] = { player = player, active = Model.IsOfficer(officer), since = last and last.from or nil }
-  end
-  table.sort(list, function(a, b)
-    return a.player < b.player
-  end)
-  return list
 end
 
 ---------------------------------------------------------------------------------------------------------------------
@@ -587,39 +562,6 @@ function PvPSeasonService:SetPrizes(seasonId, tiers)
   return self.ledger.prizes[seasonId], queued
 end
 
--- Turns the PvP officer flag of `player` on or off. Returns the officer record, or nil plus "unchanged" when it was in
--- that state already.
-function PvPSeasonService:SetOfficer(player, on)
-  local denied = forbidden(self, "pvp_officer_assign")
-  if denied then
-    return nil, denied
-  end
-  if not Model.IsPlayer(player) then
-    return nil, "invalid:player"
-  end
-  -- Switching someone on needs them in the guild; switching them off must always work.
-  if on and self.guildRoleOf(player) == nil then
-    return nil, "unknown_player"
-  end
-  local existing = self.ledger.officers[player]
-  local season = self:ActiveSeason()
-  local intervals, reason =
-    Model.ToggleIntervals(existing and existing.intervals or {}, on == true, self.now(), season and season.startsAt)
-  if not intervals then
-    return nil, reason
-  end
-  local record = stamp(self, { player = player, intervals = intervals }, existing)
-  local clean, invalid = Model.ValidateOfficer(record)
-  if not clean then
-    return nil, invalid
-  end
-  local payload, queued = self:Commit("PVP_OFFICER", clean, "PO:" .. player)
-  if not payload then
-    return nil, queued
-  end
-  return self.ledger.officers[player], queued
-end
-
 -- Builds the claim of the local player for a mission and sends it to the guild. `fields` = { missionId, at? (default
 -- now), n? (1..perPlayer, default 1), summary?, evidence?, note? }. The player is always the local one and the period
 -- key comes from the mission, so the claim id is the same for the same claim (a claim sent twice is one). An admin
@@ -672,7 +614,7 @@ function PvPSeasonService:SubmitClaim(fields)
     return nil, "invalid:claim"
   end
   -- An admin sees the claims of everybody, their own included; for anybody else the others' clients keep it.
-  if self:IsApprover() and self.ownRole() == "admin" then
+  if self:IsApprover() then
     Sync().Apply(self:Context(), message, player)
     if self.onChange then
       self.onChange("PVP_CLAIM")
@@ -714,9 +656,6 @@ function PvPSeasonService:Approve(claimId)
   local mission = self.ledger.missions[claim.missionId]
   if not mission then
     return nil, "unknown_mission"
-  end
-  if claim.player == self.ownName() and self.ownRole() ~= "admin" then
-    return nil, "self_grant"
   end
   local payload, queued = self:Commit("PVP_GRANT", {
     id = claim.id,

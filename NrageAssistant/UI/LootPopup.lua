@@ -135,8 +135,12 @@ LootPopup.Controller = Controller
 local frame, content, lastEntries, footer
 local controller
 
--- Only the members of the roster of a session are asked about it (and the guild master).
+-- Only the players who may apply (rank roster and above) and belong to the roster of a session are asked about it
+-- (and gm and cogm).
 local function pending(dismissed)
+  if not ns.PermissionService.Can(ns.PermissionService.OwnRole(ns.Platform), "loot_apply") then
+    return {}
+  end
   local global = ns.db.global
   local viewer = ns.RosterService.OwnViewer(ns.Platform, global.rosters, global.members)
   local events = ns.RosterService.FilterEvents(global.events, viewer)
