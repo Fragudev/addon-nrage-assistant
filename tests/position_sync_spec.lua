@@ -19,7 +19,7 @@ local ns = load_modules()
 local Constants = ns.Constants
 
 local function build()
-  local env = { clock = 100, roles = { Ann = "member", Bob = "admin" } }
+  local env = { clock = 100, roles = { Ann = "member", Bob = "gm" } }
   env.directory = ns.PositionDirectory.New({
     now = function()
       return env.clock

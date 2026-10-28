@@ -3,10 +3,11 @@ local _, ns = ...
 -- Applies the guild's readiness rules received from an admin, and builds the payload for them.
 --
 -- READINESS_RULES replaces the whole set. Authority: the sender's role comes from the receiver's own guild roster
--- (`role`), never from the message, and `rules_edit` is admin only. A newer set wins by `rev`, then `updatedAt`,
--- then sender (SyncRules.Wins); an identical message is a no-op. A snapshot for a late joiner carries the set too,
--- but it is applied under the role of whoever sent the snapshot, so it only counts when that is an admin; an
--- admin also sends the set once after login for the members who were not there.
+-- (`role`), never from the message, and `rules_edit` is gm and cogm only until the per-roster rules
+-- (docs/NAV_PERMISSIONS_PLAN.md phase 4) arrive. A newer set wins by `rev`, then `updatedAt`, then sender
+-- (SyncRules.Wins); an identical message is a no-op. A snapshot for a late joiner carries the set too, but it is
+-- applied under the role of whoever sent the snapshot, so it only counts when that is a gm or cogm; a gm or cogm
+-- also sends the set once after login for the members who were not there.
 --
 -- ctx = { record = db.global.readinessRules, now = function() }
 -- Returns true, or false plus "unknown_sender" | "forbidden" | "stale" | "unsupported".
@@ -25,7 +26,7 @@ function ReadinessRulesSync.Apply(ctx, message, sender, role)
   if message.t ~= MESSAGE then
     return false, "unsupported"
   end
-  local denied = Rules.Authorize(role, "rules_edit")
+  local denied = Rules.AuthorizeGlobal(role, "rules_edit")
   if denied then
     return false, denied
   end

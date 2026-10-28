@@ -130,7 +130,7 @@ local function newEventForm(parent, raid, actions, role)
   })
   -- The guild master picks the roster; a raid leader's event is of their own roster automatically.
   local rosterChoices = ViewModel.RosterChoices(global.rosters, true)
-  if ns.PermissionService.Can(role, "roster_view_all") and #rosterChoices > 1 then
+  if ns.PermissionService.IsGlobal(role) and #rosterChoices > 1 then
     local roster = Kit.Field(card, { label = L("Roster") })
     Kit.Dropdown(roster, {
       items = rosterChoices,
@@ -316,7 +316,7 @@ local function detailsTab(parent, event, raid, role)
       UI.Notify("danger", L("That time does not exist on that day (the clocks change)."))
     end,
   })
-  if ns.PermissionService.Can(role, "roster_view_all") then
+  if ns.PermissionService.IsGlobal(role) then
     local roster = Kit.Field(second, { label = L("Roster"), layout = { weight = 1 } })
     Kit.Dropdown(roster, {
       items = ViewModel.RosterChoices(global.rosters, false),

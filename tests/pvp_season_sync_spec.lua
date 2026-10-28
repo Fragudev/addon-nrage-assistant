@@ -29,8 +29,17 @@ local codec = ns.Codec.New({
   deflate = _G.LibStub("LibDeflate"),
 })
 
-local ROLES =
-  { Boss = "admin", Rl = "rl", Off = "member", Off2 = "member", Ann = "member", Bob = "member", Cat = "member" }
+-- Off is a co-guild master. Off2 and Flag are members: Flag has a stored PvP officer flag, which gives no power.
+local ROLES = {
+  Boss = "gm",
+  Rl = "rl",
+  Off = "cogm",
+  Off2 = "member",
+  Flag = "member",
+  Ann = "member",
+  Bob = "member",
+  Cat = "member",
+}
 local DAY = 86400
 local T0 = 1792454400 -- 2026-10-20 00:00 UTC
 local SEASON_START, SEASON_END = T0 - 10 * DAY, T0 + 30 * DAY
@@ -148,11 +157,11 @@ local function new_client(options)
       seasonId
     )
   end
-  -- Season, mission and the officer flag of Off, the usual starting point.
+  -- Season, mission and the (powerless) officer flag of Flag, the usual starting point.
   function client.setup()
     assert(client.deliver("PVP_SEASON", seasonRecord(), "Boss"))
     assert(client.deliver("PVP_MISSION", missionRecord(), "Boss"))
-    assert(client.deliver("PVP_OFFICER", officerRecord("Off", { { from = T0 } }), "Boss"))
+    assert(client.deliver("PVP_OFFICER", officerRecord("Flag", { { from = T0 } }), "Boss"))
     return client
   end
   return client
@@ -187,7 +196,7 @@ describe("PvPSeasonSync authority", function()
     }
     for _, entry in ipairs(records) do
       local messageType, payload = entry[1], entry[2]
-      for _, who in ipairs({ "Rl", "Ann", "Off" }) do
+      for _, who in ipairs({ "Rl", "Ann", "Off2", "Flag" }) do
         local ok, reason = client.deliver(messageType, payload, who)
         assert.is_false(ok, messageType .. " by " .. who)
         assert.are.equal("forbidden", reason, messageType .. " by " .. who)
@@ -206,53 +215,55 @@ describe("PvPSeasonSync authority", function()
     end
   end)
 
-  it("lets an admin, and an officer while their flag is on, decide claims", function()
+  it("lets gm and cogm decide claims, and nobody else, a stored officer flag included", function()
     client.setup()
-    local grant = grantRecord("Ann:m1:20261020:1", "Ann", 10, T0 + 50)
-    assert.is_true(client.deliver("PVP_GRANT", grant, "Boss"))
+    assert.is_true(client.deliver("PVP_GRANT", grantRecord("Ann:m1:20261020:1", "Ann", 10, T0 + 50), "Boss"))
     assert.is_true(client.deliver("PVP_GRANT", grantRecord("Bob:m1:20261020:1", "Bob", 10, T0 + 50), "Off"))
-    local ok, reason = client.deliver("PVP_GRANT", grantRecord("Cat:m1:20261020:1", "Cat", 10, T0 + 50), "Off2")
-    assert.is_false(ok)
-    assert.are.equal("forbidden", reason)
-    ok, reason = client.deliver("PVP_GRANT", grantRecord("Cat:m1:20261020:1", "Cat", 10, T0 + 50), "Stranger")
+    for _, who in ipairs({ "Flag", "Off2", "Rl" }) do
+      local ok, reason = client.deliver("PVP_GRANT", grantRecord("Cat:m1:20261020:1", "Cat", 10, T0 + 50), who)
+      assert.is_false(ok, who)
+      assert.are.equal("forbidden", reason, who)
+    end
+    local ok, reason = client.deliver("PVP_GRANT", grantRecord("Cat:m1:20261020:1", "Cat", 10, T0 + 50), "Stranger")
     assert.is_false(ok)
     assert.are.equal("unknown_sender", reason)
-    -- The officer's flag started at T0: a grant stamped before it is refused.
-    ok, reason = client.deliver("PVP_GRANT", grantRecord("Cat:m1:20261019:1", "Cat", 10, T0 - 5), "Off")
-    assert.is_false(ok)
-    assert.are.equal("forbidden", reason)
     assert.are.same({ "Ann", "Bob" }, { client.standings()[1].player, client.standings()[2].player })
 
     assert.is_true(
       client.deliver("PVP_REJECT", { claimId = "Cat:m1:20261020:1", seasonId = "s1", at = T0 + 60 }, "Off")
     )
-    ok, reason = client.deliver("PVP_REJECT", { claimId = "Cat:m1:20261020:1", seasonId = "s1", at = T0 + 70 }, "Ann")
-    assert.is_false(ok)
-    assert.are.equal("forbidden", reason)
+    for _, who in ipairs({ "Ann", "Flag" }) do
+      ok, reason = client.deliver("PVP_REJECT", { claimId = "Cat:m1:20261020:1", seasonId = "s1", at = T0 + 70 }, who)
+      assert.is_false(ok, who)
+      assert.are.equal("forbidden", reason, who)
+    end
   end)
 
-  it("lets only an admin make a direct grant, and an officer cannot approve their own claim", function()
+  it("lets gm and cogm make a direct grant or approve their own claim, and nobody else", function()
     client.setup()
-    local ok, reason = client.deliver("PVP_GRANT", grantRecord("direct-1", "Ann", 10), "Off")
+    local ok, reason = client.deliver("PVP_GRANT", grantRecord("direct-1", "Ann", 10), "Flag")
     assert.is_false(ok)
     assert.are.equal("forbidden", reason)
-    ok, reason = client.deliver("PVP_GRANT", grantRecord("Off:m1:20261020:1", "Off", 10), "Off")
+    ok, reason = client.deliver("PVP_GRANT", grantRecord("Flag:m1:20261020:1", "Flag", 10), "Flag")
     assert.is_false(ok)
     assert.are.equal("forbidden", reason)
     assert.is_true(client.deliver("PVP_GRANT", grantRecord("direct-1", "Ann", 10), "Boss"))
     assert.is_true(client.deliver("PVP_GRANT", grantRecord("Boss:m1:20261020:1", "Boss", 10), "Boss"))
+    assert.is_true(client.deliver("PVP_GRANT", grantRecord("direct-2", "Ann", 10), "Off"))
   end)
 
-  it("lets an officer mark a delivery but not change the season, and the sender decides, not the payload", function()
+  it("lets gm and cogm mark a delivery, and the sender decides, not the payload", function()
     client.setup()
     local delivery = { seasonId = "s1", player = "Ann", tier = "1", delivered = true, rev = 1, updatedAt = T0 + 5 }
     assert.is_true(client.deliver("PVP_DELIVERY", delivery, "Off"))
-    local ok, reason = client.deliver("PVP_DELIVERY", copy(delivery, { rev = 2 }), "Ann")
-    assert.is_false(ok)
-    assert.are.equal("forbidden", reason)
+    for _, who in ipairs({ "Ann", "Flag" }) do
+      local ok, reason = client.deliver("PVP_DELIVERY", copy(delivery, { rev = 2 }), who)
+      assert.is_false(ok, who)
+      assert.are.equal("forbidden", reason, who)
+    end
     -- A payload that names an author gets no say: the field is dropped by validation.
     local forged = copy(grantRecord("direct-2", "Ann", 10), { by = "Boss" })
-    ok, reason = client.deliver("PVP_GRANT", forged, "Ann")
+    local ok, reason = client.deliver("PVP_GRANT", forged, "Ann")
     assert.is_false(ok)
     assert.are.equal("forbidden", reason)
     assert.is_nil(next(client.ledger.grants))
@@ -843,7 +854,7 @@ describe("PvPSeasonSync ledger catch-up", function()
     local first = seeded_admin()
     local second = new_client()
     -- The same records, delivered in the reverse order of what is stored here (officer flag first).
-    second.deliver("PVP_OFFICER", officerRecord("Off", { { from = T0 } }), "Boss")
+    second.deliver("PVP_OFFICER", officerRecord("Flag", { { from = T0 } }), "Boss")
     second.deliver(
       "PVP_REJECT",
       { claimId = "Cat:m1:20261020:1", seasonId = "s1", reason = "no proof", at = T0 + 50 },
@@ -870,7 +881,7 @@ describe("PvPSeasonSync ledger catch-up", function()
     partial.ledger.grants.s1["Ann:m1:20261020:1"] = nil
     assert.is_true(Sync.Differs(full.ledger, Sync.RequestPayload(partial.ledger, "s1")))
     local officer = seeded_admin()
-    officer.ledger.officers.Off.rev = 2
+    officer.ledger.officers.Flag.rev = 2
     assert.is_true(Sync.Differs(full.ledger, Sync.RequestPayload(officer.ledger, "s1")))
     local nothing = Sync.RequestPayload(new_client().ledger, nil)
     assert.are.equal(0, nothing.count)

@@ -50,7 +50,7 @@ end)
 local function fail(ctx, reason, action)
   if reason == "forbidden" then
     if action == "remove" then
-      return L("not allowed: only the guild master and officers can remove a player from the blacklist.")
+      return L("not allowed: only the guild master and the co-guild master can remove a player from the blacklist.")
     end
     return L("not allowed: your guild rank gives the role '%s', which cannot do this."):format(tostring(ctx.role))
   end

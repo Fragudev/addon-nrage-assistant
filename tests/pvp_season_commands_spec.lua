@@ -22,7 +22,7 @@ end
 local ns = load_addon()
 local T0 = 1792454400
 
-local ROLES = { Boss = "admin", Ann = "member", Off = "member", Bob = "member" }
+local ROLES = { Boss = "gm", Ann = "member", Off = "member", Bob = "member" }
 
 -- A client named `name` with the real service; `queued` is what its transport answers.
 local function build(name)
@@ -158,26 +158,12 @@ describe("PvPSeasonCommands", function()
   end)
 
   describe("officer", function()
-    it("lists, adds and removes officers", function()
+    it("is gone: the PvP officer flag gives no power any more", function()
       admin.run("season create 5 One")
-      assert.are.equal("there are no PvP officers.", admin.run("officer"))
-      assert.are.equal("Off is now a PvP officer.", admin.run("officer add Off"))
-      assert.are.equal("PvP officers: Off", admin.run("officer"))
-      assert.are.equal("Off is no longer a PvP officer.", admin.run("officer remove Off"))
-      assert.are.equal("there are no PvP officers.", admin.run("officer list"))
-    end)
-
-    it("says why it did not", function()
-      local out, failed = admin.run("officer add Nobody")
-      assert.is_true(failed)
-      assert.are.equal("that player is not in the guild.", out)
-      out, failed = admin.run("officer remove Bob")
-      assert.is_true(failed)
-      assert.are.equal("nothing to change.", out)
-      out, failed = build("Ann").run("officer add Bob")
-      assert.is_true(failed)
-      assert.are.equal("you are not allowed to do that.", out)
-      assert.is_true(select(2, admin.run("officer add")))
+      local out = admin.run("officer add Off")
+      assert.is_nil(out:find("is now a PvP officer", 1, true))
+      assert.is_nil(out:find("officer", 1, true))
+      assert.is_nil(admin.service.ledger.officers.Off)
     end)
   end)
 
@@ -319,7 +305,6 @@ describe("PvPSeasonCommands", function()
           .run("grant Bob " .. missionId)
           :find("saved here, but it could not be sent to the guild right now.", 1, true)
       )
-      assert.is_truthy(admin.run("officer add Off"))
       admin.run("season close")
       admin.queued = true
     end)

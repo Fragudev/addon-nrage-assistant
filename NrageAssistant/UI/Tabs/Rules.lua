@@ -270,10 +270,10 @@ end
 
 UI.Register("rules", function(page)
   local role = UI.Role()
-  if not ns.PermissionService.Can(role, "rules_edit") then
+  if not ns.PermissionService.CanAll(role, "rules_edit") then
     Kit.EmptyState(page, {
       icon = "list",
-      title = L("Only the guild master can edit the readiness rules."),
+      title = L("Only the guild master and the co-guild master can edit the readiness rules."),
       hint = "",
     })
     return

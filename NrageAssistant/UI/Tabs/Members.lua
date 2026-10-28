@@ -163,7 +163,6 @@ local function columns()
     { key = "spec2", title = L("Second spec"), weight = 1 },
     { key = "roster", title = L("Roster"), weight = 1.6, sortable = true },
     { key = "role", title = L("Role"), weight = 1.4, sortable = true },
-    { key = "pvp", title = "PvP", weight = 1.1, fit = true },
     { key = "updated", title = L("Updated"), weight = 1.3, sortable = true },
   }
 end
@@ -178,7 +177,7 @@ local function updatedCell(row)
   return row.updated or "-"
 end
 
-local function cellsOf(row, canAssign, cmd, global, canOfficer)
+local function cellsOf(row, canAssign, cmd, global)
   local muted = row.noAddon and "muted" or nil
   local cells = {
     name = { text = row.name, color = row.mine and "accent" or muted },
@@ -191,30 +190,10 @@ local function cellsOf(row, canAssign, cmd, global, canOfficer)
     spec = { text = row.spec or "-", color = muted },
     spec2 = { text = row.spec2 or "-", color = muted },
     roster = { text = row.rosterName or "-", color = row.rosterName and nil or "muted" },
+    -- The role is the guild rank: it is changed in the game, so it is only shown here.
     role = { text = row.roleText, color = row.role ~= "member" and "text" or "dim" },
-    pvp = row.pvpOfficer and { widget = "badge", opts = { text = L("PVP OFFICER"), color = "warning" } } or "-",
     updated = updatedCell(row),
   }
-  -- The guild master gives the PvP officer flag (it is independent of the role); an admin never needs it.
-  if canOfficer and not row.isGuildMaster then
-    cells.pvp = {
-      widget = "chip",
-      opts = {
-        text = "PVP",
-        active = row.pvpOfficer,
-        color = "warning",
-        tooltip = L("PvP officer: approves claims and marks deliveries"),
-        onToggle = function(active)
-          local record, reason = ns.pvpSeason:SetOfficer(row.key, active)
-          if not record then
-            UI.Notify("danger", ViewModel.PvPError(reason))
-            return
-          end
-          UI.Redraw()
-        end,
-      },
-    }
-  end
   if canAssign and not row.isGuildMaster then
     cells.roster = {
       widget = "dropdown",
@@ -223,16 +202,6 @@ local function cellsOf(row, canAssign, cmd, global, canOfficer)
         value = row.rosterId or false,
         onChange = function(value)
           UI.Report(cmd:AssignMember(row.key, { rosterId = value }))
-        end,
-      },
-    }
-    cells.role = {
-      widget = "dropdown",
-      opts = {
-        items = ViewModel.RoleChoices(),
-        value = row.role,
-        onChange = function(value)
-          UI.Report(cmd:AssignMember(row.key, { role = value }))
         end,
       },
     }
@@ -252,15 +221,10 @@ end
 
 local function drawTable(region, role)
   local global = ns.db.global
-  local canAssign = ns.PermissionService.Can(role, "roster_manage")
+  -- Until the roster scoping of docs/NAV_PERMISSIONS_PLAN.md phase 5, only gm and cogm assign members.
+  local canAssign = ns.PermissionService.CanAll(role, "members_manage")
   local cmd = canAssign and commands() or nil
-  local canOfficer = ns.pvpSeason ~= nil and ns.PermissionService.Can(role, "pvp_officer_assign")
-  local officers = {}
-  for _, officer in ipairs(ns.pvpSeason and ns.pvpSeason:Officers() or {}) do
-    officers[officer.player] = officer.active or nil
-  end
   local rows, total = ViewModel.MemberRows({
-    pvpOfficers = officers,
     entries = ns.guildRoster and ns.guildRoster.entries or {},
     received = global.roster,
     rosters = global.rosters,
@@ -278,7 +242,7 @@ local function drawTable(region, role)
   for index = 1, shown do
     local row = rows[index]
     tableRows[index] = {
-      cells = cellsOf(row, canAssign, cmd, global, canOfficer),
+      cells = cellsOf(row, canAssign, cmd, global),
       highlight = row.mine,
       detail = state.expanded == row.key and detailOf(row) or nil,
       onClick = function()
@@ -385,7 +349,7 @@ UI.Register("roster", function(page)
     title = L("Members"),
     description = L("The whole guild, with what each member shares. Click a row for details."),
   })
-  if ns.PermissionService.Can(role, "roster_manage") then
+  if ns.PermissionService.CanAll(role, "members_manage") then
     rostersCard(page)
   end
   local region

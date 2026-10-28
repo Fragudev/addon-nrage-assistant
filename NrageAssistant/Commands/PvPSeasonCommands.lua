@@ -32,7 +32,6 @@ local ERRORS = ns.Locale.Table(function()
     decided = L("that claim was decided already."),
     unknown_mission = L("that mission does not exist."),
     unknown_player = L("that player is not in the guild."),
-    self_grant = L("you cannot approve your own claim."),
     unchanged = L("nothing to change."),
     limit = L("limit reached."),
     inactive = L("that mission is paused."),
@@ -75,7 +74,6 @@ end
 function PvPSeasonCommands.Usage()
   return {
     L("/nrage pvp season [create <days> <name> | close]  the season and its ranking"),
-    L("/nrage pvp officer [add | remove <name>]  PvP officers"),
     L("/nrage pvp mission [add <points> <title> | pause | resume <id>]  missions"),
     L("/nrage pvp claim <missionId> [note]  claim a mission"),
     L("/nrage pvp queue | approve <claimId> | reject <claimId> [reason]  claims"),
@@ -136,30 +134,6 @@ function PvPSeasonCommands:Season(args)
     lines[#lines + 1] = L("%d. %s - %d points"):format(row.pos, row.player, row.points)
   end
   return lines
-end
-
-function PvPSeasonCommands:Officer(args)
-  local service = self.service
-  local action, name = args[1], rest(args, 2)
-  if action == "add" or action == "remove" then
-    local officer, reason = service:SetOfficer(name, action == "add")
-    if not officer then
-      return Failure(fail(reason))
-    end
-    return {
-      (action == "add" and L("%s is now a PvP officer.") or L("%s is no longer a PvP officer.")):format(name),
-    }
-  end
-  local names = {}
-  for _, officer in ipairs(service:Officers()) do
-    if officer.active then
-      names[#names + 1] = officer.player
-    end
-  end
-  if #names == 0 then
-    return { L("there are no PvP officers.") }
-  end
-  return { L("PvP officers: %s"):format(table.concat(names, ", ")) }
 end
 
 function PvPSeasonCommands:Mission(args)
@@ -258,7 +232,6 @@ end
 
 local HANDLERS = {
   season = PvPSeasonCommands.Season,
-  officer = PvPSeasonCommands.Officer,
   mission = PvPSeasonCommands.Mission,
   claim = PvPSeasonCommands.Claim,
   queue = PvPSeasonCommands.Queue,

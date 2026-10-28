@@ -126,7 +126,7 @@ describe("EventService.Create", function()
   end)
 
   it("rejects invalid fields without creating anything", function()
-    local ctx = build_ctx("admin")
+    local ctx = build_ctx("gm")
     assert.are.equal("invalid:title", select(2, Service.Create(ctx, { title = "" })))
     assert.is_nil(next(ctx.events))
   end)

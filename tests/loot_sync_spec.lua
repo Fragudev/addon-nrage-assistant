@@ -90,14 +90,14 @@ end
 
 -- An open session on `origin`, already announced to `receiver`.
 local function open_and_announce(origin, receiver)
-  local session = assert(LootService.OpenSession(origin.local_ctx("council", "Boss-Realm"), "ev-1", ITEM))
-  assert(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "council"))
+  local session = assert(LootService.OpenSession(origin.local_ctx("officer", "Boss-Realm"), "ev-1", ITEM))
+  assert(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "officer"))
   return session
 end
 
 local function register(origin, receiver, sessionId, actor)
-  local candidate = assert(LootService.Register(origin.local_ctx("member", actor), "ev-1", sessionId, CANDIDATE))
-  assert(deliver(receiver, "LOOT_CANDIDATE", LootSync.CandidatePayload("ev-1", sessionId, candidate), actor, "member"))
+  local candidate = assert(LootService.Register(origin.local_ctx("roster", actor), "ev-1", sessionId, CANDIDATE))
+  assert(deliver(receiver, "LOOT_CANDIDATE", LootSync.CandidatePayload("ev-1", sessionId, candidate), actor, "roster"))
   return candidate
 end
 
@@ -118,16 +118,16 @@ describe("LootSync LOOT_SESSION", function()
 
   it("refuses anyone who cannot open sessions, unknown senders and unknown events", function()
     local origin, receiver = client("Origin"), client("Receiver")
-    local session = assert(LootService.OpenSession(origin.local_ctx("council"), "ev-1", ITEM))
+    local session = assert(LootService.OpenSession(origin.local_ctx("officer"), "ev-1", ITEM))
     local payload = LootSync.SessionPayload("ev-1", session)
 
-    for _, role in ipairs({ "member", "rl" }) do
+    for _, role in ipairs({ "roster", "member", "alter" }) do
       assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_SESSION", payload, "X-Realm", role)))
     end
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_SESSION", payload, "X-Realm", nil)))
 
     payload.eventId = "nope"
-    assert.are.equal("unknown_event", select(2, deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "council")))
+    assert.are.equal("unknown_event", select(2, deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "officer")))
     assert.is_nil(next(receiver.events["ev-1"].loot))
   end)
 
@@ -136,22 +136,22 @@ describe("LootSync LOOT_SESSION", function()
     local session = open_and_announce(origin, receiver)
     local first = LootSync.SessionPayload("ev-1", session)
 
-    LootService.Close(origin.local_ctx("council", "Boss-Realm"), "ev-1", session.sessionId)
-    assert.is_true(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "council"))
+    LootService.Close(origin.local_ctx("officer", "Boss-Realm"), "ev-1", session.sessionId)
+    assert.is_true(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "officer"))
     assert.are.equal("closed", session_of(receiver, session.sessionId).status)
 
-    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_SESSION", first, "Boss-Realm", "council")))
+    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_SESSION", first, "Boss-Realm", "officer")))
     assert.are.equal("closed", session_of(receiver, session.sessionId).status)
   end)
 
   it("stops at the session limit", function()
     local origin, receiver = client("Origin"), client("Receiver")
-    local session = assert(LootService.OpenSession(origin.local_ctx("council"), "ev-1", ITEM))
+    local session = assert(LootService.OpenSession(origin.local_ctx("officer"), "ev-1", ITEM))
     for i = 1, Constants.LOOT_SESSIONS_MAX do
       receiver.events["ev-1"].loot["x" .. i] = { status = "closed", rev = 1 }
     end
     local payload = LootSync.SessionPayload("ev-1", session)
-    local ok, reason = deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "council")
+    local ok, reason = deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "officer")
     assert.is_false(ok)
     assert.are.equal("limit", reason)
   end)
@@ -167,7 +167,7 @@ describe("LootSync LOOT_SESSION", function()
       itemName = "X",
       status = "open",
     }
-    assert.is_true(deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_SESSION", payload, "Boss-Realm", "officer"))
     assert.are.equal(receiver.clock + 300, session_of(receiver, "s-1").updatedAt)
   end)
 end)
@@ -181,7 +181,7 @@ describe("LootSync LOOT_CANDIDATE", function()
   end)
 
   it("registers the sender, and only the sender, whatever the payload says", function()
-    local candidate = assert(LootService.Register(origin.local_ctx("member", "Ann-Realm"), "ev-1", session.sessionId, {
+    local candidate = assert(LootService.Register(origin.local_ctx("roster", "Ann-Realm"), "ev-1", session.sessionId, {
       spec = "Fury",
       need = "main",
       upgrade = "Replaces my axe",
@@ -189,7 +189,7 @@ describe("LootSync LOOT_CANDIDATE", function()
     local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
     payload.characterKey, payload.candidate = "Fake-Realm", "Fake-Realm"
 
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "member"))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "roster"))
     local candidates = session_of(receiver, session.sessionId).candidates
     assert.is_nil(candidates["Fake-Realm"])
     assert.are.equal("Fury", candidates["Ann-Realm"].spec)
@@ -199,36 +199,46 @@ describe("LootSync LOOT_CANDIDATE", function()
     assert.are.equal("received", candidates["Ann-Realm"].source)
   end)
 
-  it("accepts every known role and refuses a sender the roster does not know", function()
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+  it("refuses a member and an alter: loot_apply starts at roster", function()
+    local candidate =
+      LootService.Register(origin.local_ctx("roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
+    for _, role in ipairs({ "member", "alter" }) do
+      assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", role)), role)
+    end
+    assert.is_nil(next(session_of(receiver, session.sessionId).candidates))
+  end)
+
+  it("accepts every known role from roster up and refuses a sender the roster does not know", function()
+    for _, role in ipairs({ "roster", "rl", "officer", "cogm", "gm" }) do
       local actor = role .. "-Realm"
       local candidate = LootService.Register(origin.local_ctx(role, actor), "ev-1", session.sessionId, CANDIDATE)
       local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
       assert.is_true(deliver(receiver, "LOOT_CANDIDATE", payload, actor, role), role)
     end
-    local stranger = origin.local_ctx("member", "Stranger-Realm")
+    local stranger = origin.local_ctx("roster", "Stranger-Realm")
     local candidate = LootService.Register(stranger, "ev-1", session.sessionId, CANDIDATE)
     local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Stranger-Realm", nil)))
   end)
 
   it("needs a known, open session", function()
-    local ann = origin.local_ctx("member", "Ann-Realm")
+    local ann = origin.local_ctx("roster", "Ann-Realm")
     local candidate = LootService.Register(ann, "ev-1", session.sessionId, CANDIDATE)
     local payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
 
     payload.sessionId = "nope"
-    assert.are.equal("unknown_session", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "member")))
+    assert.are.equal("unknown_session", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "roster")))
     payload.eventId = "nope"
-    assert.are.equal("unknown_event", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "member")))
+    assert.are.equal("unknown_event", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "roster")))
 
     session_of(receiver, session.sessionId).status = "closed"
     payload = LootSync.CandidatePayload("ev-1", session.sessionId, candidate)
-    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "member")))
+    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "Ann-Realm", "roster")))
   end)
 
   it("keeps the newest declaration of a candidate", function()
-    local ctx = origin.local_ctx("member", "Ann-Realm")
+    local ctx = origin.local_ctx("roster", "Ann-Realm")
     local first = LootSync.CandidatePayload(
       "ev-1",
       session.sessionId,
@@ -244,8 +254,8 @@ describe("LootSync LOOT_CANDIDATE", function()
       LootService.Register(ctx, "ev-1", session.sessionId, { spec = "Arms", need = "off" })
     )
 
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", second, "Ann-Realm", "member"))
-    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_CANDIDATE", first_copy, "Ann-Realm", "member")))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", second, "Ann-Realm", "roster"))
+    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_CANDIDATE", first_copy, "Ann-Realm", "roster")))
     assert.are.equal("Arms", session_of(receiver, session.sessionId).candidates["Ann-Realm"].spec)
   end)
 
@@ -255,14 +265,14 @@ describe("LootSync LOOT_CANDIDATE", function()
       candidates["P" .. i .. "-Realm"] = { spec = "X", need = "main", rev = 1 }
     end
 
-    local newcomer = LootService.Register(origin.local_ctx("member", "New-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    local newcomer = LootService.Register(origin.local_ctx("roster", "New-Realm"), "ev-1", session.sessionId, CANDIDATE)
     local payload = LootSync.CandidatePayload("ev-1", session.sessionId, newcomer)
-    assert.are.equal("limit", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "New-Realm", "member")))
+    assert.are.equal("limit", select(2, deliver(receiver, "LOOT_CANDIDATE", payload, "New-Realm", "roster")))
 
-    local existing = LootService.Register(origin.local_ctx("member", "P1-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    local existing = LootService.Register(origin.local_ctx("roster", "P1-Realm"), "ev-1", session.sessionId, CANDIDATE)
     payload = LootSync.CandidatePayload("ev-1", session.sessionId, existing)
     payload.rev = 5
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", payload, "P1-Realm", "member"))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", payload, "P1-Realm", "roster"))
   end)
 end)
 
@@ -270,7 +280,7 @@ describe("LootSync LOOT_VOTE", function()
   local origin, receiver, session
 
   local function vote(actor, target)
-    local record = assert(LootService.Vote(origin.local_ctx("council", actor), "ev-1", session.sessionId, target))
+    local record = assert(LootService.Vote(origin.local_ctx("officer", actor), "ev-1", session.sessionId, target))
     return LootSync.VotePayload("ev-1", session.sessionId, record)
   end
 
@@ -284,7 +294,7 @@ describe("LootSync LOOT_VOTE", function()
   it("records the vote under the sender, whatever the payload says", function()
     local payload = vote("Boss-Realm", "Ann-Realm")
     payload.voter = "Fake-Realm"
-    assert.is_true(deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "officer"))
     local votes = session_of(receiver, session.sessionId).votes
     assert.is_nil(votes["Fake-Realm"])
     assert.are.equal("Ann-Realm", votes["Boss-Realm"].target)
@@ -293,7 +303,7 @@ describe("LootSync LOOT_VOTE", function()
 
   it("refuses members and unknown senders", function()
     local payload = vote("Boss-Realm", "Ann-Realm")
-    for _, role in ipairs({ "member" }) do
+    for _, role in ipairs({ "roster", "member", "alter" }) do
       assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_VOTE", payload, "X-Realm", role)))
     end
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_VOTE", payload, "X-Realm", nil)))
@@ -303,13 +313,13 @@ describe("LootSync LOOT_VOTE", function()
   it("only accepts votes for known candidates in an open session", function()
     local payload = vote("Boss-Realm", "Ann-Realm")
     payload.target = "Nobody-Realm"
-    assert.are.equal("not_candidate", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council")))
+    assert.are.equal("not_candidate", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "officer")))
 
     payload.target = "Ann-Realm"
     session_of(receiver, session.sessionId).status = "closed"
-    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council")))
+    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "officer")))
     payload.sessionId = "nope"
-    assert.are.equal("unknown_session", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council")))
+    assert.are.equal("unknown_session", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "officer")))
   end)
 
   it("keeps a voter's newest choice", function()
@@ -320,8 +330,8 @@ describe("LootSync LOOT_VOTE", function()
     end
     local second = vote("Boss-Realm", "Bob-Realm")
 
-    assert.is_true(deliver(receiver, "LOOT_VOTE", second, "Boss-Realm", "council"))
-    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_VOTE", first_copy, "Boss-Realm", "council")))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", second, "Boss-Realm", "officer"))
+    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_VOTE", first_copy, "Boss-Realm", "officer")))
     assert.are.equal("Bob-Realm", session_of(receiver, session.sessionId).votes["Boss-Realm"].target)
   end)
 
@@ -332,9 +342,9 @@ describe("LootSync LOOT_VOTE", function()
     end
 
     local payload = vote("Boss-Realm", "Ann-Realm")
-    assert.are.equal("limit", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "council")))
+    assert.are.equal("limit", select(2, deliver(receiver, "LOOT_VOTE", payload, "Boss-Realm", "officer")))
     payload.rev = 4
-    assert.is_true(deliver(receiver, "LOOT_VOTE", payload, "V1-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", payload, "V1-Realm", "officer"))
   end)
 end)
 
@@ -342,7 +352,7 @@ describe("LootSync LOOT_AWARD", function()
   local origin, receiver, session
 
   local function award(target, reason)
-    local council = origin.local_ctx("council", "Boss-Realm")
+    local council = origin.local_ctx("officer", "Boss-Realm")
     local awarded = assert(LootService.Award(council, "ev-1", session.sessionId, target, reason))
     return LootSync.AwardPayload("ev-1", awarded)
   end
@@ -356,7 +366,7 @@ describe("LootSync LOOT_AWARD", function()
   it("closes the session with the decision, the reason and the sender as who awarded it", function()
     local payload = award("Ann-Realm", "Highest need")
     payload.awardedBy = "Fake-Realm"
-    assert.is_true(deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "officer"))
 
     local stored = session_of(receiver, session.sessionId)
     assert.are.equal("closed", stored.status)
@@ -368,7 +378,7 @@ describe("LootSync LOOT_AWARD", function()
 
   it("refuses everyone who cannot award and unknown senders", function()
     local payload = award("Ann-Realm", "Highest need")
-    for _, role in ipairs({ "member" }) do
+    for _, role in ipairs({ "roster", "member", "alter" }) do
       assert.are.equal("forbidden", select(2, deliver(receiver, "LOOT_AWARD", payload, "X-Realm", role)))
     end
     assert.are.equal("unknown_sender", select(2, deliver(receiver, "LOOT_AWARD", payload, "X-Realm", nil)))
@@ -377,7 +387,7 @@ describe("LootSync LOOT_AWARD", function()
 
   it("creates the session when the receiver never saw it, because the award carries the item", function()
     local fresh = client("Fresh")
-    assert.is_true(deliver(fresh, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "council"))
+    assert.is_true(deliver(fresh, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "officer"))
     local stored = session_of(fresh, session.sessionId)
     assert.are.equal("Thunderfury", stored.itemName)
     assert.are.equal("closed", stored.status)
@@ -388,13 +398,13 @@ describe("LootSync LOOT_AWARD", function()
   it("is not undone by an older session record or a replay, and closes the session for good", function()
     local opening = LootSync.SessionPayload("ev-1", session)
     local payload = award("Ann-Realm", "Highest need")
-    assert.is_true(deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "officer"))
 
-    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "council")))
-    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_SESSION", opening, "Boss-Realm", "council")))
+    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_AWARD", payload, "Boss-Realm", "officer")))
+    assert.are.equal("stale", select(2, deliver(receiver, "LOOT_SESSION", opening, "Boss-Realm", "officer")))
     assert.are.equal("Ann-Realm", session_of(receiver, session.sessionId).award.characterKey)
 
-    local late = LootService.Register(origin.local_ctx("member", "Late-Realm"), "ev-1", "x", CANDIDATE)
+    local late = LootService.Register(origin.local_ctx("roster", "Late-Realm"), "ev-1", "x", CANDIDATE)
     assert.is_nil(late)
     local candidate = {
       eventId = "ev-1",
@@ -404,14 +414,14 @@ describe("LootSync LOOT_AWARD", function()
       spec = "Fury",
       need = "main",
     }
-    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Late-Realm", "member")))
+    assert.are.equal("closed", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Late-Realm", "roster")))
   end)
 
   it("lets a newer session record that closes without an award replace the award", function()
-    assert.is_true(deliver(receiver, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "officer"))
     local closing = LootSync.SessionPayload("ev-1", session)
     closing.rev, closing.status = 9, "closed"
-    assert.is_true(deliver(receiver, "LOOT_SESSION", closing, "Boss-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_SESSION", closing, "Boss-Realm", "officer"))
     local stored = session_of(receiver, session.sessionId)
     assert.is_nil(stored.award)
     assert.are.equal("closed", stored.status)
@@ -443,10 +453,10 @@ describe("LootSync LOOT_AWARD", function()
     end
     local from_aaa, from_bbb = payload(100, "Ann-Realm", "Mine"), payload(105, "Bob-Realm", "Theirs")
 
-    deliver(a, "LOOT_AWARD", from_aaa, "Aaa-Realm", "council")
-    deliver(a, "LOOT_AWARD", from_bbb, "Bbb-Realm", "council")
-    deliver(b, "LOOT_AWARD", from_bbb, "Bbb-Realm", "council")
-    deliver(b, "LOOT_AWARD", from_aaa, "Aaa-Realm", "council")
+    deliver(a, "LOOT_AWARD", from_aaa, "Aaa-Realm", "officer")
+    deliver(a, "LOOT_AWARD", from_bbb, "Bbb-Realm", "officer")
+    deliver(b, "LOOT_AWARD", from_bbb, "Bbb-Realm", "officer")
+    deliver(b, "LOOT_AWARD", from_aaa, "Aaa-Realm", "officer")
 
     for _, c in ipairs({ a, b }) do
       local stored = session_of(c, session.sessionId)
@@ -460,7 +470,7 @@ describe("LootSync LOOT_AWARD", function()
     for i = 1, Constants.LOOT_SESSIONS_MAX do
       fresh.events["ev-1"].loot["x" .. i] = { status = "closed", rev = 1 }
     end
-    local ok, reason = deliver(fresh, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "council")
+    local ok, reason = deliver(fresh, "LOOT_AWARD", award("Ann-Realm", "Highest need"), "Boss-Realm", "officer")
     assert.is_false(ok)
     assert.are.equal("limit", reason)
   end)
@@ -469,9 +479,9 @@ end)
 describe("LootSync payloads and items", function()
   it("build payloads the protocol accepts", function()
     local origin = client("Origin")
-    local council = origin.local_ctx("council", "Boss-Realm")
+    local council = origin.local_ctx("officer", "Boss-Realm")
     local session = assert(LootService.OpenSession(council, "ev-1", ITEM))
-    local candidate = assert(LootService.Register(origin.local_ctx("member", "Ann-Realm"), "ev-1", session.sessionId, {
+    local candidate = assert(LootService.Register(origin.local_ctx("roster", "Ann-Realm"), "ev-1", session.sessionId, {
       spec = "Fury",
       need = "main",
       upgrade = "Better weapon",
@@ -492,9 +502,9 @@ describe("LootSync payloads and items", function()
 
   it("describe sessions as awards or session records, in a stable order, without candidates or votes", function()
     local origin = client("Origin")
-    local council = origin.local_ctx("council", "Boss-Realm")
+    local council = origin.local_ctx("officer", "Boss-Realm")
     local awarded = assert(LootService.OpenSession(council, "ev-1", ITEM))
-    LootService.Register(origin.local_ctx("member", "Ann-Realm"), "ev-1", awarded.sessionId, CANDIDATE)
+    LootService.Register(origin.local_ctx("roster", "Ann-Realm"), "ev-1", awarded.sessionId, CANDIDATE)
     LootService.Award(council, "ev-1", awarded.sessionId, "Ann-Realm", "Highest need")
     local open = assert(LootService.OpenSession(council, "ev-1", { itemId = 2, itemName = "Other" }))
     local skipped = assert(LootService.OpenSession(council, "ev-1", { itemId = 3, itemName = "Junk" }))
@@ -528,8 +538,8 @@ describe("LootSync rosters", function()
     receiver.rosterOf = function(sender)
       return rosterOfSender[sender]
     end
-    local session = assert(LootService.OpenSession(origin.local_ctx("council", "Boss-Realm"), "ev-1", ITEM))
-    assert(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "admin"))
+    local session = assert(LootService.OpenSession(origin.local_ctx("officer", "Boss-Realm"), "ev-1", ITEM))
+    assert(deliver(receiver, "LOOT_SESSION", LootSync.SessionPayload("ev-1", session), "Boss-Realm", "gm"))
     return origin, receiver, session
   end
 
@@ -537,9 +547,9 @@ describe("LootSync rosters", function()
     local origin, receiver, session = setup({ ["Boss-Realm"] = "r1", ["Ann-Realm"] = "r1", ["Cid-Realm"] = "r1" })
     local candidate =
       { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "roster"))
     local vote = { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, target = "Ann-Realm" }
-    assert.is_true(deliver(receiver, "LOOT_VOTE", vote, "Cid-Realm", "council"))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", vote, "Cid-Realm", "officer"))
     assert.is_truthy(origin)
   end)
 
@@ -547,17 +557,17 @@ describe("LootSync rosters", function()
     local _, receiver, session = setup({ ["Ann-Realm"] = "r1", ["Other-Realm"] = "r2" })
     local candidate =
       { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
-    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Other-Realm", "member")))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "roster"))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Other-Realm", "roster")))
     local vote = { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, target = "Ann-Realm" }
-    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_VOTE", vote, "Other-Realm", "council")))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_VOTE", vote, "Other-Realm", "officer")))
     local opened = { eventId = "ev-1", sessionId = "s-x", rev = 1, updatedAt = 1, status = "open" }
     opened.itemId, opened.itemName = ITEM.itemId, ITEM.itemName
-    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_SESSION", opened, "Other-Realm", "council")))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_SESSION", opened, "Other-Realm", "officer")))
     local award =
       { eventId = "ev-1", sessionId = session.sessionId, rev = 5, updatedAt = 5, characterKey = "Ann-Realm" }
     award.itemId, award.itemName, award.reason = ITEM.itemId, ITEM.itemName, "need"
-    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_AWARD", award, "Other-Realm", "council")))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_AWARD", award, "Other-Realm", "officer")))
     assert.are.equal("open", receiver.events["ev-1"].loot[session.sessionId].status)
   end)
 
@@ -565,8 +575,8 @@ describe("LootSync rosters", function()
     local _, receiver, session = setup({ ["Ann-Realm"] = "r1" })
     local candidate =
       { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
-    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Loner-Realm", "member")))
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Boss-Realm", "admin"))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_CANDIDATE", candidate, "Loner-Realm", "roster")))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Boss-Realm", "gm"))
   end)
 
   it("keeps the loot of an event no roster owns open to the members who have a roster", function()
@@ -574,6 +584,6 @@ describe("LootSync rosters", function()
     receiver.events["ev-1"].rosterId = nil
     local candidate =
       { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
-    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "member"))
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "roster"))
   end)
 end)

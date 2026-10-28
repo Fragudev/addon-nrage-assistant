@@ -410,8 +410,8 @@ local function validateReadinessRules(payload)
   return { rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
 end
 
--- Raid rosters and the roles the guild master assigns (protocol 1.5). Who may send them is decided by the receiver
--- from its own guild roster (RosterSync); `admin` is not a role that can be assigned, so it does not validate.
+-- Raid rosters and the roster assignments (protocol 1.5). Who may send them is decided by the receiver from its own
+-- guild roster (RosterSync).
 local function validateRosterUpsert(payload)
   if not (isId(payload.rosterId) and validateRevision(payload)) then
     return nil
@@ -434,10 +434,11 @@ local function validateMemberUpsert(payload)
   if not (ns.RosterService.IsMemberKey(payload.key) and validateRevision(payload)) then
     return nil
   end
-  if not ns.RosterService.IsAssignableRole(payload.role) then
+  -- Older clients also sent the addon role they assigned. The role is the guild rank now: it is tolerated, not kept.
+  if payload.role ~= nil and not ns.Validate.Text(payload.role, 16) then
     return nil
   end
-  local clean = { key = payload.key, role = payload.role, rev = payload.rev, updatedAt = payload.updatedAt }
+  local clean = { key = payload.key, rev = payload.rev, updatedAt = payload.updatedAt }
   if payload.rosterId ~= nil then
     if not isId(payload.rosterId) then
       return nil

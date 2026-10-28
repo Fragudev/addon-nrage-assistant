@@ -114,7 +114,7 @@ end)
 
 describe("Layer permissions", function()
   it("lets every role share and swap", function()
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+    for _, role in ipairs({ "member", "rl", "officer", "gm" }) do
       assert.is_true(ns.PermissionService.Can(role, "layer_share"), role)
     end
     assert.is_false(ns.PermissionService.Can(nil, "layer_share"))

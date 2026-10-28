@@ -26,7 +26,7 @@ local Constants, Protocol, Sync = ns.Constants, ns.Protocol, ns.PvPSeasonSync
 
 local DAY = 86400
 local T0 = 1792454400 -- 2026-10-20 00:00 UTC
-local ROLES = { Boss = "admin", Ann = "member" }
+local ROLES = { Boss = "gm", Ann = "member" }
 
 local function new_world()
   return { clock = T0 + 12 * 3600, mono = 0, ids = 0 }

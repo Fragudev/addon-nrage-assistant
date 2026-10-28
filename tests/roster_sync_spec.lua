@@ -119,21 +119,21 @@ describe("Protocol roster messages", function()
   end)
 
   it("accepts a member upsert with and without a roster", function()
-    local with =
-      assert(validate("MEMBER_UPSERT", { key = "Yonemon Gg", role = "rl", rosterId = "r-1", rev = 1, updatedAt = 5 }))
-    assert.are.same({ key = "Yonemon Gg", role = "rl", rosterId = "r-1", rev = 1, updatedAt = 5 }, with.p)
-    local without = assert(validate("MEMBER_UPSERT", { key = "Ann-Realm", role = "member", rev = 2, updatedAt = 5 }))
+    local with = assert(validate("MEMBER_UPSERT", { key = "Yonemon Gg", rosterId = "r-1", rev = 1, updatedAt = 5 }))
+    assert.are.same({ key = "Yonemon Gg", rosterId = "r-1", rev = 1, updatedAt = 5 }, with.p)
+    local without = assert(validate("MEMBER_UPSERT", { key = "Ann-Realm", rev = 2, updatedAt = 5 }))
     assert.is_nil(without.p.rosterId)
     assert.are.same({ key = "Ann-Realm", rev = 4 }, assert(validate("MEMBER_DELETE", { key = "Ann-Realm", rev = 4 })).p)
   end)
 
-  it("never lets admin be assigned, and refuses anything that is not a role", function()
-    for _, role in ipairs({ "admin", "root", "", 5, true }) do
-      local message, reason = validate("MEMBER_UPSERT", { key = "Ann-Realm", role = role, rev = 1, updatedAt = 5 })
-      assert.is_nil(message, tostring(role))
+  it("tolerates the role an older client sent, but never keeps it", function()
+    local message = assert(validate("MEMBER_UPSERT", { key = "Ann-Realm", role = "rl", rev = 1, updatedAt = 5 }))
+    assert.is_nil(message.p.role)
+    for _, role in ipairs({ "", 5, true }) do
+      local refused, reason = validate("MEMBER_UPSERT", { key = "Ann-Realm", role = role, rev = 1, updatedAt = 5 })
+      assert.is_nil(refused, tostring(role))
       assert.are.equal("bad_payload", reason)
     end
-    assert.is_nil(validate("MEMBER_UPSERT", { key = "Ann-Realm", rev = 1, updatedAt = 5 }))
   end)
 
   it("refuses a member with a bad key or roster id", function()
@@ -187,7 +187,7 @@ describe("RosterSync.Apply", function()
   end
 
   local function member(overrides)
-    local payload = { key = "Ann-Realm", role = "rl", rosterId = "r-1", rev = 1, updatedAt = 100 }
+    local payload = { key = "Ann-Realm", rosterId = "r-1", rev = 1, updatedAt = 100 }
     for key, value in pairs(overrides or {}) do
       payload[key] = value
     end
@@ -195,92 +195,101 @@ describe("RosterSync.Apply", function()
   end
 
   it("stores a roster and an assignment from the guild master, with the sender as the author", function()
-    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "gm"))
     assert.are.same(
       { id = "r-1", name = "Main", rev = 1, updatedAt = 100, updatedBy = "Boss-Realm" },
       receiver.rosters["r-1"]
     )
-    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "gm"))
     local record = receiver.members["Ann-Realm"]
-    assert.are.same({ "rl", "r-1", 1, "Boss-Realm" }, { record.role, record.rosterId, record.rev, record.updatedBy })
+    assert.are.same({ "r-1", 1, "Boss-Realm" }, { record.rosterId, record.rev, record.updatedBy })
+    assert.is_nil(record.role)
   end)
 
-  it("refuses every role but admin, and a sender nobody knows", function()
-    for _, role in ipairs({ "rl", "council", "member" }) do
-      for _, case in ipairs({
-        { "ROSTER_UPSERT", roster() },
-        { "ROSTER_DELETE", { rosterId = "r-1", rev = 5 } },
-        { "MEMBER_UPSERT", member() },
-        { "MEMBER_DELETE", { key = "Ann-Realm", rev = 5 } },
-      }) do
-        assert.are.equal(
-          "forbidden",
-          select(2, deliver(receiver, case[1], case[2], "Sender-Realm", role)),
-          role .. case[1]
-        )
-      end
-    end
-    assert.are.equal("unknown_sender", select(2, deliver(receiver, "MEMBER_UPSERT", member(), "Ghost-Realm", nil)))
-    assert.is_nil(next(receiver.rosters))
-    assert.is_nil(next(receiver.members))
+  it("accepts the co-guild master like the guild master", function()
+    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster(), "Co-Realm", "cogm"))
+    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member(), "Co-Realm", "cogm"))
   end)
+
+  it(
+    "refuses every rank but gm and cogm (rl and officer too, until roster scoping), and a sender nobody knows",
+    function()
+      for _, role in ipairs({ "rl", "officer", "roster", "member", "alter" }) do
+        for _, case in ipairs({
+          { "ROSTER_UPSERT", roster() },
+          { "ROSTER_DELETE", { rosterId = "r-1", rev = 5 } },
+          { "MEMBER_UPSERT", member() },
+          { "MEMBER_DELETE", { key = "Ann-Realm", rev = 5 } },
+        }) do
+          assert.are.equal(
+            "forbidden",
+            select(2, deliver(receiver, case[1], case[2], "Sender-Realm", role)),
+            role .. case[1]
+          )
+        end
+      end
+      assert.are.equal("unknown_sender", select(2, deliver(receiver, "MEMBER_UPSERT", member(), "Ghost-Realm", nil)))
+      assert.is_nil(next(receiver.rosters))
+      assert.is_nil(next(receiver.members))
+    end
+  )
 
   it("takes the newer revision, ignores an older or identical one, and clamps the time", function()
-    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2, name = "Two" }), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2, name = "Two" }), "Boss-Realm", "gm"))
     assert.are.equal(
       "stale",
-      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 1, name = "One" }), "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 1, name = "One" }), "Boss-Realm", "gm"))
     )
     assert.are.equal(
       "stale",
-      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2, name = "Two" }), "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2, name = "Two" }), "Boss-Realm", "gm"))
     )
     assert.are.equal("Two", receiver.rosters["r-1"].name)
-    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member({ updatedAt = 4000000000 }), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member({ updatedAt = 4000000000 }), "Boss-Realm", "gm"))
     assert.are.equal(receiver.clock + 300, receiver.members["Ann-Realm"].updatedAt)
   end)
 
   it("lets an assignment without a roster clear the roster", function()
-    deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "admin")
+    deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "gm")
     local without = member({ rev = 2 })
     without.rosterId = nil
-    assert.is_true(deliver(receiver, "MEMBER_UPSERT", without, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "MEMBER_UPSERT", without, "Boss-Realm", "gm"))
     assert.is_nil(receiver.members["Ann-Realm"].rosterId)
   end)
 
   it("deletes with a tombstone, and an older upsert cannot bring the record back", function()
-    deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "admin")
-    deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "admin")
+    deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "gm")
+    deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "gm")
     assert.are.equal(
       "stale",
-      select(2, deliver(receiver, "ROSTER_DELETE", { rosterId = "r-1", rev = 1 }, "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "ROSTER_DELETE", { rosterId = "r-1", rev = 1 }, "Boss-Realm", "gm"))
     )
-    assert.is_true(deliver(receiver, "ROSTER_DELETE", { rosterId = "r-1", rev = 2 }, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "ROSTER_DELETE", { rosterId = "r-1", rev = 2 }, "Boss-Realm", "gm"))
     assert.is_nil(receiver.rosters["r-1"])
     assert.are.equal(2, receiver.tombstones["R:r-1"].rev)
     assert.are.equal(
       "tombstoned",
-      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2 }), "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "ROSTER_UPSERT", roster({ rev = 2 }), "Boss-Realm", "gm"))
     )
-    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster({ rev = 3 }), "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "ROSTER_UPSERT", roster({ rev = 3 }), "Boss-Realm", "gm"))
     assert.is_nil(receiver.tombstones["R:r-1"])
 
-    assert.is_true(deliver(receiver, "MEMBER_DELETE", { key = "Ann-Realm", rev = 2 }, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "MEMBER_DELETE", { key = "Ann-Realm", rev = 2 }, "Boss-Realm", "gm"))
     assert.is_nil(receiver.members["Ann-Realm"])
     assert.are.equal(
       "tombstoned",
-      select(2, deliver(receiver, "MEMBER_UPSERT", member({ rev = 2 }), "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "MEMBER_UPSERT", member({ rev = 2 }), "Boss-Realm", "gm"))
     )
     assert.are.equal(
       "stale",
-      select(2, deliver(receiver, "MEMBER_DELETE", { key = "Ann-Realm", rev = 2 }, "Boss-Realm", "admin"))
+      select(2, deliver(receiver, "MEMBER_DELETE", { key = "Ann-Realm", rev = 2 }, "Boss-Realm", "gm"))
     )
   end)
 
   it("remembers the deletion of something it never saw", function()
-    assert.is_true(deliver(receiver, "MEMBER_DELETE", { key = "Ghost-Realm", rev = 4 }, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "MEMBER_DELETE", { key = "Ghost-Realm", rev = 4 }, "Boss-Realm", "gm"))
     assert.are.equal(4, receiver.tombstones["M:Ghost-Realm"].rev)
-    assert.is_true(deliver(receiver, "ROSTER_DELETE", { rosterId = "ghost", rev = 4 }, "Boss-Realm", "admin"))
+    assert.is_true(deliver(receiver, "ROSTER_DELETE", { rosterId = "ghost", rev = 4 }, "Boss-Realm", "gm"))
     assert.are.equal(4, receiver.tombstones["R:ghost"].rev)
   end)
 
@@ -288,12 +297,12 @@ describe("RosterSync.Apply", function()
     for index = 1, Constants.ROSTERS_MAX do
       receiver.rosters["x" .. index] = { id = "x" .. index, name = "X" .. index, rev = 1 }
     end
-    assert.are.equal("limit", select(2, deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "admin")))
+    assert.are.equal("limit", select(2, deliver(receiver, "ROSTER_UPSERT", roster(), "Boss-Realm", "gm")))
     for index = 1, Constants.MEMBER_ASSIGNMENTS_MAX do
-      receiver.members["M" .. index] = { role = "member", rev = 1 }
+      receiver.members["M" .. index] = { rev = 1 }
     end
-    assert.are.equal("limit", select(2, deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "admin")))
-    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member({ key = "M1", rev = 2 }), "Boss-Realm", "admin"))
+    assert.are.equal("limit", select(2, deliver(receiver, "MEMBER_UPSERT", member(), "Boss-Realm", "gm")))
+    assert.is_true(deliver(receiver, "MEMBER_UPSERT", member({ key = "M1", rev = 2 }), "Boss-Realm", "gm"))
   end)
 
   it("says which messages are roster messages and refuses others", function()
@@ -303,7 +312,7 @@ describe("RosterSync.Apply", function()
     assert.is_false(RosterSync.IsRosterMessage("EVENT_UPSERT"))
     assert.are.same(
       { false, "unsupported" },
-      { RosterSync.Apply(receiver.ctx(), { t = "PROFILE", p = {} }, "A", "admin") }
+      { RosterSync.Apply(receiver.ctx(), { t = "PROFILE", p = {} }, "A", "gm") }
     )
   end)
 
@@ -313,7 +322,7 @@ describe("RosterSync.Apply", function()
       rosters = source.rosters,
       members = source.members,
       tombstones = source.tombstones,
-      role = "admin",
+      role = "gm",
       actor = "Boss-Realm",
       now = function()
         return 500
@@ -323,12 +332,13 @@ describe("RosterSync.Apply", function()
       end,
     }
     local main = assert(ns.RosterService.Create(sctx, "Main"))
-    local record = assert(ns.RosterService.Assign(sctx, "Ann-Realm", { role = "council", rosterId = main.id }))
-    assert.is_true(deliver(receiver, "ROSTER_UPSERT", RosterSync.RosterPayload(main), "Boss-Realm", "admin"))
+    local record = assert(ns.RosterService.Assign(sctx, "Ann-Realm", { rosterId = main.id }))
+    assert.is_true(deliver(receiver, "ROSTER_UPSERT", RosterSync.RosterPayload(main), "Boss-Realm", "gm"))
     assert.is_true(
-      deliver(receiver, "MEMBER_UPSERT", RosterSync.MemberPayload("Ann-Realm", record), "Boss-Realm", "admin")
+      deliver(receiver, "MEMBER_UPSERT", RosterSync.MemberPayload("Ann-Realm", record), "Boss-Realm", "gm")
     )
-    assert.are.equal("council", receiver.members["Ann-Realm"].role)
+    assert.are.equal(main.id, receiver.members["Ann-Realm"].rosterId)
+    assert.is_nil(receiver.members["Ann-Realm"].role)
 
     assert.is_true(ns.RosterService.Unassign(sctx, "Ann-Realm"))
     assert.is_true(ns.RosterService.Delete(sctx, main.id))
@@ -338,17 +348,11 @@ describe("RosterSync.Apply", function()
         "MEMBER_DELETE",
         RosterSync.DeleteMemberPayload(source.tombstones, "Ann-Realm"),
         "Boss-Realm",
-        "admin"
+        "gm"
       )
     )
     assert.is_true(
-      deliver(
-        receiver,
-        "ROSTER_DELETE",
-        RosterSync.DeleteRosterPayload(source.tombstones, main.id),
-        "Boss-Realm",
-        "admin"
-      )
+      deliver(receiver, "ROSTER_DELETE", RosterSync.DeleteRosterPayload(source.tombstones, main.id), "Boss-Realm", "gm")
     )
     assert.is_nil(receiver.members["Ann-Realm"])
     assert.is_nil(receiver.rosters["r-1"])
@@ -363,7 +367,7 @@ describe("Roster items in a snapshot", function()
     source.rosters["r-1"] = { id = "r-1", name = "Main", rev = 1, updatedAt = 10 }
     source.rosters["r-2"] = { id = "r-2", name = "Alts", rev = 2, updatedAt = 20 }
     for index = 1, 5 do
-      source.members["M" .. index] = { role = "rl", rosterId = "r-1", rev = 1, updatedAt = 100 + index }
+      source.members["M" .. index] = { rosterId = "r-1", rev = 1, updatedAt = 100 + index }
     end
     source.tombstones["M:Gone"] = { at = 5, rev = 3 }
     source.tombstones["R:old"] = { at = 6, rev = 2 }
@@ -387,17 +391,17 @@ describe("Roster items in a snapshot", function()
     assert.are.equal("M5", newest)
   end)
 
-  it("is applied by a late joiner only from an admin's snapshot", function()
+  it("is applied by a late joiner only from a gm or cogm snapshot", function()
     local source = admin_store()
     local items = ns.Transfer.BuildSnapshot({}, source.tombstones, 5, nil, nil, nil, nil, nil, source.ctx(), 10)
 
     local joiner = store()
     local ctx = joiner.ctx()
     ctx.events = {}
-    local summary = ns.Transfer.ApplyItems(items, ctx, "Boss-Realm", "admin")
+    local summary = ns.Transfer.ApplyItems(items, ctx, "Boss-Realm", "gm")
     assert.are.equal(9, summary.rosters)
     assert.are.equal("Alts", joiner.rosters["r-2"].name)
-    assert.are.equal("rl", joiner.members["M3"].role)
+    assert.are.equal("r-1", joiner.members["M3"].rosterId)
     assert.are.equal(3, joiner.tombstones["M:Gone"].rev)
 
     local other = store()
@@ -424,7 +428,7 @@ describe("Roster items in a snapshot", function()
       { { t = "ROSTER_UPSERT", p = { rosterId = "r-1", name = "Main", rev = 1, updatedAt = 1 } } },
       { events = {}, tombstones = {}, now = os.time },
       "import",
-      "admin"
+      "gm"
     )
     assert.are.equal(1, summary.skipped.unsupported)
   end)
@@ -501,36 +505,35 @@ describe("Rosters through Comm", function()
 
   it("applies a roster and an assignment from the guild master and tells the window", function()
     local env = build_comm("member")
-    env.roles["Boss-Realm"] = "admin"
+    env.roles["Boss-Realm"] = "gm"
     local roster = env.wire("ROSTER_UPSERT", { rosterId = "r-1", name = "Main", rev = 1, updatedAt = 1 }, "m-1")
     assert.is_true(env.comm:HandleMessage(roster, "Boss-Realm", "GUILD"))
-    local assignment =
-      env.wire("MEMBER_UPSERT", { key = "Ann-Realm", role = "rl", rosterId = "r-1", rev = 1, updatedAt = 1 }, "m-2")
+    local assignment = env.wire("MEMBER_UPSERT", { key = "Ann-Realm", rosterId = "r-1", rev = 1, updatedAt = 1 }, "m-2")
     assert.is_true(env.comm:HandleMessage(assignment, "Boss-Realm", "GUILD"))
     assert.are.equal("Main", env.rosters["r-1"].name)
-    assert.are.equal("rl", env.members["Ann-Realm"].role)
+    assert.are.equal("r-1", env.members["Ann-Realm"].rosterId)
     assert.are.same({ "ROSTER_UPSERT", "MEMBER_UPSERT" }, env.changes)
   end)
 
   it("refuses the same messages from a raid leader, an unknown sender and a forged admin role", function()
     local env = build_comm("member")
     env.roles["Lead-Realm"] = "rl"
-    local text = env.wire("MEMBER_UPSERT", { key = "Lead-Realm", role = "council", rev = 1, updatedAt = 1 }, "m-1")
+    local text = env.wire("MEMBER_UPSERT", { key = "Lead-Realm", role = "officer", rev = 1, updatedAt = 1 }, "m-1")
     assert.are.same({ false, "forbidden" }, { env.comm:HandleMessage(text, "Lead-Realm", "GUILD") })
     local unknown = env.wire("MEMBER_UPSERT", { key = "X-Realm", role = "rl", rev = 1, updatedAt = 1 }, "m-2")
     assert.are.same({ false, "unknown_sender" }, { env.comm:HandleMessage(unknown, "Ghost-Realm", "GUILD") })
-    -- `admin` is not a role that can be assigned: the message does not even validate.
-    env.roles["Boss-Realm"] = "admin"
-    local forged = env.wire("MEMBER_UPSERT", { key = "Lead-Realm", role = "admin", rev = 1, updatedAt = 1 }, "m-3")
-    assert.are.same({ false, "bad_payload" }, { env.comm:HandleMessage(forged, "Boss-Realm", "GUILD") })
+    -- A role in the message never means anything: the sender is judged by its own rank.
+    env.roles["Boss-Realm"] = "rl"
+    local forged = env.wire("MEMBER_UPSERT", { key = "Lead-Realm", role = "gm", rev = 1, updatedAt = 1 }, "m-3")
+    assert.are.same({ false, "forbidden" }, { env.comm:HandleMessage(forged, "Boss-Realm", "GUILD") })
     assert.is_nil(next(env.members))
     assert.are.same({}, env.changes)
   end)
 
   it("sends local changes as keyed messages that another client accepts", function()
-    local env = build_comm("admin")
+    local env = build_comm("gm")
     local receiver = build_comm("member")
-    receiver.roles["Boss-Realm"] = "admin"
+    receiver.roles["Boss-Realm"] = "gm"
     local commands = ns.RosterCommands.New({
       rosters = env.rosters,
       members = env.members,
@@ -551,7 +554,7 @@ describe("Rosters through Comm", function()
     local lines = commands:CreateRoster("Main")
     assert.are.equal("created the roster 'Main'.", lines[1])
     local id = next(env.rosters)
-    commands:AssignMember("Ann-Realm", { role = "rl", rosterId = id })
+    commands:AssignMember("Ann-Realm", { rosterId = id })
     commands:UnassignMember("Ann-Realm")
     commands:DeleteRoster(id)
     assert.are.equal(4, #env.sent)
@@ -566,7 +569,7 @@ describe("Rosters through Comm", function()
   end)
 
   it("puts the rosters and assignments in the snapshot an admin answers, and not in anybody else's", function()
-    for _, role in ipairs({ "admin", "rl" }) do
+    for _, role in ipairs({ "gm", "cogm", "rl", "officer" }) do
       local env = build_comm(role)
       env.events["ev-1"] = {
         eventId = "ev-1",
@@ -579,7 +582,7 @@ describe("Rosters through Comm", function()
         loot = {},
       }
       env.rosters["r-1"] = { id = "r-1", name = "Main", rev = 1, updatedAt = 1 }
-      env.members["Ann-Realm"] = { role = "rl", rosterId = "r-1", rev = 1, updatedAt = 1 }
+      env.members["Ann-Realm"] = { rosterId = "r-1", rev = 1, updatedAt = 1 }
       assert.is_true(env.comm:SendSnapshot("Joiner-Realm"))
       local decoded = env.codec:Decode(env.sent[1].text, {
         encoded = Constants.SYNC_MAX_ENCODED_BYTES,
@@ -589,13 +592,13 @@ describe("Rosters through Comm", function()
       for _, item in ipairs(decoded.p.items) do
         found = found or RosterSync.IsRosterMessage(item.t)
       end
-      assert.are.equal(role == "admin", found, role)
+      assert.are.equal(role == "gm" or role == "cogm", found, role)
     end
   end)
 
   it("applies a snapshot's roster items only when an admin sent it, and tells the window", function()
     local env = build_comm("member")
-    env.roles["Boss-Realm"] = "admin"
+    env.roles["Boss-Realm"] = "gm"
     local items = { { t = "ROSTER_UPSERT", p = { rosterId = "r-1", name = "Main", rev = 1, updatedAt = 1 } } }
     local snapshot = env.wire("SYNC_DATA", { items = items }, "s-1")
     assert.is_true(env.comm:HandleMessage(snapshot, "Boss-Realm", "WHISPER"))
@@ -621,14 +624,13 @@ describe("RosterCommands", function()
         return true
       end
     end
-    ns.PermissionService.Configure({ members = {} })
     env.commands = ns.RosterCommands.New({
       rosters = env.rosters,
       members = env.members,
       tombstones = env.tombstones,
       platform = {
         GetOwnGuildRank = function()
-          return "Rank", role == "admin" and 0 or 4
+          return "Rank", role == "gm" and 0 or 4
         end,
         GetIdentityKey = function()
           return "Me-Realm"
@@ -646,15 +648,12 @@ describe("RosterCommands", function()
   end
 
   it("creates, renames, assigns, unassigns and deletes, sending each change", function()
-    build("admin")
+    build("gm")
     assert.are.equal("created the roster 'Main'.", env.commands:CreateRoster("Main")[1])
     local id = next(env.rosters)
     assert.are.equal("renamed the roster to 'Alts'.", env.commands:RenameRoster(id, "Alts")[1])
-    assert.are.equal(
-      "saved the role and roster of Ann-Realm.",
-      env.commands:AssignMember("Ann-Realm", { role = "rl", rosterId = id })[1]
-    )
-    assert.are.equal("Ann-Realm is a plain member with no roster again.", env.commands:UnassignMember("Ann-Realm")[1])
+    assert.are.equal("saved the roster of Ann-Realm.", env.commands:AssignMember("Ann-Realm", { rosterId = id })[1])
+    assert.are.equal("Ann-Realm has no roster again.", env.commands:UnassignMember("Ann-Realm")[1])
     assert.are.equal("deleted the roster 'Alts'.", env.commands:DeleteRoster(id)[1])
     local kinds = {}
     for _, sent in ipairs(env.sent) do
@@ -666,23 +665,22 @@ describe("RosterCommands", function()
 
   it("says why it could not, and sends nothing", function()
     build("member")
-    assert.are.equal("only the guild master can manage rosters and roles.", env.commands:CreateRoster("Main")[1])
-    build("admin")
+    assert.are.equal(
+      "only the guild master and the co-guild master can manage rosters.",
+      env.commands:CreateRoster("Main")[1]
+    )
+    build("gm")
     assert.are.equal("give a plain-text roster name (up to 30 characters).", env.commands:CreateRoster("")[1])
     env.commands:CreateRoster("Main")
     assert.are.equal("there is a roster with that name already.", env.commands:CreateRoster("main")[1])
     assert.are.equal("that roster does not exist.", env.commands:AssignMember("Ann-Realm", { rosterId = "ghost" })[1])
-    assert.are.equal(
-      "a member can be assigned member, raid leader or loot council.",
-      env.commands:AssignMember("Ann-Realm", { role = "admin" })[1]
-    )
     assert.are.equal("not found.", env.commands:UnassignMember("Ann-Realm")[1])
     assert.are.equal("not found.", env.commands:DeleteRoster("ghost")[1])
     assert.are.equal(1, #env.sent)
   end)
 
   it("notes a change that was saved but could not be sent", function()
-    build("admin")
+    build("gm")
     env.comm.SendRoster = function()
       return false, "full"
     end

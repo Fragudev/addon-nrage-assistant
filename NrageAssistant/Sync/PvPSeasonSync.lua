@@ -3,23 +3,24 @@ local _, ns = ...
 -- Applies received PvP season records to the ledger, and builds what a ledger catch-up sends
 -- (docs/PVP_MISSIONS_PLAN.md, sections 1 and 4).
 --
+-- "admin" below means gm or cogm: the PvP officer flag no longer gives any power (the PVP_OFFICER records are still
+-- accepted from an admin and kept, but nothing reads them).
 --   PVP_SEASON   season        admin       conflicts: SyncRules.Wins by rev; a second active season is refused
 --   PVP_MISSION  mission       admin       SyncRules.Wins
 --   PVP_PRIZES   prizes        admin       SyncRules.Wins, the whole record replaces the previous one
 --   PVP_OFFICER  officer       admin       SyncRules.Wins
 --   PVP_CLAIM    claim         anyone      the player is the sender; the same id keeps the first, replays are no-ops
---   PVP_REJECT   reject        admin, PvP officer      the latest `at` wins; a grant beats it
---   PVP_GRANT    grant         admin, PvP officer      append-only by id; a direct grant is admin only
+--   PVP_REJECT   reject        admin       the latest `at` wins; a grant beats it
+--   PVP_GRANT    grant         admin       append-only by id
 --   PVP_VOID     void          admin       append-only by grant id
---   PVP_DELIVERY delivery      admin, PvP officer      SyncRules.Wins per (season, player)
+--   PVP_DELIVERY delivery      admin       SyncRules.Wins per (season, player)
 --   PVP_FINAL    final         admin       the first one of a season wins and is authoritative
 --
 -- Authority is never in the message. `by`, the author, is the sender of a guild message, or, inside the ledger
--- catch-up of a trusted relay (admin, raid leader, current PvP officer: checked by Comm before anything is decoded),
+-- catch-up of a trusted relay (a leader: checked by Comm before anything is decoded),
 -- the author the item names: the one documented exception to "the author is the sender", the same trust PVP_STATS
--- snapshots give a relay. An author's role comes from the receiver's own guild roster (`ctx.roleOf`); that a player is
--- a PvP officer (and since when) from the receiver's own officer records. A record whose author may not write it is
--- refused.
+-- snapshots give a relay. An author's role comes from the receiver's own guild roster (`ctx.roleOf`). A record whose
+-- author may not write it is refused.
 --
 -- ctx = { ledger = db.global.pvpSeason, now = function(), roleOf = function(name) -> role or nil,
 --         isApprover = function() -> boolean (this client approves claims), onSeasonClosed = function(seasonId) }
@@ -57,16 +58,6 @@ end
 
 local function roleOf(ctx, name)
   return ctx.roleOf and ctx.roleOf(name) or nil
-end
-
--- nil when `by` may write a record stamped `at` that a PvP officer may also write: an admin, or somebody whose officer
--- flag covered `at`. Otherwise the reason.
-local function mayDecide(ctx, by, at)
-  local role = roleOf(ctx, by)
-  if role == "admin" or Model.IsOfficerAt(ledgerOf(ctx).officers[by], at) then
-    return nil
-  end
-  return role == nil and "unknown_sender" or "forbidden"
 end
 
 local function adminOnly(ctx, by, action)
@@ -241,7 +232,7 @@ local function applyPrizes(ctx, payload, by)
 end
 
 local function applyOfficer(ctx, payload, by)
-  local denied = adminOnly(ctx, by, "pvp_officer_assign")
+  local denied = adminOnly(ctx, by, "pvp_admin")
   if denied then
     return false, denied
   end
@@ -367,7 +358,7 @@ local function applyClaim(ctx, payload, by)
 end
 
 local function applyReject(ctx, payload, by)
-  local denied = mayDecide(ctx, by, payload.at)
+  local denied = adminOnly(ctx, by, "pvp_claim_decide")
   if denied then
     return false, denied
   end
@@ -404,9 +395,8 @@ local function applyGrant(ctx, payload, by)
     at = payload.at,
     by = by,
   }
-  if not Model.GrantCounts(grant, ledger.officers, ctx.roleOf) then
-    local known = roleOf(ctx, by) ~= nil or Model.IsOfficerAt(ledger.officers[by], payload.at)
-    return false, known and "forbidden" or "unknown_sender"
+  if not Model.GrantCounts(grant, ctx.roleOf) then
+    return false, roleOf(ctx, by) ~= nil and "forbidden" or "unknown_sender"
   end
   if tooFarAhead(ctx, payload.at) then
     return false, "future"
@@ -457,7 +447,7 @@ local function applyVoid(ctx, payload, by)
 end
 
 local function applyDelivery(ctx, payload, by)
-  local denied = mayDecide(ctx, by, payload.updatedAt)
+  local denied = adminOnly(ctx, by, "pvp_delivery_mark")
   if denied then
     return false, denied
   end

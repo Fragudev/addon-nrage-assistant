@@ -29,7 +29,7 @@ local function build_ctx(role, actor)
         loot = {},
       },
     },
-    role = role or "council",
+    role = role or "officer",
     actor = actor or "Boss-Realm",
     rosterId = "r1",
     clock = 1000,
@@ -108,11 +108,11 @@ describe("LootModel", function()
 end)
 
 describe("LootService permissions", function()
-  it("lets the council and admins open sessions and refuses everyone else", function()
-    for _, role in ipairs({ "council", "admin" }) do
+  it("lets gm, cogm, officer and rl open sessions and refuses everyone else", function()
+    for _, role in ipairs({ "gm", "cogm", "officer", "rl" }) do
       assert.is_truthy(Service.OpenSession(build_ctx(role), "ev-1", ITEM), role)
     end
-    for _, role in ipairs({ "member", "rl", "stranger" }) do
+    for _, role in ipairs({ "roster", "member", "alter", "stranger" }) do
       local ctx = build_ctx(role)
       local session, reason = Service.OpenSession(ctx, "ev-1", ITEM)
       assert.is_nil(session)
@@ -124,17 +124,32 @@ describe("LootService permissions", function()
     assert.are.equal("forbidden", select(2, Service.OpenSession(ctx, "ev-1", ITEM)))
   end)
 
-  it("lets every role register, but members cannot vote, award or close", function()
-    local council = build_ctx("council")
+  it("lets roster and above register, but a member and an alter cannot", function()
+    local council = build_ctx("officer")
     local session = open_session(council)
-    for _, role in ipairs({ "member", "rl", "council", "admin" }) do
+    for _, role in ipairs({ "roster", "rl", "officer", "cogm", "gm" }) do
       local ctx = as(council, role, role .. "-Realm")
       assert.is_truthy(Service.Register(ctx, "ev-1", session.sessionId, CANDIDATE), role)
     end
-    for _, role in ipairs({ "member" }) do
+    for _, role in ipairs({ "member", "alter", "stranger" }) do
       local ctx = as(council, role, role .. "-Realm")
-      assert.are.equal("forbidden", select(2, Service.Vote(ctx, "ev-1", session.sessionId, "member-Realm")))
-      assert.are.equal("forbidden", select(2, Service.Award(ctx, "ev-1", session.sessionId, "member-Realm", "no")))
+      local candidate, reason = Service.Register(ctx, "ev-1", session.sessionId, CANDIDATE)
+      assert.is_nil(candidate, role)
+      assert.are.equal("forbidden", reason, role)
+      assert.is_nil(session.candidates[role .. "-Realm"], role)
+    end
+    local nobody = as(council, nil, "Nobody-Realm")
+    assert.are.equal("forbidden", select(2, Service.Register(nobody, "ev-1", session.sessionId, CANDIDATE)))
+  end)
+
+  it("keeps voting, awarding and closing from roster, member and alter", function()
+    local council = build_ctx("officer")
+    local session = open_session(council)
+    assert.is_truthy(Service.Register(as(council, "roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE))
+    for _, role in ipairs({ "roster", "member", "alter" }) do
+      local ctx = as(council, role, role .. "-Realm")
+      assert.are.equal("forbidden", select(2, Service.Vote(ctx, "ev-1", session.sessionId, "Ann-Realm")))
+      assert.are.equal("forbidden", select(2, Service.Award(ctx, "ev-1", session.sessionId, "Ann-Realm", "no")))
       assert.are.equal("forbidden", select(2, Service.Close(ctx, "ev-1", session.sessionId)))
     end
     assert.is_nil(next(session.votes))
@@ -143,14 +158,13 @@ describe("LootService permissions", function()
 end)
 
 describe("LootService raid leaders", function()
-  it("lets a raid leader vote, award and close, but not open a session", function()
-    local council = build_ctx("council")
-    local session = open_session(council)
+  it("lets a raid leader open a session, vote, award and close", function()
+    local council = build_ctx("officer")
     local leader = as(council, "rl", "Leader-Realm")
-    assert.is_truthy(Service.Register(as(council, "member", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE))
+    local session = open_session(leader)
+    assert.is_truthy(Service.Register(as(council, "roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE))
     assert.is_truthy(Service.Vote(leader, "ev-1", session.sessionId, "Ann-Realm"))
     assert.is_truthy(Service.Award(leader, "ev-1", session.sessionId, "Ann-Realm", "highest need"))
-    assert.are.equal("forbidden", select(2, Service.OpenSession(leader, "ev-1", ITEM)))
   end)
 end)
 
@@ -204,12 +218,12 @@ describe("LootService.Register", function()
   local council, session
 
   before_each(function()
-    council = build_ctx("council")
+    council = build_ctx("officer")
     session = open_session(council)
   end)
 
   it("registers the actor, and only the actor, as a candidate", function()
-    local member = as(council, "member", "Ann-Realm")
+    local member = as(council, "roster", "Ann-Realm")
     local candidate = assert(Service.Register(member, "ev-1", session.sessionId, {
       spec = "Fury",
       need = "main",
@@ -225,7 +239,7 @@ describe("LootService.Register", function()
   end)
 
   it("updates an existing declaration and bumps its revision", function()
-    local member = as(council, "member", "Ann-Realm")
+    local member = as(council, "roster", "Ann-Realm")
     Service.Register(member, "ev-1", session.sessionId, CANDIDATE)
     Service.Register(member, "ev-1", session.sessionId, { spec = "Arms", need = "off" })
     assert.are.equal("Arms", session.candidates["Ann-Realm"].spec)
@@ -234,7 +248,7 @@ describe("LootService.Register", function()
   end)
 
   it("rejects invalid declarations and unusable sessions", function()
-    local member = as(council, "member", "Ann-Realm")
+    local member = as(council, "roster", "Ann-Realm")
     assert.are.equal("invalid:spec", select(2, Service.Register(member, "ev-1", session.sessionId, { need = "main" })))
     assert.are.equal(
       "invalid:need",
@@ -258,9 +272,9 @@ describe("LootService.Register", function()
     for i = 1, Constants.LOOT_CANDIDATES_MAX do
       session.candidates["P" .. i .. "-Realm"] = { spec = "X", need = "main", rev = 1 }
     end
-    local newcomer = as(council, "member", "New-Realm")
+    local newcomer = as(council, "roster", "New-Realm")
     assert.are.equal("limit", select(2, Service.Register(newcomer, "ev-1", session.sessionId, CANDIDATE)))
-    local existing = as(council, "member", "P1-Realm")
+    local existing = as(council, "roster", "P1-Realm")
     assert.is_truthy(Service.Register(existing, "ev-1", session.sessionId, CANDIDATE))
   end)
 end)
@@ -269,10 +283,10 @@ describe("LootService.Vote", function()
   local council, session
 
   before_each(function()
-    council = build_ctx("council", "Boss-Realm")
+    council = build_ctx("officer", "Boss-Realm")
     session = open_session(council)
-    Service.Register(as(council, "member", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE)
-    Service.Register(as(council, "member", "Bob-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    Service.Register(as(council, "roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    Service.Register(as(council, "roster", "Bob-Realm"), "ev-1", session.sessionId, CANDIDATE)
   end)
 
   it("records one vote per voter and lets them change it", function()
@@ -303,7 +317,7 @@ describe("LootService.Vote", function()
       session.votes["V" .. i .. "-Realm"] = { target = "Ann-Realm", rev = 1 }
     end
     assert.are.equal("limit", select(2, Service.Vote(council, "ev-1", session.sessionId, "Ann-Realm")))
-    local existing = as(council, "council", "V1-Realm")
+    local existing = as(council, "officer", "V1-Realm")
     assert.is_truthy(Service.Vote(existing, "ev-1", session.sessionId, "Bob-Realm"))
   end)
 end)
@@ -312,9 +326,9 @@ describe("LootService.Award and Close", function()
   local council, session
 
   before_each(function()
-    council = build_ctx("council", "Boss-Realm")
+    council = build_ctx("officer", "Boss-Realm")
     session = open_session(council)
-    Service.Register(as(council, "member", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE)
+    Service.Register(as(council, "roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE)
   end)
 
   it("awards to a candidate, records why and by whom, and closes the session", function()
@@ -395,9 +409,9 @@ end)
 
 describe("LootService.Acta", function()
   it("lists closed sessions oldest first with the decision, the reason and the votes", function()
-    local council = build_ctx("council", "Boss-Realm")
+    local council = build_ctx("officer", "Boss-Realm")
     local first = open_session(council)
-    Service.Register(as(council, "member", "Ann-Realm"), "ev-1", first.sessionId, CANDIDATE)
+    Service.Register(as(council, "roster", "Ann-Realm"), "ev-1", first.sessionId, CANDIDATE)
     Service.Vote(council, "ev-1", first.sessionId, "Ann-Realm")
     council.clock = 1100
     Service.Award(council, "ev-1", first.sessionId, "Ann-Realm", "Highest need")

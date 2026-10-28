@@ -58,7 +58,7 @@ local function stampReceived(record, payload, updatedAt, sender)
 end
 
 local function applySession(ctx, payload, sender, role)
-  local denied = Rules.Authorize(role, "loot_open")
+  local denied = Rules.Authorize(role, "loot_manage")
   if denied then
     return false, denied
   end
@@ -95,7 +95,7 @@ end
 -- Self-contained: it carries the item, so a client that never saw the session can still record the
 -- decision (snapshots and imports rely on this).
 local function applyAward(ctx, payload, sender, role)
-  local denied = Rules.Authorize(role, "loot_award")
+  local denied = Rules.Authorize(role, "loot_manage")
   if denied then
     return false, denied
   end
@@ -166,7 +166,7 @@ local function applyCandidate(ctx, payload, sender, role)
 end
 
 local function applyVote(ctx, payload, sender, role)
-  local denied = Rules.Authorize(role, "loot_vote")
+  local denied = Rules.Authorize(role, "loot_manage")
   if denied then
     return false, denied
   end

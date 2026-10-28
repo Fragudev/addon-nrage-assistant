@@ -1,7 +1,8 @@
 local _, ns = ...
 
--- The operations the Members tab calls to manage rosters and the roles of members: only the guild master can. Each
--- method returns the lines to show, so the whole thing is testable without a client. A change is applied locally
+-- The operations the Members tab calls to manage rosters and the roster of members: only the guild master and the
+-- co-guild master can. Each method returns the lines to show, so the whole thing is testable without a client. A
+-- change is applied locally
 -- through RosterService (which checks the role) and then sent to the guild through Comm.
 --   deps: rosters, members, tombstones, platform, comm, onChange (optional, called after a change made here)
 local RosterCommands = {}
@@ -38,10 +39,9 @@ end
 
 local ERRORS = ns.Locale.Table(function()
   return {
-    forbidden = L("only the guild master can manage rosters and roles."),
+    forbidden = L("only the guild master and the co-guild master can manage rosters."),
     ["invalid:name"] = L("give a plain-text roster name (up to 30 characters)."),
     ["invalid:key"] = L("that is not a valid member name."),
-    ["invalid:role"] = L("a member can be assigned member, raid leader or loot council."),
     ["invalid:roster"] = L("that roster does not exist."),
     duplicate = L("there is a roster with that name already."),
     limit = L("limit reached."),
@@ -95,14 +95,14 @@ function RosterCommands:DeleteRoster(id)
   return { L("deleted the roster '%s'."):format(roster.name), sentNote(self.comm:SendDeleteRoster(id)) }
 end
 
--- `fields` = { role, rosterId } as RosterService.Assign takes them (rosterId = false: no roster).
+-- `fields` = { rosterId } as RosterService.Assign takes them (rosterId = false: no roster).
 function RosterCommands:AssignMember(key, fields)
   local record, reason = ns.RosterService.Assign(self:Context(), key, fields)
   if not record then
     return Failure(fail(reason))
   end
   self:Changed()
-  return { L("saved the role and roster of %s."):format(key), sentNote(self.comm:SendMember(key, record)) }
+  return { L("saved the roster of %s."):format(key), sentNote(self.comm:SendMember(key, record)) }
 end
 
 function RosterCommands:UnassignMember(key)
@@ -111,7 +111,7 @@ function RosterCommands:UnassignMember(key)
     return Failure(fail(reason))
   end
   self:Changed()
-  return { L("%s is a plain member with no roster again."):format(key), sentNote(self.comm:SendDeleteMember(key)) }
+  return { L("%s has no roster again."):format(key), sentNote(self.comm:SendDeleteMember(key)) }
 end
 
 ns.RosterCommands = RosterCommands

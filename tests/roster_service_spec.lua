@@ -20,8 +20,7 @@ local ns = load_modules()
 local Service, Constants = ns.RosterService, ns.Constants
 
 local function build_ctx(role)
-  local ctx =
-    { rosters = {}, members = {}, tombstones = {}, role = role or "admin", actor = "Boss-Realm", clock = 1000 }
+  local ctx = { rosters = {}, members = {}, tombstones = {}, role = role or "gm", actor = "Boss-Realm", clock = 1000 }
   local counter = 0
   ctx.now = function()
     return ctx.clock
@@ -53,14 +52,20 @@ describe("RosterService rosters", function()
     assert.are.equal(3, ctx.tombstones["R:" .. main.id].rev)
   end)
 
-  it("refuses everybody but the guild master", function()
-    for _, role in ipairs({ "rl", "council", "member" }) do
+  it("lets the co-guild master manage rosters too", function()
+    local ctx = build_ctx("cogm")
+    assert(Service.Create(ctx, "Main"))
+    assert(Service.Assign(ctx, "Ann-Realm", {}))
+  end)
+
+  it("refuses everybody but gm and cogm, rl and officer included, until the roster scoping exists", function()
+    for _, role in ipairs({ "rl", "officer", "roster", "member", "alter" }) do
       local ctx = build_ctx(role)
       assert.are.same({ nil, "forbidden" }, { Service.Create(ctx, "Main") })
       ctx.rosters.r1 = { id = "r1", name = "Main", rev = 1 }
       assert.are.same({ nil, "forbidden" }, { Service.Rename(ctx, "r1", "Other") })
       assert.are.same({ false, "forbidden" }, { Service.Delete(ctx, "r1") })
-      assert.are.same({ nil, "forbidden" }, { Service.Assign(ctx, "Ann-Realm", { role = "rl" }) })
+      assert.are.same({ nil, "forbidden" }, { Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }) })
       assert.are.same({ false, "forbidden" }, { Service.Unassign(ctx, "Ann-Realm") })
       assert.are.equal("Main", ctx.rosters.r1.name)
     end
@@ -111,14 +116,15 @@ describe("RosterService assignments", function()
     ctx.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
   end)
 
-  it("assigns a role and a roster, and keeps one roster per member", function()
-    local record = assert(Service.Assign(ctx, "Ann-Realm", { role = "rl", rosterId = "r1" }))
-    assert.are.same({ "rl", "r1", 1 }, { record.role, record.rosterId, record.rev })
+  it("assigns a roster, and keeps one roster per member", function()
+    local record = assert(Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }))
+    assert.are.same({ "r1", 1 }, { record.rosterId, record.rev })
+    assert.is_nil(record.role)
     assert.are.equal("r1", Service.RosterOf(ctx.members, ctx.rosters, "Ann-Realm"))
 
-    -- Assigning another roster moves them; the role stays when it is not given.
+    -- Assigning another roster moves them.
     local moved = assert(Service.Assign(ctx, "Ann-Realm", { rosterId = "r2" }))
-    assert.are.same({ "rl", "r2", 2 }, { moved.role, moved.rosterId, moved.rev })
+    assert.are.same({ "r2", 2 }, { moved.rosterId, moved.rev })
     assert.are.equal("r2", Service.RosterOf(ctx.members, ctx.rosters, "Ann-Realm"))
 
     -- false takes them out of every roster.
@@ -127,44 +133,42 @@ describe("RosterService assignments", function()
     assert.is_nil(Service.RosterOf(ctx.members, ctx.rosters, "Ann-Realm"))
   end)
 
-  it("never assigns admin, nor a role it does not know, nor a bad key or roster", function()
-    for _, role in ipairs({ "admin", "root", 5 }) do
-      assert.are.equal("invalid:role", select(2, Service.Assign(ctx, "Ann-Realm", { role = role })), tostring(role))
-    end
+  it("never writes a role: the role is the guild rank", function()
+    local record = assert(Service.Assign(ctx, "Bob-Realm", { role = "gm", rosterId = "r1" }))
+    assert.is_nil(record.role)
+    assert.is_nil(Service.IsAssignableRole)
+  end)
+
+  it("refuses a bad key or roster", function()
     for _, key in ipairs({ "", "A:B", "|cff", 5 }) do
-      assert.are.equal("invalid:key", select(2, Service.Assign(ctx, key, { role = "rl" })), tostring(key))
+      assert.are.equal("invalid:key", select(2, Service.Assign(ctx, key, { rosterId = "r1" })), tostring(key))
     end
     assert.are.equal("invalid:roster", select(2, Service.Assign(ctx, "Ann-Realm", { rosterId = "ghost" })))
     assert.is_nil(ctx.members["Ann-Realm"])
   end)
 
-  it("defaults a new member to the member role", function()
-    local record = assert(Service.Assign(ctx, "Bob-Realm", { rosterId = "r1" }))
-    assert.are.equal("member", record.role)
-  end)
-
   it("stops at the assignment limit but still changes one that exists", function()
     for index = 1, Constants.MEMBER_ASSIGNMENTS_MAX do
-      ctx.members["M" .. index] = { role = "member", rev = 1 }
+      ctx.members["M" .. index] = { rev = 1 }
     end
-    assert.are.equal("limit", select(2, Service.Assign(ctx, "New-Realm", { role = "rl" })))
-    assert.is_truthy(Service.Assign(ctx, "M1", { role = "rl" }))
+    assert.are.equal("limit", select(2, Service.Assign(ctx, "New-Realm", { rosterId = "r1" })))
+    assert.is_truthy(Service.Assign(ctx, "M1", { rosterId = "r1" }))
   end)
 
   it("takes an assignment away and leaves a tombstone, and a later one needs a higher revision", function()
-    assert(Service.Assign(ctx, "Ann-Realm", { role = "council" }))
+    assert(Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }))
     assert.is_true(Service.Unassign(ctx, "Ann-Realm"))
     assert.is_nil(ctx.members["Ann-Realm"])
     assert.are.equal(2, ctx.tombstones["M:Ann-Realm"].rev)
     assert.are.equal("not_found", select(2, Service.Unassign(ctx, "Ann-Realm")))
-    local again = assert(Service.Assign(ctx, "Ann-Realm", { role = "rl" }))
+    local again = assert(Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }))
     assert.are.equal(3, again.rev)
   end)
 
   it("counts the guild members of each roster and of none", function()
     assert(Service.Assign(ctx, "Ann-Realm", { rosterId = "r1" }))
     assert(Service.Assign(ctx, "Bob-Realm", { rosterId = "r1" }))
-    assert(Service.Assign(ctx, "Cid-Realm", { role = "rl" }))
+    assert(Service.Assign(ctx, "Cid-Realm", {}))
     local counts = Service.Counts(ctx.rosters, ctx.members, { "Ann-Realm", "Bob-Realm", "Cid-Realm", "Dee-Realm" })
     assert.are.same({ r1 = 2, r2 = 0, none = 2 }, counts)
   end)
@@ -202,7 +206,7 @@ describe("RosterService visibility", function()
   end)
 
   it("shows a member with no roster nothing", function()
-    for _, role in ipairs({ "member", "rl", "council" }) do
+    for _, role in ipairs({ "member", "rl", "officer" }) do
       local viewer = Service.Viewer({ role = role })
       assert.are.equal("blocked", viewer.mode)
       assert.are.same({}, ids(Service.FilterEvents(events, viewer)))
@@ -216,34 +220,30 @@ describe("RosterService visibility", function()
   end)
 
   it("lets the guild master pick a roster, all rosters, or the events with none", function()
-    local own = Service.Viewer({ role = "admin", rosterId = "r1" })
+    local own = Service.Viewer({ role = "gm", rosterId = "r1" })
     assert.are.same({ "mine" }, ids(Service.FilterEvents(events, own)))
     assert.is_true(own.canSelect)
-    local all = Service.Viewer({ role = "admin", rosterId = "r1", selected = "all" })
+    local all = Service.Viewer({ role = "gm", rosterId = "r1", selected = "all" })
     assert.are.same({ "legacy", "mine", "theirs" }, ids(Service.FilterEvents(events, all)))
-    local other = Service.Viewer({ role = "admin", selected = "r2" })
+    local other = Service.Viewer({ role = "gm", selected = "r2" })
     assert.are.same({ "theirs" }, ids(Service.FilterEvents(events, other)))
-    local none = Service.Viewer({ role = "admin", selected = "none" })
+    local none = Service.Viewer({ role = "gm", selected = "none" })
     assert.are.same({ "legacy" }, ids(Service.FilterEvents(events, none)))
     -- With no roster of their own and nothing picked, they see everything.
-    assert.are.same(
-      { "legacy", "mine", "theirs" },
-      ids(Service.FilterEvents(events, Service.Viewer({ role = "admin" })))
-    )
+    assert.are.same({ "legacy", "mine", "theirs" }, ids(Service.FilterEvents(events, Service.Viewer({ role = "gm" }))))
   end)
 
   it("builds the viewer of the own character", function()
     local platform = {
       GetOwnGuildRank = function()
-        return "Raider", 5
+        return "RL", 3
       end,
       GetIdentityKey = function()
         return "Me-Realm"
       end,
     }
-    local members = { ["Me-Realm"] = { role = "rl", rosterId = "r1" } }
+    local members = { ["Me-Realm"] = { rosterId = "r1" } }
     local rosters = { r1 = { id = "r1", name = "Main" } }
-    ns.PermissionService.Configure({ members = members })
     local viewer, role = Service.OwnViewer(platform, rosters, members)
     assert.are.equal("rl", role)
     assert.are.same({ mode = "roster", rosterId = "r1", legacy = true, canSelect = false }, viewer)
@@ -255,23 +255,26 @@ describe("RosterService visibility", function()
     assert.is_true(Service.TemplateVisible(mine, viewer))
     assert.is_false(Service.TemplateVisible(theirs, viewer))
     assert.is_true(Service.TemplateVisible(legacy, viewer))
-    local all = Service.Viewer({ role = "admin", selected = "all" })
+    local all = Service.Viewer({ role = "gm", selected = "all" })
     assert.is_true(Service.TemplateVisible(theirs, all))
-    assert.is_false(Service.TemplateVisible(legacy, Service.Viewer({ role = "admin", selected = "r1" })) == false)
+    assert.is_false(Service.TemplateVisible(legacy, Service.Viewer({ role = "gm", selected = "r1" })) == false)
     assert.is_false(Service.TemplateVisible(mine, Service.Viewer({ role = "member" })))
-    assert.is_true(Service.TemplateVisible(legacy, Service.Viewer({ role = "admin", selected = "none" })))
-    assert.is_false(Service.TemplateVisible(mine, Service.Viewer({ role = "admin", selected = "none" })))
+    assert.is_true(Service.TemplateVisible(legacy, Service.Viewer({ role = "gm", selected = "none" })))
+    assert.is_false(Service.TemplateVisible(mine, Service.Viewer({ role = "gm", selected = "none" })))
   end)
 end)
 
 describe("RosterService.MayAct", function()
-  it("lets the guild master act on any event", function()
-    assert.is_true(Service.MayAct("admin", nil, "r1"))
-    assert.is_true(Service.MayAct("admin", "r2", nil))
+  it("lets gm and cogm act on any event", function()
+    for _, role in ipairs({ "gm", "cogm" }) do
+      assert.is_true(Service.MayAct(role, nil, "r1"), role)
+      assert.is_true(Service.MayAct(role, "r2", nil), role)
+      assert.is_true(Service.MayAct(role, "r2", "r1"), role)
+    end
   end)
 
   it("lets the others act on the events of their roster and on the ones no roster owns", function()
-    for _, role in ipairs({ "rl", "council", "member" }) do
+    for _, role in ipairs({ "rl", "officer", "roster", "member", "alter" }) do
       assert.is_true(Service.MayAct(role, "r1", "r1"), role)
       assert.is_true(Service.MayAct(role, "r1", nil), role)
       assert.is_false(Service.MayAct(role, "r1", "r2"), role)
@@ -317,7 +320,7 @@ describe("EventService and rosters", function()
   end)
 
   it("lets the guild master pick the roster of a new event, or none", function()
-    local ctx = event_ctx("admin", "r1")
+    local ctx = event_ctx("gm", "r1")
     local picked = assert(ns.EventService.Create(ctx, { title = "A", rosterId = "r2" }))
     assert.are.equal("r2", picked.rosterId)
     ctx.events = {}
@@ -341,7 +344,7 @@ describe("EventService and rosters", function()
     assert.are.equal("other_roster", select(2, ns.EventService.Delete(other, event.eventId)))
     assert.are.equal("Raid", event.title)
 
-    local boss = event_ctx("admin", nil)
+    local boss = event_ctx("gm", nil)
     boss.events = owner.events
     assert.is_truthy(ns.EventService.Update(boss, event.eventId, { title = "By boss" }))
     assert.is_true(ns.EventService.Delete(boss, event.eventId))
@@ -351,7 +354,7 @@ describe("EventService and rosters", function()
     local owner = event_ctx("rl", "r1")
     local event = assert(ns.EventService.Create(owner, { title = "Raid" }))
     assert.are.equal("forbidden", select(2, ns.EventService.Update(owner, event.eventId, { rosterId = "r2" })))
-    local boss = event_ctx("admin", nil)
+    local boss = event_ctx("gm", nil)
     boss.events = owner.events
     assert.are.equal("r2", assert(ns.EventService.Update(boss, event.eventId, { rosterId = "r2" })).rosterId)
   end)
@@ -412,7 +415,7 @@ describe("TemplateService and rosters", function()
     assert.are.equal("other_roster", select(2, ns.TemplateService.Delete(templates, "Theirs", rl)))
     assert.is_true(ns.TemplateService.Delete(templates, "Mine", rl))
     assert.is_true(ns.TemplateService.Delete(templates, "Old", rl))
-    assert.is_true(ns.TemplateService.Delete(templates, "Theirs", { role = "admin" }))
+    assert.is_true(ns.TemplateService.Delete(templates, "Theirs", { role = "gm" }))
     assert.are.equal("not_found", select(2, ns.TemplateService.Delete(templates, "Nope", rl)))
   end)
 end)

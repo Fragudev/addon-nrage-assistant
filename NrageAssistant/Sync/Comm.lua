@@ -274,12 +274,12 @@ function Comm:HandleMessage(text, sender, channel)
   return false, "wrong_channel"
 end
 
--- Snapshot request from a late joiner. Only a leader (RL/admin by guild rank) answers, because
+-- Snapshot request from a late joiner. Only a leader (by guild rank) answers, because
 -- only a leader's data will be accepted by the requester; each requester is served at most once per
 -- cooldown, after a random delay so several leaders do not all answer at the same instant.
 function Comm:HandleSyncRequest(sender)
   local constants = ns.Constants
-  if not ns.PermissionService.Can(self.ownRole(), "manage_events") then
+  if not ns.PermissionService.Can(self.ownRole(), "raid_manage") then
     return false, "not_leader"
   end
 
@@ -328,10 +328,11 @@ function Comm:SendSnapshot(target)
       pvpMax,
       self.blacklist,
       blacklistMax,
-      -- Only an admin's snapshot carries the rules: a receiver applies them under the role of the sender.
-      ns.PermissionService.Can(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil,
-      -- The same goes for the rosters and the roles the guild master assigned.
-      ns.PermissionService.Can(self.ownRole and self.ownRole(), "roster_manage") and self:RosterContext() or nil,
+      -- Only a gm or cogm snapshot carries the rules: a receiver applies them under the role of the sender (and, until
+      -- the roster scoping of docs/NAV_PERMISSIONS_PLAN.md lands, only those two may set them).
+      ns.PermissionService.CanAll(self.ownRole and self.ownRole(), "rules_edit") and self.readinessRules or nil,
+      -- The same goes for the rosters and the assignments of members.
+      ns.PermissionService.CanAll(self.ownRole and self.ownRole(), "members_manage") and self:RosterContext() or nil,
       math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
     )
     if #items == 0 then
@@ -360,15 +361,9 @@ function Comm:RequestSync()
   return self:Send("SYNC_REQ", {}, "SYNC_REQ")
 end
 
--- Is `name` a PvP officer right now, according to the officer records this client holds?
-function Comm:IsPvPOfficer(name)
-  local officers = self.pvpSeason.officers
-  return officers ~= nil and ns.PvPSeasonModel.IsOfficer(officers[name])
-end
-
 -- A whisper can only carry a snapshot (SYNC_DATA) or one page of a PvP ledger catch-up (PVP_LEDGER_DATA), and only a
--- leader's snapshot, or the catch-up of a leader or a PvP officer, is worth decoding. Both are checked from the local
--- guild roster and officer records before any decompression happens. Snapshots have a much stricter rate limit than
+-- leader's snapshot or catch-up is worth decoding. Both are checked from the local guild roster before any
+-- decompression happens. Snapshots have a much stricter rate limit than
 -- guild traffic because each one is expensive to decode; a catch-up is many small pages, so it has a limit of its own.
 function Comm:HandleWhisper(text, sender)
   local constants = ns.Constants
@@ -376,8 +371,8 @@ function Comm:HandleWhisper(text, sender)
   if role == nil then
     return false, "unknown_sender"
   end
-  local leader = ns.PermissionService.Can(role, "manage_events")
-  if not (leader or self:IsPvPOfficer(sender)) then
+  local leader = ns.PermissionService.Can(role, "raid_manage")
+  if not leader then
     return false, "forbidden"
   end
   if not self.ledgerInbox:AllowRate(sender, self.now()) then
@@ -540,10 +535,9 @@ function Comm:HandleRoster(sender, message)
   return ok, reason
 end
 
--- Does this client approve PvP claims (an admin, or a PvP officer)? Claims are only kept by those that do.
+-- Does this client approve PvP claims (gm or cogm)? Claims are only kept by those that do.
 function Comm:IsPvPApprover()
-  local role = self.ownRole and self.ownRole()
-  return role == "admin" or (role ~= nil and self:IsPvPOfficer(self.platform.GetIdentityKey()))
+  return ns.PermissionService.Can(self.ownRole and self.ownRole(), "pvp_claim_decide")
 end
 
 -- The tables and callbacks the PvP season rules work with.
@@ -592,12 +586,10 @@ function Comm:RequestLedger()
   return self:Send("PVP_LEDGER_REQ", ns.PvPSeasonSync.RequestPayload(self.pvpSeason, self.pvpSeason.activeId), "PLR")
 end
 
--- Can this client answer a ledger request? Only a raid leader, an admin or a PvP officer: they are the ones a requester
--- accepts a catch-up from.
+-- Can this client answer a ledger request? Only a leader (raid_manage): they are the ones a requester accepts a
+-- catch-up from.
 function Comm:IsLedgerRelay()
-  local role = self.ownRole and self.ownRole()
-  return ns.PermissionService.Can(role, "manage_events")
-    or (role ~= nil and self:IsPvPOfficer(self.platform.GetIdentityKey()))
+  return ns.PermissionService.Can(self.ownRole and self.ownRole(), "raid_manage")
 end
 
 -- A ledger request from a late joiner: answered after a random delay, at most once a minute per requester, and only
@@ -693,7 +685,7 @@ function Comm:HandleLedgerData(sender, payload)
   return true
 end
 
--- READINESS_RULES: the sender's role is read from the local guild roster; only an admin's set is kept.
+-- READINESS_RULES: the sender's role is read from the local guild roster; only a gm or cogm set is kept.
 function Comm:HandleReadinessRules(sender, message)
   local ctx = { record = self.readinessRules, now = self.platform.ServerTime }
   local ok, reason = ns.ReadinessRulesSync.Apply(ctx, message, sender, self.roleOf(sender))
@@ -848,7 +840,7 @@ end
 -- the reason ("forbidden" or a ReadinessRules.Validate reason).
 function Comm:SetReadinessRules(rules)
   local role = self.ownRole()
-  if not ns.PermissionService.Can(role, "rules_edit") then
+  if not ns.PermissionService.CanAll(role, "rules_edit") then
     return false, "forbidden"
   end
   local clean, reason = ns.ReadinessRules.Validate(rules)
@@ -1101,12 +1093,12 @@ function Comm.Start()
       comm:RequestSync()
       -- And what the guild holds of the PvP season, in case it moved on while this client was away.
       comm:RequestLedger()
-      -- An admin also tells the guild the rules once, for the members who were not there when they were set.
-      if ns.PermissionService.Can(comm.ownRole(), "rules_edit") then
+      -- A gm or cogm also tells the guild the rules once, for the members who were not there when they were set.
+      if ns.PermissionService.CanAll(comm.ownRole(), "rules_edit") then
         comm:SendReadinessRules()
       end
       -- And the roster definitions (the assignments of the members travel in the snapshot an admin answers).
-      if ns.PermissionService.Can(comm.ownRole(), "roster_manage") then
+      if ns.PermissionService.CanAll(comm.ownRole(), "members_manage") then
         for _, roster in ipairs(ns.RosterService.List(comm.rosters)) do
           comm:SendRoster(roster)
         end

@@ -82,7 +82,8 @@ local function load_window(locale)
   return ns
 end
 
--- rank: "GM" | "RL" | "Council" | "Member" | "Norost" (a member with no roster).
+-- rank: "GM" | "CoGM" | "RL" | "Council" (an officer) | "Roster" | "Member" | "Alter" | "Norost" (a roster player
+-- with no roster).
 local function build(rank, locale)
   local ns = load_window(locale)
   local fake = FakeKit
@@ -105,7 +106,7 @@ local function build(rank, locale)
       env.registered[event] = unit
       return true
     end,
-    GetOwnGuildRank = Roles.ranking(rank == "Norost" and "Member" or rank),
+    GetOwnGuildRank = Roles.ranking(rank == "Norost" and "Roster" or rank),
     GetIdentityKey = function()
       return "Leader-Realm"
     end,
@@ -196,13 +197,12 @@ local function build(rank, locale)
       recipes = {},
     },
   }
-  -- The roles of the players: "GM" is the guild master; the other ranks stand for the role assigned to this character,
-  -- in roster r1 (a "Norost" member has no roster at all).
-  ns.db.global.members, ns.db.global.rosters = Roles.assignments(rank == "Norost" and "Member" or rank, "Leader-Realm")
+  -- The role is the guild rank: "GM" and "CoGM" have no roster, the other ranks put this character in roster r1 (a
+  -- "Norost" player has no roster at all).
+  ns.db.global.members, ns.db.global.rosters = Roles.assignments(rank == "Norost" and "Roster" or rank, "Leader-Realm")
   if rank == "Norost" then
     ns.db.global.members["Leader-Realm"].rosterId = nil
   end
-  ns.PermissionService.Configure({ members = ns.db.global.members })
   ns.character = {
     profile = { fields = {} },
     recipes = {},
@@ -279,7 +279,7 @@ local function build(rank, locale)
   -- The PvP seasons: the real ledger service over a fake guild. `env.asRole` lets a test act as the admin to seed a
   -- season; `env.pvpSent` records what the service sent.
   env.pvpSent = {}
-  env.pvpRoles = { ["Ann-Realm"] = "member", ["Boss-Realm"] = "admin", ["Yonemon Gg"] = "member" }
+  env.pvpRoles = { ["Ann-Realm"] = "member", ["Boss-Realm"] = "gm", ["Yonemon Gg"] = "member" }
   ns.db.global.pvpSeason = ns.PvPSeasonSync.NewLedger()
   ns.pvpSeason = ns.PvPSeasonService.New({
     ledger = ns.db.global.pvpSeason,
@@ -420,19 +420,16 @@ describe("Window smoke test", function()
     pcall(env.close)
   end)
 
-  it(
-    "draws every tab for the guild master, a raid leader, a council member, a member and a member with no roster",
-    function()
-      for _, rank in ipairs({ "GM", "RL", "Council", "Member", "Norost" }) do
-        env = build(rank)
-        env.ns.db.global.events["e1"] = event("e1", "Molten Core")
-        for _, tab in ipairs(ALL_TABS) do
-          assert.is_truthy(env.open(tab), rank .. " " .. tab)
-        end
-        pcall(env.close)
+  it("draws every tab for each of the seven ranks and for a roster player with no roster", function()
+    for _, rank in ipairs({ "GM", "CoGM", "Council", "RL", "Roster", "Member", "Alter", "Norost" }) do
+      env = build(rank)
+      env.ns.db.global.events["e1"] = event("e1", "Molten Core")
+      for _, tab in ipairs(ALL_TABS) do
+        assert.is_truthy(env.open(tab), rank .. " " .. tab)
       end
+      pcall(env.close)
     end
-  )
+  end)
 
   it("draws every tab again after data arrives, and when there is none", function()
     env = build("GM")
@@ -471,8 +468,8 @@ describe("Window smoke test", function()
     assert.are.equal("home", env.ns.UI.CurrentTab())
   end)
 
-  it("offers the rules tab only to the guild master", function()
-    for _, rank in ipairs({ "RL", "Council", "Member" }) do
+  it("offers the rules tab only to the guild master and the co-guild master", function()
+    for _, rank in ipairs({ "RL", "Council", "Roster", "Member", "Alter" }) do
       env = build(rank)
       env.open("home")
       local sidebar
@@ -713,17 +710,34 @@ describe("Window smoke test", function()
       end
     end)
 
-    it("gives the guild master the Rosters card and a role and roster dropdown on each row but their own", function()
-      env = build("GM")
-      env.open("roster")
-      assert.is_truthy(env.text():find("New roster", 1, true))
-      local widgets = 0
-      for _, row in ipairs(env.tableRows()) do
-        if row.cells.role.widget == "dropdown" then
-          widgets = widgets + 1
+    it(
+      "gives the guild master the Rosters card and a roster dropdown on each row but their own, and no role dropdown",
+      function()
+        env = build("GM")
+        env.open("roster")
+        assert.is_truthy(env.text():find("New roster", 1, true))
+        local widgets = 0
+        for _, row in ipairs(env.tableRows()) do
+          if row.cells.roster.widget == "dropdown" then
+            widgets = widgets + 1
+          end
+          assert.is_string(row.cells.role.text)
+          assert.is_nil(row.cells.role.widget)
         end
+        assert.are.equal(3, widgets)
       end
-      assert.are.equal(3, widgets)
+    )
+
+    it("gives rl and officer no Rosters card and no dropdown until the roster scoping lands", function()
+      for _, rank in ipairs({ "RL", "Council", "Roster" }) do
+        env = build(rank)
+        env.open("roster")
+        assert.is_nil(env.find(env.page(), "Card", "Rosters"), rank)
+        for _, row in ipairs(env.tableRows()) do
+          assert.is_nil(row.cells.roster.widget, rank)
+        end
+        pcall(env.close)
+      end
     end)
 
     it("creates, assigns, renames and deletes from the Rosters card and the rows", function()
@@ -744,11 +758,10 @@ describe("Window smoke test", function()
       env.open("roster")
       local target
       for _, row in ipairs(env.tableRows()) do
-        if row.cells.role.widget == "dropdown" then
+        if row.cells.roster.widget == "dropdown" then
           target = row
         end
       end
-      target.cells.role.opts.onChange("rl")
       target.cells.roster.opts.onChange(id)
       local assigned
       for name, record in pairs(env.ns.db.global.members) do
@@ -757,7 +770,7 @@ describe("Window smoke test", function()
         end
       end
       assert.is_truthy(assigned)
-      assert.are.equal("rl", env.ns.db.global.members[assigned].role)
+      assert.is_nil(env.ns.db.global.members[assigned].role)
 
       env.open("roster")
       for _, button in ipairs(FakeKit.find_all(env.page(), "IconButton")) do
@@ -1099,8 +1112,8 @@ describe("Window smoke test: Loot", function()
     assert.are.equal("SendLootSession", env.sent[1])
   end)
 
-  it("gives a member the answer buttons with the spec from the profile, and no council controls", function()
-    local loot = open_loot("Member", true)
+  it("gives a roster player the answer buttons with the spec from the profile, and no council controls", function()
+    local loot = open_loot("Roster", true)
     assert.is_nil(env.find(loot, "Button", "Open the voting window"))
     assert.is_nil(env.find(loot, "Card", "Open a session"))
     assert.is_truthy(env.text():find("Spec: Tank (from your profile)", 1, true))
@@ -1115,7 +1128,7 @@ describe("Window smoke test: Loot", function()
   end)
 
   it("asks for a spec when none is declared, and passes locally", function()
-    open_loot("Member", true)
+    open_loot("Roster", true)
     env.ns.character.profile.fields = {}
     env.ns.UI.Redraw()
     env.press("Main spec")
@@ -1401,7 +1414,7 @@ describe("Window smoke test: PvP seasons", function()
   -- An active season (500 to 30 days later) with missions, prizes, twelve ranked players and two claims waiting.
   local function seed(e)
     local ns, svc = e.ns, e.ns.pvpSeason
-    e.asRole = "admin"
+    e.asRole = "gm"
     local season = assert(svc:CreateSeason({ name = "Autumn", startsAt = 500, endsAt = 500 + 30 * DAY }))
     local goal = { kind = "kills", count = 10, zones = { 1454 }, place = "any", distinct = "none" }
     assert(
@@ -1447,6 +1460,7 @@ describe("Window smoke test: PvP seasons", function()
     return season
   end
 
+  -- A PvP officer flag that was stored before the ranks existed: it gives nothing now.
   local function officer(e)
     e.ns.db.global.pvpSeason.officers["Leader-Realm"] =
       { player = "Leader-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
@@ -1490,13 +1504,10 @@ describe("Window smoke test: PvP seasons", function()
     return t
   end
 
-  it("draws every sub-tab and admin section as admin, officer, member and with no roster", function()
-    for _, who in ipairs({ "GM", "officer", "Member", "Norost" }) do
-      env = build(who == "officer" and "Member" or who)
+  it("draws every sub-tab and admin section as gm, cogm, member and with no roster", function()
+    for _, who in ipairs({ "GM", "CoGM", "Member", "Norost" }) do
+      env = build(who)
       seed(env)
-      if who == "officer" then
-        officer(env)
-      end
       env.open("pvp")
       local subs = {}
       for _, tab in ipairs(strip(env).opts.tabs) do
@@ -1508,7 +1519,7 @@ describe("Window smoke test: PvP seasons", function()
           end
         end
       end
-      local admin = who == "GM" or who == "officer"
+      local admin = who == "GM" or who == "CoGM"
       assert.are.equal(admin and 6 or 5, #subs, who)
       pcall(env.close)
     end
@@ -1525,16 +1536,14 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.text():find("No season is running", 1, true))
   end)
 
-  it("gives an officer only approvals and deliveries", function()
+  it("gives a member with a stored PvP officer flag no Admin sub-tab", function()
     env = build("Member")
     seed(env)
     officer(env)
-    go(env, "admin")
-    local values = {}
-    for _, item in ipairs(FakeKit.find(env.page(), "Segmented").opts.items) do
-      values[#values + 1] = item.value
+    env.open("pvp")
+    for _, tab in ipairs(strip(env).opts.tabs) do
+      assert.are_not.equal("admin", tab.value)
     end
-    assert.are.same({ "approvals", "deliveries" }, values)
   end)
 
   it("shows the season card, the prizes and the standings with the own row and a line under the tenth", function()
@@ -1659,26 +1668,10 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.banner().opts.text:find("Claim approved", 1, true))
   end)
 
-  it("says so when nothing waits, and an officer cannot approve their own claim", function()
+  it("says so when nothing waits", function()
     env = build("GM")
     go(env, "admin")
     assert.is_truthy(env.text():find("No claims waiting", 1, true))
-    pcall(env.close)
-    env = build("Member")
-    local season = seed(env)
-    officer(env)
-    local id = env.ns.PvPSeasonModel.ClaimId("Leader-Realm", "m1", "all", 1)
-    env.ns.db.global.pvpSeason.queue[id] = {
-      id = id,
-      missionId = "m1",
-      seasonId = season.id,
-      periodKey = "all",
-      player = "Leader-Realm",
-      at = 900,
-    }
-    go(env, "admin")
-    FakeKit.press(named(env.page(), "Button", "Approve")[1])
-    assert.is_truthy(env.banner().opts.text:find("Not saved", 1, true))
   end)
 
   -- The chip text of a listed zone, as the form writes it.
@@ -1931,47 +1924,18 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.text():find("No closed seasons yet", 1, true))
   end)
 
-  it("shows a PVP officer badge in Members, and the guild master gets the toggle", function()
-    env = build("Member")
-    officer(env)
-    env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
-      { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
-    env.open("roster")
-    local badge
-    for _, row in ipairs(env.tableRows()) do
-      if row.cells.pvp.widget == "badge" then
-        badge = row.cells.pvp
+  it("shows no PvP officer column in Members, flag or not, and gives nobody a toggle", function()
+    for _, rank in ipairs({ "Member", "GM" }) do
+      env = build(rank)
+      officer(env)
+      env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
+        { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
+      env.open("roster")
+      for _, row in ipairs(env.tableRows()) do
+        assert.is_nil(row.cells.pvp, rank)
       end
-    end
-    assert.are.equal("PVP OFFICER", badge.opts.text)
-    pcall(env.close)
-
-    env = build("GM")
-    env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
-      { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
-    env.open("roster")
-    local chips = {}
-    for _, row in ipairs(env.tableRows()) do
-      if row.cells.pvp.widget == "chip" then
-        chips[#chips + 1] = row.cells.pvp.opts
-      end
-    end
-    assert.is_true(#chips >= 2)
-    for _, chip in ipairs(chips) do
-      if chip.active then
-        chip.onToggle(false)
-        assert.is_false(env.ns.pvpSeason:IsOfficer("Ann-Realm"))
-        chip.onToggle(true)
-        assert.is_true(env.ns.pvpSeason:IsOfficer("Ann-Realm"))
-      end
-    end
-    -- A name the guild does not know cannot be switched on.
-    for _, chip in ipairs(chips) do
-      if not chip.active then
-        chip.onToggle(true)
-        assert.are.equal("danger", env.banner().opts.kind)
-        break
-      end
+      assert.is_nil(env.text():find("PVP OFFICER", 1, true))
+      pcall(env.close)
     end
   end)
 end)
@@ -2102,11 +2066,17 @@ describe("Window smoke test: Rules", function()
     return FakeKit.find_all(env.page(), "Card")
   end
 
-  it("says it is for the guild master when anyone else gets there", function()
-    env = build("RL")
-    env.open("rules")
-    assert.is_truthy(env.text():find("Only the guild master can edit the readiness rules.", 1, true))
-    assert.is_nil(env.find(env.page(), "List"))
+  it("says it is for the guild master and the co-guild master when anyone else gets there", function()
+    for _, rank in ipairs({ "RL", "Council", "Roster", "Member" }) do
+      env = build(rank)
+      env.open("rules")
+      assert.is_truthy(
+        env.text():find("Only the guild master and the co-guild master can edit the readiness rules.", 1, true),
+        rank
+      )
+      assert.is_nil(env.find(env.page(), "List"), rank)
+      pcall(env.close)
+    end
   end)
 
   it("lists the rules with their badges and the form to add one", function()

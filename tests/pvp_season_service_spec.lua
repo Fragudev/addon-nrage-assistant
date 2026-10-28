@@ -19,13 +19,13 @@ local function load_addon()
 end
 
 local ns = load_addon()
-local Service, Sync, Model, Protocol, Constants =
-  ns.PvPSeasonService, ns.PvPSeasonSync, ns.PvPSeasonModel, ns.Protocol, ns.Constants
+local Service, Sync, Model, Protocol = ns.PvPSeasonService, ns.PvPSeasonSync, ns.PvPSeasonModel, ns.Protocol
 
 local DAY = 86400
 local T0 = 1792454400 -- 2026-10-20 00:00 UTC
 
-local ROLES = { Boss = "admin", Off = "member", Ann = "member", Bob = "member", Cat = "member", Dan = "member" }
+-- Off and Dan are co-guild masters: after the ranks change they are the other clients that approve claims.
+local ROLES = { Boss = "gm", Off = "cogm", Ann = "member", Bob = "member", Cat = "member", Dan = "cogm" }
 
 -- One world: a clock, a roster and a counter for ids, shared by the services made in it.
 local function new_world()
@@ -104,25 +104,54 @@ local function admin_with_season(world)
 end
 
 describe("PvPSeasonService permissions", function()
-  it("tells the admin, an officer and a member apart", function()
+  it("tells gm, cogm and a member apart", function()
     local world = new_world()
     local admin = new_service(world, "Boss")
+    local cogm = new_service(world, "Off")
     local member = new_service(world, "Ann")
-    assert.is_true(admin:CanPvP("pvp_season_manage"))
-    assert.is_true(admin:IsApprover())
+    for _, service in ipairs({ admin, cogm }) do
+      assert.is_true(service:CanPvP("pvp_season_manage"))
+      assert.is_true(service:CanPvP("pvp_delivery_mark"))
+      assert.is_true(service:CanPvP("pvp_grant_direct"))
+      assert.is_true(service:IsApprover())
+    end
     assert.is_false(member:CanPvP("pvp_season_manage"))
     assert.is_false(member:IsApprover())
     assert.is_true(member:CanPvP("pvp_claim"))
-
-    assert(admin:CreateSeason({ name = "S", endsAt = T0 + DAY }))
-    assert(admin:SetOfficer("Ann", true))
-    relay(admin, member)
-    assert.is_true(member:IsOfficer("Ann"))
-    assert.is_true(member:IsApprover())
-    assert.is_true(member:CanPvP("pvp_delivery_mark"))
-    assert.is_false(member:CanPvP("pvp_season_manage"))
     assert.is_false(member:CanPvP("pvp_officer_assign"))
     assert.is_false(member:CanPvP("pvp_grant_direct"))
+  end)
+
+  it("gives officer, rl, roster and alter no PvP admin power", function()
+    local world = new_world()
+    for _, role in ipairs({ "officer", "rl", "roster", "member", "alter" }) do
+      local service = new_service(world, "Ann", { role = role })
+      assert.is_false(service:IsApprover(), role)
+      for _, action in ipairs({ "pvp_season_manage", "pvp_claim_decide", "pvp_delivery_mark", "pvp_grant_direct" }) do
+        assert.is_false(service:CanPvP(action), role .. " " .. action)
+      end
+    end
+  end)
+
+  it("keeps no way to flag a PvP officer, and a stored flag gives a member nothing", function()
+    local world = new_world()
+    local admin = new_service(world, "Boss")
+    local member = new_service(world, "Ann")
+    assert.is_nil(admin.SetOfficer)
+    assert.is_nil(admin.Officers)
+    assert(admin:CreateSeason({ name = "S", endsAt = T0 + DAY }))
+    -- A flag that was stored before the ranks existed (a gm or cogm may still send the record).
+    local message = Protocol.Validate(Protocol.Build("PVP_OFFICER", {
+      player = "Ann",
+      intervals = { { from = T0 } },
+      rev = 1,
+      updatedAt = T0,
+    }, "local"))
+    assert.is_true(Sync.Apply(admin:Context(), message, "Boss"))
+    relay(admin, member)
+    assert.is_false(member:IsApprover())
+    assert.is_false(member:CanPvP("pvp_delivery_mark"))
+    assert.is_false(member:CanPvP("pvp_claim_decide"))
   end)
 
   it("gives nothing to a player who is not in a guild", function()
@@ -311,87 +340,12 @@ describe("PvPSeasonService missions and prizes", function()
   end)
 end)
 
-describe("PvPSeasonService officers", function()
-  local world, admin, member
-
-  before_each(function()
-    world = new_world()
-    admin = new_service(world, "Boss")
-    member = new_service(world, "Ann")
-    assert(admin:CreateSeason({ name = "Season One", startsAt = T0 - DAY, endsAt = T0 + 30 * DAY }))
-  end)
-
-  it("turns the flag on and off, keeping the intervals", function()
-    local officer = assert(admin:SetOfficer("Off", true))
-    assert.are.same({ { from = world.clock } }, officer.intervals)
-    assert.is_true(admin:IsOfficer("Off"))
-    assert.are.equal("PVP_OFFICER", lastSent(admin).t)
-    assert.are.equal("PO:Off", lastSent(admin).key)
-
-    world.clock = world.clock + 1000
-    officer = assert(admin:SetOfficer("Off", false))
-    assert.are.same({ { from = T0 + 100, to = T0 + 1100 } }, officer.intervals)
-    assert.is_false(admin:IsOfficer("Off"))
-    assert.are.equal(2, officer.rev)
-    world.clock = world.clock + 1000
-    officer = assert(admin:SetOfficer("Off", true))
-    assert.are.equal(2, #officer.intervals)
-    assert.are.equal(3, officer.rev)
-  end)
-
-  it("says 'unchanged' for a flag that is already in that state, and refuses a stranger to switch on", function()
-    assert(admin:SetOfficer("Off", true))
-    assert.are.equal("unchanged", select(2, admin:SetOfficer("Off", true)))
-    assert.are.equal("unchanged", select(2, admin:SetOfficer("Cat", false)))
-    assert.are.equal("unknown_player", select(2, admin:SetOfficer("Stranger", true)))
-    assert.are.equal("invalid:player", select(2, admin:SetOfficer("a:b", true)))
-    -- A player who left can still be switched off.
-    world.roles = {}
-    for key, value in pairs(ROLES) do
-      world.roles[key] = value
-    end
-    world.roles.Off = nil
-    assert.is_truthy(admin:SetOfficer("Off", false))
-  end)
-
-  it("is for the admin only, and an officer cannot appoint another", function()
-    assert.are.equal("forbidden", select(2, member:SetOfficer("Off", true)))
-    assert(admin:SetOfficer("Off", true))
-    local officer = new_service(world, "Off")
-    relay(admin, officer)
-    assert.is_true(officer:IsOfficer("Off"))
-    assert.are.equal("forbidden", select(2, officer:SetOfficer("Cat", true)))
-  end)
-
-  it("limits the number of officers", function()
-    local old = Constants.PVP_OFFICERS_MAX
-    Constants.PVP_OFFICERS_MAX = 1
-    assert(admin:SetOfficer("Off", true))
-    local record, reason = admin:SetOfficer("Cat", true)
-    Constants.PVP_OFFICERS_MAX = old
-    assert.is_nil(record)
-    assert.are.equal("limit", reason)
-  end)
-
-  it("lists the officers by name with whether the flag is on", function()
-    assert(admin:SetOfficer("Off", true))
-    assert(admin:SetOfficer("Cat", true))
-    world.clock = world.clock + 5
-    assert(admin:SetOfficer("Cat", false))
-    assert.are.same({
-      { player = "Cat", active = false, since = T0 + 100 },
-      { player = "Off", active = true, since = T0 + 100 },
-    }, admin:Officers())
-  end)
-end)
-
 describe("PvPSeasonService claims", function()
   local world, admin, officer, member
 
   before_each(function()
     world = new_world()
     admin = admin_with_season(world)
-    assert(admin:SetOfficer("Off", true))
     officer = new_service(world, "Off")
     member = new_service(world, "Ann")
     relay(admin, officer)
@@ -493,8 +447,6 @@ describe("PvPSeasonService deciding claims", function()
   before_each(function()
     world = new_world()
     admin = admin_with_season(world)
-    assert(admin:SetOfficer("Off", true))
-    assert(admin:SetOfficer("Dan", true))
     officer = new_service(world, "Off")
     other = new_service(world, "Dan")
     member = new_service(world, "Ann")
@@ -577,25 +529,19 @@ describe("PvPSeasonService deciding claims", function()
     assert.are.equal(0, #officer:Rejected())
   end)
 
-  it("refuses a member, an officer approving their own claim and a claim of a closed season", function()
+  it("refuses a member and a claim of a closed season", function()
     assert.are.equal("forbidden", select(2, member:Approve(claimId)))
     assert.are.equal("forbidden", select(2, member:Reject(claimId)))
-    assert(officer:SubmitClaim({ missionId = "m1" }))
-    local payload = lastSent(officer).p
-    local own = payload.id
-    -- The officer's own client does not queue it, so it is put there as if another client had relayed it.
-    assert(officer:ReceiveClaim(payload, "Off"))
-    assert.are.equal("self_grant", select(2, officer:Approve(own)))
-    relay(officer, other)
-    assert.is_truthy(other:Approve(own))
     assert(admin:CloseSeason())
     relay(admin, officer)
     assert.are.equal("not_found", select(2, officer:Approve(claimId)))
   end)
 
-  it("lets the admin approve their own claim", function()
+  it("lets gm and cogm approve their own claim", function()
     local own = assert(admin:SubmitClaim({ missionId = "m1" }))
     assert.is_truthy(admin:Approve(own.id))
+    local mine = assert(officer:SubmitClaim({ missionId = "m1" }))
+    assert.is_truthy(officer:Approve(mine.id))
   end)
 
   it("needs the mission to be known", function()
@@ -605,13 +551,12 @@ describe("PvPSeasonService deciding claims", function()
 end)
 
 describe("PvPSeasonService direct grants, voids and the grant list", function()
-  local world, admin, officer
+  local world, admin, officer -- officer is a plain member here
 
   before_each(function()
     world = new_world()
     admin = admin_with_season(world)
-    assert(admin:SetOfficer("Off", true))
-    officer = new_service(world, "Off")
+    officer = new_service(world, "Ann")
     relay(admin, officer)
   end)
 
@@ -665,7 +610,6 @@ describe("PvPSeasonService closing a season", function()
   before_each(function()
     world = new_world()
     admin = admin_with_season(world)
-    assert(admin:SetOfficer("Off", true))
     officer = new_service(world, "Off")
     member = new_service(world, "Ann")
     relay(admin, officer)
@@ -789,7 +733,7 @@ describe("PvPSeasonService closing a season", function()
 
   it("cannot be closed twice, without a season or by anybody but an admin", function()
     local season = admin:ActiveSeason()
-    assert.are.equal("forbidden", select(2, officer:CloseSeason()))
+    assert.are.equal("forbidden", select(2, member:CloseSeason()))
     assert.are.equal("forbidden", select(2, member:CloseSeason(season.id)))
     assert(admin:CloseSeason())
     assert.are.equal("no_season", select(2, admin:CloseSeason()))
@@ -797,7 +741,7 @@ describe("PvPSeasonService closing a season", function()
     assert.are.equal("no_season", select(2, admin:CloseSeason("nope")))
   end)
 
-  it("marks deliveries, as an admin or an officer, and every client sees them", function()
+  it("marks deliveries, as gm or cogm, and every client sees them", function()
     local season = admin:ActiveSeason()
     assert(admin:SetPrizes(season.id, { ["1"] = { { kind = "gold", amount = 500 } } }))
     grantTo("Ann", 30)
@@ -856,7 +800,6 @@ describe("PvPSeasonService reading", function()
     assert.are.same({}, service:Finals())
     assert.are.same({}, service:Deliveries("nope"))
     assert.are.same({}, service:Cumulative())
-    assert.are.same({}, service:Officers())
     assert.are.same({}, service:Seasons())
     assert.is_nil(service:ClaimState("Ann:m1:all:1"))
     assert.is_nil(service:Prizes("nope"))
@@ -890,8 +833,6 @@ describe("PvPSeasonService two clients", function()
   it("end up with the same standings whichever of them approved what", function()
     local world = new_world()
     local admin = admin_with_season(world)
-    assert(admin:SetOfficer("Off", true))
-    assert(admin:SetOfficer("Dan", true))
     local off, dan, ann, bob =
       new_service(world, "Off"), new_service(world, "Dan"), new_service(world, "Ann"), new_service(world, "Bob")
     local everyone = { admin, off, dan, ann, bob }

@@ -65,7 +65,6 @@ local function build(rank, options)
     end
   end
   env.members, env.rosters = Roles.assignments(rank, options.identity or "Boss-Realm")
-  ns.PermissionService.Configure({ members = env.members })
   env.loot = ns.LootCommands.New({
     events = env.events,
     platform = env.platform,
@@ -124,8 +123,8 @@ describe("LootCommands open", function()
     assert.are.equal(0, #env.sent)
   end)
 
-  it("tells a member and a raid leader why they cannot open a session", function()
-    for _, rank in ipairs({ "member", "RL" }) do
+  it("tells a roster player, a member and an alter why they cannot open a session", function()
+    for _, rank in ipairs({ "Roster", "member", "Alter" }) do
       local env = build(rank)
       assert.is_truthy(text(open_session(env)):find("not allowed", 1, true), rank)
       assert.are.equal(0, #env.sent)
@@ -215,8 +214,8 @@ describe("LootCommands session flow", function()
     assert.are.equal("closed", env.sent[1].args[2].status)
   end)
 
-  it("a member can apply but cannot vote, award or close", function()
-    local member = build("member", { identity = "Ann-Realm" })
+  it("a roster player can apply but cannot vote, award or close", function()
+    local member = build("Roster", { identity = "Ann-Realm" })
     local session = {
       sessionId = "s1",
       itemId = 1,
@@ -239,6 +238,19 @@ describe("LootCommands session flow", function()
       assert.is_truthy(text(lines):find("not allowed", 1, true))
     end
     assert.are.equal("open", session.status)
+  end)
+
+  it("a member and an alter cannot apply", function()
+    for _, rank in ipairs({ "member", "Alter" }) do
+      local denied = build(rank, { identity = "Ann-Realm" })
+      local session =
+        { sessionId = "s1", itemId = 1, itemName = "Item", status = "open", candidates = {}, votes = {}, rev = 1 }
+      denied.events["ev-1"].loot["s1"] = session
+      local lines = text(denied.loot:Apply(denied.events["ev-1"], session, { spec = "Fury", need = "main" }))
+      assert.is_truthy(lines:find("not allowed", 1, true), rank)
+      assert.is_nil(next(session.candidates))
+      assert.are.equal(0, #denied.sent)
+    end
   end)
 
   it("votes for and awards a character whose name has several words", function()

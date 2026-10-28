@@ -1,109 +1,87 @@
 local _, ns = ...
 
--- Who may do what (plan section 12). A message never gets to say what its sender is allowed to do: roles are worked
--- out by the receiver from its own data.
--- Roles: member, rl (raid leader), council (loot council) and admin. A raid leader votes and awards loot like the
--- council (issue #24), but only the council and admins open sessions.
+-- Who may do what (docs/NAV_PERMISSIONS_PLAN.md section 1). A message never gets to say what its sender is allowed to
+-- do: roles are worked out by the receiver from its own data.
 --
--- Where a role comes from (Constants.ROLE_SOURCE, plan 3.4.2):
---   "assigned" (now): the guild master is the only admin, recognised by the guild rank index 0 and never by name.
---                     Everybody else has the role the guild master assigned in the Members tab (synced as MEMBER
---                     records), or "member" when nothing was assigned. `admin` can never be assigned.
---   "rank":           the old behaviour, from the rank name through Constants.RANK_ROLES.
+-- The role is the guild rank, matched by name through Constants.RANK_ROLES, in order of authority:
+--   gm, cogm, officer, rl (raid leader), roster, member, alter.
+-- The guild master is always `gm`, recognised by the rank index 0 and never by name. A rank that is not listed in
+-- RANK_ROLES is an `alter` (least privilege). Nothing stored in the addon assigns a role.
+--
+-- The rank says what a player can do, the roster (RosterService) says where. Each action gives, per role, a scope:
+--   "all": on every roster      "own": only on the roster of the player      absent: not allowed.
 local PermissionService = {}
 
-local ACTIONS = {
-  view = { member = true, rl = true, council = true, admin = true },
-  edit_own_profile = { member = true, rl = true, council = true, admin = true },
-  manage_events = { rl = true, admin = true },
-  record_attendance = { rl = true, admin = true },
-  manage_assignments = { rl = true, admin = true },
-  loot_apply = { member = true, rl = true, council = true, admin = true },
-  loot_open = { council = true, admin = true },
-  loot_vote = { rl = true, council = true, admin = true },
-  loot_award = { rl = true, council = true, admin = true },
-  -- Sharing the own layer and taking part in a layer swap: every member.
-  layer_share = { member = true, rl = true, council = true, admin = true },
-  -- Sharing the own map position and showing the others: every member (same rule as layer_share).
-  position_share = { member = true, rl = true, council = true, admin = true },
-  pvp_publish = { member = true, rl = true, council = true, admin = true },
-  -- The blacklist is open to add to and closed to remove from: anyone can warn the guild about a player, only an
-  -- admin can take the warning back.
-  blacklist_add = { member = true, rl = true, council = true, admin = true },
-  blacklist_remove = { admin = true },
-  -- Changing the reason of a player who is already listed: the member who added the entry may (see
-  -- BlacklistService.CanEdit), and so may an admin, for any entry.
-  blacklist_edit_any = { admin = true },
-  -- Setting the readiness rules the whole guild is measured against. Admin only, confirmed with the rest of the
-  -- authority matrix in issue #41.
-  rules_edit = { admin = true },
-  moderate = { admin = true },
-  -- Raid rosters (plan 3.4.1): defining them and assigning members and raid leaders to them, and seeing every roster.
-  roster_manage = { admin = true },
-  roster_view_all = { admin = true },
-  -- Everybody shares the recipes of their own character (plan 3.10).
-  recipes_publish = { member = true, rl = true, council = true, admin = true },
-  -- PvP seasons (docs/PVP_MISSIONS_PLAN.md section 3). Every member claims; an admin does everything else. A PvP
-  -- officer (a flag, not a role: see CanPvP) may also decide claims and mark deliveries.
-  pvp_claim = { member = true, rl = true, council = true, admin = true },
-  pvp_claim_decide = { admin = true },
-  pvp_delivery_mark = { admin = true },
-  pvp_grant_direct = { admin = true },
-  pvp_grant_void = { admin = true },
-  pvp_season_manage = { admin = true },
-  pvp_mission_manage = { admin = true },
-  pvp_prize_manage = { admin = true },
-  pvp_officer_assign = { admin = true },
-}
-
--- What the PvP officer flag adds on top of the role. Anything else stays with the role.
-local OFFICER_ACTIONS = { pvp_claim_decide = true, pvp_delivery_mark = true }
-
--- The assignments table the role lookups read when none is passed: db.global.members. Set once at startup.
-local configured = {}
-
--- options: { members = db.global.members }. Anything else keeps its value.
-function PermissionService.Configure(options)
-  for key, value in pairs(options or {}) do
-    configured[key] = value
-  end
+local ORDER = { "gm", "cogm", "officer", "rl", "roster", "member", "alter" }
+local RANK = {}
+for index, role in ipairs(ORDER) do
+  RANK[role] = index - 1
 end
 
--- Maps a rank name to a role using `mapping` (default: Constants.RANK_ROLES). Unlisted ranks are
--- plain members; a missing rank name gives nil.
+local ALL, OWN = "all", "own"
+
+-- Every rank can do these, on anything (they are about the player's own data or open to the whole guild).
+local EVERYONE = { gm = ALL, cogm = ALL, officer = ALL, rl = ALL, roster = ALL, member = ALL, alter = ALL }
+-- Only the guild master and the co-guild master.
+local GLOBAL_ONLY = { gm = ALL, cogm = ALL }
+
+local ACTIONS = {
+  -- The Admin group of the sidebar: officer, rl and above.
+  admin_view = { gm = ALL, cogm = ALL, officer = ALL, rl = ALL },
+  events_view = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN, roster = OWN },
+  event_signup = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN, roster = OWN },
+  raidcheck_view = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN, roster = OWN },
+  -- Creating and changing events, attendance, assignments and templates.
+  raid_manage = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN },
+  loot_view = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN, roster = OWN },
+  -- Opening a session, voting and awarding.
+  loot_manage = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN },
+  -- Putting yourself forward as a candidate: roster and above, on the roster of the event.
+  loot_apply = { gm = ALL, cogm = ALL, officer = OWN, rl = OWN, roster = OWN },
+  -- Raid rosters and the assignment of members to them. Officer reads, rl will assign to its own roster (later phases).
+  members_view = { gm = ALL, cogm = ALL, officer = ALL, rl = OWN },
+  members_manage = { gm = ALL, cogm = ALL, rl = OWN },
+  rules_view = { gm = ALL, cogm = ALL, officer = ALL, rl = OWN },
+  -- Setting the readiness rules the roster is measured against.
+  rules_edit = { gm = ALL, cogm = ALL, rl = OWN },
+  pvp_admin = GLOBAL_ONLY,
+
+  edit_own_profile = EVERYONE,
+  -- Sharing the own layer and taking part in a layer swap.
+  layer_share = EVERYONE,
+  -- Sharing the own map position and showing the others.
+  position_share = EVERYONE,
+  pvp_publish = EVERYONE,
+  pvp_claim = EVERYONE,
+  -- Everybody shares the recipes of their own character (plan 3.10).
+  recipes_publish = EVERYONE,
+  -- The blacklist is open to add to and closed to remove from: anyone can warn the guild about a player, only the
+  -- guild master and the co-guild master can take the warning back.
+  blacklist_add = EVERYONE,
+  blacklist_remove = GLOBAL_ONLY,
+  -- Changing the reason of a player who is already listed: the member who added the entry may (see
+  -- BlacklistService.CanEdit), and so may gm and cogm, for any entry.
+  blacklist_edit_any = GLOBAL_ONLY,
+  moderate = GLOBAL_ONLY,
+  -- PvP seasons (docs/PVP_MISSIONS_PLAN.md section 3): every member claims, gm and cogm do everything else.
+  pvp_claim_decide = GLOBAL_ONLY,
+  pvp_delivery_mark = GLOBAL_ONLY,
+  pvp_grant_direct = GLOBAL_ONLY,
+  pvp_grant_void = GLOBAL_ONLY,
+  pvp_season_manage = GLOBAL_ONLY,
+  pvp_mission_manage = GLOBAL_ONLY,
+  pvp_prize_manage = GLOBAL_ONLY,
+}
+
+-- Maps a rank name to a role using `mapping` (default: Constants.RANK_ROLES). The name is trimmed and compared in
+-- lowercase; a rank that is not listed is an `alter`. A missing rank name gives nil.
 function PermissionService.RoleForRank(rankName, mapping)
   if type(rankName) ~= "string" or rankName == "" then
     return nil
   end
   mapping = mapping or ns.Constants.RANK_ROLES
-  return mapping[rankName:lower()] or "member"
-end
-
-local function isAssignable(role)
-  for _, allowed in ipairs(ns.Constants.ASSIGNABLE_ROLES) do
-    if role == allowed then
-      return true
-    end
-  end
-  return false
-end
-
--- The role the guild master assigned to `key`, or nil. `members` = db.global.members. `admin` is never returned: a
--- record that says so (an old or modified client) counts as nothing.
-function PermissionService.AssignedRole(members, key)
-  local record = members and key and members[key]
-  if type(record) == "table" and isAssignable(record.role) then
-    return record.role
-  end
-  return nil
-end
-
-local function sourceOf(options)
-  return (options and options.source) or ns.Constants.ROLE_SOURCE
-end
-
-local function membersOf(options)
-  return (options and options.members) or configured.members
+  local name = rankName:match("^%s*(.-)%s*$"):lower()
+  return mapping[name] or "alter"
 end
 
 -- true for the guild master: rank index 0.
@@ -111,54 +89,72 @@ function PermissionService.IsGuildMasterIndex(rankIndex)
   return rankIndex == ns.Constants.GUILD_MASTER_RANK_INDEX
 end
 
--- Role of `name` according to the local guild roster, or nil when the roster does not know them (not in the guild,
--- or the roster has not loaded yet). nil never grants anything.
--- options (optional): { members = assignments table, source = "assigned" | "rank", mapping = rank mapping }.
-function PermissionService.RoleOf(guildRoster, name, options)
-  local entry = guildRoster:Lookup(name)
-  if not entry then
+-- Role of a guild roster entry ({ rankName, rankIndex }), or nil when it has no rank. The guild master is `gm`
+-- whatever the rank is called.
+function PermissionService.RoleOfEntry(entry, mapping)
+  if type(entry) ~= "table" then
     return nil
   end
-  if sourceOf(options) == "rank" then
-    return PermissionService.RoleForRank(entry.rankName, options and options.mapping)
-  end
   if PermissionService.IsGuildMasterIndex(entry.rankIndex) then
-    return "admin"
+    return "gm"
   end
-  return PermissionService.AssignedRole(membersOf(options), name) or "member"
+  return PermissionService.RoleForRank(entry.rankName, mapping)
+end
+
+-- Role of `name` according to the local guild roster, or nil when the roster does not know them (not in the guild,
+-- or the roster has not loaded yet). nil never grants anything.
+-- options (optional): { mapping = rank mapping }.
+function PermissionService.RoleOf(guildRoster, name, options)
+  return PermissionService.RoleOfEntry(guildRoster:Lookup(name), options and options.mapping)
 end
 
 -- Own role. Without a rank (not in a guild) there is no role. The guild master is recognised by the rank index of
--- GetGuildInfo or by IsGuildLeader, whichever the client gives; the other roles come from the assignments.
+-- GetGuildInfo or by IsGuildLeader, whichever the client gives; the other roles come from the rank name.
 function PermissionService.OwnRole(platform, options)
   local rankName, rankIndex = platform.GetOwnGuildRank()
   if type(rankName) ~= "string" or rankName == "" then
     return nil
   end
-  if sourceOf(options) == "rank" then
-    return PermissionService.RoleForRank(rankName, options and options.mapping)
-  end
   if
     PermissionService.IsGuildMasterIndex(rankIndex) or (platform.IsGuildLeader and platform.IsGuildLeader() == true)
   then
-    return "admin"
+    return "gm"
   end
-  local key = platform.GetIdentityKey and platform.GetIdentityKey()
-  return PermissionService.AssignedRole(membersOf(options), key) or "member"
+  return PermissionService.RoleForRank(rankName, options and options.mapping)
 end
 
+-- Order of authority: 0 for gm up to 6 for alter, nil for anything else. For `Rank(role) <= Rank("rl")` checks.
+function PermissionService.Rank(role)
+  return RANK[role]
+end
+
+-- gm and cogm see and act on every roster.
+function PermissionService.IsGlobal(role)
+  return role == "gm" or role == "cogm"
+end
+
+-- Where `role` may do `action`: "all", "own" or "none". "own" needs a roster: without one it is "none".
+function PermissionService.Scope(role, action, ownRosterId)
+  local actionScopes = ACTIONS[action]
+  local scope = actionScopes and role ~= nil and actionScopes[role] or nil
+  if scope == ALL then
+    return "all"
+  elseif scope == OWN and ownRosterId ~= nil then
+    return "own"
+  end
+  return "none"
+end
+
+-- Does the role have the action at any scope? A role that has it on its own roster only still counts: the callers
+-- that need more than that check IsGlobal, or the roster with RosterService.MayAct.
 function PermissionService.Can(role, action)
-  local allowed = ACTIONS[action]
-  return allowed ~= nil and role ~= nil and allowed[role] == true
+  local actionScopes = ACTIONS[action]
+  return actionScopes ~= nil and role ~= nil and actionScopes[role] ~= nil
 end
 
--- Like Can, plus the PvP officer flag. `isOfficer` comes from the receiver's own officer records (never from a
--- message), and a sender the roster does not know (nil role) gets nothing either way.
-function PermissionService.CanPvP(role, isOfficer, action)
-  if PermissionService.Can(role, action) then
-    return true
-  end
-  return role ~= nil and isOfficer == true and OFFICER_ACTIONS[action] == true
+-- Does the role have the action on every roster? For what an `own` scope must not do yet (see the callers).
+function PermissionService.CanAll(role, action)
+  return PermissionService.Scope(role, action) == "all"
 end
 
 ns.PermissionService = PermissionService

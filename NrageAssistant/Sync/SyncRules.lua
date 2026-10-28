@@ -26,6 +26,18 @@ function SyncRules.Authorize(role, action)
   return nil
 end
 
+-- Like Authorize, but only for gm and cogm (the ranks that act on every roster). For what a rank may do only on its
+-- own roster (members_manage, rules_edit) and the code that checks that roster does not exist yet.
+function SyncRules.AuthorizeGlobal(role, action)
+  if role == nil then
+    return "unknown_sender"
+  end
+  if not ns.PermissionService.CanAll(role, action) then
+    return "forbidden"
+  end
+  return nil
+end
+
 -- A sender cannot date an edit in the future to always win.
 function SyncRules.ClampTimestamp(ctx, updatedAt)
   return math.min(updatedAt, ctx.now() + SyncRules.MAX_FUTURE_SKEW_SECONDS)

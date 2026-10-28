@@ -346,7 +346,7 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Members
 
-ViewModel.MEMBER_COLUMNS = { "name", "class", "level", "ilvl", "spec", "spec2", "roster", "role", "pvp", "updated" }
+ViewModel.MEMBER_COLUMNS = { "name", "class", "level", "ilvl", "spec", "spec2", "roster", "role", "updated" }
 local MEMBER_SORTABLE =
   { name = true, class = true, level = true, ilvl = true, spec = true, roster = true, role = true, updated = true }
 ViewModel.MEMBER_FIRST_DESCENDING = { level = true, ilvl = true, updated = true }
@@ -357,7 +357,6 @@ ViewModel.MEMBER_FIRST_DESCENDING = { level = true, ilvl = true, updated = true 
 --   rosters, members   db.global.rosters and db.global.members
 --   now         server time (for the stale flag and the age)
 --   ownKey      the own name, to flag the own row
---   pvpOfficers a set name -> true of the PvP officers (PvPSeasonService:Officers() with `active`), optional
 --   viewer      RosterService.Viewer: a roster leader / member only lists what they may see? (see below)
 --   search      part of a name; roster = rosterId | "none" | nil; spec = "Tank" | "Dps" | "Heal" | nil; addonOnly
 --   sort        { key, descending } (default: name)
@@ -384,10 +383,8 @@ function ViewModel.MemberRows(args)
     local rosterId = ns.RosterService.RosterOf(args.members or {}, args.rosters or {}, name)
     local fields = profile and profile.fields or {}
     local spec = fields.role
-    local role = ns.PermissionService.AssignedRole(args.members, name) or "member"
-    if ns.PermissionService.IsGuildMasterIndex(guild.rankIndex) then
-      role = "admin"
-    end
+    -- The role is the guild rank, as the guild roster has it.
+    local role = ns.PermissionService.RoleOfEntry(guild) or "alter"
     local classToken = (profile and profile.class) or guild.class
     local level = (profile and profile.level) or guild.level
     local receivedAt = profile and profile.receivedAt or nil
@@ -409,7 +406,6 @@ function ViewModel.MemberRows(args)
       role = role,
       roleText = Escape(ViewModel.Word(role)),
       assigned = assignment ~= nil,
-      pvpOfficer = args.pvpOfficers ~= nil and args.pvpOfficers[name] == true,
       isGuildMaster = ns.PermissionService.IsGuildMasterIndex(guild.rankIndex),
       mine = args.ownKey ~= nil and args.ownKey == name,
       receivedAt = receivedAt,
@@ -458,7 +454,8 @@ function ViewModel.MemberRows(args)
     elseif key == "roster" then
       return (row.rosterName or ""):lower()
     elseif key == "role" then
-      return row.role
+      -- By authority (gm first), not by the name of the role.
+      return ns.PermissionService.Rank(row.role) or math.huge
     elseif key == "updated" then
       -- Members with no profile sort as the oldest.
       return row.receivedAt or -math.huge
@@ -483,7 +480,7 @@ end
 -- admin and raid leader tool).
 function ViewModel.RosterChips(rosters, counts, role, ownRosterId)
   local chips = {}
-  if not (ns.PermissionService.Can(role, "roster_view_all") or role == "rl") then
+  if not (ns.PermissionService.IsGlobal(role) or role == "rl") then
     return chips
   end
   for _, roster in ipairs(ns.RosterService.List(rosters)) do
@@ -514,15 +511,6 @@ function ViewModel.MemberDetail(row)
     updated = row.updated or L("No profile received"),
     hasProfile = not row.noAddon,
   }
-end
-
--- The roles a guild master can pick in the Members tab, as dropdown items (never admin).
-function ViewModel.RoleChoices()
-  local items = {}
-  for _, role in ipairs(ns.Constants.ASSIGNABLE_ROLES) do
-    items[#items + 1] = { value = role, text = ViewModel.Word(role) }
-  end
-  return items
 end
 
 -- The rosters as dropdown items with a "No roster" first entry (value false).

@@ -99,11 +99,10 @@ describe("Secondary windows on the real kit", function()
       end,
       GetItemDetails = function() end,
     }, { __index = real })
-    ns.PermissionService.Configure({ members = members })
     ns.UI = {
       lootListeners = {},
       Role = function()
-        return "admin"
+        return "gm"
       end,
       ApplyWindowStatus = function(target)
         target:SetStatusTable({})

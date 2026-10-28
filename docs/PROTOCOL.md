@@ -63,7 +63,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
 | `ROSTER_UPSERT` | guild | `rosterId`, `name` (1 to 30 bytes, plain text), `rev`, `updatedAt` | admin |
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
-| `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), `role` (`member`, `rl` or `council`: never `admin`), optional `rosterId`, `rev`, `updatedAt` | admin |
+| `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), optional `rosterId`, `rev`, `updatedAt` (older clients also sent a `role`: it is tolerated and ignored) | gm, cogm |
 | `MEMBER_DELETE` | guild | `key`, `rev` | admin |
 | `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
 | `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
@@ -282,15 +282,15 @@ that an admin replaces as a whole with `READINESS_RULES`. The protocol minor ver
 Raid rosters (teams) and the addon role of each member are set by the guild master inside the addon (protocol
 minor 5, plan 3.4.1 and 3.4.2).
 
-- **Records:** `rosters[id] = { id, name, rev, updatedAt, updatedBy }` and `members[key] = { role, rosterId,
-  rev, updatedAt, updatedBy }`. A member is in at most one roster (`rosterId` is a single value; a record that leaves
-  it out means no roster). Messages: `ROSTER_UPSERT` and `ROSTER_DELETE` for the definitions, `MEMBER_UPSERT` and
-  `MEMBER_DELETE` for the assignments.
-- **Authority:** `roster_manage`, which is the guild master only. The guild master is recognised from the receiver's
-  own guild roster by **rank index 0** (never by a character name; the beta admin list is gone), and the other roles
-  of a sender are the ones assigned in `members`. `admin` can never be assigned: a `MEMBER_UPSERT` whose `role` is
-  anything but `member`, `rl` or `council` does not pass validation, and a stored record that says `admin` counts as
-  nothing.
+- **Records:** `rosters[id] = { id, name, rev, updatedAt, updatedBy }` and `members[key] = { rosterId, rev,
+  updatedAt, updatedBy }`. A member is in at most one roster (`rosterId` is a single value; a record that leaves it out
+  means no roster). Messages: `ROSTER_UPSERT` and `ROSTER_DELETE` for the definitions, `MEMBER_UPSERT` and
+  `MEMBER_DELETE` for the assignments. The addon role of a player is their guild rank (matched by name on the
+  receiver), so a `role` in a `MEMBER_UPSERT` means nothing: an older client may still send one, it validates and is
+  dropped, and a stored `role` is never read.
+- **Authority:** `members_manage` from a global rank (gm or cogm) only, until the per-roster scoping of
+  `docs/NAV_PERMISSIONS_PLAN.md` phases 4 and 5. The sender is recognised from the receiver's own guild roster (the
+  guild master by **rank index 0**, never by a character name; everybody else by the rank name).
 - **Conflicts and deletions:** like the blacklist (higher `rev`, then `updatedAt`, then sender). Removals leave
   tombstones `R:<rosterId>` and `M:<key>` in the shared tombstones, with the deleted revision plus one.
 - **Events carry their roster:** `EVENT_UPSERT` has an optional `rosterId`; templates and loot sessions follow the
