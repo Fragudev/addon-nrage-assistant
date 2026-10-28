@@ -48,6 +48,7 @@ local function fail(ctx, reason)
   local messages = {
     other_roster = L("that event belongs to another roster."),
     not_found = L("not found."),
+    closed = L("Sign-up is closed for this event."),
     limit = L("limit reached."),
     invalid_state = L("unknown state. Use invited, confirmed, present, late, leftEarly, absent, excused or unknown."),
   }
@@ -161,6 +162,19 @@ function RaidCommands:SetAttendance(event, characterKey, state)
   return {
     L("%s: %s."):format(characterKey, record.state),
     sentNote(self.comm:SendAttendance(event.eventId, characterKey, record)),
+  }
+end
+
+-- The own answer to "are you coming?": "yes" or "no". Only the own character can be signed up.
+function RaidCommands:SetSignup(event, status)
+  local ctx = self:Context()
+  local record, reason = ns.EventService.SetSignup(ctx, event.eventId, status)
+  if not record then
+    return Failure(fail(ctx, reason))
+  end
+  return {
+    status == "yes" and L("Going") or L("Not going"),
+    sentNote(self.comm:SendSignup(event.eventId, ctx.actor, record)),
   }
 end
 

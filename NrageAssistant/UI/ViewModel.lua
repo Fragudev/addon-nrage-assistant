@@ -1324,13 +1324,43 @@ function ViewModel.RosterSelector(role, action, ownRosterId, rosters, selected)
   return { visible = #options > 0, options = options, selected = chosen }
 end
 
+-- How many players answered "yes" to an event (old events have no sign-up table).
+function ViewModel.GoingCount(event)
+  local count = 0
+  for _, record in pairs(event.signups or {}) do
+    if record.status == "yes" then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+-- The answer of a player, as a word: "Going", "Not going", or "-" when they did not answer.
+function ViewModel.SignupText(record)
+  if record and record.status == "yes" then
+    return L("Going")
+  elseif record and record.status == "no" then
+    return L("Not going")
+  end
+  return "-"
+end
+
 -- The upcoming events of the Raid tab of the Guild group, soonest first (undated last): `events` is what the viewer
--- sees (RosterService.FilterEvents). Rows: { eventId, title, dateText, rosterText } with the name of the roster, or
--- "Guild" for an event no roster owns. Past, closed and cancelled events are left out.
-function ViewModel.UpcomingEventRows(events, now, rosters)
+-- sees (RosterService.FilterEvents). Rows: { eventId, title, dateText, rosterText, goingCount, goingText, answer,
+-- canAnswer } with the name of the roster, or "Guild" for an event no roster owns. Past, closed and cancelled events
+-- are left out. `own` = { key, role, rosterId } of the player: `answer` is their sign-up ("yes", "no" or nil) and
+-- `canAnswer` tells whether they may change it now (their rank allows it and the sign-up is still open).
+function ViewModel.UpcomingEventRows(events, now, rosters, own)
   local rows = ViewModel.EventListRows(events, { filter = "upcoming", now = now, rosters = rosters })
+  local allowed = own ~= nil and ns.PermissionService.Scope(own.role, "event_signup", own.rosterId) ~= "none"
   for _, row in ipairs(rows) do
+    local event = events[row.eventId]
     row.rosterText = row.rosterName or L("Guild")
+    row.goingCount = ViewModel.GoingCount(event)
+    row.goingText = L("%d going"):format(row.goingCount)
+    local record = own and event.signups and event.signups[own.key]
+    row.answer = record and record.status or nil
+    row.canAnswer = allowed and ns.EventService.SignupOpen(event, now)
   end
   return rows
 end

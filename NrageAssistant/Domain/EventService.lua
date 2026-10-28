@@ -11,7 +11,7 @@ local _, ns = ...
 -- }
 -- A raid leader works on the events of their own roster only (RosterService.MayAct); the guild master on any.
 -- Every operation returns its result, or nil/false plus a reason:
---   "forbidden" | "other_roster" | "not_found" | "limit" | "invalid:<field>" | "invalid_state".
+--   "forbidden" | "other_roster" | "not_found" | "limit" | "invalid:<field>" | "invalid_state" | "closed".
 local EventService = {}
 
 local Can = function(role, action)
@@ -86,6 +86,7 @@ function EventService.Create(ctx, fields)
     rosterId = clean.rosterId,
     source = "declared",
     attendance = {},
+    signups = {},
     assignments = {},
     loot = {},
   }
@@ -171,6 +172,49 @@ function EventService.SetAttendance(ctx, eventId, characterKey, state)
   record.recordedBy = ctx.actor
   stamp(ctx, record)
   event.attendance[characterKey] = record
+  return record
+end
+
+-- Can the players of the event still change their sign-up? Only while it is planned or open and has not started.
+function EventService.SignupOpen(event, now)
+  if event.status ~= "planned" and event.status ~= "open" then
+    return false
+  end
+  return event.startAt == nil or event.startAt > now
+end
+
+-- The actor signs up their own character: "yes" (going) or "no" (not going). There is no character argument, so
+-- nobody can answer for somebody else; the leader's record of what happened stays in `attendance`.
+function EventService.SetSignup(ctx, eventId, status)
+  if ns.PermissionService.Scope(ctx.role, "event_signup", ctx.rosterId) == "none" then
+    return nil, "forbidden"
+  end
+  local event = ctx.events[eventId]
+  if not event then
+    return nil, "not_found"
+  end
+  if not ns.RosterService.MayAct(ctx.role, ctx.rosterId, event.rosterId) then
+    return nil, "other_roster"
+  end
+  if not ns.EventModel.IsSignupStatus(status) then
+    return nil, "invalid:status"
+  end
+  if not EventService.SignupOpen(event, ctx.now()) then
+    return nil, "closed"
+  end
+
+  event.signups = event.signups or {}
+  local record = event.signups[ctx.actor]
+  if not record and countKeys(event.signups) >= ns.Constants.EVENT_ATTENDANCE_MAX then
+    return nil, "limit"
+  end
+
+  record = record or {}
+  record.status = status
+  record.rev = (record.rev or 0) + 1
+  record.updatedAt = ctx.now()
+  record.updatedBy = ctx.actor
+  event.signups[ctx.actor] = record
   return record
 end
 

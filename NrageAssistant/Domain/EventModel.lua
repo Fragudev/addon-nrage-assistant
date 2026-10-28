@@ -18,6 +18,9 @@ EventModel.ATTENDANCE_STATES = {
   unknown = true,
 }
 
+-- A player's own answer to "are you coming?" (plan 3.4.1). No entry means not answered.
+EventModel.SIGNUP_STATUSES = { yes = true, no = true }
+
 local MAX_TITLE = 60
 local MAX_INSTANCE = 40
 local MAX_ENCOUNTER = 60
@@ -103,6 +106,10 @@ end
 
 function EventModel.IsAttendanceState(state)
   return type(state) == "string" and EventModel.ATTENDANCE_STATES[state] == true
+end
+
+function EventModel.IsSignupStatus(status)
+  return type(status) == "string" and EventModel.SIGNUP_STATUSES[status] == true
 end
 
 function EventModel.IsCharacterKey(key)

@@ -269,6 +269,7 @@ local function build(rank, locale)
   for _, kind in ipairs({
     "SendEvent",
     "SendAttendance",
+    "SendSignup",
     "SendAssignment",
     "SendDeleteAssignment",
     "SendDeleteEvent",
@@ -1012,6 +1013,36 @@ describe("Window smoke test", function()
       assert.are.equal("present", stored.attendance["Yonemon Gg"].state)
     end)
 
+    it("shows each player's sign-up read-only next to the attendance state", function()
+      open_raid("RL")
+      local stored = env.ns.db.global.events.e1
+      stored.attendance["Ann-Realm"] = { state = "present", rev = 1, updatedAt = 1 }
+      stored.attendance["Boss-Realm"] = { state = "absent", rev = 1, updatedAt = 1 }
+      stored.attendance["Yonemon Gg"] = { state = "invited", rev = 1, updatedAt = 1 }
+      stored.signups = {
+        ["Ann-Realm"] = { status = "yes", rev = 1, updatedAt = 1 },
+        ["Boss-Realm"] = { status = "no", rev = 1, updatedAt = 1 },
+        ["Leader-Realm"] = { status = "yes", rev = 1, updatedAt = 1 },
+      }
+      FakeKit.find(env.page(), "TabStrip").opts.onSelect("attendance")
+      local rows = env.tableRows(1)
+      assert.are.same({ "Going", "Not going", "-" }, {
+        rows[1].cells.signup.text,
+        rows[2].cells.signup.text,
+        rows[3].cells.signup.text,
+      })
+      assert.is_truthy(env.find(env.page(), "Card", "Sign-ups (3)"))
+      local signups = env.tableRows(2)
+      assert.are.equal(3, #signups)
+      assert.are.equal("Going", signups[3].cells.signup.text)
+      -- Read-only: the leader cannot change them, and a missing table is fine on an old event.
+      assert.is_nil(signups[1].cells.signup.widget)
+      stored.signups = nil
+      env.open("raid")
+      FakeKit.find(env.page(), "TabStrip").opts.onSelect("attendance")
+      assert.is_truthy(env.find(env.page(), "Card", "Sign-ups (0)"))
+    end)
+
     it("hides the group button when there is no group", function()
       open_raid("RL")
       env.ns.Platform.IsInGroup = function()
@@ -1131,13 +1162,60 @@ describe("Window smoke test: Events", function()
     assert.is_nil(env.text():find("Other roster", 1, true))
   end)
 
-  it("is read-only: no buttons, no links into the Admin Raid tab", function()
+  it("is read-only apart from the sign-up: no free buttons or fields, no links into the Admin Raid tab", function()
     env = build("RL")
     env.ns.db.global.events.e1 = event("e1", "Molten Core")
     local page = env.open("events")
     assert.is_nil(FakeKit.find(page, "Button"))
     assert.is_nil(FakeKit.find(page, "EditBox"))
     assert.are.equal("Raid", env.find(page, "PageHeader").opts.title)
+  end)
+
+  it("shows the sign-up count and lets a roster player answer Going or Not going", function()
+    for _, rank in ipairs({ "Roster", "RL", "Officer", "GM" }) do
+      env = build(rank)
+      env.ns.db.global.events.e1 = event("e1", "Molten Core", {
+        signups = {
+          ["Ann-Realm"] = { status = "yes", rev = 1, updatedAt = 1 },
+          ["Boss-Realm"] = { status = "no", rev = 1, updatedAt = 1 },
+          ["Yonemon Gg"] = { status = "yes", rev = 1, updatedAt = 1 },
+        },
+      })
+      env.open("events")
+      local cells = env.tableRows()[1].cells
+      assert.are.equal("2 going", cells.going.text, rank)
+      assert.is_false(cells.yes.opts.disabled, rank)
+      assert.are.equal("secondary", cells.yes.opts.variant)
+
+      cells.yes.opts.onClick()
+      local stored = env.ns.db.global.events.e1.signups["Leader-Realm"]
+      assert.are.equal("yes", stored.status, rank)
+      assert.are.same({ "SendSignup" }, env.sent, rank)
+      cells = env.tableRows()[1].cells
+      assert.are.equal("3 going", cells.going.text)
+      assert.are.equal("primary", cells.yes.opts.variant)
+      assert.are.equal("secondary", cells.no.opts.variant)
+
+      cells.no.opts.onClick()
+      assert.are.equal("no", env.ns.db.global.events.e1.signups["Leader-Realm"].status)
+      assert.are.equal("2 going", env.tableRows()[1].cells.going.text)
+      pcall(env.close)
+    end
+  end)
+
+  it("disables the answer at the start time and sends nothing", function()
+    env = build("Roster")
+    env.ns.db.global.events.now = event("now", "Starting now", { startAt = 1000 })
+    env.ns.db.global.events.soon = event("soon", "Soon raid", { startAt = 5000 })
+    env.open("events")
+    local rows = env.tableRows()
+    assert.are.equal("Starting now", rows[1].cells.title)
+    assert.is_true(rows[1].cells.yes.opts.disabled)
+    assert.is_true(rows[1].cells.no.opts.disabled)
+    assert.is_false(rows[2].cells.yes.opts.disabled)
+    rows[1].cells.yes.opts.onClick()
+    assert.is_truthy(env.banner().opts.text:find("Sign-up is closed", 1, true))
+    assert.is_nil(next(env.ns.db.global.events.now.signups or {}))
   end)
 
   it("says there are no upcoming events", function()

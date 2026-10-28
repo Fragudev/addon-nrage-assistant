@@ -417,6 +417,7 @@ function Comm:HandleWhisper(text, sender)
   ctx.blacklist = self.blacklist
   ctx.readinessRules = self.readinessRules
   ctx.rosters, ctx.members = self.rosters, self.members
+  ctx.roleOf = self.roleOf
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
   if summary.pvp > 0 and self.onPvPChange then
@@ -731,6 +732,11 @@ end
 function Comm:SendAttendance(eventId, characterKey, record)
   local payload = ns.EventSync.AttendancePayload(eventId, characterKey, record)
   return self:Send("ATTENDANCE_UPSERT", payload, ("AT:%s:%s"):format(eventId, characterKey))
+end
+
+function Comm:SendSignup(eventId, characterKey, record)
+  local payload = ns.EventSync.SignupPayload(eventId, characterKey, record)
+  return self:Send("SIGNUP_UPSERT", payload, ("SU:%s:%s"):format(eventId, characterKey))
 end
 
 function Comm:SendAssignment(eventId, assignment)
