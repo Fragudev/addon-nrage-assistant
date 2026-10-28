@@ -4,10 +4,10 @@ local _, ns = ...
 -- EventSync (see SyncRules): the sender's role comes from the receiver's own guild roster, the author
 -- of every record is the message sender, and conflicts are settled by rev, then time, then sender.
 --
---   LOOT_SESSION    open a session, or close it without an award      (loot_open)
+--   LOOT_SESSION    open a session, or close it without an award      (loot_manage)
 --   LOOT_CANDIDATE  put oneself forward; the candidate is the sender  (loot_apply)
---   LOOT_VOTE       vote for a candidate; the voter is the sender     (loot_vote)
---   LOOT_AWARD      award the item and close the session              (loot_award)
+--   LOOT_VOTE       vote for a candidate; the voter is the sender     (loot_manage)
+--   LOOT_AWARD      award the item and close the session              (loot_manage)
 --
 -- Rosters: the sender needs a roster, and the event has to be of it (or of none yet); the guild master acts on any.
 -- A council member votes only on the sessions of their own roster. See RosterService.MayAct.

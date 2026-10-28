@@ -431,3 +431,65 @@ describe("EventService.List and Purge", function()
     assert.is_truthy(ctx.tombstones.recent)
   end)
 end)
+
+describe("EventService raid_manage scope", function()
+  local function with_event(role, rosterId)
+    local ctx = build_ctx("gm")
+    ctx.rosterId = nil
+    local event = assert(Service.Create(ctx, { title = "Raid" }))
+    event.rosterId = rosterId
+    ctx.role, ctx.rosterId = role, "r1"
+    return ctx, event
+  end
+
+  it("lets an officer and a raid leader change events, attendance and assignments of the own roster", function()
+    for _, role in ipairs({ "officer", "rl" }) do
+      local ctx, event = with_event(role, "r1")
+      assert.is_truthy(Service.Update(ctx, event.eventId, { title = "Renamed" }), role)
+      assert.is_truthy(Service.SetAttendance(ctx, event.eventId, "Ann-Realm", "present"), role)
+      assert.is_truthy(
+        Service.AddAssignment(ctx, event.eventId, { encounter = "Garr", characterKey = "Ann-Realm" }),
+        role
+      )
+      assert.is_truthy(Service.Delete(ctx, event.eventId), role)
+    end
+  end)
+
+  it("keeps an officer and a raid leader out of the events of another roster", function()
+    for _, role in ipairs({ "officer", "rl" }) do
+      local ctx, event = with_event(role, "r2")
+      assert.are.equal("other_roster", select(2, Service.Update(ctx, event.eventId, { title = "X" })), role)
+      assert.are.equal(
+        "other_roster",
+        select(2, Service.SetAttendance(ctx, event.eventId, "Ann-Realm", "present")),
+        role
+      )
+      assert.are.equal(
+        "other_roster",
+        select(2, Service.AddAssignment(ctx, event.eventId, { encounter = "Garr", characterKey = "Ann-Realm" })),
+        role
+      )
+      assert.are.equal("other_roster", select(2, Service.Delete(ctx, event.eventId)), role)
+      assert.are.equal("Raid", event.title, role)
+    end
+  end)
+
+  it("creates the events of an officer in their own roster, and refuses another one", function()
+    local ctx = build_ctx("officer")
+    assert.are.equal("r1", assert(Service.Create(ctx, { title = "Mine" })).rosterId)
+    assert.are.equal("other_roster", select(2, Service.Create(ctx, { title = "Theirs", rosterId = "r2" })))
+  end)
+
+  it("refuses a roster player, a member and an alter, and lets gm and cogm act on any roster", function()
+    for _, role in ipairs({ "roster", "member", "alter" }) do
+      local ctx, event = with_event(role, "r1")
+      assert.are.equal("forbidden", select(2, Service.Update(ctx, event.eventId, { title = "X" })), role)
+      assert.are.equal("forbidden", select(2, Service.Create(ctx, { title = "Y" })), role)
+    end
+    for _, role in ipairs({ "gm", "cogm" }) do
+      local ctx, event = with_event(role, "r2")
+      ctx.rosterId = nil
+      assert.is_truthy(Service.Update(ctx, event.eventId, { title = "By boss" }), role)
+    end
+  end)
+end)

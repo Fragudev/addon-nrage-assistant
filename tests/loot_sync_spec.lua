@@ -571,6 +571,17 @@ describe("LootSync rosters", function()
     assert.are.equal("open", receiver.events["ev-1"].loot[session.sessionId].status)
   end)
 
+  it("treats the raid leader and the co-guild master like their service rules: own roster or any", function()
+    local _, receiver, session = setup({ ["Rl-Realm"] = "r1", ["OtherRl-Realm"] = "r2" })
+    local vote = { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, target = "Ann-Realm" }
+    local candidate =
+      { eventId = "ev-1", sessionId = session.sessionId, rev = 1, updatedAt = 1, spec = "Fury", need = "main" }
+    assert.is_true(deliver(receiver, "LOOT_CANDIDATE", candidate, "Ann-Realm", "cogm"))
+    assert.are.equal("other_roster", select(2, deliver(receiver, "LOOT_VOTE", vote, "OtherRl-Realm", "rl")))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", vote, "Rl-Realm", "rl"))
+    assert.is_true(deliver(receiver, "LOOT_VOTE", vote, "Cogm-Realm", "cogm"))
+  end)
+
   it("refuses everybody with no roster, and lets the guild master act on any roster", function()
     local _, receiver, session = setup({ ["Ann-Realm"] = "r1" })
     local candidate =

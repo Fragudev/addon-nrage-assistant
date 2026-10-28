@@ -546,6 +546,37 @@ describe("EventSync rosters", function()
     end
   end)
 
+  it("treats an officer like a raid leader: own roster accepted, another roster refused", function()
+    local author, receiver, event = setup({ ["Boss-Realm"] = "r1", ["Other-Realm"] = "r2" })
+    local edited = EventService.Update(author.local_ctx(), event.eventId, { title = "By the officer" })
+    local payload = EventSync.EventPayload(edited)
+    assert.are.equal("other_roster", select(2, deliver(receiver, "EVENT_UPSERT", payload, "Other-Realm", "officer")))
+    assert.are.equal("Molten Core", receiver.events[event.eventId].title)
+    assert.is_true(deliver(receiver, "EVENT_UPSERT", payload, "Boss-Realm", "officer"))
+    assert.are.equal("By the officer", receiver.events[event.eventId].title)
+    local attendance =
+      { eventId = event.eventId, characterKey = "Ann-Realm", state = "present", rev = 1, updatedAt = 1 }
+    assert.are.equal(
+      "other_roster",
+      select(2, deliver(receiver, "ATTENDANCE_UPSERT", attendance, "Other-Realm", "officer"))
+    )
+    assert.is_true(deliver(receiver, "ATTENDANCE_UPSERT", attendance, "Boss-Realm", "officer"))
+  end)
+
+  it("refuses a roster player, a member and an alter on every kind of change", function()
+    local author, receiver, event = setup({ ["Ann-Realm"] = "r1" })
+    local edited = EventService.Update(author.local_ctx(), event.eventId, { title = "Hijacked" })
+    local attendance =
+      { eventId = event.eventId, characterKey = "Ann-Realm", state = "present", rev = 1, updatedAt = 1 }
+    local delete = { kind = "event", eventId = event.eventId, rev = 99 }
+    for _, role in ipairs({ "roster", "member", "alter" }) do
+      assert.is_false(deliver(receiver, "EVENT_UPSERT", EventSync.EventPayload(edited), "Ann-Realm", role), role)
+      assert.is_false(deliver(receiver, "ATTENDANCE_UPSERT", attendance, "Ann-Realm", role), role)
+      assert.is_false(deliver(receiver, "DELETE", delete, "Ann-Realm", role), role)
+    end
+    assert.are.equal("Molten Core", receiver.events[event.eventId].title)
+  end)
+
   it("lets the guild master change any roster's event", function()
     local author, receiver, event = setup({})
     local edited = EventService.Update(author.local_ctx(), event.eventId, { title = "By the boss" })

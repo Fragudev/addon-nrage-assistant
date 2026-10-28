@@ -168,6 +168,67 @@ describe("LootService raid leaders", function()
   end)
 end)
 
+describe("LootService roster scope", function()
+  -- The event belongs to roster r2, the actors to r1 unless they are gm or cogm.
+  local function foreign(role, actor)
+    local ctx = build_ctx(role, actor)
+    ctx.events["ev-1"].rosterId = "r2"
+    return ctx
+  end
+
+  it("refuses an officer and a raid leader on an event of another roster", function()
+    for _, role in ipairs({ "officer", "rl" }) do
+      local ctx = foreign(role)
+      assert.are.equal("other_roster", select(2, Service.OpenSession(ctx, "ev-1", ITEM)), role)
+      assert.is_nil(next(ctx.events["ev-1"].loot))
+      ctx.events["ev-1"].loot.s9 =
+        { sessionId = "s9", status = "open", candidates = { ["Ann-Realm"] = {} }, votes = {} }
+      assert.are.equal("other_roster", select(2, Service.Vote(ctx, "ev-1", "s9", "Ann-Realm")), role)
+      assert.are.equal("other_roster", select(2, Service.Award(ctx, "ev-1", "s9", "Ann-Realm", "need")), role)
+      assert.are.equal("other_roster", select(2, Service.Close(ctx, "ev-1", "s9")), role)
+      assert.are.equal("open", ctx.events["ev-1"].loot.s9.status)
+    end
+  end)
+
+  it("lets an officer and a raid leader manage an event of the own roster", function()
+    for _, role in ipairs({ "officer", "rl" }) do
+      local ctx = build_ctx(role)
+      ctx.events["ev-1"].rosterId = "r1"
+      local session = open_session(ctx)
+      assert.is_truthy(Service.Register(as(ctx, "roster", "Ann-Realm"), "ev-1", session.sessionId, CANDIDATE), role)
+      assert.is_truthy(Service.Vote(ctx, "ev-1", session.sessionId, "Ann-Realm"), role)
+      assert.is_truthy(Service.Award(ctx, "ev-1", session.sessionId, "Ann-Realm", "need"), role)
+    end
+  end)
+
+  it("lets a roster player apply on the own roster only", function()
+    local council = build_ctx("officer")
+    council.events["ev-1"].rosterId = "r1"
+    local session = open_session(council)
+    local own = as(council, "roster", "Ann-Realm")
+    assert.is_truthy(Service.Register(own, "ev-1", session.sessionId, CANDIDATE))
+    local other = as(council, "roster", "Zed-Realm")
+    other.rosterId = "r2"
+    assert.are.equal("other_roster", select(2, Service.Register(other, "ev-1", session.sessionId, CANDIDATE)))
+    local alone = as(council, "roster", "Loner-Realm")
+    alone.rosterId = nil
+    assert.are.equal("other_roster", select(2, Service.Register(alone, "ev-1", session.sessionId, CANDIDATE)))
+    assert.is_nil(session.candidates["Zed-Realm"])
+    assert.is_nil(session.candidates["Loner-Realm"])
+  end)
+
+  it("lets the guild master and the co-guild master act on any roster", function()
+    for _, role in ipairs({ "gm", "cogm" }) do
+      local ctx = foreign(role)
+      ctx.rosterId = nil
+      local session = open_session(ctx)
+      assert.is_truthy(Service.Register(ctx, "ev-1", session.sessionId, CANDIDATE), role)
+      assert.is_truthy(Service.Vote(ctx, "ev-1", session.sessionId, ctx.actor), role)
+      assert.is_truthy(Service.Award(ctx, "ev-1", session.sessionId, ctx.actor, "need"), role)
+    end
+  end)
+end)
+
 describe("LootService.OpenSession", function()
   it("creates an open, stamped session for the item", function()
     local ctx = build_ctx()

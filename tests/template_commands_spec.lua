@@ -167,3 +167,66 @@ describe("TemplateCommands operations", function()
     assert.is_nil(next(env.templates))
   end)
 end)
+
+describe("TemplateCommands raid_manage scope", function()
+  it("refuses roster, member and alter to save or delete a template", function()
+    for _, rank in ipairs({ "Roster", "Member", "Alter" }) do
+      local env = build(rank)
+      with_events(env)
+      local events = ns.EventService.List({ events = env.events })
+      assert.is_truthy(text(env.commands:SaveEvent(events[1], "Boss")):find("not allowed", 1, true), rank)
+      env.templates.Boss = { name = "Boss", slots = { { encounter = "Garr", characterKey = "Bob-Realm" } } }
+      assert.is_truthy(text(env.commands:Delete("Boss")):find("not allowed", 1, true), rank)
+      assert.is_table(env.templates.Boss, rank)
+    end
+  end)
+
+  it("lets an officer and a raid leader work on the templates of their own roster", function()
+    for _, rank in ipairs({ "Officer", "RL" }) do
+      local env = build(rank)
+      with_events(env)
+      for _, event in pairs(env.events) do
+        event.rosterId = "r1"
+      end
+      local events = ns.EventService.List({ events = env.events })
+      assert.is_truthy(text(env.commands:SaveEvent(events[1], "Boss")):find("saved 'Boss'", 1, true), rank)
+      assert.is_truthy(text(env.commands:ApplyToEvent(events[2], "Boss")):find("added 3 assignment(s)", 1, true), rank)
+      assert.is_truthy(text(env.commands:Delete("Boss")):find("deleted 'Boss'", 1, true), rank)
+    end
+  end)
+
+  it("keeps an officer and a raid leader out of the templates and events of another roster", function()
+    for _, rank in ipairs({ "Officer", "RL" }) do
+      local env = build(rank)
+      with_events(env)
+      for _, event in pairs(env.events) do
+        event.rosterId = "r2"
+      end
+      local events = ns.EventService.List({ events = env.events })
+      assert.is_truthy(text(env.commands:SaveEvent(events[1], "Boss")):find("another roster", 1, true), rank)
+      assert.is_nil(next(env.templates), rank)
+      env.templates.Boss = {
+        name = "Boss",
+        rosterId = "r2",
+        slots = { { encounter = "Garr", characterKey = "Bob-Realm" } },
+      }
+      assert.is_truthy(text(env.commands:ApplyToEvent(events[2], "Boss")):find("added 0 assignment(s)", 1, true), rank)
+      assert.is_nil(next(env.events["ev-2"].assignments), rank)
+      assert.are.equal(0, #env.sent, rank)
+      assert.is_truthy(text(env.commands:Delete("Boss")):find("another roster", 1, true), rank)
+    end
+  end)
+
+  it("lets the guild master and the co-guild master work on any roster", function()
+    for _, rank in ipairs({ "GM", "CoGM" }) do
+      local env = build(rank)
+      with_events(env)
+      for _, event in pairs(env.events) do
+        event.rosterId = "r2"
+      end
+      local events = ns.EventService.List({ events = env.events })
+      assert.is_truthy(text(env.commands:SaveEvent(events[1], "Boss")):find("saved 'Boss'", 1, true), rank)
+      assert.is_truthy(text(env.commands:ApplyToEvent(events[2], "Boss")):find("added 3 assignment(s)", 1, true), rank)
+    end
+  end)
+end)
