@@ -139,6 +139,22 @@ local function validateAttendanceUpsert(payload)
   }
 end
 
+local function validateSignupUpsert(payload)
+  if not (isId(payload.eventId) and validateRevision(payload)) then
+    return nil
+  end
+  if not (ns.EventModel.IsCharacterKey(payload.characterKey) and ns.EventModel.IsSignupStatus(payload.status)) then
+    return nil
+  end
+  return {
+    eventId = payload.eventId,
+    characterKey = payload.characterKey,
+    status = payload.status,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+  }
+end
+
 local function validateAssignUpsert(payload)
   if not (isId(payload.eventId) and isId(payload.assignmentId) and validateRevision(payload)) then
     return nil
@@ -591,6 +607,7 @@ local VALIDATORS = {
   SYNC_DATA = validateSyncData,
   EVENT_UPSERT = validateEventUpsert,
   ATTENDANCE_UPSERT = validateAttendanceUpsert,
+  SIGNUP_UPSERT = validateSignupUpsert,
   ASSIGN_UPSERT = validateAssignUpsert,
   DELETE = validateDelete,
 }

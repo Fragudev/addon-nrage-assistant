@@ -33,6 +33,9 @@ function Transfer.BuildItems(events, tombstones)
     for _, key in ipairs(sortedKeys(event.attendance)) do
       add("ATTENDANCE_UPSERT", ns.EventSync.AttendancePayload(eventId, key, event.attendance[key]))
     end
+    for _, key in ipairs(sortedKeys(event.signups or {})) do
+      add("SIGNUP_UPSERT", ns.EventSync.SignupPayload(eventId, key, event.signups[key]))
+    end
     for _, assignmentId in ipairs(sortedKeys(event.assignments)) do
       add("ASSIGN_UPSERT", ns.EventSync.AssignPayload(eventId, event.assignments[assignmentId]))
     end
@@ -299,7 +302,12 @@ function Transfer.ApplyItems(items, ctx, sender, role)
       if not message then
         skip(invalid)
       else
-        local ok, why = ns.EventSync.Apply(ctx, message, sender, role)
+        -- A sign-up in a snapshot is relayed by a leader; see EventSync's applySignupUpsert.
+        local applyCtx = ctx
+        if item.t == "SIGNUP_UPSERT" then
+          applyCtx = setmetatable({ relay = true }, { __index = ctx })
+        end
+        local ok, why = ns.EventSync.Apply(applyCtx, message, sender, role)
         if ok then
           summary.applied = summary.applied + 1
         else

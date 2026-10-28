@@ -50,6 +50,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PROFILE` | guild | `rev`, `class`, `level`, optional `ilvl`, `professions[]` (`name`, `skill`, optional `max`, optional `secondary` = true for cooking, fishing and archaeology), `fields{role, main, notes}` | anyone, for themselves |
 | `EVENT_UPSERT` | guild | `eventId`, `rev`, `updatedAt`, `title`, optional `instance`, `startAt`, `status`, `rosterId` | rl of the roster of the event, admin |
 | `ATTENDANCE_UPSERT` | guild | `eventId`, `characterKey`, `state`, `rev`, `updatedAt` | rl, admin |
+| `SIGNUP_UPSERT` | guild | `eventId`, `characterKey`, `status` (`yes` or `no`), `rev`, `updatedAt` | officer, rl and roster ranks and above, for themselves; the character is the sender |
 | `ASSIGN_UPSERT` | guild | `eventId`, `assignmentId`, `rev`, `updatedAt`, `encounter`, `characterKey`, optional `group`, `task`, `note` | rl, admin |
 | `DELETE` | guild | `kind` (`event` or `assignment`), `eventId`, optional `assignmentId`, `rev` | rl, admin |
 | `LOOT_SESSION` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `status` | council, admin |
@@ -362,6 +363,27 @@ client, so nothing but the grants has to be trusted.
   depend on any other and may arrive in any order (a void before its grant, a grant before its season).
 - **Interim commands:** until the PvP tab has its own sub-tabs, `/nrage pvp` (`season`, `officer`, `mission`, `claim`,
   `queue`, `approve`, `reject`, `grant`) drives the same service, for testing.
+
+## Event sign-up
+
+Protocol minor 8 (`docs/NAV_PERMISSIONS_PLAN.md` 3.4.1). A player says whether they are coming; the leader's record of
+what happened (`ATTENDANCE_UPSERT`) is a separate thing, and a sign-up never touches it.
+
+- **Record:** `event.signups[characterKey] = { status, rev, updatedAt, updatedBy }`, `status` is `yes` or `no`; no
+  entry means not answered. At most `EVENT_ATTENDANCE_MAX` entries per event. An event without the table (made by an
+  older client) counts as having none.
+- **Authority:** `SIGNUP_UPSERT` is accepted only when `characterKey` is the sender, the rank of the sender (read from
+  the receiver's guild roster) has `event_signup` (gm, cogm, and officer, rl and roster with a roster), and the event
+  is visible to the roster the receiver holds for the sender (the event's roster, or none yet; gm and cogm any).
+  Otherwise `forbidden`, `unknown_sender` or `other_roster`.
+- **Conflicts:** last writer wins per character (higher `rev`, then `updatedAt` clamped to 5 minutes ahead, then the
+  sender), like attendance. The receiver does not check the closing time of the sign-up (planned or open, not yet
+  started): the sender enforces it, and a queued or relayed answer can arrive late.
+- **Late joiners:** the sign-ups are part of a snapshot. Here, and only inside `SYNC_DATA` (accepted from a raid
+  leader or admin), the item names the character and is applied under that character's own rank and roster as the
+  receiver knows them, so a relayed sign-up gets the same checks as a live one. On the guild channel a
+  `characterKey` that is not the sender is never accepted. The text export carries sign-ups, but an import skips them
+  (the importer is not the character).
 
 ## Recipes
 

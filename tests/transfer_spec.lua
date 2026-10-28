@@ -372,6 +372,68 @@ describe("Transfer.BuildSnapshot and ApplyItems", function()
   end)
 end)
 
+describe("Transfer sign-ups in a snapshot", function()
+  local source, event
+
+  before_each(function()
+    source = store()
+    event = assert(EventService.Create(source.ctx("rl"), { title = "Raid", startAt = 50000, rosterId = "r1" }))
+    event.signups["Fan-Realm"] = { status = "yes", rev = 2, updatedAt = 20, updatedBy = "Fan-Realm" }
+  end)
+
+  local function receiver(roleOf)
+    local target = store()
+    local ctx = target.ctx()
+    ctx.rosterOf = function()
+      return "r1"
+    end
+    ctx.roleOf = roleOf
+    return target, ctx
+  end
+
+  it("carries the sign-ups and applies them under the rank of the character", function()
+    local items = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+    local target, ctx = receiver(function()
+      return "roster"
+    end)
+    local summary = Transfer.ApplyItems(items, ctx, "Leader-Realm", "rl")
+    assert.are.equal(#items, summary.applied)
+    local record = target.events[event.eventId].signups["Fan-Realm"]
+    assert.are.equal("yes", record.status)
+    assert.are.equal(2, record.rev)
+  end)
+
+  it("skips a sign-up of a character that is a member, or unknown", function()
+    local items = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+    local target, ctx = receiver(function()
+      return "member"
+    end)
+    local summary = Transfer.ApplyItems(items, ctx, "Leader-Realm", "rl")
+    assert.are.equal(1, summary.skipped.forbidden)
+    assert.is_nil(next(target.events[event.eventId].signups))
+    local _, unknown = receiver(function() end)
+    assert.are.equal(1, Transfer.ApplyItems(items, unknown, "Leader-Realm", "rl").skipped.unknown_sender)
+  end)
+
+  it("does not relay a sign-up from a sender who is not a leader", function()
+    local items = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+    local target, ctx = receiver(function()
+      return "roster"
+    end)
+    -- The event itself is already known here, so only the sign-up is at stake.
+    target.events[event.eventId] = { eventId = event.eventId, rosterId = "r1", signups = {}, attendance = {} }
+    local summary = Transfer.ApplyItems(items, ctx, "Fan-Realm", "roster")
+    assert.is_truthy(summary.skipped.forbidden)
+    assert.is_nil(next(target.events[event.eventId].signups))
+  end)
+
+  it("skips them in a text import, where the importer is not the character", function()
+    local items = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+    local _, ctx = receiver(nil)
+    assert.are.equal(1, Transfer.ApplyItems(items, ctx, "import", "rl").skipped.unknown_sender)
+  end)
+end)
+
 describe("Transfer with loot sessions", function()
   local LootService = ns.LootService
   local ITEM = { itemId = 19019, itemName = "Thunderfury" }

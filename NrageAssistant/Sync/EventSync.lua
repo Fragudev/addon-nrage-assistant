@@ -72,7 +72,7 @@ local function applyEventUpsert(ctx, payload, sender, role)
     if countKeys(ctx.events) >= ns.Constants.EVENT_MAX then
       return false, "limit"
     end
-    event = { eventId = payload.eventId, attendance = {}, assignments = {}, loot = {} }
+    event = { eventId = payload.eventId, attendance = {}, signups = {}, assignments = {}, loot = {} }
     ctx.events[payload.eventId] = event
   end
 
@@ -125,6 +125,57 @@ local function applyAttendanceUpsert(ctx, payload, sender, role)
   record.updatedBy = sender
   record.recordedBy = sender
   record.source = "received"
+  return true
+end
+
+-- A player's own sign-up. The character is the sender: nobody answers for somebody else. The one exception is an item
+-- of a snapshot (`ctx.relay`, set by Transfer.ApplyItems and never by a live message): a leader (raid_manage) passes it
+-- on, and then the character's own rank and roster are the ones read from this client's records (`ctx.roleOf`).
+-- The time lock of the sign-up is not enforced here: a received answer may be old (a snapshot, a queued message) and
+-- clocks differ, while the answer can only come from its own character and is bounded by Wins and ClampTimestamp.
+local function applySignupUpsert(ctx, payload, sender, role)
+  local character, characterRole = sender, role
+  if ctx.relay then
+    local denied = authorize(role, "raid_manage")
+    if denied then
+      return false, denied
+    end
+    character = payload.characterKey
+    characterRole = ctx.roleOf and ctx.roleOf(character)
+  elseif payload.characterKey ~= sender then
+    return false, "forbidden"
+  end
+  local characterRoster = ns.RosterService.SenderRoster(ctx, character)
+  if ns.PermissionService.Scope(characterRole, "event_signup", characterRoster) == "none" then
+    return false, characterRole == nil and "unknown_sender" or "forbidden"
+  end
+  local event = ctx.events[payload.eventId]
+  if not event then
+    return false, "unknown_event"
+  end
+  if not ns.RosterService.MayAct(characterRole, characterRoster, event.rosterId) then
+    return false, "other_roster"
+  end
+
+  local updatedAt = clampTimestamp(ctx, payload.updatedAt)
+  event.signups = event.signups or {}
+  local record = event.signups[payload.characterKey]
+  if record then
+    if not wins(payload.rev, updatedAt, sender, record) then
+      return false, "stale"
+    end
+  else
+    if countKeys(event.signups) >= ns.Constants.EVENT_ATTENDANCE_MAX then
+      return false, "limit"
+    end
+    record = {}
+    event.signups[payload.characterKey] = record
+  end
+
+  record.status = payload.status
+  record.rev = payload.rev
+  record.updatedAt = updatedAt
+  record.updatedBy = sender
   return true
 end
 
@@ -222,6 +273,7 @@ end
 local APPLIERS = {
   EVENT_UPSERT = applyEventUpsert,
   ATTENDANCE_UPSERT = applyAttendanceUpsert,
+  SIGNUP_UPSERT = applySignupUpsert,
   ASSIGN_UPSERT = applyAssignUpsert,
   DELETE = applyDelete,
 }
@@ -265,6 +317,16 @@ function EventSync.AttendancePayload(eventId, characterKey, record)
     eventId = eventId,
     characterKey = characterKey,
     state = record.state,
+    rev = record.rev,
+    updatedAt = record.updatedAt,
+  }
+end
+
+function EventSync.SignupPayload(eventId, characterKey, record)
+  return {
+    eventId = eventId,
+    characterKey = characterKey,
+    status = record.status,
     rev = record.rev,
     updatedAt = record.updatedAt,
   }

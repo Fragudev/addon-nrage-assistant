@@ -242,6 +242,115 @@ describe("EventSync ATTENDANCE_UPSERT", function()
   end)
 end)
 
+describe("EventSync SIGNUP_UPSERT", function()
+  local rl, player, event
+
+  before_each(function()
+    rl, player = client("Leader-Realm"), client("Player-Realm")
+    event = new_event(rl)
+    deliver(player, "EVENT_UPSERT", EventSync.EventPayload(event), "Leader-Realm", "rl")
+  end)
+
+  -- The payload "Fan-Realm" sends for its own sign-up at `clock`.
+  local function signup(status, clock, fan)
+    fan = fan or client("Fan-Realm")
+    fan.events[event.eventId] = fan.events[event.eventId]
+      or { eventId = event.eventId, rosterId = event.rosterId, startAt = 5000, status = "planned" }
+    local ctx = fan.local_ctx("roster")
+    ctx.now = function()
+      return clock or 1000
+    end
+    local record = assert(EventService.SetSignup(ctx, event.eventId, status))
+    return EventSync.SignupPayload(event.eventId, fan.name, record), fan
+  end
+
+  it("is accepted from the character itself", function()
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", signup("yes"), "Fan-Realm", "roster"))
+    local record = player.events[event.eventId].signups["Fan-Realm"]
+    assert.are.equal("yes", record.status)
+    assert.are.equal("Fan-Realm", record.updatedBy)
+  end)
+
+  it("creates the table on an event that had none", function()
+    player.events[event.eventId].signups = nil
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", signup("no"), "Fan-Realm", "roster"))
+    assert.are.equal("no", player.events[event.eventId].signups["Fan-Realm"].status)
+  end)
+
+  it("gives an event created by sync an empty signups table", function()
+    assert.are.same({}, player.events[event.eventId].signups)
+  end)
+
+  it("is rejected when the characterKey is not the sender", function()
+    local ok, reason = deliver(player, "SIGNUP_UPSERT", signup("yes"), "Mallory-Realm", "roster")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    assert.is_nil(next(player.events[event.eventId].signups))
+  end)
+
+  it("is rejected for member, alter and unknown senders", function()
+    local payload = signup("yes")
+    assert.are.equal("forbidden", select(2, deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "member")))
+    assert.are.equal("forbidden", select(2, deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "alter")))
+    assert.are.equal("unknown_sender", select(2, deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", nil)))
+  end)
+
+  it("is rejected from another roster or from a rank with no roster", function()
+    local payload = signup("yes")
+    player.rosterOf = function()
+      return "r2"
+    end
+    assert.are.equal("other_roster", select(2, deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "roster")))
+    player.rosterOf = function()
+      return nil
+    end
+    assert.are.equal("forbidden", select(2, deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "roster")))
+    -- The guild master needs no roster.
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "gm"))
+  end)
+
+  it("is accepted for a guild-wide event and refused for an unknown one", function()
+    player.events[event.eventId].rosterId = nil
+    local payload = signup("yes")
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", payload, "Fan-Realm", "roster"))
+    local stranger = client("Stranger-Realm")
+    assert.are.equal("unknown_event", select(2, deliver(stranger, "SIGNUP_UPSERT", payload, "Fan-Realm", "roster")))
+  end)
+
+  it("keeps the last writer per character", function()
+    local first, fan = signup("yes")
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", first, "Fan-Realm", "roster"))
+    local second = signup("no", 1100, fan)
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", second, "Fan-Realm", "roster"))
+    assert.are.equal("stale", select(2, deliver(player, "SIGNUP_UPSERT", first, "Fan-Realm", "roster")))
+    assert.are.equal("no", player.events[event.eventId].signups["Fan-Realm"].status)
+  end)
+
+  it("accepts a late answer: the closing time is the sender's to enforce", function()
+    player.clock = 9000
+    assert.is_true(deliver(player, "SIGNUP_UPSERT", signup("yes"), "Fan-Realm", "roster"))
+  end)
+
+  it("stops at the limit", function()
+    local signups = player.events[event.eventId].signups
+    for i = 1, Constants.EVENT_ATTENDANCE_MAX do
+      signups["P" .. i .. "-Realm"] = { status = "yes", rev = 1, updatedAt = 1 }
+    end
+    assert.are.equal("limit", select(2, deliver(player, "SIGNUP_UPSERT", signup("yes"), "Fan-Realm", "roster")))
+  end)
+
+  it("rejects an unknown status at the protocol", function()
+    local payload = signup("yes")
+    payload.status = "maybe"
+    assert.is_nil(Protocol.Validate(Protocol.Build("SIGNUP_UPSERT", payload, "id-1")))
+  end)
+
+  it("does not touch attendance", function()
+    deliver(player, "SIGNUP_UPSERT", signup("yes"), "Fan-Realm", "roster")
+    assert.is_nil(next(player.events[event.eventId].attendance))
+  end)
+end)
+
 describe("EventSync assignments and deletes", function()
   local rl, member, event
 
