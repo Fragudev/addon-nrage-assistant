@@ -18,8 +18,8 @@ local EVIDENCE_SHOWN = 8
 -- ---------------------------------------------------------------------------------------------------------------
 -- Sub-tabs
 
--- The sub-tabs of the PvP tab. The Admin one is only for gm and cogm (`options.admin`).
-function ViewModel.PvPSubTabs(options)
+-- The sub-tabs of the PvP tab. The admin views are their own tab (UI/Tabs/PvPAdmin.lua).
+function ViewModel.PvPSubTabs()
   local tabs = {
     { value = "season", text = L("Season") },
     { value = "missions", text = L("Missions") },
@@ -27,9 +27,6 @@ function ViewModel.PvPSubTabs(options)
     { value = "feed", text = L("Recent kills") },
     { value = "history", text = L("History") },
   }
-  if options and options.admin then
-    tabs[#tabs + 1] = { value = "admin", text = L("Admin") }
-  end
   return tabs
 end
 

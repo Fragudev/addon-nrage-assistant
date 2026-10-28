@@ -282,7 +282,7 @@ UI.Register("rules", function(page)
   local revision = ns.ReadinessRules.Describe(ns.db.global.readinessRules)[1]
   local header = Kit.Row(page, { gap = 12, align = "center" })
   local left = Kit.Stack(header, { gap = 4, layout = { weight = 1 } })
-  Kit.Label(left, { text = L("Rules"), style = "title" })
+  Kit.Label(left, { text = L("Roster rules"), style = "title" })
   Kit.Label(
     left,
     { text = ViewModel.Escape(revision) .. " \194\183 " .. L("Sent to the guild automatically"), color = "dim" }

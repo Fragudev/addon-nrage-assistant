@@ -174,11 +174,6 @@ end)
 describe("ViewModel layers in Spanish", function()
   it("translates the tab and the sentences", function()
     local Spanish = load_view_model("esES")
-    local texts = {}
-    for _, tab in ipairs(Spanish.TABS) do
-      texts[tab.value] = tab.text
-    end
-    assert.are.equal("Capas", texts.layers)
     local view = Spanish.LayerSwapView({ role = "helper", stage = "request", requester = "Ann" })
     assert.is_truthy(view.text:find("quiere unirse a tu capa", 1, true))
     assert.are.equal("Ayudar", view.buttons[1].text)

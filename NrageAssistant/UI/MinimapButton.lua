@@ -114,7 +114,7 @@ local function showMenu()
     return
   end
   GameTooltip:Hide()
-  local entries = ns.ViewModel.MinimapMenu(ns.UI.Role())
+  local entries = ns.ViewModel.MinimapMenu(ns.UI.Role(), ns.UI.OwnRosterId())
   local items, byValue = {}, {}
   for _, entry in ipairs(entries) do
     items[#items + 1] = { value = entry.value, text = entry.text, icon = entry.icon }

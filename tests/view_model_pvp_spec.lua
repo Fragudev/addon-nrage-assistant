@@ -67,13 +67,10 @@ local function texts(items)
 end
 
 describe("ViewModel.PvPSubTabs", function()
-  it("has the six sub-tabs for an admin or an officer, five for everybody else", function()
+  it("has the five player sub-tabs and no Admin one, whoever asks", function()
+    assert.are.same({ "season", "missions", "stats", "feed", "history" }, values(ViewModel.PvPSubTabs()))
     assert.are.same(
       { "season", "missions", "stats", "feed", "history" },
-      values(ViewModel.PvPSubTabs({ admin = false }))
-    )
-    assert.are.same(
-      { "season", "missions", "stats", "feed", "history", "admin" },
       values(ViewModel.PvPSubTabs({ admin = true }))
     )
     assert.are.same({ "Season", "Missions", "Stats", "Recent kills", "History" }, texts(ViewModel.PvPSubTabs()))
@@ -94,7 +91,7 @@ describe("ViewModel.PvPSubTabs", function()
   end)
 
   it("keeps a section that exists and falls back to the first", function()
-    local tabs = ViewModel.PvPSubTabs({ admin = false })
+    local tabs = ViewModel.PvPSubTabs()
     assert.are.equal("history", ViewModel.PvPPick(tabs, "history"))
     assert.are.equal("season", ViewModel.PvPPick(tabs, "admin"))
     assert.is_nil(ViewModel.PvPPick({}, "x"))
@@ -103,8 +100,8 @@ describe("ViewModel.PvPSubTabs", function()
   it("speaks Spanish when the client does", function()
     local es = load_view_model("esES")
     assert.are.same(
-      { "Temporada", "Misiones", "Estadísticas", "Bajas recientes", "Histórico", "Admin" },
-      texts(es.PvPSubTabs({ admin = true }))
+      { "Temporada", "Misiones", "Estadísticas", "Bajas recientes", "Histórico" },
+      texts(es.PvPSubTabs())
     )
     assert.are.equal("Aprobaciones (2)", es.PvPAdminSections({ manage = false, pending = 2 })[1].text)
   end)

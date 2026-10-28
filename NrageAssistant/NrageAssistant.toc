@@ -101,8 +101,10 @@ UI\Tabs\Profile.lua
 UI\Tabs\Readiness.lua
 UI\Tabs\Members.lua
 UI\Tabs\Raid.lua
+UI\Tabs\Events.lua
 UI\Tabs\Loot.lua
 UI\Tabs\PvP.lua
+UI\Tabs\PvPAdmin.lua
 UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua

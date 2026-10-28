@@ -23,7 +23,7 @@ UI.Register("ready", function(page)
   local data = ViewModel.ReadinessRows(rules, results, summary)
 
   Kit.PageHeader(page, {
-    title = L("Readiness"),
+    title = L("Raid check"),
     description = L("The guild's checklist, measured on your own character."),
     badge = data.badge,
   })

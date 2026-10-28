@@ -20,9 +20,27 @@ Only three commands exist: `/nrage` (opens the window), `/nrage help` (this shor
 ## The window and the settings
 
 The window has a header (logo, version, a pill that shows the sync state, the gear and the close button), a sidebar
-with one entry per tab (grouped under *Guild* and, for the guild master, *Admin*) and your character card at the
-bottom, and the page of the selected tab. Drag the header to move it and the corner to resize it; the size and
-position are remembered.
+with one entry per tab, in two groups, and your character card at the bottom, and the page of the selected tab. Drag
+the header to move it and the corner to resize it; the size and position are remembered.
+
+The **Guild** group is for everybody, though what you see depends on your guild rank and your roster:
+
+- **Home** and **Professions**, and **PvP** (the player views), are open to every rank.
+- **Raid** lists the upcoming events of your roster (and the guild-wide ones), soonest first, read-only. From the
+  Roster rank up, with a roster.
+- **Raid check** is your own checklist, measured with the rules of your roster. From the Roster rank up, with a roster.
+- **Loot**: from the Roster rank up, with a roster. Guild and co-guild masters see every roster.
+
+The **Admin** group appears from the Officer and RL ranks up:
+
+- **Raid** is where events, attendance, assignments, templates and reports are managed (Officer and RL on their own
+  roster, GM and CoGM on any). It has a roster selector when you may act on every roster, and a label with your roster
+  otherwise.
+- **Roster rules** and **Members** (Officer and RL, GM and CoGM).
+- **PvP** holds the season admin: approvals, missions, season, prizes and deliveries (GM and CoGM only).
+
+A tab you cannot see, or one that no longer exists in the sidebar (Profile, Layers and Blacklist are hidden for now),
+opens Home instead. A player without a roster only sees Home, Professions and PvP.
 
 The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
 
@@ -125,7 +143,7 @@ starting list applies (level 60, item level, role, consumables and enchants). It
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
-The guild master also sees a **Rules** tab, which nobody else gets. It lists the rules in force with a
+The **Roster rules** tab of the Admin group is the editor of the readiness rules. It lists the rules in force with a
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
@@ -136,7 +154,7 @@ Every change replaces the whole set for the guild; **Use the starting list** put
 Events are created by raid leaders and admins and are shared with the guild. Names of characters can have several
 words (`Yonemon Gg`); in the window you pick a member from a list, so nothing needs quoting.
 
-The **Raid** tab has the events on the left (with a field to create one, and the *Export* and *Import* buttons) and
+The **Raid** tab of the Admin group has the events on the left (with a field to create one, and the *Export* and *Import* buttons) and
 the selected event on the right. The right side has a sub-tab for each thing you can do: *Summary* (everyone:
 status, attendance counts and assignments), and, depending on your rank, *Details* (rename, status, start time in
 your local time, and *Delete this event*, which asks you to click twice), *Attendance* (a state dropdown for each member already recorded, and a search to add somebody
@@ -214,8 +232,8 @@ sessions.
 
 ## PvP
 
-The **PvP** tab has six sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills**, **History** and, for admins
-only, **Admin**. The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
+The **PvP** tab has five sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills** and **History**. The admin
+views are the **PvP** tab of the Admin group (guild master and co-guild master only). The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
 stats* and *Kill ranking*, which are described here. *My stats* counts your kills automatically, split into **open world** and **battleground**, with
 a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
 
@@ -323,7 +341,7 @@ starting list applies (level 60, item level, role, consumables and enchants). It
 (level, item level, professions, enchants and buffs) say where their value comes from; the rest are confirmed by
 hand.
 
-The guild master also sees a **Rules** tab, which nobody else gets. It lists the rules in force with a
+The **Roster rules** tab of the Admin group is the editor of the readiness rules. It lists the rules in force with a
 Remove button each, and a form to add one: pick the kind (minimum level, minimum item level, enchanted slots, active
 buff, profession, declared field, or confirmed by hand), give it a name and type the details (the hint under Details
 says what fits). Slots can be typed by name (`mainhand`, `chest`, `back`...) or number, and buffs by spell id or name.
@@ -334,7 +352,7 @@ Every change replaces the whole set for the guild; **Use the starting list** put
 Events are created by raid leaders and admins and are shared with the guild. Names of characters can have several
 words (`Yonemon Gg`); in the window you pick a member from a list, so nothing needs quoting.
 
-The **Raid** tab has the events on the left (with a field to create one, and the *Export* and *Import* buttons) and
+The **Raid** tab of the Admin group has the events on the left (with a field to create one, and the *Export* and *Import* buttons) and
 the selected event on the right. The right side has a sub-tab for each thing you can do: *Summary* (everyone:
 status, attendance counts and assignments), and, depending on your rank, *Details* (rename, status, start time in
 your local time, and *Delete this event*, which asks you to click twice), *Attendance* (a state dropdown for each member already recorded, and a search to add somebody
@@ -412,8 +430,8 @@ sessions.
 
 ## PvP
 
-The **PvP** tab has six sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills**, **History** and, for admins
-only, **Admin**. The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
+The **PvP** tab has five sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills** and **History**. The admin
+views are the **PvP** tab of the Admin group (guild master and co-guild master only). The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
 stats* and *Kill ranking*, which are described here. *My stats* counts your kills automatically, split into **open world** and **battleground**, with
 a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
 
