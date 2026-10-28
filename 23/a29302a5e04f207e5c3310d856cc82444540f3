@@ -1,0 +1,51 @@
+NrageAssistant/Locales/esES.lua
+  s_d6dcc83579493e::t_9b9b7a4e61337a 205,210-213
+NrageAssistant/NrageAssistant.toc
+  s_d6dcc83579493e::t_87f367eb36f01a 103,106
+NrageAssistant/Sync/Comm.lua
+  s_d6dcc83579493e::t_69436ef9538cc0 34,450-451,1019-1023
+NrageAssistant/UI/Main.lua
+  s_d6dcc83579493e::t_c2e49cf7634189 57-100,242-243,245,248-252,360-361,363,394,562-564,569-570,572
+NrageAssistant/UI/MinimapButton.lua
+  s_d6dcc83579493e::t_7dfdcde9b1f8cf 117
+NrageAssistant/UI/Tabs/Events.lua
+  s_d6dcc83579493e::t_5d49cf149dc517 1-39
+NrageAssistant/UI/Tabs/PvP.lua
+  s_d6dcc83579493e::t_0c7f5cf1985669 4-7,639-647,654
+NrageAssistant/UI/Tabs/PvPAdmin.lua
+  s_d6dcc83579493e::t_e254a03dfc3efa 1-989
+NrageAssistant/UI/Tabs/Raid.lua
+  s_d6dcc83579493e::t_59e6268dfe2674 673-678,692-694
+NrageAssistant/UI/Tabs/Readiness.lua
+  s_d6dcc83579493e::t_a9a9fb8518fec1 26
+NrageAssistant/UI/Tabs/Rules.lua
+  s_d6dcc83579493e::t_23eb3a0c4d5d4f 285
+NrageAssistant/UI/ViewModel.lua
+  s_d6dcc83579493e::t_d88f131be1c591 740,742,1032-1034,1037-1040,1043-1046,1050-1059,1061-1065,1067-1078,1083-1092,1275-1277,1282-1284,1296-1337
+NrageAssistant/UI/ViewModelPvP.lua
+  s_d6dcc83579493e::t_dcb133aa31b0fa 21-22
+docs/USER_GUIDE.md
+  s_d6dcc83579493e::t_9e8248302c11f4 23-43,146,157,235-236,344,355,433-434
+tests/ui_smoke_spec.lua
+  s_d6dcc83579493e::t_9b7dd665196dd2 8-11,70,73,97-102,476-477,482-491,493,495-512,514,519-550,606,728,745,748,756,785,882,884,911,922,961-964,988,1005-1006,1097,1116,1123-1244,1378,1384,1491,1536,1662-1667,1692,1701-1707,1709-1710,2030,2118,2261,2481,2529,2887-2891
+tests/view_model_pvp_spec.lua
+  s_d6dcc83579493e::t_1b8d77d96cf5e6 70-71,94,103-104
+tests/view_model_spec.lua
+  s_d6dcc83579493e::t_2c2b9bf49f3b4d 143-144,148-149,151,155-156,159-160,162-173,175-193,672-675,1457-1459,1461-1463,1465-1468,1470,1572-1574,1668-1734,1736-1743,1786,2943-3053
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "23a29302a5e04f207e5c3310d856cc82444540f3",
+  "prompts": {},
+  "sessions": {
+    "s_d6dcc83579493e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a2655ce-8606-4ba9-abc4-46dbb51b0ac6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
