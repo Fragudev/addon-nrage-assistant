@@ -737,9 +737,9 @@ function ViewModel.MinimapTooltip(args)
 end
 
 -- Right-click menu of the minimap button: a shortcut to each tab. There is no sync entry: sync is automatic.
-function ViewModel.MinimapMenu(role)
+function ViewModel.MinimapMenu(role, rosterId)
   local entries = {}
-  for _, tab in ipairs(ViewModel.TabsFor(role)) do
+  for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
     entries[#entries + 1] = { text = tab.text, icon = tab.icon, action = "tab", value = tab.value }
   end
   entries[#entries + 1] = { text = L("Settings"), icon = "gear", action = "settings", value = "@settings" }
@@ -1029,39 +1029,65 @@ function ViewModel.BlacklistAlertLine(match)
   return L("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
 end
 
--- The tabs of the window with the icon and the sidebar group of each. The text is translated again when the
--- language changes (Locale.Table).
+-- The tabs of the window with the icon and the sidebar group of each ("guild" or "admin"). Profile, Layers and
+-- Blacklist are not listed: their files and services stay, they only left the sidebar (plan 0.1). The text is
+-- translated again when the language changes (Locale.Table).
 ViewModel.TABS = ns.Locale.Table(function()
   return {
-    { value = "home", text = L("Home"), icon = "home", group = "me" },
-    { value = "profile", text = L("Profile"), icon = "user", group = "me" },
-    { value = "ready", text = L("Readiness"), icon = "check-circle", group = "me" },
-    { value = "raid", text = L("Raid"), icon = "calendar", group = "guild" },
+    { value = "home", text = L("Home"), icon = "home", group = "guild" },
+    { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
+    { value = "events", text = L("Raid"), icon = "calendar", group = "guild" },
+    { value = "ready", text = L("Raid check"), icon = "check-circle", group = "guild" },
     { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
-    { value = "layers", text = L("Layers"), icon = "disc", group = "guild" },
-    { value = "blacklist", text = L("Blacklist"), icon = "ban", group = "guild" },
-    { value = "roster", text = L("Members"), icon = "users", group = "guild" },
-    { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
+    { value = "raid", text = L("Raid"), icon = "calendar", group = "admin" },
+    { value = "rules", text = L("Roster rules"), icon = "list", group = "admin" },
+    { value = "roster", text = L("Members"), icon = "users", group = "admin" },
+    { value = "pvpadmin", text = "PvP", icon = "swords", group = "admin" },
   }
 end)
 
--- The admin-only tab where the guild's readiness rules are edited.
-ViewModel.RULES_TAB = ns.Locale.Table(function()
-  return { value = "rules", text = L("Rules"), icon = "list", group = "admin" }
-end)
+-- The action whose scope decides who sees a tab; the tabs that are not listed are for everyone.
+local TAB_ACTIONS = {
+  events = "events_view",
+  ready = "raidcheck_view",
+  loot = "loot_view",
+  raid = "raid_manage",
+  rules = "rules_view",
+  roster = "members_view",
+  pvpadmin = "pvp_admin",
+}
 
--- The tabs for a player with `role`: everyone's, plus the rules editor for who may edit the rules.
-function ViewModel.TabsFor(role)
-  local tabs = {}
-  for index, tab in ipairs(ViewModel.TABS) do
-    tabs[index] = tab
+-- Does a player with `role` and the roster `rosterId` (nil without one) see `tab` (an entry of TABS)?
+local function tabVisible(tab, role, rosterId)
+  local permission = ns.PermissionService
+  if tab.group == "admin" and permission.Scope(role, "admin_view", rosterId) == "none" then
+    return false
   end
-  -- Until the per-roster rules (docs/NAV_PERMISSIONS_PLAN.md phase 4), only gm and cogm edit the rules.
-  if ns.PermissionService.CanAll(role, "rules_edit") then
-    tabs[#tabs + 1] = ViewModel.RULES_TAB
+  local action = TAB_ACTIONS[tab.value]
+  return action == nil or permission.Scope(role, action, rosterId) ~= "none"
+end
+
+-- The tabs a player with `role` and the roster `rosterId` (nil without one) sees: the single gate of the sidebar, the
+-- minimap menu and UI.OpenTab.
+function ViewModel.TabsFor(role, rosterId)
+  local tabs = {}
+  for _, tab in ipairs(ViewModel.TABS) do
+    if tabVisible(tab, role, rosterId) then
+      tabs[#tabs + 1] = tab
+    end
   end
   return tabs
+end
+
+-- Is `value` a tab this player sees? (false for a hidden tab or an unknown value)
+function ViewModel.TabVisible(value, role, rosterId)
+  for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
+    if tab.value == value then
+      return true
+    end
+  end
+  return false
 end
 
 -- The kinds of rule an admin can add, in the order of the dropdown, and what each one needs typed in "Details".
@@ -1246,16 +1272,16 @@ function ViewModel.RuleSummary(rule)
   return L("confirmed by the player")
 end
 
--- The sidebar: groups of { value, text, icon } for a player with `role`. The first group has no label.
-function ViewModel.NavGroups(role)
+-- The sidebar: the groups Guild and Admin, each with its { value, text, icon } items, for a player with `role` and the
+-- roster `rosterId`. A group without items is left out.
+function ViewModel.NavGroups(role, rosterId)
   local groups = {
-    { items = {} },
     { label = L("Guild"), items = {} },
     { label = L("Admin"), items = {} },
   }
-  local index = { me = 1, guild = 2, admin = 3 }
-  for _, tab in ipairs(ViewModel.TabsFor(role)) do
-    local group = groups[index[tab.group] or 2]
+  local index = { guild = 1, admin = 2 }
+  for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
+    local group = groups[index[tab.group] or 1]
     group.items[#group.items + 1] = { value = tab.value, text = tab.text, icon = tab.icon }
   end
   local result = {}
@@ -1265,6 +1291,48 @@ function ViewModel.NavGroups(role)
     end
   end
   return result
+end
+
+-- The roster selector shared by the tabs that show one roster at a time (plan 2.2). `action` is the view action of the
+-- tab: the selector is visible when the role has it on every roster, otherwise the roster is the player's own and
+-- only its name is shown. `rosters` = db.global.rosters, `selected` = what the player picked in this tab (or nil).
+-- Returns { visible, options = { { value, text } }, selected = a roster id or nil, label = the name of the own roster
+-- (when the selector is not visible) }. The default selection is the own roster, else the first by name.
+function ViewModel.RosterSelector(role, action, ownRosterId, rosters, selected)
+  local scope = ns.PermissionService.Scope(role, action, ownRosterId)
+  if scope ~= "all" then
+    local own = scope == "own" and rosters[ownRosterId] and ownRosterId or nil
+    return {
+      visible = false,
+      options = {},
+      selected = own,
+      label = own and ViewModel.Escape(rosters[own].name) or nil,
+    }
+  end
+  local options = {}
+  for _, roster in ipairs(ns.RosterService.List(rosters)) do
+    options[#options + 1] = { value = roster.id, text = ViewModel.Escape(roster.name) }
+  end
+  local chosen
+  if selected ~= nil and rosters[selected] then
+    chosen = selected
+  elseif ownRosterId ~= nil and rosters[ownRosterId] then
+    chosen = ownRosterId
+  elseif options[1] then
+    chosen = options[1].value
+  end
+  return { visible = #options > 0, options = options, selected = chosen }
+end
+
+-- The upcoming events of the Raid tab of the Guild group, soonest first (undated last): `events` is what the viewer
+-- sees (RosterService.FilterEvents). Rows: { eventId, title, dateText, rosterText } with the name of the roster, or
+-- "Guild" for an event no roster owns. Past, closed and cancelled events are left out.
+function ViewModel.UpcomingEventRows(events, now, rosters)
+  local rows = ViewModel.EventListRows(events, { filter = "upcoming", now = now, rosters = rosters })
+  for _, row in ipairs(rows) do
+    row.rosterText = row.rosterName or L("Guild")
+  end
+  return rows
 end
 
 -- The user card at the bottom of the sidebar: the character name, and "rank - addon role" under it.

@@ -31,6 +31,7 @@ function Comm.New(deps)
     roleOf = deps.roleOf,
     ownRole = deps.ownRole,
     onLootChange = deps.onLootChange,
+    onEventChange = deps.onEventChange,
     pvpStats = deps.pvpStats or {},
     pvpResets = deps.pvpResets or {},
     onPvPChange = deps.onPvPChange,
@@ -446,6 +447,8 @@ function Comm:HandleRaid(sender, message)
   local ok, reason = ns.EventSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onLootChange and message.t:sub(1, 5) == "LOOT_" then
     self.onLootChange(message.t)
+  elseif ok and self.onEventChange then
+    self.onEventChange(message.t)
   end
   return ok, reason
 end
@@ -1011,6 +1014,11 @@ function Comm.Start()
     onLootChange = function()
       if ns.UI and ns.UI.LootChanged then
         ns.UI.LootChanged()
+      end
+    end,
+    onEventChange = function()
+      if ns.UI and ns.UI.EventsChanged then
+        ns.UI.EventsChanged()
       end
     end,
     pvpStats = ns.db.global.pvpStats,

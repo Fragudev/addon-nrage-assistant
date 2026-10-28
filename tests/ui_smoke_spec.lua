@@ -5,7 +5,10 @@ local FakeFrames = dofile("tests/support/fake_frames.lua")
 local FakeKit = dofile("tests/support/fake_kit.lua")
 local Roles = dofile("tests/support/roles.lua")
 
-local ALL_TABS = { "home", "profile", "ready", "raid", "loot", "pvp", "layers", "blacklist", "roster", "rules" }
+local ALL_TABS = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster", "pvpadmin" }
+-- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
+-- anyway.
+local HIDDEN_TABS = { profile = true, layers = true, blacklist = true, broken = true }
 
 -- `locale` (optional) is the client locale code the window is built for, e.g. "esES".
 local function load_window(locale)
@@ -65,8 +68,10 @@ local function load_window(locale)
     "UI/Tabs/Readiness",
     "UI/Tabs/Members",
     "UI/Tabs/Raid",
+    "UI/Tabs/Events",
     "UI/Tabs/Loot",
     "UI/Tabs/PvP",
+    "UI/Tabs/PvPAdmin",
     "UI/Tabs/Blacklist",
     "UI/Tabs/Rules",
     "UI/Tabs/Professions",
@@ -90,6 +95,12 @@ local function build(rank, locale)
   local fake = FakeKit
   local env = { ns = ns, sent = {}, messages = {}, counter = 0, registered = {}, timers = {}, fake = fake }
   FakeFrames.install()
+  -- The real gate, and one that lets the hidden tabs through so the specs of their views can open them. A spec that
+  -- sets `env.forceTabs` opens any tab for any rank, to check what a tab draws for a player who cannot reach it.
+  env.realTabVisible = ns.ViewModel.TabVisible
+  ns.ViewModel.TabVisible = function(value, ...)
+    return HIDDEN_TABS[value] or env.forceTabs or env.realTabVisible(value, ...)
+  end
 
   ns.active = true
   ns.GetVersion = function()
@@ -463,40 +474,81 @@ describe("Window smoke test", function()
     assert.is_true(env.ns.UI.IsOpen())
     env.ns.UI.Toggle()
     assert.is_false(env.ns.UI.IsOpen())
-    env.ns.UI.OpenTab("loot")
-    assert.are.equal("loot", env.ns.UI.CurrentTab())
+    env.ns.UI.OpenTab("professions")
+    assert.are.equal("professions", env.ns.UI.CurrentTab())
     env.ns.UI.OpenTab("home")
     assert.are.equal("home", env.ns.UI.CurrentTab())
   end)
 
-  it("offers the rules tab only to the guild master and the co-guild master", function()
-    for _, rank in ipairs({ "RL", "Council", "Roster", "Member", "Alter" }) do
-      env = build(rank)
-      env.open("home")
-      local sidebar
-      for _, node in ipairs(env.ns.Kit.fake.nodes) do
-        if node.kind == "Sidebar" then
-          sidebar = node
-        end
-      end
-      local values = {}
-      for _, group in ipairs(sidebar.opts.groups) do
-        for _, item in ipairs(group.items) do
-          values[item.value] = true
-        end
-      end
-      assert.is_nil(values.rules, rank)
-      pcall(env.close)
+  it("opens Home instead of a tab that is hidden, that the rank cannot see, or that does not exist", function()
+    env = build("Member")
+    env.ns.ViewModel.TabVisible = env.realTabVisible
+    for _, tab in ipairs({ "profile", "layers", "blacklist", "raid", "loot", "roster", "nowhere" }) do
+      env.ns.UI.OpenTab("professions")
+      env.ns.UI.OpenTab(tab)
+      assert.are.equal("home", env.ns.UI.CurrentTab(), tab)
+      env.ns.UI.SelectTab("professions")
+      env.ns.UI.SelectTab(tab)
+      assert.are.equal("home", env.ns.UI.CurrentTab(), tab)
     end
+    pcall(env.close)
     env = build("GM")
-    env.open("home")
+    env.ns.ViewModel.TabVisible = env.realTabVisible
+    for _, tab in ipairs(ALL_TABS) do
+      env.ns.UI.OpenTab(tab)
+      assert.are.equal(tab, env.ns.UI.CurrentTab())
+    end
+  end)
+
+  it("falls back to Home when the roster of the player stops allowing the tab on screen", function()
+    env = build("RL")
+    env.ns.ViewModel.TabVisible = env.realTabVisible
+    env.ns.UI.OpenTab("rules")
+    assert.are.equal("rules", env.ns.UI.CurrentTab())
+    env.ns.db.global.members["Leader-Realm"].rosterId = nil
+    env.ns.UI.RostersChanged()
+    assert.are.equal("home", env.ns.UI.CurrentTab())
+  end)
+
+  local function sidebarGroups(e)
     local sidebar
-    for _, node in ipairs(env.ns.Kit.fake.nodes) do
+    for _, node in ipairs(e.ns.Kit.fake.nodes) do
       if node.kind == "Sidebar" then
         sidebar = node
       end
     end
-    assert.are.equal("rules", sidebar.opts.groups[3].items[1].value)
+    local labels, values = {}, {}
+    for _, group in ipairs(sidebar.opts.groups) do
+      labels[#labels + 1] = group.label
+      for _, item in ipairs(group.items) do
+        values[#values + 1] = item.value
+      end
+    end
+    return labels, values
+  end
+
+  it("builds the sidebar from the rank and the roster: Guild for everyone, Admin from rl and officer up", function()
+    local all = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster", "pvpadmin" }
+    local expected = {
+      GM = all,
+      CoGM = all,
+      Council = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster" },
+      RL = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster" },
+      Roster = { "home", "professions", "events", "ready", "loot", "pvp" },
+      Member = { "home", "professions", "pvp" },
+      Alter = { "home", "professions", "pvp" },
+      Norost = { "home", "professions", "pvp" },
+    }
+    for rank, values in pairs(expected) do
+      env = build(rank)
+      env.ns.ViewModel.TabVisible = env.realTabVisible
+      env.open("home")
+      local labels, found = sidebarGroups(env)
+      assert.are.same(values, found, rank)
+      local admin = rank == "GM" or rank == "CoGM" or rank == "Council" or rank == "RL"
+      assert.are.same(admin and { "Guild", "Admin" } or { "Guild" }, labels, rank)
+      pcall(env.close)
+    end
   end)
 
   it("shows what an action reported as a banner, colored by its outcome, and clears it when the tab changes", function()
@@ -651,7 +703,7 @@ describe("Window smoke test", function()
 
   describe("Readiness", function()
     it("lists a row per rule with the manual ones carrying a dropdown, and confirms one by hand", function()
-      env = build("Member")
+      env = build("Roster")
       local ready = env.open("ready")
       local rows = FakeKit.find_all(ready, "ListRow")
       assert.are.equal(5, #FakeKit.find_all(ready, "List")[1].opts.rows)
@@ -668,10 +720,10 @@ describe("Window smoke test", function()
     end)
 
     it("shows the summary badge", function()
-      env = build("Member")
+      env = build("Roster")
       local ready = env.open("ready")
       local header = env.find(ready, "PageHeader")
-      assert.are.equal("Readiness", header.opts.title)
+      assert.are.equal("Raid check", header.opts.title)
       assert.is_truthy(header.opts.badge.text:find("met", 1, true))
     end)
   end)
@@ -679,6 +731,7 @@ describe("Window smoke test", function()
   describe("Members", function()
     it("lists the whole guild read-only for a member", function()
       env = build("Member")
+      env.forceTabs = true
       env.open("roster")
       assert.are.equal(3, #env.tableRows())
       assert.is_nil(env.find(env.page(), "Card", "Rosters"))
@@ -707,7 +760,7 @@ describe("Window smoke test", function()
     )
 
     it("gives rl and officer no Rosters card and no dropdown until the roster scoping lands", function()
-      for _, rank in ipairs({ "RL", "Council", "Roster" }) do
+      for _, rank in ipairs({ "RL", "Council" }) do
         env = build(rank)
         env.open("roster")
         assert.is_nil(env.find(env.page(), "Card", "Rosters"), rank)
@@ -804,8 +857,9 @@ describe("Window smoke test", function()
   end)
 
   describe("Raid", function()
-    local function open_raid(rank)
+    local function open_raid(rank, force)
       env = build(rank)
+      env.forceTabs = force
       env.ns.db.global.events["e1"] = event("e1", "Molten Core")
       env.ns.db.global.events["e2"] = event("e2", "Old Raid", { startAt = 10, status = "closed" })
       return env.open("raid")
@@ -832,7 +886,7 @@ describe("Window smoke test", function()
     end)
 
     it("gives a member the summary and the reports only, with no controls", function()
-      local raid = open_raid("Member")
+      local raid = open_raid("Member", true)
       local values = {}
       for _, tab in ipairs(FakeKit.find(raid, "TabStrip").opts.tabs) do
         values[#values + 1] = tab.value
@@ -843,6 +897,7 @@ describe("Window smoke test", function()
 
     it("tells a member with no roster to ask for one and shows nothing else", function()
       env = build("Norost")
+      env.forceTabs = true
       env.ns.db.global.events["e1"] = event("e1", "Molten Core")
       local raid = env.open("raid")
       assert.is_truthy(env.find(raid, "EmptyState", "You are not in a roster yet"))
@@ -881,8 +936,10 @@ describe("Window smoke test", function()
       env.ns.db.global.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
       env.ns.db.global.events["e1"] = event("e1", "Molten Core")
       env.open("raid")
-      -- Admins see the roster selector and start on all rosters.
-      assert.are.equal("all", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
+      -- Admins see the roster selector and start on the first roster by name (they have none of their own).
+      assert.are.equal("r2", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("r1")
+      assert.are.equal("r1", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
       env.press("New event")
       local dropdowns = FakeKit.find_all(env.page(), "Dropdown")
       local rosterDropdown
@@ -906,7 +963,7 @@ describe("Window smoke test", function()
 
     it("edits the details: rename, status, date, roster, and deletes only after a second click", function()
       open_raid("GM")
-      env.ns.UI.nav = {}
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("r1")
       FakeKit.find(env.page(), "TabStrip").opts.onSelect("details")
       local raid = env.page()
       local box = FakeKit.find_all(raid, "EditBox")[1]
@@ -923,6 +980,8 @@ describe("Window smoke test", function()
       local dropdowns = FakeKit.find_all(env.page(), "Dropdown")
       dropdowns[#dropdowns].opts.onChange("r2")
       assert.are.equal("r2", env.ns.db.global.events.e1.rosterId)
+      -- The event left the roster on screen: follow it.
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("r2")
       env.press("Delete this event")
       assert.is_truthy(env.ns.db.global.events.e1)
       env.press("Confirm: delete this event")
@@ -1013,7 +1072,7 @@ describe("Window smoke test", function()
     end)
 
     it("shows the reports as tables and switches their scope", function()
-      open_raid("Member")
+      open_raid("Member", true)
       FakeKit.find(env.page(), "TabStrip").opts.onSelect("reports")
       assert.is_truthy(env.text():find("Attendance", 1, true))
       FakeKit.find(env.page(), "Segmented").opts.onChange("all")
@@ -1032,10 +1091,132 @@ describe("Window smoke test", function()
       menu.onSelect("import")
       assert.are.same({ "import" }, shown)
       pcall(env.close)
-      open_raid("Member")
+      open_raid("Member", true)
       FakeKit.find_all(env.page(), "IconButton")[1].opts.onClick()
       assert.are.equal(1, #env.ns.Kit.fake.menu.items)
     end)
+  end)
+end)
+
+describe("Window smoke test: Events", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("lists the upcoming events of the roster, soonest first, with the roster or Guild, and no past ones", function()
+    env = build("Roster")
+    local events = env.ns.db.global.events
+    events.late = event("late", "Late raid", { startAt = 9000 })
+    events.soon = event("soon", "Soon raid", { startAt = 5000 })
+    events.guild = event("guild", "Guild night", { startAt = 7000, rosterId = false })
+    events.guild.rosterId = nil
+    events.past = event("past", "Old raid", { startAt = 10, status = "closed" })
+    events.other = event("other", "Other roster", { startAt = 6000, rosterId = "r9" })
+    env.open("events")
+    local rows = env.tableRows()
+    assert.are.equal(3, #rows)
+    assert.are.same(
+      { "Soon raid", "Guild night", "Late raid" },
+      { rows[1].cells.title, rows[2].cells.title, rows[3].cells.title }
+    )
+    assert.are.same({ "Main", "Guild", "Main" }, {
+      rows[1].cells.roster.text,
+      rows[2].cells.roster.text,
+      rows[3].cells.roster.text,
+    })
+    assert.are.equal(env.ns.ViewModel.DateText(5000), rows[1].cells.date.text)
+    assert.is_nil(env.text():find("Old raid", 1, true))
+    assert.is_nil(env.text():find("Other roster", 1, true))
+  end)
+
+  it("is read-only: no buttons, no links into the Admin Raid tab", function()
+    env = build("RL")
+    env.ns.db.global.events.e1 = event("e1", "Molten Core")
+    local page = env.open("events")
+    assert.is_nil(FakeKit.find(page, "Button"))
+    assert.is_nil(FakeKit.find(page, "EditBox"))
+    assert.are.equal("Raid", env.find(page, "PageHeader").opts.title)
+  end)
+
+  it("says there are no upcoming events", function()
+    env = build("Roster")
+    env.open("events")
+    assert.is_truthy(FakeKit.find(env.page(), "Table").opts.emptyText:find("No upcoming events", 1, true))
+    pcall(env.close)
+    env = build("GM", "esES")
+    env.open("events")
+    assert.are.equal("No hay eventos próximos", FakeKit.find(env.page(), "Table").opts.emptyText)
+  end)
+
+  it("shows the guild master every roster's events", function()
+    env = build("GM")
+    env.ns.db.global.events.a = event("a", "A", { startAt = 5000 })
+    env.ns.db.global.events.b = event("b", "B", { startAt = 6000, rosterId = "r2" })
+    env.open("events")
+    assert.are.equal(2, #env.tableRows())
+  end)
+
+  it("draws for a player with no roster, who sees nothing, and for the ranks that cannot reach it", function()
+    for _, rank in ipairs({ "Norost", "Member", "Alter" }) do
+      env = build(rank)
+      env.forceTabs = true
+      env.ns.db.global.events.e1 = event("e1", "Molten Core")
+      env.open("events")
+      assert.are.equal(rank == "Norost" and 0 or 1, #env.tableRows(), rank)
+      pcall(env.close)
+    end
+  end)
+end)
+
+describe("Window smoke test: roster selector of the Admin Raid tab", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("shows the guild master a dropdown and keeps the pick in UI.nav across tabs", function()
+    env = build("GM")
+    env.ns.db.global.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+    env.ns.db.global.events.e1 = event("e1", "Main raid")
+    env.ns.db.global.events.e2 = event("e2", "Alts raid", { startAt = 6000, rosterId = "r2" })
+    env.open("raid")
+    local dropdown = FakeKit.find_all(env.page(), "Dropdown")[1]
+    assert.are.equal("r2", dropdown.opts.value)
+    assert.are.same({ "r2", "r1" }, { dropdown.opts.items[1].value, dropdown.opts.items[2].value })
+    assert.is_truthy(env.text():find("Alts raid", 1, true))
+    assert.is_nil(env.text():find("Main raid", 1, true))
+    dropdown.opts.onChange("r1")
+    assert.is_truthy(env.text():find("Main raid", 1, true))
+    assert.are.equal("r1", env.ns.UI.nav.rosters.raid)
+    env.open("home")
+    env.open("raid")
+    assert.are.equal("r1", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
+  end)
+
+  it("fixes a raid leader or an officer to the own roster, shown as a label", function()
+    for _, rank in ipairs({ "RL", "Council" }) do
+      env = build(rank)
+      env.ns.db.global.rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+      env.ns.db.global.events.e1 = event("e1", "Main raid")
+      env.ns.db.global.events.e2 = event("e2", "Alts raid", { startAt = 6000, rosterId = "r2" })
+      env.open("raid")
+      assert.is_nil(FakeKit.find_all(env.page(), "Dropdown")[1], rank)
+      assert.is_truthy(env.find(env.page(), "Label", "Roster: Main"), rank)
+      assert.is_truthy(env.text():find("Main raid", 1, true), rank)
+      assert.is_nil(env.text():find("Alts raid", 1, true), rank)
+      pcall(env.close)
+    end
+  end)
+
+  it("keeps the events no roster owns in sight of the guild master", function()
+    env = build("GM")
+    env.ns.db.global.events.e1 = event("e1", "Old raid")
+    env.ns.db.global.events.e1.rosterId = nil
+    env.open("raid")
+    assert.is_truthy(env.text():find("Old raid", 1, true))
   end)
 end)
 
@@ -1172,13 +1353,13 @@ describe("Window smoke test: Loot", function()
   end)
 
   it("starts on an event chosen elsewhere, and says there are no events", function()
-    env = build("Member")
+    env = build("Roster")
     env.ns.db.global.events.e1 = event("e1", "One")
     env.ns.db.global.events.e2 = event("e2", "Two", { startAt = 10 })
     env.open("loot", { eventId = "e2" })
     assert.are.equal("e2", FakeKit.find_all(env.page(), "Dropdown")[1].opts.value)
     pcall(env.close)
-    env = build("Member")
+    env = build("Roster")
     env.open("loot")
     assert.is_truthy(env.text():find("No events yet", 1, true))
   end)
@@ -1192,6 +1373,12 @@ describe("Window smoke test: Loot", function()
     assert.is_truthy(env.text():find("No events yet", 1, true))
     pcall(env.close)
     env = build("Norost")
+    -- Without a roster Loot is not reachable: the gate sends the player home.
+    env.open("loot")
+    assert.are.equal("home", env.ns.UI.CurrentTab())
+    pcall(env.close)
+    env = build("Norost")
+    env.forceTabs = true
     env.open("loot")
     assert.is_truthy(env.text():find("You are not in a roster yet", 1, true))
   end)
@@ -1285,7 +1472,7 @@ describe("Window smoke test: PvP", function()
     FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
     FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
     assert.is_nil(env.find(env.page(), "Button", "Reset PvP counters"))
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("admin")
+    env.open("pvpadmin")
     FakeKit.find(env.page(), "Segmented").opts.onChange("season")
     assert.is_truthy(env.text():find("Kill counters", 1, true))
     env.press("Reset PvP counters")
@@ -1330,7 +1517,7 @@ describe("Window smoke test: PvP", function()
       end
     end
     -- The reset button (Admin -> Season) follows its (longer, in Spanish) text instead of a fixed width.
-    FakeKit.find(env.page(), "TabStrip").opts.onSelect("admin")
+    env.open("pvpadmin")
     FakeKit.find(env.page(), "Segmented").opts.onChange("season")
     assert.are.equal("auto", env.find(env.page(), "Button", "Reset PvP counters").opts.layout.width)
   end)
@@ -1456,8 +1643,12 @@ describe("Window smoke test: PvP seasons", function()
   end
 
   local function go(e, sub, section)
-    e.open("pvp")
-    strip(e).opts.onSelect(sub)
+    if sub == "admin" then
+      e.open("pvpadmin")
+    else
+      e.open("pvp")
+      strip(e).opts.onSelect(sub)
+    end
     if section then
       FakeKit.find(e.page(), "Segmented").opts.onChange(section)
     end
@@ -1482,7 +1673,7 @@ describe("Window smoke test: PvP seasons", function()
     return t
   end
 
-  it("draws every sub-tab and admin section as gm, cogm, member and with no roster", function()
+  it("draws every sub-tab for every player and every admin section as gm and cogm", function()
     for _, who in ipairs({ "GM", "CoGM", "Member", "Norost" }) do
       env = build(who)
       seed(env)
@@ -1491,14 +1682,17 @@ describe("Window smoke test: PvP seasons", function()
       for _, tab in ipairs(strip(env).opts.tabs) do
         subs[#subs + 1] = tab.value
         strip(env).opts.onSelect(tab.value)
-        if tab.value == "admin" then
-          for _, section in ipairs(FakeKit.find(env.page(), "Segmented").opts.items) do
-            FakeKit.find(env.page(), "Segmented").opts.onChange(section.value)
-          end
-        end
       end
-      local admin = who == "GM" or who == "CoGM"
-      assert.are.equal(admin and 6 or 5, #subs, who)
+      assert.are.equal(5, #subs, who)
+      env.open("pvpadmin")
+      if who == "GM" or who == "CoGM" then
+        assert.are.equal("pvpadmin", env.ns.UI.CurrentTab(), who)
+        for _, section in ipairs(FakeKit.find(env.page(), "Segmented").opts.items) do
+          FakeKit.find(env.page(), "Segmented").opts.onChange(section.value)
+        end
+      else
+        assert.are.equal("home", env.ns.UI.CurrentTab(), who)
+      end
       pcall(env.close)
     end
   end)
@@ -1817,7 +2011,7 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_nil(env.ns.pvpSeason:ActiveSeason())
     assert.is_truthy(env.ns.db.global.pvpSeason.finals[season.id])
     -- The closed season is in the history, and its prizes are to be delivered.
-    strip(env).opts.onSelect("history")
+    go(env, "history")
     assert.is_truthy(env.text():find("Autumn", 1, true))
     FakeKit.find(env.page(), "Segmented").opts.onChange("total")
     assert.are.equal(12, #env.tableRows())
@@ -1905,6 +2099,7 @@ describe("Window smoke test: PvP seasons", function()
   it("shows no PvP officer column in Members, flag or not, and gives nobody a toggle", function()
     for _, rank in ipairs({ "Member", "GM" }) do
       env = build(rank)
+      env.forceTabs = true
       officer(env)
       env.ns.db.global.pvpSeason.officers["Ann-Realm"] =
         { player = "Ann-Realm", intervals = { { from = 0 } }, rev = 1, updatedAt = 1 }
@@ -2047,6 +2242,7 @@ describe("Window smoke test: Rules", function()
   it("says it is for the guild master and the co-guild master when anyone else gets there", function()
     for _, rank in ipairs({ "RL", "Council", "Roster", "Member" }) do
       env = build(rank)
+      env.forceTabs = true
       env.open("rules")
       assert.is_truthy(
         env.text():find("Only the guild master and the co-guild master can edit the readiness rules.", 1, true),
@@ -2266,6 +2462,7 @@ describe("Window smoke test: settings, language and automatic refresh", function
     for _, tab in ipairs(ALL_TABS) do
       assert.is_truthy(env.open(tab), tab)
     end
+    env.open("rules")
     assert.is_truthy(FakeKit.find(env.page(), "List"))
     pcall(env.close)
     env = build("GM", "frFR")
@@ -2313,7 +2510,7 @@ describe("Window smoke test: settings, language and automatic refresh", function
 
   it("leaves the other tabs alone, and does nothing when the window is closed", function()
     env = build("Member")
-    env.open("loot")
+    env.open("professions")
     local count = #env.ns.Kit.fake.nodes
     env.ns.UI.ReadinessChanged()
     assert.are.equal(count, #env.ns.Kit.fake.nodes)
@@ -2671,16 +2868,12 @@ describe("Window smoke test: Layers", function()
     pcall(env.close)
   end)
 
-  it("is in the sidebar of every role, next to PvP", function()
-    local values = {}
-    for _, tab in ipairs(env.ns.ViewModel.TabsFor("member")) do
-      values[#values + 1] = tab.value
+  it("is not in the sidebar of any role", function()
+    for _, role in ipairs({ "gm", "cogm", "officer", "rl", "roster", "member", "alter" }) do
+      for _, tab in ipairs(env.ns.ViewModel.TabsFor(role, "r1")) do
+        assert.are_not.equal("layers", tab.value, role)
+      end
     end
-    local pvp
-    for index, value in ipairs(values) do
-      pvp = value == "pvp" and index or pvp
-    end
-    assert.are.equal("layers", values[pvp + 1])
   end)
 
   it("says the feature is not available before it starts", function()

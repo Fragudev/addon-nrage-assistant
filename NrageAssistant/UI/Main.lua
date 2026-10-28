@@ -54,6 +54,50 @@ function UI.Role()
   return ns.PermissionService.OwnRole(ns.Platform)
 end
 
+-- The roster of this player, or nil without one.
+function UI.OwnRosterId()
+  local global = ns.db.global
+  return ns.RosterService.RosterOf(global.members, global.rosters, ns.Platform.GetIdentityKey())
+end
+
+-- `tab` when this player sees it, else "home": a hidden tab, one the rank cannot see, or an unknown value.
+function UI.ResolveTab(tab)
+  if ns.ViewModel.TabVisible(tab, UI.Role(), UI.OwnRosterId()) then
+    return tab
+  end
+  return "home"
+end
+
+-- What the roster selector of `tab` shows (ViewModel.RosterSelector for `action`): { visible, options, selected,
+-- label }.
+-- The pick is kept in UI.nav.rosters[tab] until the session ends (plan 2.2).
+function UI.RosterSelection(tab, action)
+  UI.nav.rosters = UI.nav.rosters or {}
+  return ns.ViewModel.RosterSelector(UI.Role(), action, UI.OwnRosterId(), ns.db.global.rosters, UI.nav.rosters[tab])
+end
+
+-- Draws the selector of `tab` from UI.RosterSelection: a dropdown for who has the action on every roster, else the
+-- own roster as a label. `onChange` runs after a pick, before the tab is drawn again.
+function UI.DrawRosterSelector(parent, tab, data, onChange)
+  if data.visible then
+    local bar = Kit.Row(parent, { gap = 10, align = "center" })
+    Kit.Dropdown(bar, {
+      items = data.options,
+      value = data.selected,
+      layout = { width = 220 },
+      onChange = function(value)
+        UI.nav.rosters[tab] = value
+        if onChange then
+          onChange(value)
+        end
+        UI.Redraw()
+      end,
+    })
+  elseif data.label then
+    Kit.Label(parent, { text = L("Roster: %s"):format(data.label), color = "dim" })
+  end
+end
+
 -- Who sees which events (RosterService.Viewer) for the own character; `selected` is what an admin picked in a selector.
 function UI.Viewer(selected)
   local global = ns.db.global
@@ -195,11 +239,16 @@ local function throttledRedraw(shown, seconds)
   end
 end
 
--- A PvP counter changed, here or on a received record (a whole guild logging in): the PvP tab is drawn again if it is
--- the one on screen, at most once per PVP_REDRAW_SECONDS.
+-- A PvP counter changed, here or on a received record (a whole guild logging in): the PvP tabs are drawn again if one
+-- is on screen, at most once per PVP_REDRAW_SECONDS.
 UI.PvPChanged = throttledRedraw(function()
-  return currentTab == "pvp"
+  return currentTab == "pvp" or currentTab == "pvpadmin"
 end, ns.Constants.PVP_REDRAW_SECONDS)
+
+-- An event (or its attendance or assignments) arrived from the guild: the Raid tabs follow, once per interval.
+UI.EventsChanged = throttledRedraw(function()
+  return currentTab == "events" or currentTab == "raid"
+end, 1)
 
 -- A PvP season record changed here or arrived (`messageType`): the PvP tab follows like for a counter, and the Members
 -- tab too when the PvP officer flag moved.
@@ -308,8 +357,10 @@ function UI.BuildSidebar()
     sidebar:Release()
   end
   local role = UI.Role()
+  -- The rank or the roster may have changed: a tab that is not visible any more gives way to Home.
+  currentTab = UI.ResolveTab(currentTab)
   sidebar = Kit.Sidebar(window.body, {
-    groups = ns.ViewModel.NavGroups(role),
+    groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId()),
     value = currentTab,
     onSelect = function(value)
       UI.SelectTab(value)
@@ -340,6 +391,7 @@ local function onResize(width, height)
 end
 
 function UI.SelectTab(tab)
+  tab = UI.ResolveTab(tab)
   if tab ~= currentTab then
     banner = nil
     armed = nil
@@ -507,13 +559,17 @@ function UI.Toggle()
   UI.Redraw()
 end
 
--- Opens the window on `tab` (a value of ViewModel.TABS), or switches to it when the window is already open. `state`
--- (optional) tells the tab where to start (UI.nav): { eventId = ... } for the Raid and Loot tabs.
+-- Opens the window on `tab` (a value of ViewModel.TABS), or switches to it when the window is already open. A tab that
+-- is hidden or that this player does not see opens Home. `state` (optional) tells the tab where to start (UI.nav):
+-- { eventId = ... } for the Raid and Loot tabs.
 function UI.OpenTab(tab, state)
   if not ns.active or not ns.character then
     return
   end
+  tab = UI.ResolveTab(tab)
+  local rosters = UI.nav.rosters
   UI.nav = state or {}
+  UI.nav.rosters = rosters
   if UI.IsOpen() then
     UI.SelectTab(tab)
   else
