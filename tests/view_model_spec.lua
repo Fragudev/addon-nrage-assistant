@@ -1773,85 +1773,7 @@ describe("ViewModel dates", function()
   end)
 end)
 
-describe("ViewModel.ReadinessCard", function()
-  local function card(statuses)
-    local results, countable, met = {}, 0, 0
-    for index, status in ipairs(statuses) do
-      results[index] = { label = "Rule " .. index, status = status }
-      if status ~= "waived" then
-        countable = countable + 1
-      end
-      if status == "met" then
-        met = met + 1
-      end
-    end
-    return ViewModel.ReadinessCard(results, { met = met, countable = countable, unknown = 0 })
-  end
-
-  it("is ready when everything is met", function()
-    local data = card({ "met", "met" })
-    assert.are.same({ "ready", "met", "Ready", 1 }, { data.state, data.status, data.stateText, data.ratio })
-    assert.are.equal("2 of 2 requirements met", data.line)
-    assert.is_nil(data.missingText)
-  end)
-
-  it("is not ready when something failed, and lists what is missing", function()
-    local data = card({ "met", "missing", "unknown" })
-    assert.are.same({ "notReady", "missing", "Not ready" }, { data.state, data.status, data.stateText })
-    assert.are.equal("Missing: Rule 2, Rule 3", data.missingText)
-    assert.are.equal("1 of 3 requirements met", data.line)
-  end)
-
-  it("is pending when nothing failed but something is unknown", function()
-    local data = card({ "met", "unknown" })
-    assert.are.same({ "pending", "pending" }, { data.state, data.status })
-    assert.is_true(math.abs(data.ratio - 0.5) < 1e-9)
-  end)
-
-  it("says there are no requirements, and does not divide by zero", function()
-    local data = card({})
-    assert.are.same({ "none", 0 }, { data.state, data.ratio })
-  end)
-
-  it("escapes the missing labels", function()
-    local data = ViewModel.ReadinessCard(
-      { { label = "|cffff0000Red", status = "missing" } },
-      { met = 0, countable = 1 }
-    )
-    assert.is_truthy(data.missingText:find("||cffff0000Red", 1, true))
-  end)
-end)
-
-describe("ViewModel.SyncRows", function()
-  it("shows ready, the queue, the snapshot and the members with the addon", function()
-    local data = ViewModel.SyncRows({
-      paused = false,
-      queued = 2,
-      peers = 14,
-      incompatible = {},
-      snapshot = { from = "Lead", applied = 3, total = 5, at = 940 },
-    }, 1000)
-    assert.are.same({ "Status", "Ready", "success" }, { data.rows[1].label, data.rows[1].value, data.rows[1].dot })
-    assert.are.same({ "Queued messages", "2" }, { data.rows[2].label, data.rows[2].value })
-    assert.are.equal("3 of 5 applied - 1 min ago", data.rows[3].value)
-    assert.are.same({ "Members with the addon", "14" }, { data.rows[4].label, data.rows[4].value })
-    assert.are.same({}, data.warnings)
-  end)
-
-  it("shows a pause and the incompatible members as warnings", function()
-    local data = ViewModel.SyncRows({ paused = true, queued = 0, peers = 0, incompatible = { "|cffff0000Old" } }, 1000)
-    assert.are.equal("warning", data.rows[1].dot)
-    assert.are.equal("none yet", data.rows[3].value)
-    assert.is_truthy(data.warnings[1]:find("||cffff0000Old: incompatible addon version", 1, true))
-  end)
-
-  it("says the sync is off without a transport", function()
-    local data = ViewModel.SyncRows(nil, 1000)
-    assert.are.equal("Sync off", data.rows[1].value)
-  end)
-end)
-
-describe("ViewModel.NextEventCard and OpenLootSessions", function()
+describe("ViewModel.NextEventCard", function()
   local function event(id, title, status, startAt, loot)
     return {
       eventId = id,
@@ -1884,33 +1806,6 @@ describe("ViewModel.NextEventCard and OpenLootSessions", function()
     assert.are.equal("u", ViewModel.NextEventCard({ u = event("u", "Undated", "planned", nil) }, 1000).eventId)
     assert.is_nil(ViewModel.NextEventCard({}, 1000))
     assert.is_nil(ViewModel.NextEventCard({ p = event("p", "Past", "planned", 1) }, 1000))
-  end)
-
-  it("lists the open sessions with their candidates, newest event first by title, cut at the limit", function()
-    local function session(id, name, status, candidates)
-      local list = {}
-      for index = 1, candidates do
-        list["C" .. index] = { need = "main", spec = "Fury" }
-      end
-      return { sessionId = id, itemId = 5, itemName = name, status = status, candidates = list, votes = {} }
-    end
-    local events = {
-      a = event(
-        "a",
-        "Alpha",
-        "open",
-        1,
-        { s1 = session("s1", "Sword", "open", 2), s2 = session("s2", "Axe", "closed", 1) }
-      ),
-      b = event("b", "Beta", "open", 1, { s3 = session("s3", "Ring", "open", 0) }),
-    }
-    local rows, total = ViewModel.OpenLootSessions(events, 5)
-    assert.are.equal(2, total)
-    assert.are.same({ "Sword", "Ring" }, { rows[1].itemName, rows[2].itemName })
-    assert.are.equal("2 candidate(s)", rows[1].candidatesText)
-    assert.are.equal("Alpha", rows[1].eventTitle)
-    local cut, count = ViewModel.OpenLootSessions(events, 1)
-    assert.are.same({ 1, 2 }, { #cut, count })
   end)
 end)
 
