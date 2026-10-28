@@ -2,71 +2,12 @@ local _, ns = ...
 
 -- Profile (plan 3.2): the identity line, the two specs, the professions (primary and secondary), the remaining
 -- declared details and what is shared with the guild. There is no Save and no Publish button: a dropdown saves when it
--- changes, a text box when it loses the focus with a changed text, and every save is published by itself.
+-- changes, a text box when it loses the focus with a changed text, and every save is published by itself. The identity
+-- and specs cards are shared with Home (UI/Cards.lua).
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
 local ViewModel = ns.ViewModel
-
--- Saves one declared field, publishes it (the change is picked up by the automatic publication too) and says so.
-local function save(key, value)
-  local character = ns.character
-  local ok, reason = ns.ProfileService.SetField(ns.Platform, character.profile, key, value)
-  if ok then
-    if ns.comm then
-      ns.PublishService.PublishIfChanged(ns.comm, character, ns.Platform)
-    end
-    UI.Notify("success", L("Saved."))
-  else
-    UI.Notify("danger", L("Not saved: ") .. (ViewModel.PROFILE_SET_ERRORS[reason] or tostring(reason)))
-  end
-end
-
-local function specItems(optional)
-  local items = {}
-  if optional then
-    items[1] = { value = "", text = L("None") }
-  end
-  for _, role in ipairs(ns.ProfileService.ROLES) do
-    items[#items + 1] = { value = role, text = role }
-  end
-  return items
-end
-
-local function identityCard(page, profile)
-  local card = Kit.Card(page, {})
-  local stats = ViewModel.IdentityStats(profile, ns.Platform.GetIdentityKey())
-  for _, stat in ipairs(stats) do
-    if stat.color == "class" then
-      stat.color = Kit.Theme.ClassColor(stat.classToken)
-    end
-  end
-  Kit.StatGrid(card, { columns = 4, stats = stats })
-end
-
-local function specsCard(page, declared)
-  local card = Kit.Card(page, { title = L("Your declared details") })
-  local row = Kit.Row(card, { gap = 16 })
-  -- A legacy free text role that is not an allowed one stays unselected until the player picks one.
-  local field = Kit.Field(row, { label = L("Main spec"), layout = { weight = 1 } })
-  Kit.Dropdown(field, {
-    items = specItems(false),
-    value = ns.ProfileService.NormalizeRole(declared.role and declared.role.value),
-    placeholder = L("Pick a spec"),
-    onChange = function(value)
-      save("role", value)
-    end,
-  })
-  local second = Kit.Field(row, { label = L("Second spec"), layout = { weight = 1 } })
-  Kit.Dropdown(second, {
-    items = specItems(true),
-    value = ns.ProfileService.NormalizeRole(declared.role2 and declared.role2.value) or "",
-    placeholder = L("None"),
-    onChange = function(value)
-      save("role2", value)
-    end,
-  })
-end
 
 local function professionBlock(card, caption, list)
   if #list == 0 then
@@ -107,7 +48,7 @@ local function detailsCard(page, declared)
     text = declared.main and declared.main.value or "",
     maxLetters = ns.Constants.MAX_FIELD_LENGTH,
     onCommit = function(value)
-      save("main", value)
+      UI.SaveDeclared("main", value)
     end,
   })
   local notes = Kit.Field(row, { label = L("Notes (these stay on this computer)"), layout = { weight = 1 } })
@@ -115,7 +56,7 @@ local function detailsCard(page, declared)
     text = declared.notes and declared.notes.value or "",
     maxLetters = ns.Constants.MAX_FIELD_LENGTH,
     onCommit = function(value)
-      save("notes", value)
+      UI.SaveDeclared("notes", value)
     end,
   })
 end
@@ -149,8 +90,8 @@ UI.Register("profile", function(page)
     title = L("Profile"),
     description = L("What the guild knows about your character. Changes are shared by themselves."),
   })
-  identityCard(page, profile)
-  specsCard(page, declared)
+  UI.IdentityCard(page, profile)
+  UI.SpecsCard(page, declared)
   professionsCard(page, profile)
   detailsCard(page, declared)
   sharedCard(page, character)

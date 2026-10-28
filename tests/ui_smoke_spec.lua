@@ -59,6 +59,7 @@ local function load_window(locale)
     "Commands/BlacklistCommands",
     "Commands/RosterCommands",
     "UI/Main",
+    "UI/Cards",
     "UI/Tabs/Home",
     "UI/Tabs/Profile",
     "UI/Tabs/Readiness",
