@@ -208,3 +208,85 @@ describe("LootPopup controller countdown", function()
     assert.are.equal(0, #env.timers)
   end)
 end)
+
+describe("LootPopup.Pending", function()
+  local Roles = dofile("tests/support/roles.lua")
+
+  local function rosterEvent(id, rosterId)
+    return {
+      eventId = id,
+      title = id,
+      rosterId = rosterId,
+      loot = { [id] = { sessionId = id, itemName = "Item " .. id, status = "open", candidates = {}, votes = {} } },
+    }
+  end
+
+  local function buildFor(rank)
+    local fresh = { UI = { lootListeners = {} } }
+    for _, path in ipairs({
+      "Core/Constants",
+      "Core/Locale",
+      "Core/Validate",
+      "Domain/PermissionService",
+      "Domain/RosterService",
+      "Domain/EventModel",
+      "Domain/EventService",
+      "Domain/LootModel",
+      "Domain/LootService",
+      "UI/Kit/Theme",
+      "UI/Kit/Util",
+      "UI/Kit/Calendar",
+      "UI/ViewModel",
+      "UI/LootPopup",
+    }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", fresh)
+    end
+    local members, rosters = Roles.assignments(rank, "Me-Realm")
+    rosters.r2 = { id = "r2", name = "Alts", rev = 1 }
+    fresh.db = {
+      global = {
+        members = members,
+        rosters = rosters,
+        events = { own = rosterEvent("own", "r1"), other = rosterEvent("other", "r2") },
+      },
+    }
+    fresh.Platform = {
+      GetIdentityKey = function()
+        return "Me-Realm"
+      end,
+      GetOwnGuildRank = Roles.ranking(rank),
+    }
+    return fresh
+  end
+
+  local function ids(list)
+    local out = {}
+    for _, item in ipairs(list) do
+      out[#out + 1] = item.sessionId
+    end
+    table.sort(out)
+    return out
+  end
+
+  it("never asks a member or an alter", function()
+    for _, rank in ipairs({ "Member", "Alter" }) do
+      assert.are.same({}, ids(buildFor(rank).LootPopup.Pending({})), rank)
+    end
+  end)
+
+  it("asks roster, rl and officer about the sessions of the own roster only", function()
+    for _, rank in ipairs({ "Roster", "RL", "Officer" }) do
+      assert.are.same({ "own" }, ids(buildFor(rank).LootPopup.Pending({})), rank)
+    end
+  end)
+
+  it("asks the guild master and the co-guild master about every roster", function()
+    for _, rank in ipairs({ "GM", "CoGM" }) do
+      assert.are.same({ "other", "own" }, ids(buildFor(rank).LootPopup.Pending({})), rank)
+    end
+  end)
+
+  it("leaves out what was dismissed", function()
+    assert.are.same({}, ids(buildFor("Roster").LootPopup.Pending({ own = true })))
+  end)
+end)

@@ -56,6 +56,12 @@ end
 
 function TemplateCommands:SaveEvent(event, name)
   local ctx = self:Context()
+  if not ns.PermissionService.Can(ctx.role, "raid_manage") then
+    return Failure(error_line(ctx, "forbidden"))
+  end
+  if not ns.RosterService.MayAct(ctx.role, ctx.rosterId, event.rosterId) then
+    return Failure(error_line(ctx, "other_roster"))
+  end
   local template, reason = ns.TemplateService.Save(self.templates, event, name, ctx.now(), ctx.actor)
   if not template then
     return Failure(error_line(ctx, reason))
@@ -84,6 +90,9 @@ function TemplateCommands:ApplyToEvent(event, name)
 end
 
 function TemplateCommands:Delete(name)
+  if not ns.PermissionService.Can(self:Context().role, "raid_manage") then
+    return Failure(error_line(self:Context(), "forbidden"))
+  end
   local ok, reason = ns.TemplateService.Delete(self.templates, name, self:Context())
   if not ok then
     return Failure(error_line(self:Context(), reason))

@@ -456,19 +456,32 @@ describe("ViewModel raid tab helpers", function()
 end)
 
 describe("ViewModel loot tab helpers", function()
-  it("offers apply from roster up, and opening, voting and awarding to rl, officer, cogm and gm", function()
-    local roster = ViewModel.LootActions("roster")
-    assert.is_true(roster.apply)
-    assert.is_false(roster.open or roster.vote or roster.award)
+  it("offers opening, voting and awarding to rl, officer, cogm and gm, and nothing in the tab to the rest", function()
+    local roster = ViewModel.LootActions("roster", "r1")
+    assert.is_false(roster.apply or roster.open or roster.vote or roster.award)
     for _, role in ipairs({ "member", "alter" }) do
-      local actions = ViewModel.LootActions(role)
+      local actions = ViewModel.LootActions(role, "r1")
       assert.is_false(actions.apply or actions.open or actions.vote or actions.award, role)
     end
     for _, role in ipairs({ "rl", "officer", "cogm", "gm" }) do
-      local actions = ViewModel.LootActions(role)
+      local actions = ViewModel.LootActions(role, "r1")
       assert.is_true(actions.open and actions.apply and actions.vote and actions.award, role)
     end
     assert.is_false(ViewModel.LootActions(nil).apply)
+  end)
+
+  it("limits officer and rl to the events of the own roster, and gm and cogm to none", function()
+    local own, other, guildWide = { rosterId = "r1" }, { rosterId = "r2" }, {}
+    for _, role in ipairs({ "rl", "officer" }) do
+      assert.is_true(ViewModel.LootActions(role, "r1", own).vote, role)
+      assert.is_true(ViewModel.LootActions(role, "r1", guildWide).open, role)
+      local actions = ViewModel.LootActions(role, "r1", other)
+      assert.is_false(actions.open or actions.vote or actions.award or actions.apply, role)
+      assert.is_false(ViewModel.LootActions(role, nil, own).open, role)
+    end
+    for _, role in ipairs({ "gm", "cogm" }) do
+      assert.is_true(ViewModel.LootActions(role, nil, other).award, role)
+    end
   end)
 
   it("offers every need the model accepts, and only those", function()
@@ -712,7 +725,7 @@ describe("ViewModel loot popup helpers", function()
   end
 
   it("lists the open sessions the player has not answered, in a stable order", function()
-    local pending = ViewModel.PendingLoot(events(), "Me-Realm", {})
+    local pending = ViewModel.PendingLoot(events(), "Me-Realm", {}, "roster", "r1")
     assert.are.equal(2, #pending)
     assert.are.equal("Sulfuras", pending[1].itemName)
     assert.are.equal("Thunderfury", pending[2].itemName)
@@ -723,14 +736,41 @@ describe("ViewModel loot popup helpers", function()
   it("leaves out sessions already answered, passed on or closed", function()
     local data = events()
     data.a.loot.s1.candidates["Me-Realm"] = { spec = "Fury", need = "main" }
-    local pending = ViewModel.PendingLoot(data, "Me-Realm", { s2 = true })
+    local pending = ViewModel.PendingLoot(data, "Me-Realm", { s2 = true }, "roster", "r1")
     assert.are.equal(0, #pending)
   end)
 
   it("still offers a session someone else applied to", function()
     local data = events()
     data.a.loot.s1.candidates["Other-Realm"] = { spec = "Fury", need = "main" }
-    assert.are.equal(2, #ViewModel.PendingLoot(data, "Me-Realm", {}))
+    assert.are.equal(2, #ViewModel.PendingLoot(data, "Me-Realm", {}, "roster", "r1"))
+  end)
+
+  it("returns nothing to a member and an alter", function()
+    for _, role in ipairs({ "member", "alter", "stranger" }) do
+      assert.are.equal(0, #ViewModel.PendingLoot(events(), "Me-Realm", {}, role, "r1"), role)
+    end
+    assert.are.equal(0, #ViewModel.PendingLoot(events(), "Me-Realm", {}, nil, nil))
+  end)
+
+  it("returns the sessions of the own roster only to roster, rl and officer", function()
+    local data = events()
+    data.a.rosterId, data.b.rosterId = "r1", "r2"
+    data.b.loot.s3.status = "open"
+    for _, role in ipairs({ "roster", "rl", "officer" }) do
+      assert.are.equal(2, #ViewModel.PendingLoot(data, "Me-Realm", {}, role, "r1"), role)
+      assert.are.equal(0, #ViewModel.PendingLoot(data, "Me-Realm", {}, role, "r3"), role)
+      assert.are.equal(0, #ViewModel.PendingLoot(data, "Me-Realm", {}, role, nil), role)
+    end
+  end)
+
+  it("returns the sessions of every roster to gm and cogm", function()
+    local data = events()
+    data.a.rosterId, data.b.rosterId = "r1", "r2"
+    data.b.loot.s3.status = "open"
+    for _, role in ipairs({ "gm", "cogm" }) do
+      assert.are.equal(3, #ViewModel.PendingLoot(data, "Me-Realm", {}, role, nil), role)
+    end
   end)
 
   it("picks the spec for a one-click candidacy: declared role, else class, else a placeholder", function()

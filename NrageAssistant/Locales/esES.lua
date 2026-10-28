@@ -458,7 +458,6 @@ ns.Locale.Register("es", {
   ["No date"] = "Sin fecha",
   ["Who you are, your specs and your layer."] = "Quién eres, tus especializaciones y tu capa.",
   ["A raid leader creates them in the Raid tab."] = "Un líder de raid los crea en la pestaña Raid.",
-  ["All rosters"] = "Todos los rosters",
   ["An admin has to assign you one."] = "Un administrador tiene que asignarte uno.",
   ["Confirm award"] = "Confirmar el reparto",
   ["Confirm: close without awarding"] = "Confirmar: cerrar sin repartir",
