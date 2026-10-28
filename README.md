@@ -87,8 +87,9 @@ The addon is published on CurseForge, but it only works for Nrage:
 - It **disables itself** for characters outside Nrage (Alliance, PvP ruleset) and does not register its message prefix
   there; the login message says why.
 - Shared data is accepted only from guild members, and edits only from members whose role allows them.
-- The **guild master is the only admin**, recognised by guild rank index 0, never by a name. Every other role (raid
-  leader, loot council) and the PvP officer flag are assigned by the guild master in the *Members* tab.
+- Your role is your **guild rank**, matched by name (`GM`, `CoGM`, `Oficial`, `RL`, `Roster`, `Miembro`, `Alter`); the
+  guild master is recognised by rank index 0, never by a name. Roles are changed in the game, not in the addon, and a
+  rank with any other name counts as Alter.
 
 ## Features
 
@@ -113,7 +114,7 @@ The addon is published on CurseForge, but it only works for Nrage:
 ### PvP and PvP seasons
 
 - **Kill counter** split into open world and battleground, a guild **kill ranking** and a **recent kills** feed.
-- **Seasons:** missions approved by admins and PvP officers, a points ranking and end-of-season rewards.
+- **Seasons:** missions approved by the GM and CoGM, a points ranking and end-of-season rewards.
 
 ### Guild tools
 
