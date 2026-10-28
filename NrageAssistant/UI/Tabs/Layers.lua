@@ -103,14 +103,12 @@ local function swapCard(page, view, swap)
   end
 end
 
-UI.Register("layers", function(page)
-  Kit.PageHeader(page, {
-    title = L("Layers"),
-    description = L("Your layer, the layers of your guildmates and a swap when you want to change."),
-  })
+-- The sections of the layers, drawn into `parent` (the Layers tab and the Home tab): your layer, the layers of the
+-- continent, the running swap and the note on how the layer is read.
+function UI.DrawLayers(parent)
   local view, swap = viewOf()
 
-  local card = Kit.Card(page, { title = L("Your layer"), gap = 8 })
+  local card = Kit.Card(parent, { title = L("Your layer"), gap = 8 })
   Kit.Label(card, { text = view.yourLayer, wrap = true })
   Kit.Switch(card, {
     label = L("Share my layer"),
@@ -122,9 +120,9 @@ UI.Register("layers", function(page)
     end,
   })
 
-  layersCard(page, view)
-  swapCard(page, view, swap)
-  Kit.Label(page, {
+  layersCard(parent, view)
+  swapCard(parent, view, swap)
+  Kit.Label(parent, {
     text = L("The layer is read from the creatures you target or mouse over, and shared with the guild only.")
       .. " "
       .. L("A swap needs a guildmate on that layer to invite you; leaving the group afterwards is your choice."),
@@ -132,4 +130,12 @@ UI.Register("layers", function(page)
     color = "muted",
     wrap = true,
   })
+end
+
+UI.Register("layers", function(page)
+  Kit.PageHeader(page, {
+    title = L("Layers"),
+    description = L("Your layer, the layers of your guildmates and a swap when you want to change."),
+  })
+  UI.DrawLayers(page)
 end)
