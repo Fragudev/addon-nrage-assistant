@@ -4,7 +4,7 @@ Source images. They are **not** shipped in the addon zip (only `NrageAssistant/`
 
 | File | What | Used for |
 |---|---|---|
-| `nrage_logo.png` | Nrage guild logo, white on transparent, 65x122 | source of `NrageAssistant/Media/nrage_logo.tga`: window header, minimap button, AddOns list icon |
+| `nrage_logo.png` | Nrage guild logo, black angular face on a solid bright red blob, transparent background, 361x394 | source of `NrageAssistant/Media/nrage_logo.tga`: window header, minimap button, AddOns list icon |
 | `alliance_logo.png` | Alliance lion, dark blue on transparent, 732x909 | not used by the addon yet |
 
 ## Regenerating the game texture
@@ -17,4 +17,4 @@ swift tools/make_tga.swift assets/nrage_logo.png NrageAssistant/Media/nrage_logo
 ```
 
 The last two arguments are the canvas size in pixels (a power of two) and the margin as a fraction of it.
-The logo is white, so it only shows on a dark background: the minimap button and the window header both have one.
+The logo carries its own coloured background, so it reads on both light and dark surfaces.
