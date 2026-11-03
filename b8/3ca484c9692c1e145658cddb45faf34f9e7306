@@ -1,0 +1,19 @@
+assets/README.md
+  s_2ecaf1bd7473f5::t_823a7f1086ad89 7,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "b83ca484c9692c1e145658cddb45faf34f9e7306",
+  "prompts": {},
+  "sessions": {
+    "s_2ecaf1bd7473f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa4f8e83a0a3908b4",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
