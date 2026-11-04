@@ -1,6 +1,6 @@
 # NRAGE style plan
 
-This plan applies the guild's web style (`guia-de-estilo-nrage.md`, "the guide") to the addon. It is written so that an implementing agent can pick it up with no other context. **Status: approved by the owner on 2026-11-04. Implement phase by phase, following section 6.**
+This plan applies the guild's web style (`docs/NRAGE_STYLE_GUIDE.md`, "the guide") to the addon. It is written so that an implementing agent can pick it up with no other context. **Status: approved by the owner on 2026-11-04. Implement phase by phase, following section 6.**
 
 - **Visual reference:** the Design canvas at https://claude.ai/artifact/U4aUo3uAXjK3jL4zpTi2eR, restyled on 2026-11-04. It uses web fonts and CSS for the cut corners and the glow, so it shows the target, not the exact rendering in the client. When the mockup and this text disagree, this text wins.
 - **What changes:** the look of the kit (`NrageAssistant/UI/Kit`): palette, fonts, cut corners, glow, gradients, bars.
