@@ -1,0 +1,27 @@
+NrageAssistant/NrageAssistant.toc
+  s_a7943e2b13c225::t_de8a0e1222d620 83
+NrageAssistant/UI/Kit/Shape.lua
+  s_a7943e2b13c225::t_07fedbe64b5868 1-392
+NrageAssistant/UI/Kit/Theme.lua
+  s_a7943e2b13c225::t_45d3e35dd226f4 72-108
+tests/kit_shape_spec.lua
+  s_a7943e2b13c225::t_2110e29336bb39 1-292
+tests/support/fake_frames.lua
+  s_a7943e2b13c225::t_68c7e761ecafaa 92-103,144,146,198,217-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "697ba7295f41bcc49e460be7cdde4d2f0da7ea8c",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
