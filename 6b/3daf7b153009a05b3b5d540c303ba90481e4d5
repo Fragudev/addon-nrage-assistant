@@ -1,0 +1,14 @@
+NrageAssistant/UI/Kit/Theme.lua
+  h_7d99c7b8818613 80-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "6b3daf7b153009a05b3b5d540c303ba90481e4d5",
+  "prompts": {},
+  "humans": {
+    "h_7d99c7b8818613": {
+      "author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
