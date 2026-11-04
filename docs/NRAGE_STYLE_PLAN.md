@@ -52,7 +52,8 @@ Follow this plan where the guide's section 7 disagrees.
 | D2 | How to tell destructive actions from primary ones | **Decided 2026-11-04:** primary always glows. `dangerSolid` is a dark `blood` fill with a `danger` border and text, and never glows | Rejected: a solid light red fill, which looks like a primary button |
 | D3 | Capitals and letter spacing | **Decided 2026-11-04:** baked into font files (section 3.2) | Fallback only if P0 rows 13 or 14 fail: `Util.Upper` at runtime with no spacing |
 | D4 | Accent setting | **Decided 2026-11-04:** removed, the brand color is fixed | Rejected: keeping it unused |
-| D5 | Ambience (grain, vignette, corner glow) | **Decided 2026-11-04:** only the corner glow on the main window. The owner decides grain and vignette in P5, from screenshots | Rejected: all of it from the start, or none |
+| D5 | Ambience (grain, vignette, corner glow) | **Decided 2026-11-04:** the owner decides grain and vignette in P5, from screenshots. The corner glow is replaced by the background of D6 | Rejected: all of it from the start, or none |
+| D6 | Window background | **Requested 2026-11-04:** the castle of the web (`hero.webp`) behind the main window, at 50 % opacity, chosen by the owner on the mockup (section 5.7) | |
 
 ---
 
@@ -247,6 +248,18 @@ Not cut: table rows, list rows, nav rows, dividers, scrollbars, switch and check
 - Selected `NavRow`: red bar with a small glow, `selected` wash, label in `text`.
 - Header logo: a `glow` behind it, at alpha 0.5.
 
+### 5.7 Window background (D6)
+
+Source: `https://nrage.vercel.app/assets/scenes/hero.webp`, 2560x1429. WoW cannot load WebP, and textures need power-of-two sizes.
+
+- **Asset:** `Media/Backgrounds/hero.tga`, 1024x512, about 2 MB. `tools/make_tga.swift` only writes square canvases, so add a width and height mode to it, or write the file from `tools/make_shapes.py`. It is squeezed to 2:1 on purpose: `SetTexCoord` restores the proportions at runtime. Commit only the TGA. Before P6, the owner confirms the guild may publish this art on CurseForge.
+- **Fit:** "cover", as in CSS. On every resize, compute the texture coordinates from the window's aspect ratio against the source's 2560:1429, centered, so the castle never stretches.
+- **Opacity:** one token, `Theme.metrics.sceneAlpha` = 0.50, over the solid `bg`. Text that sits straight on the image (page titles and descriptions, labels between cards) is the risk: check it in-game in P4 on the brightest part of the sky. If it is hard to read, darken only the page header band, and keep this value.
+- **Cut corners:** a rectangle would show in the cut corners, and masks are not used. `Shape:SetImage(path, alpha, coords)` draws the image on the middle band and the two middle strips only, leaving the four corner squares to the solid fill. At this opacity the 8-unit squares do not show.
+- **Translucent surfaces, main window only:** header and sidebar `side` @ 0.82, cards `panel` gradient @ 0.88 to 0.90, or the image would only show in the gaps.
+- **Stay opaque:** `Modal`, `Popup`, `Menu`, the calendar and dropdown lists, because text under them would bleed through. They use new solid tokens.
+- **Where:** `Window.New({ scene = true })`, set only in `UI/Main.lua`. `VotingFrame`, `LootPopup` and `LayerPopup` keep the plain ground, because they sit over the game during raids.
+
 ### 5.6 Not built
 
 Nothing in the addon would use these today. Add one only with a real screen for it: Discord featured button, "EN DIRECTO" chip, stamps ("VICTORIA"), countdown boxes, difficulty colors, comic illustration and embers.
@@ -265,8 +278,8 @@ One PR per phase, each merged before the next starts. Every phase passes what CI
 | **P1b** semantics | Sonnet | The `accent` to `info` moves, raw washes to tokens, `Badge` and `Chip` font rule | `Controls`, `Shell`, `Data`, view models, tabs, specs | No literal `SetColorTexture(1, 1, 1` left in `UI/` |
 | **P2** primitive | Sonnet | `Kit.Shape`, `Theme.Gradient`, fakes | `Shape.lua`, `Theme.lua`, TOC, `tests/support/fake_frames.lua`, new `kit_shape_spec.lua` | Unit tests pass; no widget uses it yet |
 | **P3** surfaces | Sonnet | The table in 5.3, except windows | `Core.lua`, `Controls.lua`, `Text.lua`, `Shell.lua` (popups) | Cards, buttons, fields cut in-game, hover works |
-| **P4** shell | Sonnet | `Window`, `LootPopup`, `LayerPopup`, sidebar, header, section 5.5, `ProgressBar` | `Shell.lua`, popups, `Text.lua`, `Tabs/PvP.lua` | Every window cut, no corner spill, bars with ticks |
-| **P5** finish | Haiku | Corner glow (D5), grain and vignette only if the owner asks after seeing screenshots, remove `StyleProbe`, docs, tone pass | `Locales/esES.lua`, docs, `README.md` | See below |
+| **P4** shell | Sonnet | `Window`, `LootPopup`, `LayerPopup`, sidebar, header, sections 5.5 and 5.7, `ProgressBar` | `Shell.lua`, popups, `Text.lua`, `Tabs/PvP.lua` | Every window cut, no corner spill, bars with ticks |
+| **P5** finish | Haiku | Grain and vignette only if the owner asks after seeing screenshots, remove `StyleProbe`, docs, tone pass | `Locales/esES.lua`, docs, `README.md` | See below |
 
 ### P2 test requirements
 
@@ -285,6 +298,28 @@ One PR per phase, each merged before the next starts. Every phase passes what CI
 - **Tone (Haiku):** rewrite page descriptions and empty states in `Locales/esES.lua` in the guide's voice: Spain Spanish, second person, short. Do not touch labels, errors or anything that names a rule or a number. The owner reviews the diff.
 - **Docs:** add a pointer to this plan at the top of sections 1.1 to 1.3 of `docs/REDESIGN_PLAN.md`. Move the guide to `docs/NRAGE_STYLE_GUIDE.md`. Update `assets/README.md`, and `docs/USER_GUIDE.md` if it mentions colors.
 - **Release:** the screenshots in `assets/curseforge` show the old look. The owner retakes them. Add release notes in `release-notes/`.
+
+---
+
+### P6: release 1.0.0
+
+Requested by the owner on 2026-11-04. It runs after P5 is merged with CI green, and it moves the addon on CurseForge from beta to release.
+
+**Header badge.** `ns.GetVersion()` returns `dev` only when the TOC still holds `@project-version@`, which means an unpackaged checkout. A packaged build already shows its tag.
+
+- `dev` must never show in the header: `UI/Main.lua:511` passes no version to the window when `ns.GetVersion()` is `dev`, and `Window` draws no badge without one. A packaged build shows `v1.0.0`.
+- The minimap tooltip, the login line and `/nrage version` keep `dev`: they are for troubleshooting.
+- Style the badge with tokens: `Shell.lua:859` is one of the raw washes of P1b.
+- Add a test for both cases.
+
+**Steps (Haiku, one PR):**
+
+1. Add `release-notes/v1.0.0.md`. `release.yml` stops without it.
+2. Remove the beta wording: the status badge and the note in `README.md` (lines 17 and 79), the **Beta** item in `docs/CURSEFORGE_DESCRIPTION.md`. The owner pastes the description on CurseForge by hand.
+3. Merge with CI green, then push the tag `v1.0.0` from `main`. A tag with no `-` publishes as `release` on CurseForge and as a normal GitHub release, with no workflow change.
+4. Check that the workflow finished, and that CurseForge lists the file as Release.
+
+**Before tagging, the owner confirms:** the TOC `## Interface` (16001) and the beta values in `docs/API_NOTES.md` still match the client, because that file says they must be measured again at launch. `release.yml` derives the CurseForge game version from that number.
 
 ---
 
