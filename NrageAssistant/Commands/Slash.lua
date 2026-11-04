@@ -89,6 +89,10 @@ end
 local COMMANDS = {
   help = HelpCommand,
   pvp = PvPCommand,
+  -- Temporary (docs/NRAGE_STYLE_PLAN.md, removed in P5): the style measurement frame.
+  styleprobe = function()
+    ns.StyleProbe.Handle()
+  end,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     if sub == "identity" then

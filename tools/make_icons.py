@@ -77,6 +77,26 @@ class Arc(Shape):
         return edge(min(ends), self.width / 2)
 
 
+class Polygon(Shape):
+    """A filled convex polygon."""
+
+    def __init__(self, *points):
+        self.points = list(zip(points[0::2], points[1::2]))
+        self.cx = sum(x for x, _ in self.points) / len(self.points)
+        self.cy = sum(y for _, y in self.points) / len(self.points)
+
+    def coverage(self, px, py):
+        worst = -99.0
+        for (x1, y1), (x2, y2) in zip(self.points, self.points[1:] + self.points[:1]):
+            length = math.hypot(x2 - x1, y2 - y1)
+            # Distance outside this edge's half-plane, signed so that the centre is on the inside.
+            d = ((px - x1) * (y2 - y1) - (py - y1) * (x2 - x1)) / length
+            if (self.cx - x1) * (y2 - y1) - (self.cy - y1) * (x2 - x1) > 0:
+                d = -d
+            worst = max(worst, d)
+        return edge(worst, 0)
+
+
 def edge(distance, half_width):
     """1 inside the stroke, 0 outside, with a one pixel soft edge."""
     return max(0.0, min(1.0, 0.5 + half_width - distance))
@@ -84,6 +104,14 @@ def edge(distance, half_width):
 
 def rect(x, y, w, h, width=STROKE):
     return Line(x, y, x + w, y, x + w, y + h, x, y + h, width=width, closed=True)
+
+
+def _hex(cx, cy, r):
+    """The corners of a flat-top regular hexagon, as a flat list of x, y."""
+    corners = []
+    for angle in range(0, 360, 60):
+        corners += [cx + r * math.cos(math.radians(angle)), cy - r * math.sin(math.radians(angle))]
+    return corners
 
 
 ICONS = {
@@ -158,14 +186,18 @@ ICONS = {
     "circle": [Circle(16, 16, 11)],
     "send": [Line(5, 16, 27, 16), Line(19, 8, 27, 16, 19, 24)],
     "disc": [Circle(16, 16, 15.5, fill=True)],
+    "hex": [Polygon(*_hex(16, 16, 14))],
+    "hex-outline": [Line(*_hex(16, 16, 13.5), closed=True)],
+    "diamond": [Polygon(16, 3, 29, 16, 16, 29, 3, 16)],
 }
 
 
-def render(shapes):
+def render(shapes, size=SIZE):
+    """Rasterizes the shapes into size x size alpha values (2x2 samples per pixel, coordinates in pixels)."""
     pixels = []
-    for row in range(SIZE):
+    for row in range(size):
         line = []
-        for col in range(SIZE):
+        for col in range(size):
             alpha = 0.0
             for sub_y in (0.25, 0.75):
                 for sub_x in (0.25, 0.75):
@@ -178,8 +210,9 @@ def render(shapes):
 
 
 def write_tga(path, alphas):
-    # 32 bit uncompressed true-colour image, origin at the bottom left, 8 alpha bits.
-    header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, SIZE, SIZE, 32, 8)
+    # 32 bit uncompressed true-colour image, origin at the bottom left, 8 alpha bits. Square, any size.
+    size = len(alphas)
+    header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, size, size, 32, 8)
     body = bytearray()
     for row in reversed(alphas):
         for alpha in row:
