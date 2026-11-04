@@ -1,0 +1,23 @@
+NrageAssistant/UI/LayerPopup.lua
+  s_a7943e2b13c225::t_37901fdaf614a8 198-201,249
+NrageAssistant/UI/LootPopup.lua
+  s_a7943e2b13c225::t_a6c604926008af 273-276,319
+tests/secondary_frames_spec.lua
+  s_a7943e2b13c225::t_edb08fe4b247bf 25,135-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "2dc1b7d4ad4747d8fbaf0991f4f65e6e2e9e4aec",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
