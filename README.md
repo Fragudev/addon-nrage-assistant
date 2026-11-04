@@ -220,8 +220,9 @@ workflow by hand with the existing tag to publish it again.
 
 ## Credits and licence
 
-- **Fira Sans** (Regular, Medium and SemiBold) by The Mozilla Foundation and Telefonica S.A., licensed under the SIL
-  Open Font License 1.1: `NrageAssistant/Media/Fonts/` (the licence is `OFL.txt` in the same folder).
+- **Cinzel** by The Cinzel Project Authors and **Barlow Condensed** by The Barlow Project Authors, licensed under the SIL
+  Open Font License 1.1: `NrageAssistant/Media/Fonts/` (the licences are `OFL-Cinzel.txt` and `OFL-BarlowCondensed.txt`
+  in the same folder). `NrageDisplay`, `NrageLabel` and `NrageButton` are modified copies made by `tools/make_fonts.py`.
 - The icons in `NrageAssistant/Media/Icons/` are our own simple shapes, drawn by `tools/make_icons.py`.
 - The interface is built with the addon's own widget kit (`NrageAssistant/UI/Kit/`). No code, texture or font was
   copied from other addons.
