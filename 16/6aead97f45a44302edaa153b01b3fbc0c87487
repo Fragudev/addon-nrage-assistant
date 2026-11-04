@@ -1,0 +1,55 @@
+NrageAssistant/UI/Kit/Controls.lua
+  s_a7943e2b13c225::t_bcc47799f0f817 67,102-104,116,172-173,302-303,328,337-338,353,361,668
+NrageAssistant/UI/Kit/Data.lua
+  s_a7943e2b13c225::t_d526882ab09183 469
+NrageAssistant/UI/Kit/Shell.lua
+  s_a7943e2b13c225::t_ce5d1cdef1658d 335,587,859
+NrageAssistant/UI/Kit/Text.lua
+  s_a7943e2b13c225::t_435aa688a71e34 236-237,247-248,344,425-426
+NrageAssistant/UI/Kit/Theme.lua
+  s_a7943e2b13c225::t_3fa3510aa39a6b 95-98
+NrageAssistant/UI/Tabs/Layers.lua
+  s_a7943e2b13c225::t_19fabb15389925 57
+NrageAssistant/UI/Tabs/Loot.lua
+  s_a7943e2b13c225::t_57f20b63b03eff 200,296-301,312-317
+NrageAssistant/UI/Tabs/Members.lua
+  s_a7943e2b13c225::t_54f315c0471718 183,327,338
+NrageAssistant/UI/Tabs/Professions.lua
+  s_a7943e2b13c225::t_a61c5c1445c3a1 76,223
+NrageAssistant/UI/Tabs/PvP.lua
+  s_a7943e2b13c225::t_875588518313e0 134,291,419-422,560,600-603
+NrageAssistant/UI/Tabs/Raid.lua
+  s_a7943e2b13c225::t_dddeeab516f672 654
+NrageAssistant/UI/Tabs/Rules.lua
+  s_a7943e2b13c225::t_c1d8b85eb9cc52 160
+NrageAssistant/UI/ViewModelGuild.lua
+  s_a7943e2b13c225::t_e60680d9cb9849 203-207
+NrageAssistant/UI/ViewModelHome.lua
+  s_a7943e2b13c225::t_837220a837c6f6 230
+NrageAssistant/UI/ViewModelRaid.lua
+  s_a7943e2b13c225::t_7c58d57bee7166 402
+NrageAssistant/UI/VotingFrame.lua
+  s_a7943e2b13c225::t_973120adbd780b 211
+tests/kit_helpers_spec.lua
+  s_a7943e2b13c225::t_70ccb620229cec 91-94
+tests/kit_widgets_spec.lua
+  s_a7943e2b13c225::t_4c83569a37f318 373-408
+tests/view_model_spec.lua
+  s_a7943e2b13c225::t_4eeb290c0c76d0 2294,2746
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "166aead97f45a44302edaa153b01b3fbc0c87487",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
