@@ -1,0 +1,23 @@
+NrageAssistant/Commands/Slash.lua
+  s_a7943e2b13c225::t_a6b5244d6765b4 92-95
+NrageAssistant/Core/StyleProbe.lua
+  s_a7943e2b13c225::t_2cbff851eb385f 1-303
+NrageAssistant/NrageAssistant.toc
+  s_a7943e2b13c225::t_257ff2984bcd86 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "0438484af41e0a0e61e9a3f8d7776ec1b0971a82",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
