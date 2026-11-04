@@ -75,3 +75,4 @@ during an encounter.
 - **Encounters:** changes made while the game blocks addon messages wait in a queue and go out when the fight ends.
 - **Privacy:** your character data goes only to guildmates running the addon. Your position is shared only if you
   turn it on, and guildmates forget it after 60 seconds.
+- **Problems:** report them on GitHub with the output of `/nrage debug info`.

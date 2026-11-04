@@ -6,6 +6,7 @@ local function load_kit()
     "Core/Locale",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
+    "UI/Kit/Shape",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
     "UI/Kit/Icons",
@@ -144,6 +145,46 @@ describe("Kit.Util", function()
     assert.are.equal(10, Util.Clamp(40, 0, 10))
     assert.are.equal(5, Util.Clamp(5, 0, 10))
     assert.are.equal(3, Util.Round(2.5))
+  end)
+
+  describe("CoverCoords", function()
+    local function near(expected, actual)
+      for index = 1, 4 do
+        assert.is_true(math.abs(expected[index] - actual[index]) < 1e-9, index)
+      end
+    end
+
+    it("shows the whole image when the frame has the aspect of the source", function()
+      near({ 0, 1, 0, 1 }, Util.CoverCoords(1280, 714.5, 2560, 1429))
+    end)
+
+    it("crops the sides of a taller frame, centered, so the art is never stretched", function()
+      -- 1000x640 is 1.5625; the source is 2560:1429 (1.7915). The visible share of the width is 1.5625 / 1.7915.
+      local coords = Util.CoverCoords(1000, 640, 2560, 1429)
+      local shown = (1000 / 640) / (2560 / 1429)
+      near({ (1 - shown) / 2, 1 - (1 - shown) / 2, 0, 1 }, coords)
+      assert.is_true(coords[1] > 0.05 and coords[1] < 0.07)
+    end)
+
+    it("crops the top and the bottom of a wider frame, centered", function()
+      local coords = Util.CoverCoords(2000, 500, 2560, 1429)
+      local shown = (2560 / 1429) / (2000 / 500)
+      near({ 0, 1, (1 - shown) / 2, 1 - (1 - shown) / 2 }, coords)
+    end)
+
+    it("keeps the proportions of the source whatever the frame is", function()
+      for _, size in ipairs({ { 760, 480 }, { 1000, 640 }, { 1800, 700 }, { 300, 900 } }) do
+        local c = Util.CoverCoords(size[1], size[2], 2560, 1429)
+        local texturePixels = { 2560 * (c[2] - c[1]), 1429 * (c[4] - c[3]) }
+        assert.is_true(math.abs(texturePixels[1] / texturePixels[2] - size[1] / size[2]) < 1e-9)
+      end
+    end)
+
+    it("falls back to the whole image without a usable size", function()
+      assert.are.same({ 0, 1, 0, 1 }, Util.CoverCoords(0, 100, 2560, 1429))
+      assert.are.same({ 0, 1, 0, 1 }, Util.CoverCoords(100, 100, 0, 0))
+      assert.are.same({ 0, 1, 0, 1 }, Util.CoverCoords(nil, nil, 2560, 1429))
+    end)
   end)
 
   it("distributes the width between fixed and weighted columns without losing a unit", function()

@@ -65,6 +65,7 @@ Theme.colors = {
 -- Pairs of colors for the surfaces drawn as a gradient (plan 5.1). `bar` has three stops.
 Theme.gradients = {
   panel = { hex("140405"), hex("0C0203") },
+  panelSolid = { hex("140405"), hex("0C0203") },
   primary = { hex("FF2236"), hex("C3000F") },
   bar = { hex("7A000B"), hex("FF0019"), hex("FF7A5A") },
 }
@@ -76,7 +77,8 @@ function Theme.Color(name, alpha)
 end
 
 -- The old and the new SetGradient disagree on the order of VERTICAL, and which end `minColor` takes there has not
--- been measured in the game (StyleProbe row 15). The assumption is this one line: true means minColor is the bottom.
+-- been measured in the game (plan section 4, row 15). The assumption is this one line:
+-- true means minColor is the bottom.
 local VERTICAL_MIN_AT_BOTTOM = true
 
 -- A gradient on `texture` from `from` (the left or the top) to `to`, both { r, g, b, a }. Tries the ColorMixin form
@@ -201,7 +203,7 @@ Theme.metrics = {
   contentTop = 26,
   contentSide = 30,
   blockGap = 20,
-  card = { padX = 20, padY = 18, gap = 14 },
+  card = { padX = 20, padY = 18, gap = 14, alpha = 0.9, glow = 0.3 },
   button = 30,
   buttonPrimary = 34,
   buttonGhost = 22,
@@ -214,6 +216,13 @@ Theme.metrics = {
   chip = 22,
   chipHero = 40,
   scrollbar = 6,
+  -- The window scene (plan 5.7): its alpha over the solid ground, the alpha of the header and the sidebar over it,
+  -- and the size of the original art, whose aspect the "cover" fit needs (the file is squeezed to 1024x512).
+  sceneAlpha = 0.5,
+  sceneSurfaceAlpha = 0.82,
+  sceneSource = { 2560, 1429 },
+  -- Alpha of the four copies behind a glowing text (plan 5.5, plan section 4, row 19).
+  glowTextAlpha = 0.35,
 }
 
 -- Cinzel and Barlow Condensed (SIL OFL 1.1, Media/Fonts/OFL-*.txt). The label, button and display files are

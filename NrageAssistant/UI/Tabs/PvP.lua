@@ -323,7 +323,7 @@ local function seasonView(page)
 
   local card = Kit.Card(page, { title = L("Active season"), gap = 12 })
   local head = Kit.Row(card, { gap = 12, align = "center" })
-  Kit.Label(head, { text = summary.name, style = "hero", layout = { weight = 1 } })
+  Kit.Label(head, { text = summary.name, style = "hero", glow = true, layout = { weight = 1 } })
   Kit.Label(head, {
     text = summary.range .. " \194\183 " .. summary.status,
     style = "small",
@@ -391,7 +391,13 @@ local function drawMissionCard(page, card)
     local line = Kit.Row(box, { gap = 8, layout = { gap = 8 } })
     Kit.Label(line, { text = bar.label, style = "small", color = "dim", layout = { weight = 1 } })
     Kit.Label(line, { text = bar.text, style = "small", layout = { width = "auto" } })
-    Kit.ProgressBar(box, { value = bar.ratio, color = bar.complete and "success" or "accent", layout = { gap = 4 } })
+    Kit.ProgressBar(box, {
+      value = bar.ratio,
+      color = bar.complete and "success" or "accent",
+      xp = true,
+      height = 10,
+      layout = { gap = 4 },
+    })
   end
 
   local actions = Kit.Row(box, { gap = 10, align = "center" })

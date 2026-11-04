@@ -21,6 +21,29 @@ function Util.Round(value)
   return math.floor(value + 0.5)
 end
 
+-- Texture coordinates { left, right, top, bottom } that fill a `width` x `height` frame with an image of
+-- `sourceWidth` x `sourceHeight` the way CSS "cover" does: scaled until it covers, centered, the overflow cropped.
+-- The coordinates are relative to the file, so they hold for a texture that was squeezed to a power of two as long as
+-- the source size given here is the size of the original art. A frame or source with no size gets the whole image.
+function Util.CoverCoords(width, height, sourceWidth, sourceHeight)
+  if not (width and height and sourceWidth and sourceHeight) or width <= 0 or height <= 0 then
+    return { 0, 1, 0, 1 }
+  end
+  if sourceWidth <= 0 or sourceHeight <= 0 then
+    return { 0, 1, 0, 1 }
+  end
+  local frameAspect, sourceAspect = width / height, sourceWidth / sourceHeight
+  if frameAspect > sourceAspect then
+    -- Wider than the art: all of its width, a centered band of its height.
+    local shown = sourceAspect / frameAspect
+    local margin = (1 - shown) / 2
+    return { 0, 1, margin, 1 - margin }
+  end
+  local shown = frameAspect / sourceAspect
+  local margin = (1 - shown) / 2
+  return { margin, 1 - margin, 0, 1 }
+end
+
 -- Splits `total` units between columns. Each spec is { width = n } (fixed), { weight = w } (a share of what is
 -- left, default 1) or { width = n, min = m }. `gap` goes between columns. Returns one width per spec; the weighted
 -- columns always add up to exactly what the fixed ones and the gaps leave, and nothing is ever negative.
