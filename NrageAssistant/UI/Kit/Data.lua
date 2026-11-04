@@ -466,7 +466,7 @@ Kit.Define("ListRow", {
       obj.chip = Kit.StatusChip(obj, { status = opts.status, icon = opts.icon, size = Theme.metrics.chip })
     end
     if opts.badge then
-      obj.badge = Kit.Badge(obj, { text = opts.badge.text, color = opts.badge.color })
+      obj.badge = Kit.Badge(obj, { text = opts.badge.text, color = opts.badge.color, fixed = opts.badge.fixed })
     end
     -- Widgets on the right, from the right edge inwards: `right` (one) and `rights` (several, in order).
     local specs = {}

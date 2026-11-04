@@ -651,7 +651,7 @@ local function eventPane(parent, event, events, actions, raid, templates, role, 
   if header.rosterName then
     Kit.Badge(top, { text = header.rosterName, color = "muted", layout = { width = "auto" } })
   end
-  Kit.Badge(top, { text = header.statusText, color = header.statusToken, layout = { width = "auto" } })
+  Kit.Badge(top, { text = header.statusText, color = header.statusToken, fixed = true, layout = { width = "auto" } })
   Kit.Label(pane, { text = header.dateText, color = "dim", layout = { gap = 4 } })
 
   local tabs = ViewModel.RaidSubTabs(actions)

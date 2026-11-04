@@ -233,7 +233,8 @@ Kit.Define("StatGrid", {
   end,
 })
 
--- A small tinted tag. opts: text, color (status token). The width follows the text.
+-- A small tinted tag. opts: text, color (status token), fixed (the text is a fixed word, not a name or free text). The
+-- width follows the text.
 Kit.Define("Badge", {
   create = function(obj)
     obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
@@ -243,7 +244,8 @@ Kit.Define("Badge", {
   end,
   apply = function(obj, opts)
     local token = opts.color or "muted"
-    obj.label:SetFontObject(Theme.StyleFont("smallMedium"))
+    -- `fixed` marks a fixed word, drawn in capitals; a name or free text keeps its own case.
+    obj.label:SetFontObject(Theme.StyleFont(opts.fixed and "label" or "smallMedium"))
     setColor(obj.label, token)
     obj.bg:SetColorTexture(Theme.Color(token, 0.14))
     obj:SetText(opts.text or "")
@@ -339,7 +341,7 @@ Kit.Define("Banner", {
   end,
   apply = function(obj, opts)
     local kind = opts.kind or "info"
-    local token = kind == "info" and "accent" or kind
+    local token = kind
     obj.bg:SetColorTexture(Theme.Color(token, 0.12))
     obj.bar:SetColorTexture(Theme.Color(token))
     Icons.Apply(obj.icon, kind == "info" and "alert" or Icons.ForStatus(kind), token)
@@ -420,7 +422,8 @@ Kit.Define("PageHeader", {
     obj.desc:ClearAllPoints()
     obj.desc:SetPoint("TOPLEFT", 0, -(Theme.LineHeight("title") + 4))
     if opts.badge then
-      obj.badge = Kit.Badge(obj, { text = opts.badge.text, color = opts.badge.color, layout = {} })
+      obj.badge =
+        Kit.Badge(obj, { text = opts.badge.text, color = opts.badge.color, fixed = opts.badge.fixed, layout = {} })
       -- The badge is placed by hand, beside the title; Layout below does not stack the children.
     else
       obj.badge = nil

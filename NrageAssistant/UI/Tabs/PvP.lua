@@ -131,7 +131,7 @@ local function drawRankingTable(region, data, withBlows)
       highlight = row.mine,
       cells = {
         position = { text = tostring(row.position), color = row.positionToken },
-        name = { text = row.name, color = row.mine and "accent" or nil },
+        name = { text = row.name, color = row.mine and "info" or nil },
         rank = row.rank,
         world = row.world,
         bg = row.bg,
@@ -288,7 +288,7 @@ local function standingsTable(region, data)
         highlight = row.mine,
         cells = {
           position = { text = tostring(row.pos), color = row.positionToken },
-          name = { text = row.name, color = row.mine and "accent" or nil },
+          name = { text = row.name, color = row.mine and "info" or nil },
           tier = row.tier and { widget = "badge", opts = { text = row.tier.text, color = row.tier.color } } or "-",
           missions = row.missions,
           points = { text = row.points, style = "smallMedium" },
@@ -416,7 +416,10 @@ local function drawMissionCard(page, card)
     })
   end
   if card.status then
-    Kit.Badge(actions, { text = card.status.text, color = card.status.color, layout = { width = "auto" } })
+    Kit.Badge(
+      actions,
+      { text = card.status.text, color = card.status.color, fixed = true, layout = { width = "auto" } }
+    )
   end
   if card.unavailable then
     Kit.Label(actions, { text = card.unavailable, style = "small", color = "muted", layout = { weight = 1 } })
@@ -554,7 +557,7 @@ local function historyView(page)
         highlight = row.mine,
         cells = {
           position = { text = tostring(row.pos), color = row.positionToken },
-          name = { text = row.name, color = row.mine and "accent" or nil },
+          name = { text = row.name, color = row.mine and "info" or nil },
           seasons = row.seasons,
           podiums = row.podiums,
           points = { text = row.points, style = "smallMedium" },
@@ -594,7 +597,10 @@ local function historyView(page)
     Kit.Label(head, { text = card.name, style = "value", layout = { weight = 1 } })
     Kit.Label(head, { text = card.dates, style = "small", color = "muted", layout = { width = "auto" } })
     if card.delivery then
-      Kit.Badge(head, { text = card.delivery.text, color = card.delivery.color, layout = { width = "auto" } })
+      Kit.Badge(
+        head,
+        { text = card.delivery.text, color = card.delivery.color, fixed = true, layout = { width = "auto" } }
+      )
     end
     local podium = Kit.Grid(box, { columns = 3, gap = 16 })
     for _, place in ipairs(card.podium) do

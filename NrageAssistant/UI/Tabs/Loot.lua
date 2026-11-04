@@ -197,7 +197,7 @@ function UI.LootCandidates(card, event, session, cardData, ctx)
   for _, candidate in ipairs(cardData.candidates) do
     local key = session.sessionId .. ":" .. candidate.name
     local cells = {
-      name = { text = candidate.label, color = candidate.mine and "accent" or nil },
+      name = { text = candidate.label, color = candidate.mine and "info" or nil },
       response = { widget = "badge", opts = { text = candidate.responseText, color = candidate.needToken } },
       spec = { text = candidate.spec, color = "dim" },
       upgrade = { text = candidate.upgrade ~= "" and candidate.upgrade or "-", color = "muted" },
@@ -293,7 +293,12 @@ local function sessionCard(page, event, cardData, actions, commands)
       line,
       { itemId = cardData.itemId, text = cardData.summary or cardData.itemName, layout = { weight = 1 } }
     )
-    Kit.Badge(line, { text = cardData.statusText, color = cardData.statusToken, layout = { width = "auto" } })
+    Kit.Badge(line, {
+      text = cardData.statusText,
+      color = cardData.statusToken,
+      fixed = true,
+      layout = { width = "auto" },
+    })
     if cardData.award then
       Kit.Label(card, { text = cardData.award.reason, style = "small", color = "muted", wrap = true })
     end
@@ -304,7 +309,12 @@ local function sessionCard(page, event, cardData, actions, commands)
   if cardData.timeLeft then
     Kit.Label(head, { text = cardData.timeLeft, style = "small", color = "muted", layout = { width = "auto" } })
   end
-  Kit.Badge(head, { text = cardData.statusText, color = cardData.statusToken, layout = { width = "auto" } })
+  Kit.Badge(head, {
+    text = cardData.statusText,
+    color = cardData.statusToken,
+    fixed = true,
+    layout = { width = "auto" },
+  })
   Kit.Label(card, { text = cardData.subtitle, style = "small", color = "muted" })
   if actions.apply then
     applyRow(card, event, session, commands)

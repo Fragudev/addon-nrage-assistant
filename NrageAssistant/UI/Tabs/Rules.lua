@@ -157,6 +157,7 @@ local function kindControls(card, fields)
     for _, slot in ipairs(ViewModel.EnchantSlotChoices()) do
       Kit.Chip(flow, {
         text = slot.text,
+        fixed = true,
         active = fields.slots[slot.slot] == true,
         disabled = view.locked,
         onToggle = function(active)

@@ -208,6 +208,7 @@ local function sessionHeader(main, event, session)
   local open = session.status == "open"
   Kit.Badge(head, {
     text = ns.ViewModel.Word(session.status),
+    fixed = true,
     color = open and "success" or "muted",
     layout = { width = "auto" },
   })
