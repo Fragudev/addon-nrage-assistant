@@ -227,7 +227,7 @@ function ViewModel.ReadinessRows(rules, results, summary)
   for _, outcome in ipairs(results) do
     failing = failing or outcome.status == "missing"
   end
-  local badge = "accent"
+  local badge = "info"
   if summary.countable > 0 and summary.met == summary.countable then
     badge = "success"
   elseif failing then

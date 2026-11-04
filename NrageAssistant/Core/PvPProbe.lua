@@ -10,7 +10,7 @@ local _, ns = ...
 -- Usage: /nrage debug pvp start | stop | status | log | clear
 local PvPProbe = {}
 
-local PREFIX = "|cff33ff99Nrage Assistant|r"
+local PREFIX = "|cffff0019Nrage Assistant|r"
 local RECHECK_SECONDS = 0.5
 local COMBAT_LOG = "COMBAT_LOG_EVENT_UNFILTERED"
 local EVENTS = {

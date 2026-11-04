@@ -180,7 +180,7 @@ end
 local function cellsOf(row, choices, cmd)
   local muted = row.noAddon and "muted" or nil
   local cells = {
-    name = { text = row.name, color = row.mine and "accent" or muted },
+    name = { text = row.name, color = row.mine and "info" or muted },
     class = {
       text = row.class,
       color = (not row.noAddon or row.classToken) and Kit.Theme.ClassColor(row.classToken) or muted,
@@ -324,6 +324,7 @@ local function toolbar(page, getRegion, role, selection)
   for _, spec in ipairs({ { "Tank", L("Tank") }, { "Heal", L("Healer") }, { "Dps", L("DPS") } }) do
     Kit.Chip(chips, {
       text = spec[2],
+      fixed = true,
       active = state.spec == spec[1],
       color = "success",
       onToggle = function(active)
@@ -334,6 +335,7 @@ local function toolbar(page, getRegion, role, selection)
   end
   Kit.Chip(chips, {
     text = L("With addon only"),
+    fixed = true,
     active = state.addonOnly,
     color = "warning",
     onToggle = function(active)

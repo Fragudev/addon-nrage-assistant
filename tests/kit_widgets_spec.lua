@@ -370,6 +370,42 @@ describe("Kit widgets", function()
       root:Layout(300)
     end)
 
+    it("draws fixed words in the label font and names and free text in the semibold one", function()
+      local requested = {}
+      local original = Kit.Theme.StyleFont
+      Kit.Theme.StyleFont = function(style)
+        requested[#requested + 1] = style
+        return original(style)
+      end
+      Kit.Badge(root, { text = "Open", fixed = true })
+      Kit.Badge(root, { text = "Ann" })
+      Kit.Chip(root, { text = "Tank", fixed = true })
+      Kit.Chip(root, { text = "Ann" })
+      Kit.Theme.StyleFont = original
+      local function count(style)
+        local n = 0
+        for _, name in ipairs(requested) do
+          n = n + (name == style and 1 or 0)
+        end
+        return n
+      end
+      assert.are.equal(2, count("label"))
+      assert.are.equal(2, count("smallMedium"))
+    end)
+
+    it("uses the button style for buttons and the info color for ghost buttons", function()
+      local requested = {}
+      local original = Kit.Theme.StyleFont
+      Kit.Theme.StyleFont = function(style)
+        requested[#requested + 1] = style
+        return original(style)
+      end
+      Kit.Button(root, { text = "Save", variant = "ghost" })
+      Kit.Button(root, { text = "Save" })
+      Kit.Theme.StyleFont = original
+      assert.are.same({ "button", "button" }, requested)
+    end)
+
     it("toggles a chip and picks a segment and a tab", function()
       local toggled, chosen, selected
       local chip = Kit.Chip(root, {

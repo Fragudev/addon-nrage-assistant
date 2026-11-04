@@ -89,6 +89,18 @@ local function make_region(kind, parent)
   function methods.SetTexture(self, path)
     self.texture = path
   end
+  function methods.SetTexCoord(self, ...)
+    self.texcoord = { ... }
+  end
+  function methods.SetBlendMode(self, mode)
+    self.blend = mode
+  end
+  function methods.SetGradient(self, ...)
+    self.gradient = { ... }
+  end
+  function methods.SetDrawLayer(self, layer, sub)
+    self.layer, self.sublevel = layer, sub
+  end
   function methods.SetRotation(self, radians)
     self.rotation = radians
   end
@@ -129,8 +141,9 @@ local function make_region(kind, parent)
   function methods.SetScrollChild(self, child)
     self.scrollChild = child
   end
-  function methods.CreateTexture(self)
+  function methods.CreateTexture(self, _, layer, _, sub)
     local texture = make_region("Texture", self)
+    texture.layer, texture.sublevel = layer, sub
     self.children[#self.children + 1] = texture
     return texture
   end
@@ -182,6 +195,7 @@ local NAMES = {
   "UIParent",
   "UISpecialFrames",
   "STANDARD_TEXT_FONT",
+  "CreateColor",
   "CreateFont",
   "CreateFrame",
   "GetPhysicalScreenSize",
@@ -200,6 +214,9 @@ function M.install()
   _G.UIParent.width, _G.UIParent.height = 1920, 1080
   _G.UISpecialFrames = {}
   _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+  _G.CreateColor = function(r, g, b, a)
+    return { r = r, g = g, b = b, a = a }
+  end
   _G.CreateFont = function()
     return make_region("Font")
   end

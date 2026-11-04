@@ -332,7 +332,7 @@ Kit.Define("DayCell", {
       obj.bg:SetColorTexture(Theme.Color("accent"))
       setColor(obj.label, "onAccent")
     else
-      obj.bg:SetColorTexture(1, 1, 1, 0.03)
+      obj.bg:SetColorTexture(Theme.Color("control"))
       setColor(obj.label, opts.muted and "muted" or "text")
     end
     obj.border:SetColor(opts.today and "accent" or "transparent")
@@ -584,7 +584,7 @@ Kit.Define("NavRow", {
         self.bar:SetColorTexture(Theme.Color("accent"))
         self.bar:Show()
       else
-        self.wash:SetColorTexture(1, 1, 1, self.hovered and 0.05 or 0)
+        self.wash:SetColorTexture(Theme.Color(self.hovered and "hover" or "transparent"))
         self.bar:Hide()
       end
       local token = selected and "text" or "dim"
@@ -856,7 +856,7 @@ function Window:SetVersion(text)
     self.versionBadge:SetHeight(20)
     self.versionBg = self.versionBadge:CreateTexture(nil, "BACKGROUND")
     self.versionBg:SetAllPoints(self.versionBadge)
-    self.versionBg:SetColorTexture(1, 1, 1, 0.07)
+    self.versionBg:SetColorTexture(Theme.Color("control"))
     self.versionLabel = self.versionBadge:CreateFontString(nil, "OVERLAY")
     self.versionLabel:SetPoint("CENTER")
     self.versionLabel:SetFontObject(Theme.StyleFont("small"))

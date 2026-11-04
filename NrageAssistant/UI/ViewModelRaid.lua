@@ -399,7 +399,7 @@ function ViewModel.LootEventChoices(events)
 end
 
 -- The response color tokens: main spec = success, off spec = warning, other = accent (as in the voting window).
-ViewModel.NEED_TOKENS = { main = "success", off = "warning", other = "accent" }
+ViewModel.NEED_TOKENS = { main = "success", off = "warning", other = "info" }
 
 -- "1:05", the time left in the countdown, or nil.
 function ViewModel.TimeLeftText(seconds)

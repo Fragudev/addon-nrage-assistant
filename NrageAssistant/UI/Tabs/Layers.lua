@@ -54,7 +54,7 @@ local function layersCard(page, view)
       tooltipWhenCut = true,
     }
     if row.isOwn then
-      item.badge = { text = L("You"), color = "accent" }
+      item.badge = { text = L("You"), color = "info", fixed = true }
     elseif row.button then
       item.right = {
         widget = "button",

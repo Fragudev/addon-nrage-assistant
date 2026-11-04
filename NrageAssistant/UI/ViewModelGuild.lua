@@ -200,7 +200,11 @@ function ViewModel.RuleRows(rules)
       name = Escape(ns.ReadinessService.LabelText(rule.label)),
       summary = Escape(ViewModel.RuleSummary(rule)),
       automatic = automatic,
-      badge = { text = automatic and L("Automatic") or L("Manual"), color = automatic and "accent" or "warning" },
+      badge = {
+        text = automatic and L("Automatic") or L("Manual"),
+        color = automatic and "info" or "warning",
+        fixed = true,
+      },
       rule = rule,
     }
   end

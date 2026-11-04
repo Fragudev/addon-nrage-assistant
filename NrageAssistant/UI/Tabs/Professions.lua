@@ -73,6 +73,7 @@ local function myProfessions(page)
     Kit.Label(line, { text = row.scanText, style = "small", color = "muted", layout = { weight = 2 } })
     Kit.Badge(line, {
       text = row.needsScan and L("Open it once") or L("Shared"),
+      fixed = true,
       color = row.needsScan and "warning" or "success",
       layout = { width = "auto" },
     })
@@ -219,6 +220,7 @@ UI.Register("professions", function(page)
   })
   Kit.Chip(bar, {
     text = L("Connected only"),
+    fixed = true,
     active = state.onlineOnly,
     color = "success",
     layout = { width = "auto" },

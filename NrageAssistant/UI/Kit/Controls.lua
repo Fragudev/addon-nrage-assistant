@@ -64,7 +64,7 @@ local BUTTON_FILL = {
 local BUTTON_TEXT = {
   secondary = "text",
   primary = "onAccent",
-  ghost = "accent",
+  ghost = "info",
   danger = "danger",
   dangerSolid = "onAccent",
 }
@@ -99,7 +99,9 @@ Kit.Define("Button", {
     end)
     function obj:refresh()
       local variant = self.opts.variant or "secondary"
-      self.wash:SetColorTexture(1, 1, 1, (self.pressed and 0.1) or (self.hovered and 0.06) or 0)
+      self.wash:SetColorTexture(
+        Theme.Color((self.pressed and "selected") or (self.hovered and "hover") or "transparent")
+      )
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
       if variant == "ghost" then
         setColor(self.label, self.hovered and "text" or "accent")
@@ -111,7 +113,7 @@ Kit.Define("Button", {
     obj.hovered, obj.pressed = false, false
     obj.bg:SetColorTexture(Theme.Color(BUTTON_FILL[variant] or "control"))
     obj.border:SetColor(variant == "secondary" and "border" or (variant == "danger" and "danger" or "transparent"))
-    obj.label:SetFontObject(Theme.StyleFont(variant == "ghost" and "small" or "smallMedium"))
+    obj.label:SetFontObject(Theme.StyleFont("button"))
     setColor(obj.label, BUTTON_TEXT[variant] or "text")
     obj.label:ClearAllPoints()
     obj.icon:ClearAllPoints()
@@ -167,8 +169,8 @@ Kit.Define("IconButton", {
     end)
     function obj:refresh()
       local variant = self.opts.variant or "ghost"
-      local base = variant == "secondary" and 1 or 0
-      self.bg:SetColorTexture(1, 1, 1, (self.pressed and 0.12) or (self.hovered and 0.08) or (base * 0.05))
+      local base = variant == "secondary" and "control" or "transparent"
+      self.bg:SetColorTexture(Theme.Color((self.pressed and "selected") or (self.hovered and "hover") or base))
       local token = self.opts.color or (variant == "danger" and "danger" or (self.hovered and "text" or "dim"))
       Icons.Apply(self.glyph, self.opts.icon, token)
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
@@ -297,7 +299,8 @@ Kit.Define("Checkbox", {
   end,
 })
 
--- A toggle pill (filters, enchant slots). opts: text, active, onToggle(active), color (token), disabled.
+-- A toggle pill (filters, enchant slots). opts: text, active, onToggle(active), color (token), disabled, fixed (a fixed
+-- word, not a name or free text).
 Kit.Define("Chip", {
   frameType = "Button",
   create = function(obj)
@@ -322,7 +325,7 @@ Kit.Define("Chip", {
         self.border:SetColor(token)
         setColor(self.label, token)
       else
-        self.bg:SetColorTexture(1, 1, 1, self.hovered and 0.08 or 0.03)
+        self.bg:SetColorTexture(Theme.Color(self.hovered and "controlHover" or "control"))
         self.border:SetColor("border")
         setColor(self.label, "dim")
       end
@@ -331,7 +334,8 @@ Kit.Define("Chip", {
   end,
   apply = function(obj, opts)
     obj.hovered = false
-    obj.label:SetFontObject(Theme.StyleFont("small"))
+    -- `fixed` marks a fixed word, drawn in capitals; a name or free text keeps its own case.
+    obj.label:SetFontObject(Theme.StyleFont(opts.fixed and "label" or "smallMedium"))
     obj.label:SetText(opts.text or "")
     obj:refresh()
   end,
@@ -346,7 +350,7 @@ Kit.Define("Chip", {
   end,
 })
 
--- Exclusive choices side by side. opts: items = { { value, text } ... }, value, onChange(value).
+-- Exclusive choices side by side. opts: items = { { value, text } ... }, value, onChange(value), fixed (fixed words).
 Kit.Define("Segmented", {
   apply = function(obj, opts)
     obj.value = opts.value
@@ -354,6 +358,7 @@ Kit.Define("Segmented", {
     for _, item in ipairs(opts.items or {}) do
       local segment = Kit.Chip(obj, {
         text = item.text,
+        fixed = opts.fixed,
         active = item.value == opts.value,
         layout = {},
         onToggle = function()
@@ -660,7 +665,7 @@ Kit.Define("Dropdown", {
       end
     end)
     function obj:refresh()
-      self.wash:SetColorTexture(1, 1, 1, self.hovered and 0.06 or 0)
+      self.wash:SetColorTexture(Theme.Color(self.hovered and "hover" or "transparent"))
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
     end
   end,
