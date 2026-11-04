@@ -1,0 +1,35 @@
+NrageAssistant/UI/Kit/Controls.lua
+  s_a7943e2b13c225::t_58930ce34e38d9 57-64,71,82,87-89,101,104-118,120-121,315,320,333-343,346-348,381,420-423,428-431,437-438,445,460,469-472,490,530,550,604-605,608,626-627,632-638,645-647,678,683,702-703
+NrageAssistant/UI/Kit/Core.lua
+  s_a7943e2b13c225::t_d9cc5e9564beab 308-320,323,329-341
+NrageAssistant/UI/Kit/Shell.lua
+  s_a7943e2b13c225::t_334ecb50d5e14e 38-40,243-244,347-348,353,366-368,371-372
+NrageAssistant/UI/Kit/Text.lua
+  s_a7943e2b13c225::t_9068a255a3f442 240-241,250,316-318,320-321,346
+NrageAssistant/UI/Kit/Theme.lua
+  s_a7943e2b13c225::t_0126056dfe257f 68,205
+tests/kit_helpers_spec.lua
+  s_a7943e2b13c225::t_b56093362ff409 9
+tests/kit_widgets_spec.lua
+  s_a7943e2b13c225::t_2222c216292637 13,172-322
+tests/secondary_frames_spec.lua
+  s_a7943e2b13c225::t_f09e7e0ff617a5 25
+tests/ui_smoke_spec.lua
+  s_a7943e2b13c225::t_ca4ec4470c6956 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9d403631e7aa60ccc98a00592602e50424d9933a",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
