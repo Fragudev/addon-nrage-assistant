@@ -483,6 +483,32 @@ describe("Window smoke test", function()
     assert.are.equal("home", env.ns.UI.CurrentTab())
   end)
 
+  -- The options the main window is built with: it is made on the first open, so they are captured by wrapping
+  -- the kit's window constructor.
+  local function window_opts(current)
+    local opts
+    local New = current.ns.Kit.Window.New
+    current.ns.Kit.Window.New = function(given)
+      opts = given
+      return New(given)
+    end
+    current.ns.UI.Toggle()
+    return opts
+  end
+
+  it("shows the version in the header", function()
+    env = build("Member")
+    assert.are.equal("test", window_opts(env).version)
+  end)
+
+  it("shows no version in the header for an unpackaged build, which reports dev", function()
+    env = build("Member")
+    env.ns.GetVersion = function()
+      return "dev"
+    end
+    assert.is_nil(window_opts(env).version)
+  end)
+
   it("opens Home instead of a tab that is hidden, that the rank cannot see, or that does not exist", function()
     env = build("Member")
     env.ns.ViewModel.TabVisible = env.realTabVisible
