@@ -1,0 +1,21 @@
+NrageAssistant/UI/Main.lua
+  s_a7943e2b13c225::t_607cd85c355070 508-509,513
+tests/ui_smoke_spec.lua
+  s_a7943e2b13c225::t_72b518d9be92b2 486-511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a8cb6c6e35034cc13174040ff903fc40d78c8d7b",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
