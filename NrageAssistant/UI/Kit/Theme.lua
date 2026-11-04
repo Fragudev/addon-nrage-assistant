@@ -77,7 +77,8 @@ function Theme.Color(name, alpha)
 end
 
 -- The old and the new SetGradient disagree on the order of VERTICAL, and which end `minColor` takes there has not
--- been measured in the game (plan section 4, row 15). The assumption is this one line: true means minColor is the bottom.
+-- been measured in the game (plan section 4, row 15). The assumption is this one line:
+-- true means minColor is the bottom.
 local VERTICAL_MIN_AT_BOTTOM = true
 
 -- A gradient on `texture` from `from` (the left or the top) to `to`, both { r, g, b, a }. Tries the ColorMixin form
