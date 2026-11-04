@@ -10,6 +10,7 @@ local function load_kit()
     "Core/Platform",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
+    "UI/Kit/Shape",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
     "UI/Kit/Icons",
@@ -1066,6 +1067,113 @@ describe("Kit widgets", function()
         find_all(Kit.Popup.Get(1).stack, "DayCell")[20].frame.scripts.OnClick()
         assert.are.same({ "does_not_exist" }, errors)
         Kit.CloseAllPopups()
+      end)
+    end)
+
+    describe("window shell", function()
+      local function cut(shape)
+        local keys = {}
+        for _, key in ipairs({ "tl", "tr", "bl", "br" }) do
+          if shape.corners[key] and not shape.flat then
+            keys[#keys + 1] = key
+          end
+        end
+        return keys
+      end
+
+      it("cuts the window, and the header and the sidebar only at the corners they share with it", function()
+        local window = Kit.Window.New({ title = "T" })
+        assert.are.equal(8, window.shape.cut)
+        assert.are.same({ "tl", "tr", "bl", "br" }, cut(window.shape))
+        assert.are.same({ "tl", "tr" }, cut(window.headerShape))
+        assert.are.same({ Kit.Theme.Color("bg") }, window.shape.fillTextures.mid.color)
+        assert.are.same({ Kit.Theme.Color("side") }, window.headerShape.fillTextures.mid.color)
+        local sidebar = Kit.Sidebar(window.body, { groups = {}, value = "x" })
+        assert.are.same({ "bl" }, cut(sidebar.shape))
+      end)
+
+      it("moves the resize grip four units in", function()
+        local window = Kit.Window.New({ title = "T" })
+        assert.are.same({ "BOTTOMRIGHT", -6, 6 }, window.grip.points[1])
+      end)
+
+      it("draws no scene by default and keeps the header and the sidebar solid", function()
+        local window = Kit.Window.New({ title = "T" })
+        assert.is_false(window.scene)
+        assert.is_nil(window.shape.imageTextures)
+        assert.are.equal(1, window.headerShape.fillTextures.mid.color[4])
+        local sidebar = Kit.Sidebar(window.body, { groups = {}, value = "x" })
+        assert.are.equal(1, sidebar.shape.fillTextures.mid.color[4])
+      end)
+
+      it("draws the hero art over the fill with a scene, and makes the header and the sidebar translucent", function()
+        local window = Kit.Window.New({ title = "T", scene = true })
+        local Theme = Kit.Theme
+        local pieces = window.shape.imageTextures
+        assert.is_true(pieces.mid.texture:find("Backgrounds\\hero", 1, true) ~= nil)
+        assert.are.same({ 1, 1, 1, Theme.metrics.sceneAlpha }, pieces.mid.vertex)
+        -- Above the solid fill, below everything else.
+        assert.is_true(pieces.mid.sublevel > window.shape.fillTextures.mid.sublevel)
+        assert.are.equal(Theme.metrics.sceneSurfaceAlpha, window.headerShape.fillTextures.mid.color[4])
+        local sidebar = Kit.Sidebar(window.body, { groups = {}, value = "x", translucent = window.scene })
+        assert.are.equal(Theme.metrics.sceneSurfaceAlpha, sidebar.shape.fillTextures.mid.color[4])
+      end)
+
+      it("fits the art to the window on every resize without stretching it", function()
+        local window = Kit.Window.New({ title = "T", scene = true, width = 1000, height = 640 })
+        local pieces = window.shape.imageTextures
+        local expected = Kit.Util.CoverCoords(1000, 640, 2560, 1429)
+        assert.are.same({ expected[1], expected[2] }, { pieces.mid.texcoord[1], pieces.mid.texcoord[2] })
+        window.frame:SetSize(1800, 600)
+        window.frame.scripts.OnSizeChanged()
+        local wide = Kit.Util.CoverCoords(1800, 600, 2560, 1429)
+        assert.are.equal(0, pieces.mid.texcoord[1])
+        assert.are.equal(1, pieces.mid.texcoord[2])
+        assert.is_true(pieces.mid.texcoord[3] > wide[3])
+        window:SetStatusTable({ width = 760, height = 480 })
+        local tall = Kit.Util.CoverCoords(760, 480, 2560, 1429)
+        assert.are.equal(tall[1], pieces.mid.texcoord[1])
+        assert.are.equal(tall[2], pieces.mid.texcoord[2])
+      end)
+
+      it("shows no halo behind the logo and the bar when the client refuses ADD blending", function()
+        local create = _G.CreateFrame
+        _G.CreateFrame = function(...)
+          local frame = create(...)
+          local original = frame.CreateTexture
+          frame.CreateTexture = function(self, ...)
+            local texture = original(self, ...)
+            rawset(texture, "SetBlendMode", function()
+              error("refused")
+            end)
+            return texture
+          end
+          return frame
+        end
+        local window = Kit.Window.New({ title = "T" })
+        assert.is_false(window.logoGlow:IsShown())
+        local row = Kit.NavRow(root, { text = "A", icon = "home", selected = true })
+        assert.is_false(row.barGlow:IsShown())
+        assert.is_true(row.bar:IsShown())
+      end)
+
+      it("glows the logo and the bar of the selected row only", function()
+        local window = Kit.Window.New({ title = "T" })
+        assert.is_true(window.logoGlow:IsShown())
+        assert.are.equal("ADD", window.logoGlow.blend)
+        local row = Kit.NavRow(root, { text = "A", icon = "home", selected = true })
+        assert.is_true(row.barGlow:IsShown())
+        row:Release()
+        local again = Kit.NavRow(root, { text = "A", icon = "home" })
+        assert.are.equal(row, again)
+        assert.is_false(again.barGlow:IsShown())
+        again.frame.scripts.OnEnter()
+        assert.is_false(again.barGlow:IsShown())
+      end)
+
+      it("draws the avatar of the user card on a hexagon", function()
+        local card = Kit.UserCard(root, { name = "Ann", detail = "x" })
+        assert.is_truthy(card.avatar.texture:find("hex", 1, true))
       end)
     end)
 

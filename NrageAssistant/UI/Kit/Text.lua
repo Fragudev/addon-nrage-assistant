@@ -316,7 +316,8 @@ Kit.Define("Badge", {
   end,
 })
 
--- A hexagonal chip in the status color with a stroke icon. opts: status, size (22 or 40), icon (overrides the status icon).
+-- A hexagonal chip in the status color with a stroke icon. opts: status, size (22 or 40), icon (overrides the status
+-- icon).
 Kit.Define("StatusChip", {
   create = function(obj)
     obj.disc = obj.frame:CreateTexture(nil, "BACKGROUND")

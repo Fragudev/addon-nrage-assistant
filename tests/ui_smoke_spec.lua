@@ -45,6 +45,7 @@ local function load_window(locale)
     "Domain/ReportService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
+    "UI/Kit/Shape",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
     "UI/Kit/Icons",
