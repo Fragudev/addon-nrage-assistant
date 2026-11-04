@@ -54,6 +54,9 @@ Changes required by this principle:
 
 ### 1.1 Color tokens (base "ember", approved)
 
+> **Superseded:** the NRAGE look replaces this section. See [NRAGE_STYLE_PLAN.md](NRAGE_STYLE_PLAN.md).
+
+
 | Token | Value | Use |
 |---|---|---|
 | `bg` | `#121010` | window ground, content area |
@@ -78,6 +81,9 @@ Keep the accent one token, so it can become user-selectable later. The mockup of
 
 ### 1.2 Typography
 
+> **Superseded:** the NRAGE look replaces this section. See [NRAGE_STYLE_PLAN.md](NRAGE_STYLE_PLAN.md).
+
+
 - **Font:** Fira Sans Regular, Medium and SemiBold. Ship the `.ttf` files in `NrageAssistant/Media/Fonts/` with `OFL.txt`, and credit them in the README.
 - No outline. Use a soft 1px shadow only where text sits over art.
 - **Sizes:**
@@ -94,6 +100,9 @@ Keep the accent one token, so it can become user-selectable later. The mockup of
 | 10 | — | sidebar group labels ("GUILD", "ADMIN") |
 
 ### 1.3 Metrics
+
+> **Superseded:** the NRAGE look replaces the colors and fonts above. See [NRAGE_STYLE_PLAN.md](NRAGE_STYLE_PLAN.md).
+
 
 | Element | Metrics |
 |---|---|

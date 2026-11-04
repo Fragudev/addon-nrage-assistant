@@ -14,7 +14,6 @@
 <p align="center">
   <a href="LICENSE"><img alt="Licence: proprietary" src="https://img.shields.io/badge/licence-proprietary-e6ba66?style=flat-square&labelColor=1c1a17"></a>
   <img alt="World of Warcraft: Forever, client 1.60.1" src="https://img.shields.io/badge/WoW-Forever_1.60.1-94c9ff?style=flat-square&labelColor=1c1a17">
-  <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-fabf4d?style=flat-square&labelColor=1c1a17">
   <img alt="Guild: Nrage, Alliance" src="https://img.shields.io/badge/guild-Nrage_·_Alliance-3d6fd1?style=flat-square&labelColor=1c1a17">
   <a href="https://www.curseforge.com/wow/addons/nrage-assistant"><img alt="CurseForge: Nrage Assistant" src="https://img.shields.io/badge/CurseForge-Nrage_Assistant-f16436?style=flat-square&logo=curseforge&logoColor=white&labelColor=1c1a17"></a>
 </p>
@@ -74,11 +73,6 @@ what one officer changes reaches every member running the addon.
 
 Values are never guessed. Each one says where it comes from: `verified` (read from the game), `declared` (typed by
 the player) or `received` (from someone else), and what the game cannot tell is shown as `unknown`.
-
-> [!NOTE]
-> **Beta.** Every feature below is implemented and covered by automated tests, but most of it has not been verified
-> on the game client yet: see the issues labelled `verify-in-game` and the pending measurements in
-> [docs/API_NOTES.md](docs/API_NOTES.md).
 
 ## Who can use it
 
