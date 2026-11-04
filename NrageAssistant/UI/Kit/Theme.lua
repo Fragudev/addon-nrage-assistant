@@ -75,6 +75,43 @@ function Theme.Color(name, alpha)
   return color[1], color[2], color[3], alpha or color[4]
 end
 
+-- The old and the new SetGradient disagree on the order of VERTICAL, and which end `minColor` takes there has not
+-- been measured in the game (StyleProbe row 15). The assumption is this one line: true means minColor is the bottom.
+local VERTICAL_MIN_AT_BOTTOM = true
+
+-- A gradient on `texture` from `from` (the left or the top) to `to`, both { r, g, b, a }. Tries the ColorMixin form
+-- of patch 10.0, then the older r, g, b form, and falls back to the flat `from` color. Returns whether a gradient
+-- was applied. The texture should hold a white color texture first, which the gradient tints.
+function Theme.Gradient(texture, orientation, from, to)
+  local min, max = from, to
+  if orientation == "VERTICAL" and VERTICAL_MIN_AT_BOTTOM then
+    min, max = to, from
+  end
+  local create = _G.CreateColor
+  if type(create) == "function" then
+    local ok = pcall(function()
+      texture:SetGradient(
+        orientation,
+        create(min[1], min[2], min[3], min[4] or 1),
+        create(max[1], max[2], max[3], max[4] or 1)
+      )
+    end)
+    if ok then
+      return true
+    end
+  end
+  local ok = pcall(function()
+    texture:SetGradient(orientation, min[1], min[2], min[3], max[1], max[2], max[3])
+  end)
+  if ok then
+    return true
+  end
+  pcall(function()
+    texture:SetColorTexture(from[1], from[2], from[3], from[4] or 1)
+  end)
+  return false
+end
+
 -- The token for a status word, so every widget colors "success", "met" or "failed" the same way.
 local STATUS_TOKENS = {
   success = "success",
