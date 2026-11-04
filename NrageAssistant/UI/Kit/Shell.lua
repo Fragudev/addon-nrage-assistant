@@ -544,6 +544,9 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Sidebar: navigation rows grouped under small labels, with a user card pinned at the bottom.
 
+local NAV_GLOW_FILE = "Interface\\AddOns\\NrageAssistant\\Media\\Shapes\\glow"
+local NAV_GLOW = 6 -- units the halo reaches past the bar
+
 Kit.Define("NavRow", {
   frameType = "Button",
   create = function(obj)
@@ -554,6 +557,14 @@ Kit.Define("NavRow", {
     obj.bar:SetPoint("TOPLEFT", 0, -8)
     obj.bar:SetPoint("BOTTOMLEFT", 0, 8)
     obj.bar:SetWidth(Theme.metrics.navBar)
+    -- A small halo around the bar of the selected row, blended with ADD. Without ADD it would be a smudge, so a
+    -- client that refuses it shows the bar alone.
+    obj.barGlow = obj.frame:CreateTexture(nil, "BACKGROUND", 1)
+    obj.barGlow:SetTexture(NAV_GLOW_FILE)
+    obj.barGlow:SetPoint("TOPLEFT", obj.bar, "TOPLEFT", -NAV_GLOW, NAV_GLOW)
+    obj.barGlow:SetPoint("BOTTOMRIGHT", obj.bar, "BOTTOMRIGHT", NAV_GLOW, -NAV_GLOW)
+    obj.barGlow:SetVertexColor(Theme.Color("accent", 0.5))
+    obj.barGlowOk = pcall(obj.barGlow.SetBlendMode, obj.barGlow, "ADD")
     obj.icon = obj.frame:CreateTexture(nil, "ARTWORK")
     local size = Theme.metrics.navIcon
     obj.icon:SetSize(size, size)
@@ -582,9 +593,11 @@ Kit.Define("NavRow", {
         self.wash:SetColorTexture(Theme.Color("selected"))
         self.bar:SetColorTexture(Theme.Color("accent"))
         self.bar:Show()
+        self.barGlow:SetShown(self.barGlowOk)
       else
         self.wash:SetColorTexture(Theme.Color(self.hovered and "hover" or "transparent"))
         self.bar:Hide()
+        self.barGlow:Hide()
       end
       local token = selected and "text" or "dim"
       setColor(self.label, token)
@@ -625,7 +638,7 @@ Kit.Define("UserCard", {
   end,
   apply = function(obj, opts)
     obj.line:SetColorTexture(Theme.Color("border"))
-    Icons.Apply(obj.avatar, "disc", "accent", 0.18)
+    Icons.Apply(obj.avatar, "hex", "accent", 0.18)
     obj.initial:SetFontObject(Theme.StyleFont("value"))
     setColor(obj.initial, "accent")
     obj.initial:SetText((opts.name or "?"):sub(1, 1):upper())
@@ -643,14 +656,16 @@ Kit.Define("UserCard", {
   end,
 })
 
--- opts: groups = { { label, items = { { value, text, icon } } } }, value, onSelect(value), user = { name, detail }.
+-- opts: groups = { { label, items = { { value, text, icon } } } }, value, onSelect(value), user = { name, detail },
+-- translucent (the window shows its scene behind it). It sits on the bottom left of the window, so only that
+-- corner is cut: the others would poke out of the window's own cut.
 Kit.Define("Sidebar", {
   create = function(obj)
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "lg", corners = { bl = true } })
   end,
   apply = function(obj, opts)
-    obj.bg:SetColorTexture(Theme.Color("side"))
+    obj.shape:SetFill(opts.translucent and { color = "side", alpha = Theme.metrics.sceneSurfaceAlpha } or "side")
+    obj.shape.border:SetColor("border")
     obj.nav = Kit.Stack(
       obj,
       { gap = 2, pad = { Theme.metrics.sidebarPadX, Theme.metrics.sidebarPadY, Theme.metrics.sidebarPadX, 0 } }
@@ -679,6 +694,7 @@ Kit.Define("Sidebar", {
     end
   end,
   layout = function(obj, width, height)
+    obj.shape:Resize()
     obj.nav:Layout(width)
     Kit.Place(obj.nav, obj.frame, 0, 0)
     if obj.card then
@@ -700,8 +716,12 @@ local Window = {}
 Window.__index = Window
 Kit.Window = Window
 
+local SCENE_FILE = "Interface\\AddOns\\NrageAssistant\\Media\\Backgrounds\\hero"
+local LOGO_GLOW_FILE = "Interface\\AddOns\\NrageAssistant\\Media\\Shapes\\glow"
+
 -- opts: name (global frame name, for Escape), title, version, logo, width, height, minWidth, minHeight, buttons = {
--- { icon, tooltip, onClick } } (right to left, before the close button), onClose, onResize(bodyWidth, bodyHeight).
+-- { icon, tooltip, onClick } } (right to left, before the close button), onClose, onResize(bodyWidth, bodyHeight),
+-- scene (draws the hero art behind the content and makes the header and the sidebar translucent, plan 5.7).
 function Window.New(opts)
   local m = Theme.metrics
   local self = setmetatable({ opts = opts, buttons = {} }, Window)
@@ -720,10 +740,16 @@ function Window.New(opts)
   elseif frame.SetMinResize then
     frame:SetMinResize(minW, minH)
   end
-  self.bg = frame:CreateTexture(nil, "BACKGROUND")
-  self.bg:SetAllPoints(frame)
-  self.bg:SetColorTexture(Theme.Color("bg"))
-  self.border = Pixel.Border(frame, "border")
+  -- The window is a cut surface; the header and the sidebar cover its top and bottom left corners with their own
+  -- cuts, or they would poke out of it.
+  self.scene = opts.scene == true
+  self.shape = Kit.Shape.New(frame, { cut = "lg" })
+  self.shape:SetFill("bg")
+  self.shape.border:SetColor("border")
+  self.border = self.shape.border
+  if self.scene then
+    self.shape:SetImage(SCENE_FILE, m.sceneAlpha, Util.CoverCoords(1, 1, m.sceneSource[1], m.sceneSource[2]))
+  end
 
   local header = CreateFrame("Frame", nil, frame)
   header:SetPoint("TOPLEFT")
@@ -732,18 +758,22 @@ function Window.New(opts)
   header:EnableMouse(true)
   header:RegisterForDrag("LeftButton")
   self.header = header
-  self.headerBg = header:CreateTexture(nil, "BACKGROUND")
-  self.headerBg:SetAllPoints(header)
-  self.headerBg:SetColorTexture(Theme.Color("side"))
-  self.headerLine = header:CreateTexture(nil, "BORDER")
-  self.headerLine:SetPoint("BOTTOMLEFT")
-  self.headerLine:SetPoint("BOTTOMRIGHT")
-  self.headerLine:SetHeight(1)
-  self.headerLine:SetColorTexture(Theme.Color("border"))
+  self.headerShape = Kit.Shape.New(header, { cut = "lg", corners = { tl = true, tr = true } })
+  self.headerShape:SetFill(self.scene and { color = "side", alpha = m.sceneSurfaceAlpha } or "side")
+  self.headerShape.border:SetColor("border")
 
   self.logo = header:CreateTexture(nil, "ARTWORK")
   self.logo:SetSize(m.logo, m.logo)
   self.logo:SetPoint("LEFT", 14, 0)
+  -- A soft accent halo behind the logo.
+  self.logoGlow = header:CreateTexture(nil, "ARTWORK", -1)
+  self.logoGlow:SetTexture(LOGO_GLOW_FILE)
+  self.logoGlow:SetPoint("CENTER", self.logo, "CENTER")
+  self.logoGlow:SetSize(m.logo * 2, m.logo * 2)
+  self.logoGlow:SetVertexColor(Theme.Color("accent", 0.5))
+  if not pcall(self.logoGlow.SetBlendMode, self.logoGlow, "ADD") then
+    self.logoGlow:Hide()
+  end
   self.logo:SetTexture(opts.logo or Theme.LOGO)
   self.title = header:CreateFontString(nil, "OVERLAY")
   self.title:SetPoint("LEFT", self.logo, "RIGHT", 10, 0)
@@ -766,7 +796,8 @@ function Window.New(opts)
 
   local grip = CreateFrame("Button", nil, frame)
   grip:SetSize(16, 16)
-  grip:SetPoint("BOTTOMRIGHT", -2, 2)
+  -- Four units further in than the corner, so the grip stays inside the cut of the bottom right corner.
+  grip:SetPoint("BOTTOMRIGHT", -6, 6)
   grip:SetFrameLevel(frame:GetFrameLevel() + 20)
   grip.texture = grip:CreateTexture(nil, "OVERLAY")
   grip.texture:SetAllPoints(grip)
@@ -783,6 +814,7 @@ function Window.New(opts)
   self.grip = grip
 
   frame:SetScript("OnSizeChanged", function()
+    self:UpdateShape()
     self:NotifyResize()
   end)
   frame:SetScript("OnHide", function()
@@ -845,7 +877,19 @@ function Window.New(opts)
   if opts.version then
     self:SetVersion(opts.version)
   end
+  self:UpdateShape()
   return self
+end
+
+-- Snaps the border to a pixel again and, with a scene, fits the art to the window the way CSS "cover" does: from the
+-- aspect of the window against the aspect of the original art (the file is squeezed to 1024x512), so it is never
+-- stretched.
+function Window:UpdateShape()
+  self.shape:Resize()
+  if self.scene then
+    local source = Theme.metrics.sceneSource
+    self.shape:SetImageCoords(Util.CoverCoords(self.frame:GetWidth(), self.frame:GetHeight(), source[1], source[2]))
+  end
 end
 
 -- The small badge with the version, right of the title.
@@ -897,6 +941,7 @@ function Window:SetStatusTable(status)
   local width = type(status.width) == "number" and status.width or self.opts.width or m.width
   local height = type(status.height) == "number" and status.height or self.opts.height or m.height
   self.frame:SetSize(width, height)
+  self:UpdateShape()
   if type(status.left) == "number" and type(status.top) == "number" then
     self.frame:ClearAllPoints()
     self.frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", status.left, status.top)

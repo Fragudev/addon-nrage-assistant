@@ -325,6 +325,16 @@ function Shape:SetImage(path, alpha, coords)
   self:LayoutImage()
 end
 
+-- Moves the image to other texture coordinates (the window was resized) without making its textures again. Does
+-- nothing while there is no image.
+function Shape:SetImageCoords(coords)
+  if not self.image then
+    return
+  end
+  self.image.coords = coords
+  self:LayoutImage()
+end
+
 -- Eight sliced pieces of the glow art outside the frame, blended with ADD.
 local function build_glow(self)
   local frame, e, b = self.frame, GLOW_EXTENT, GLOW_BORDER

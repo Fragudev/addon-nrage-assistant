@@ -647,7 +647,7 @@ local function eventPane(parent, event, events, actions, raid, templates, role, 
   local pane = Kit.Stack(parent, { gap = 14, layout = { weight = 1 } })
   local header = ViewModel.EventHeader(event, ns.db.global.rosters)
   local top = Kit.Row(pane, { gap = 10, align = "center" })
-  Kit.Label(top, { text = header.title, style = "hero", layout = { weight = 1 } })
+  Kit.Label(top, { text = header.title, style = "hero", glow = true, layout = { weight = 1 } })
   if header.rosterName then
     Kit.Badge(top, { text = header.rosterName, color = "muted", layout = { width = "auto" } })
   end

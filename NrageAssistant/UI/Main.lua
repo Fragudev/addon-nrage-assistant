@@ -366,6 +366,7 @@ function UI.BuildSidebar()
       UI.SelectTab(value)
     end,
     user = ns.ViewModel.UserCard(ns.Platform.GetIdentityKey(), ns.Platform.GetOwnGuildRank(), role),
+    translucent = window.scene,
   })
   sidebar:Layout(SIDEBAR_WIDTH, contentHeight)
   Kit.Place(sidebar, window.body, 0, 0)
@@ -511,6 +512,7 @@ local function buildWindow()
     name = "NrageAssistantWindow",
     title = "Nrage Assistant",
     version = version ~= "dev" and version or nil,
+    scene = true,
     buttons = {
       {
         name = "settings",

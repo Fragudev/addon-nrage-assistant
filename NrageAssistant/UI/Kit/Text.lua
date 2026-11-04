@@ -15,12 +15,68 @@ local function setColor(region, color, alpha)
 end
 Kit.SetTextColor = setColor
 
+-- Glow text (plan 5.5): four copies of a font string, one unit away on each side, in the accent at a low alpha,
+-- drawn behind it. They are made on the first call, anchored to `fs` so they follow its width, and kept with the
+-- widget: `owner.glowCopies[fs]`. Everything is set on every call, because widgets are pooled; with `enabled` false
+-- the copies are hidden. `wrap` is the word wrap of `fs`. Pass the text through Kit.SyncGlow after `fs` changes.
+local GLOW_OFFSETS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+
+function Kit.SetGlow(owner, fs, enabled, wrap)
+  owner.glowCopies = owner.glowCopies or {}
+  local copies = owner.glowCopies[fs]
+  if not enabled then
+    for _, copy in ipairs(copies or {}) do
+      copy:Hide()
+    end
+    return
+  end
+  if not copies then
+    copies = {}
+    owner.glowCopies[fs] = copies
+    for index, offset in ipairs(GLOW_OFFSETS) do
+      local copy = owner.frame:CreateFontString(nil, "BACKGROUND")
+      copy:SetPoint("TOPLEFT", fs, "TOPLEFT", offset[1], offset[2])
+      copy:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT", offset[1], offset[2])
+      copies[index] = copy
+    end
+  end
+  for _, copy in ipairs(copies) do
+    -- Setting a font object is what gives a font string its font; a copy with none would not draw.
+    local font = fs.GetFontObject and fs:GetFontObject()
+    if font then
+      copy:SetFontObject(font)
+    end
+    copy:SetJustifyH(fs.GetJustifyH and fs:GetJustifyH() or "LEFT")
+    copy:SetJustifyV("TOP")
+    copy:SetWordWrap(wrap == true)
+    setColor(copy, "accent", Theme.metrics.glowTextAlpha)
+    copy:SetText(fs:GetText() or "")
+    copy:Show()
+  end
+end
+
+-- Copies the current text of `fs` onto its glow copies, if it has any shown.
+function Kit.SyncGlow(owner, fs)
+  local copies = owner.glowCopies and owner.glowCopies[fs]
+  if not copies then
+    return
+  end
+  for _, copy in ipairs(copies) do
+    copy:SetText(fs:GetText() or "")
+  end
+end
+
 -- Text. opts: text, style ("body"...), color (token or { r, g, b, a }), align ("LEFT" | "CENTER" | "RIGHT"),
--- wrap (wrap onto several lines), upper (capitals).
+-- wrap (wrap onto several lines), upper (capitals), glow (a soft accent halo, for page titles and heroes only).
 Kit.Define("Label", {
   create = function(obj)
     obj.fs = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.fs:SetPoint("TOPLEFT")
+    -- The glow copies follow every later SetText, not only the one in apply.
+    function obj:SetText(text)
+      Kit.Widget.SetText(self, text)
+      Kit.SyncGlow(self, self.fs)
+    end
   end,
   apply = function(obj, opts)
     obj.style = opts.style or "body"
@@ -30,6 +86,7 @@ Kit.Define("Label", {
     obj.fs:SetJustifyV("TOP")
     obj.fs:SetWordWrap(opts.wrap == true)
     obj:SetText(opts.text or "")
+    Kit.SetGlow(obj, obj.fs, opts.glow == true, opts.wrap)
   end,
   layout = function(obj, width)
     obj.fs:SetWidth(width)
@@ -259,7 +316,8 @@ Kit.Define("Badge", {
   end,
 })
 
--- A round chip in the status color with a stroke icon. opts: status, size (22 or 40), icon (overrides the status icon).
+-- A hexagonal chip in the status color with a stroke icon. opts: status, size (22 or 40), icon (overrides the status
+-- icon).
 Kit.Define("StatusChip", {
   create = function(obj)
     obj.disc = obj.frame:CreateTexture(nil, "BACKGROUND")
@@ -270,7 +328,7 @@ Kit.Define("StatusChip", {
   apply = function(obj, opts)
     obj.size = opts.size or Theme.metrics.chip
     local token = Theme.StatusToken(opts.status)
-    Icons.Apply(obj.disc, "disc", token, 0.14)
+    Icons.Apply(obj.disc, "hex", token, 0.14)
     Icons.Apply(obj.glyph, opts.icon or Icons.ForStatus(opts.status), token)
     obj.glyph:SetSize(math.floor(obj.size * 0.55), math.floor(obj.size * 0.55))
   end,
@@ -282,30 +340,119 @@ Kit.Define("StatusChip", {
   end,
 })
 
--- A thin bar. opts: value (0..1), color (token), height.
+-- The bar's own colors (plan 5.4): the track and its border.
+local TRACK_COLOR, TRACK_BORDER = Theme.Hex("140204"), Theme.Hex("3A0610")
+local XP_TICKS = 19
+local TIP_GLOW_MIN_HEIGHT, TIP_GLOW_SIZE = 8, 6
+local GLOW_FILE = "Interface\\AddOns\\NrageAssistant\\Media\\Shapes\\glow"
+
+-- A flat color on a texture that may keep an old gradient.
+local function flat(texture, color)
+  texture:SetColorTexture(color[1], color[2], color[3], color[4])
+  Theme.Gradient(texture, "HORIZONTAL", color, color)
+end
+
+-- A bar. opts: value (0..1), color (token), height, xp (the red three-stop bar of plan 5.4: a gradient fill that
+-- brightens toward the tip, 19 ticks and a glow at the tip when it is 8 or more high), label and valueText (xp only,
+-- in the `label` style over the bar). A `color` other than the accent stays flat even with xp, so a complete bar is
+-- green.
 Kit.Define("ProgressBar", {
   create = function(obj)
     obj.track = obj.frame:CreateTexture(nil, "BACKGROUND")
     obj.track:SetAllPoints(obj.frame)
+    obj.border = Kit.Pixel.Border(obj.frame, TRACK_BORDER)
     obj.fill = obj.frame:CreateTexture(nil, "ARTWORK")
     obj.fill:SetPoint("TOPLEFT")
     obj.fill:SetPoint("BOTTOMLEFT")
+    -- The second half of an xp fill, hanging from the end of the first.
+    obj.fill2 = obj.frame:CreateTexture(nil, "ARTWORK")
+    obj.fill2:SetPoint("TOPLEFT", obj.fill, "TOPRIGHT")
+    obj.fill2:SetPoint("BOTTOMLEFT", obj.fill, "BOTTOMRIGHT")
+    obj.ticks = {}
+    for index = 1, XP_TICKS do
+      obj.ticks[index] = obj.frame:CreateTexture(nil, "ARTWORK", 2)
+    end
+    obj.glow = obj.frame:CreateTexture(nil, "ARTWORK", 1)
+    obj.glow:SetTexture(GLOW_FILE)
+    -- A normally blended halo would be a smudge, so a client that refuses ADD gets no glow.
+    obj.glowOk = pcall(obj.glow.SetBlendMode, obj.glow, "ADD")
+    obj.leftText = obj.frame:CreateFontString(nil, "OVERLAY")
+    obj.leftText:SetPoint("LEFT", 6, 0)
+    obj.leftText:SetJustifyH("LEFT")
+    obj.leftText:SetWordWrap(false)
+    obj.rightText = obj.frame:CreateFontString(nil, "OVERLAY")
+    obj.rightText:SetPoint("RIGHT", -6, 0)
+    obj.rightText:SetJustifyH("RIGHT")
+    obj.rightText:SetWordWrap(false)
   end,
   apply = function(obj, opts)
     obj.value = Util.Clamp(opts.value or 0, 0, 1)
     obj.barHeight = opts.height or 6
-    obj.track:SetColorTexture(Theme.Color("text", 0.08))
-    obj.fill:SetColorTexture(Theme.Color(opts.color or "accent"))
+    local color = opts.color or "accent"
+    obj.xp = opts.xp == true and color == "accent"
+    obj.track:SetColorTexture(TRACK_COLOR[1], TRACK_COLOR[2], TRACK_COLOR[3], TRACK_COLOR[4])
+    -- A thin flat bar (the 2 unit countdown) has no room for a border.
+    obj.border:SetColor(TRACK_BORDER)
+    obj.border:SetShown(obj.xp or obj.barHeight >= 6)
+    if obj.xp then
+      local stops = Theme.gradients.bar
+      obj.fill:SetColorTexture(1, 1, 1, 1)
+      obj.fill2:SetColorTexture(1, 1, 1, 1)
+      Theme.Gradient(obj.fill, "HORIZONTAL", stops[1], stops[2])
+      Theme.Gradient(obj.fill2, "HORIZONTAL", stops[2], stops[3])
+    else
+      local flatColor = { Theme.Color(color) }
+      flat(obj.fill, flatColor)
+      flat(obj.fill2, flatColor)
+    end
+    obj.glow:SetVertexColor(Theme.Color("accent", 0.6))
+    for _, text in ipairs({ obj.leftText, obj.rightText }) do
+      text:SetFontObject(Theme.StyleFont("label"))
+      setColor(text, "text")
+    end
+    obj.leftText:SetText(obj.xp and opts.label or "")
+    obj.rightText:SetText(obj.xp and opts.valueText or "")
+    obj.leftText:SetShown(obj.xp and obj.leftText:GetText() ~= "")
+    obj.rightText:SetShown(obj.xp and obj.rightText:GetText() ~= "")
   end,
   layout = function(obj, width)
     local filled = math.floor(width * obj.value)
-    obj.fill:SetWidth(math.max(filled, 0.001))
-    if filled <= 0 then
-      obj.fill:Hide()
+    local drawn = filled > 0
+    local height = obj.barHeight
+    if obj.xp then
+      -- Two halves, so the brightest color of the gradient is always at the tip.
+      local first = math.ceil(filled / 2)
+      obj.fill:SetWidth(math.max(first, 0.001))
+      obj.fill2:SetWidth(math.max(filled - first, 0.001))
     else
-      obj.fill:Show()
+      obj.fill:SetWidth(math.max(filled, 0.001))
     end
-    return obj.barHeight
+    obj.fill:SetShown(drawn)
+    obj.fill2:SetShown(obj.xp and drawn)
+    local px = Kit.Pixel.Size(obj.frame)
+    for index, tick in ipairs(obj.ticks) do
+      tick:ClearAllPoints()
+      if obj.xp and drawn then
+        local x = Kit.Pixel.Snap(width * index / (XP_TICKS + 1), px)
+        tick:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
+        tick:SetPoint("BOTTOMLEFT", obj.frame, "BOTTOMLEFT", x, 0)
+        tick:SetWidth(px)
+        tick:SetColorTexture(0, 0, 0, 1)
+        tick:Show()
+      else
+        tick:Hide()
+      end
+    end
+    obj.glow:ClearAllPoints()
+    if obj.xp and drawn and obj.glowOk and height >= TIP_GLOW_MIN_HEIGHT then
+      local size = height + TIP_GLOW_SIZE * 2
+      obj.glow:SetSize(size, size)
+      obj.glow:SetPoint("CENTER", obj.fill2, "RIGHT", 0, 0)
+      obj.glow:Show()
+    else
+      obj.glow:Hide()
+    end
+    return height
   end,
 })
 
@@ -417,6 +564,7 @@ Kit.Define("PageHeader", {
     obj.title:SetFontObject(Theme.StyleFont("title"))
     setColor(obj.title, "text")
     obj.title:SetText(opts.title or "")
+    Kit.SetGlow(obj, obj.title, true, false)
     obj.desc:SetFontObject(Theme.StyleFont("body"))
     setColor(obj.desc, "dim")
     obj.desc:SetText(opts.description or "")

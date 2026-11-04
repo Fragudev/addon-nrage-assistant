@@ -215,6 +215,13 @@ Theme.metrics = {
   chip = 22,
   chipHero = 40,
   scrollbar = 6,
+  -- The window scene (plan 5.7): its alpha over the solid ground, the alpha of the header and the sidebar over it,
+  -- and the size of the original art, whose aspect the "cover" fit needs (the file is squeezed to 1024x512).
+  sceneAlpha = 0.5,
+  sceneSurfaceAlpha = 0.82,
+  sceneSource = { 2560, 1429 },
+  -- Alpha of the four copies behind a glowing text (plan 5.5, StyleProbe row 19).
+  glowTextAlpha = 0.35,
 }
 
 -- Cinzel and Barlow Condensed (SIL OFL 1.1, Media/Fonts/OFL-*.txt). The label, button and display files are
