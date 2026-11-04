@@ -22,6 +22,7 @@ local function load_addon()
     "Domain/ReportService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
+    "UI/Kit/Shape",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
     "UI/Kit/Icons",
@@ -129,6 +130,20 @@ describe("Secondary windows on the real kit", function()
     assert.is_true(_G.NrageAssistantLootPopup.shown)
     ns.LootPopup.Pass("s1")
     assert.is_false(_G.NrageAssistantLootPopup.shown)
+  end)
+
+  it("draws the loot popup as a cut surface on the plain ground, with no scene", function()
+    ns.LootPopup.Start()
+    ns.db.global.events.e1.loot.s1 = session("s1", "Sword")
+    ns.db.global.events.e1.loot.s1.candidates = {}
+    ns.LootPopup.Refresh()
+    local shape = _G.NrageAssistantLootPopup.shape
+    assert.are.equal(8, shape.cut)
+    for _, key in ipairs({ "tl", "tr", "bl", "br" }) do
+      assert.is_true(shape.corners[key])
+    end
+    assert.is_nil(shape.imageTextures)
+    assert.are.same({ ns.Kit.Theme.Color("bg") }, shape.fillTextures.mid.color)
   end)
 
   it("redraws the popup with the time left as the countdown ticks", function()
