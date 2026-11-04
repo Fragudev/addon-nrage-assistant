@@ -206,6 +206,162 @@ describe("Kit widgets", function()
       assert.is_false(bars[2].fill:IsShown())
     end)
 
+    describe("label glow", function()
+      local function shownCopies(label)
+        local count = 0
+        for _, copy in ipairs(label.glowCopies and label.glowCopies[label.fs] or {}) do
+          if copy.shown then
+            count = count + 1
+          end
+        end
+        return count
+      end
+
+      it("draws four accent copies one unit away that follow SetText", function()
+        local label = Kit.Label(root, { text = "Raid", style = "hero", glow = true })
+        local copies = label.glowCopies[label.fs]
+        assert.are.equal(4, #copies)
+        assert.are.equal(4, shownCopies(label))
+        assert.are.same({ "TOPLEFT", label.fs, "TOPLEFT", -1, 0 }, copies[1].points[1])
+        assert.are.same({ "BOTTOMRIGHT", label.fs, "BOTTOMRIGHT", 0, 1 }, copies[4].points[2])
+        local accent = { Kit.Theme.Color("accent", Kit.Theme.metrics.glowTextAlpha) }
+        assert.are.same(accent, copies[1].textColor)
+        assert.are.equal("Raid", copies[2].text)
+        label:SetText("Loot")
+        for _, copy in ipairs(copies) do
+          assert.are.equal("Loot", copy.text)
+        end
+      end)
+
+      it("keeps the glow text in capitals when the label is upper", function()
+        local label = Kit.Label(root, { text = "raid", upper = true, glow = true })
+        assert.are.equal("RAID", label.glowCopies[label.fs][1].text)
+      end)
+
+      it("makes no copies without glow and hides them when a pooled label is reused", function()
+        local plain = Kit.Label(root, { text = "plain" })
+        assert.is_nil(plain.glowCopies and plain.glowCopies[plain.fs])
+        local glowing = Kit.Label(root, { text = "glow", glow = true })
+        glowing:Release()
+        local reused = Kit.Label(root, { text = "again" })
+        assert.are.equal(glowing, reused)
+        assert.are.equal(0, shownCopies(reused))
+        reused:SetText("still off")
+        assert.are.equal(0, shownCopies(reused))
+        for _, copy in ipairs(reused.glowCopies[reused.fs]) do
+          assert.is_false(copy.shown)
+        end
+      end)
+
+      it("glows the page header title only", function()
+        local header = Kit.PageHeader(root, { title = "Home", description = "d" })
+        assert.are.equal(4, #header.glowCopies[header.title])
+        assert.are.equal("Home", header.glowCopies[header.title][1].text)
+      end)
+    end)
+
+    it("draws the status chip on a hexagon", function()
+      local chip = Kit.StatusChip(root, { status = "met", size = 40 })
+      assert.is_truthy(chip.disc.texture:find("hex", 1, true))
+    end)
+
+    describe("progress bar", function()
+      local function shownTicks(bar)
+        local count = 0
+        for _, tick in ipairs(bar.ticks) do
+          if tick.shown then
+            count = count + 1
+          end
+        end
+        return count
+      end
+
+      it("draws 19 ticks, a split gradient fill and a tip glow with xp", function()
+        local bar = Kit.ProgressBar(root, { value = 0.5, xp = true, height = 10 })
+        root:Layout(400)
+        assert.are.equal(19, #bar.ticks)
+        assert.are.equal(19, shownTicks(bar))
+        assert.is_true(bar.fill:IsShown() and bar.fill2:IsShown())
+        assert.are.equal(100, bar.fill.width)
+        assert.are.equal(100, bar.fill2.width)
+        assert.is_not_nil(bar.fill.gradient)
+        assert.is_not_nil(bar.fill2.gradient)
+        assert.is_true(bar.glow:IsShown())
+        assert.are.equal("ADD", bar.glow.blend)
+      end)
+
+      it("draws no ticks without xp and keeps the fill flat", function()
+        local bar = Kit.ProgressBar(root, { value = 0.5 })
+        root:Layout(400)
+        assert.are.equal(0, shownTicks(bar))
+        assert.is_false(bar.fill2:IsShown())
+        assert.is_false(bar.glow:IsShown())
+        assert.are.equal(200, bar.fill.width)
+      end)
+
+      it("draws nothing at value 0, even with xp", function()
+        local bar = Kit.ProgressBar(root, { value = 0, xp = true, height = 10 })
+        root:Layout(400)
+        assert.is_false(bar.fill:IsShown())
+        assert.is_false(bar.fill2:IsShown())
+        assert.is_false(bar.glow:IsShown())
+        assert.are.equal(0, shownTicks(bar))
+      end)
+
+      it("keeps another color flat, so a complete bar stays green", function()
+        local bar = Kit.ProgressBar(root, { value = 1, xp = true, color = "success", height = 10 })
+        root:Layout(400)
+        assert.are.equal(0, shownTicks(bar))
+        assert.is_false(bar.fill2:IsShown())
+        assert.are.equal(400, bar.fill.width)
+      end)
+
+      it("adds the glow only from 8 units high", function()
+        local low = Kit.ProgressBar(root, { value = 0.5, xp = true, height = 6 })
+        root:Layout(400)
+        assert.is_false(low.glow:IsShown())
+        assert.are.equal(19, shownTicks(low))
+      end)
+
+      it("puts the label and the value on top of an xp bar", function()
+        local bar =
+          Kit.ProgressBar(root, { value = 0.5, xp = true, height = 14, label = "Kills", valueText = "5 / 10" })
+        assert.are.equal("Kills", bar.leftText.text)
+        assert.are.equal("5 / 10", bar.rightText.text)
+        assert.is_true(bar.leftText:IsShown() and bar.rightText:IsShown())
+      end)
+
+      it("shows no glow when the client refuses ADD blending, and still draws the bar", function()
+        local create = _G.CreateFrame
+        _G.CreateFrame = function(...)
+          local frame = create(...)
+          local original = frame.CreateTexture
+          frame.CreateTexture = function(self, ...)
+            local texture = original(self, ...)
+            rawset(texture, "SetBlendMode", function()
+              error("refused")
+            end)
+            return texture
+          end
+          return frame
+        end
+        local bar = Kit.ProgressBar(root, { value = 0.5, xp = true, height = 10 })
+        root:Layout(400)
+        assert.is_false(bar.glow:IsShown())
+        assert.is_true(bar.fill:IsShown())
+      end)
+
+      it("clears the xp look when a pooled bar is reused flat", function()
+        local bar = Kit.ProgressBar(root, { value = 0.5, xp = true, height = 10 })
+        bar:Release()
+        local again = Kit.ProgressBar(root, { value = 0.5 })
+        assert.are.equal(bar, again)
+        root:Layout(400)
+        assert.are.equal(0, shownTicks(again))
+        assert.is_false(again.fill2:IsShown())
+      end)
+    end)
+
     it("wraps a long caption or value of a stat block instead of cutting it, and grows taller", function()
       Kit.StatGrid(root, {
         columns = 3,
