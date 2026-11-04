@@ -1,0 +1,19 @@
+NrageAssistant/Locales/esES.lua
+  s_a7943e2b13c225::t_a9c953a2eb5a99 120,132,169,460,502,512,667,846
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9bf425cbd4bdf8ec5f46e522bc09cae3fe426f9d",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
