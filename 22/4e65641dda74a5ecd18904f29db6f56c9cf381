@@ -1,0 +1,33 @@
+NrageAssistant/UI/Kit/Text.lua
+  s_a7943e2b13c225::t_cdf827ae5e8f38 18-68,70,75-79,89,319,330,342-357,362,366-385,390-415,419-450,452,454,565
+tests/kit_widgets_spec.lua
+  s_a7943e2b13c225::t_1fefbe8c25a58c 209-364
+NrageAssistant/UI/Tabs/PvP.lua
+  s_1fffde072cbc97::t_207e5f8125596c 326,394-400
+NrageAssistant/UI/Tabs/Raid.lua
+  s_1fffde072cbc97::t_4276e1f6642bed 650
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "224e65641dda74a5ecd18904f29db6f56c9cf381",
+  "prompts": {},
+  "sessions": {
+    "s_1fffde072cbc97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a21be21d3dbf8d24b",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
