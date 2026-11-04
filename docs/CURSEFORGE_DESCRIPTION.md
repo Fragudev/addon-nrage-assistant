@@ -75,6 +75,3 @@ during an encounter.
 - **Encounters:** changes made while the game blocks addon messages wait in a queue and go out when the fight ends.
 - **Privacy:** your character data goes only to guildmates running the addon. Your position is shared only if you
   turn it on, and guildmates forget it after 60 seconds.
-- **Beta:** every feature is covered by automated tests, and in-game checks are still in progress. If you find a
-  problem, report it on [GitHub](https://github.com/Fragudev/addon-nrage-assistant/issues) with what you did and the
-  output of `/nrage debug info`.
