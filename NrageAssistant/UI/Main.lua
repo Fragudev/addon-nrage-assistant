@@ -505,10 +505,12 @@ function UI.OpenSettings()
 end
 
 local function buildWindow()
+  -- An unpackaged checkout reports "dev": the header shows no badge for it, while the minimap and the login line do.
+  local version = ns.GetVersion()
   window = Kit.Window.New({
     name = "NrageAssistantWindow",
     title = "Nrage Assistant",
-    version = ns.GetVersion(),
+    version = version ~= "dev" and version or nil,
     buttons = {
       {
         name = "settings",
