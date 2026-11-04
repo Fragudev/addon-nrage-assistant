@@ -1,0 +1,29 @@
+guia-de-estilo-nrage.md
+  s_4208790f9596fb::t_e2428be7133fb7 1-194
+docs/NRAGE_STYLE_PLAN.md
+  s_a7943e2b13c225::t_b26ba5224c4cdb 1-300
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "cdcf81a34ba9f77f80771fb81a363fdd2d6d3d05",
+  "prompts": {},
+  "sessions": {
+    "s_4208790f9596fb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e58c2f7ecffek7fobxqa1hE5Zd",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
