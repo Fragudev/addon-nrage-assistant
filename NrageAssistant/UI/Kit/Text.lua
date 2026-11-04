@@ -237,8 +237,8 @@ Kit.Define("StatGrid", {
 -- width follows the text.
 Kit.Define("Badge", {
   create = function(obj)
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
+    obj.shape.border:SetShown(false)
     obj.label = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.label:SetPoint("CENTER")
   end,
@@ -247,7 +247,7 @@ Kit.Define("Badge", {
     -- `fixed` marks a fixed word, drawn in capitals; a name or free text keeps its own case.
     obj.label:SetFontObject(Theme.StyleFont(opts.fixed and "label" or "smallMedium"))
     setColor(obj.label, token)
-    obj.bg:SetColorTexture(Theme.Color(token, 0.14))
+    obj.shape:SetFill({ color = token, alpha = 0.1 })
     obj:SetText(opts.text or "")
   end,
   layout = function(obj, width)
@@ -313,11 +313,12 @@ Kit.Define("ProgressBar", {
 -- button. opts: kind ("success" | "warning" | "danger" | "info"), text, onDismiss.
 Kit.Define("Banner", {
   create = function(obj)
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
+    obj.shape.border:SetShown(false)
+    -- The bar stops short of the cut corners, so it does not poke out of them.
     obj.bar = obj.frame:CreateTexture(nil, "BORDER")
-    obj.bar:SetPoint("TOPLEFT")
-    obj.bar:SetPoint("BOTTOMLEFT")
+    obj.bar:SetPoint("TOPLEFT", 0, -4)
+    obj.bar:SetPoint("BOTTOMLEFT", 0, 4)
     obj.bar:SetWidth(3)
     obj.icon = obj.frame:CreateTexture(nil, "ARTWORK")
     obj.icon:SetSize(16, 16)
@@ -342,7 +343,7 @@ Kit.Define("Banner", {
   apply = function(obj, opts)
     local kind = opts.kind or "info"
     local token = kind
-    obj.bg:SetColorTexture(Theme.Color(token, 0.12))
+    obj.shape:SetFill({ color = token, alpha = 0.1 })
     obj.bar:SetColorTexture(Theme.Color(token))
     Icons.Apply(obj.icon, kind == "info" and "alert" or Icons.ForStatus(kind), token)
     obj.fs:SetFontObject(Theme.StyleFont("body"))

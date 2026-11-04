@@ -65,6 +65,7 @@ Theme.colors = {
 -- Pairs of colors for the surfaces drawn as a gradient (plan 5.1). `bar` has three stops.
 Theme.gradients = {
   panel = { hex("140405"), hex("0C0203") },
+  panelSolid = { hex("140405"), hex("0C0203") },
   primary = { hex("FF2236"), hex("C3000F") },
   bar = { hex("7A000B"), hex("FF0019"), hex("FF7A5A") },
 }
@@ -201,7 +202,7 @@ Theme.metrics = {
   contentTop = 26,
   contentSide = 30,
   blockGap = 20,
-  card = { padX = 20, padY = 18, gap = 14 },
+  card = { padX = 20, padY = 18, gap = 14, alpha = 0.9, glow = 0.3 },
   button = 30,
   buttonPrimary = 34,
   buttonGhost = 22,

@@ -305,20 +305,40 @@ Kit.Define("Flow", {
   end,
 })
 
--- A filled panel with a 1px border and padding. opts: title (a section label on top), gap, fill (token),
--- pad ({ left, top, right, bottom }), border (token).
+-- The border token of a field (plan 5.3): `line` at rest, `borderStrong` with the focus, and `danger` for an error,
+-- which wins over the focus so the two never rely on the same color.
+function Kit.FieldBorder(error, focused)
+  if error then
+    return "danger"
+  end
+  return focused and "borderStrong" or "line"
+end
+
+-- A cut-corner panel with padding (plan 5.3). opts: title (a section label on top), gap, fill (a token, which
+-- replaces the gradient), pad ({ left, top, right, bottom }), border (token), solid (the opaque gradient, for a
+-- card inside a surface that must hide what is behind it; the default is translucent, plan 5.7), highlight
+-- (`borderStrong` and a glow), special (`gold` border).
 Kit.Define("Card", {
   create = function(obj)
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
-    obj.border = Kit.Pixel.Border(obj.frame, "border")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "md" })
   end,
   apply = function(obj, opts)
     local m = Theme.metrics.card
     obj.gap = opts.gap or m.gap
     obj.pad = opts.pad or { m.padX, m.padY, m.padX, m.padY }
-    obj.bg:SetColorTexture(Theme.Color(opts.fill or "panel"))
-    obj.border:SetColor(opts.border or "border")
+    if opts.fill then
+      obj.shape:SetFill(opts.fill)
+    else
+      if opts.solid then
+        obj.shape:SetFill({ gradient = "panelSolid" })
+      else
+        obj.shape:SetFill({ gradient = "panel", alpha = m.alpha })
+      end
+    end
+    obj.shape.border:SetColor(
+      opts.border or (opts.special and "gold") or (opts.highlight and "borderStrong") or "border"
+    )
+    obj.shape:SetGlow(opts.highlight and { color = "accent", alpha = m.glow } or nil)
     if opts.title then
       Kit.SectionLabel(obj, { text = opts.title })
     end

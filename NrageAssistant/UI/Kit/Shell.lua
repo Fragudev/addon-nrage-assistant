@@ -35,10 +35,9 @@ local function newPopup(layer)
   popup.frame:SetFrameLevel(layer * 10 + 5)
   popup.frame:SetClampedToScreen(true)
   popup.frame:EnableMouse(true)
-  popup.bg = popup.frame:CreateTexture(nil, "BACKGROUND")
-  popup.bg:SetAllPoints(popup.frame)
-  popup.bg:SetColorTexture(Theme.Color("panel"))
-  popup.border = Pixel.Border(popup.frame, "border")
+  -- Opaque (plan 5.7): the text of the page under a popup must not bleed through.
+  popup.shape = Kit.Shape.New(popup.frame, { cut = "md" })
+  popup.shape:SetFill({ gradient = "panelSolid" })
   popup.frame:Hide()
   popup.holder = { frame = popup.frame }
   return popup
@@ -241,10 +240,8 @@ local function buildModal()
   overlay.card = CreateFrame("Frame", nil, overlay)
   overlay.card:SetPoint("CENTER")
   overlay.card:EnableMouse(true)
-  overlay.cardBg = overlay.card:CreateTexture(nil, "BACKGROUND")
-  overlay.cardBg:SetAllPoints(overlay.card)
-  overlay.cardBg:SetColorTexture(Theme.Color("panel"))
-  overlay.cardBorder = Pixel.Border(overlay.card, "border")
+  overlay.cardShape = Kit.Shape.New(overlay.card, { cut = "md" })
+  overlay.cardShape:SetFill({ gradient = "panelSolid" })
   overlay.title = overlay.card:CreateFontString(nil, "OVERLAY")
   overlay.title:SetPoint("TOPLEFT", 20, -16)
   overlay.title:SetFontObject(Theme.StyleFont("window"))
@@ -347,15 +344,13 @@ DEFAULT_MONTHS[8], DEFAULT_MONTHS[9], DEFAULT_MONTHS[10] = "August", "September"
 DEFAULT_MONTHS[11], DEFAULT_MONTHS[12] = "November", "December"
 local DEFAULT_WEEKDAYS = { "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su" }
 
--- opts: value (timestamp or nil), format(timestamp) -> text, placeholder, onChange(timestamp), onError(reason),
--- monthName(month), weekdayName(index 1..7, Monday first), now() -> timestamp, clock (for tests).
+-- opts: value (timestamp or nil), format(timestamp) -> text, placeholder, error (boolean), onChange(timestamp),
+-- onError(reason), monthName(month), weekdayName(index 1..7, Monday first), now() -> timestamp, clock (for tests).
 Kit.Define("DateField", {
   frameType = "Button",
   create = function(obj)
     obj.frame:RegisterForClicks("LeftButtonUp")
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
-    obj.border = Pixel.Border(obj.frame, "border")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
     obj.label = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.label:SetPoint("LEFT", 10, 0)
     obj.label:SetPoint("RIGHT", -34, 0)
@@ -368,9 +363,13 @@ Kit.Define("DateField", {
         obj:OpenCalendar()
       end
     end)
+    function obj:refresh()
+      self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, false))
+    end
   end,
   apply = function(obj, opts)
-    obj.bg:SetColorTexture(Theme.Color("control"))
+    obj.shape:SetFill("input")
+    obj:refresh()
     obj.label:SetFontObject(Theme.StyleFont("body"))
     Icons.Apply(obj.icon, "calendar", "dim")
     obj.value = opts.value

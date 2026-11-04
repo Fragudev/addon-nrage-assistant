@@ -10,6 +10,7 @@ local function load_kit()
     "Core/Platform",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
+    "UI/Kit/Shape",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
     "UI/Kit/Icons",
@@ -165,6 +166,157 @@ describe("Kit widgets", function()
       assert.are.equal(1, Kit.PoolSize("Button"))
       card:Release()
       assert.are.equal(1, Kit.PoolSize("Card"))
+    end)
+  end)
+
+  describe("cut surfaces", function()
+    -- Whether any glow piece of a widget is shown right now, and the alpha of the first one.
+    local function glow(obj)
+      local pieces = obj.shape.glowTextures
+      if not pieces then
+        return false
+      end
+      return pieces.top.shown, pieces.top.vertex and pieces.top.vertex[4]
+    end
+
+    local function border_color(obj)
+      return obj.shape.border.straight.top.color
+    end
+
+    local function token(name)
+      return { Kit.Theme.Color(name) }
+    end
+
+    it("glows a primary button, harder under the pointer, and not once it is reused as another variant", function()
+      local button = Kit.Button(root, { text = "Go", variant = "primary" })
+      local shown, alpha = glow(button)
+      assert.is_true(shown)
+      assert.are.equal(0.45, alpha)
+      button.frame.scripts.OnEnter()
+      shown, alpha = glow(button)
+      assert.is_true(shown)
+      assert.are.equal(0.6, alpha)
+      button.frame.scripts.OnLeave()
+      assert.are.equal(0.45, select(2, glow(button)))
+      local frame = button.frame
+      root:Clear()
+      local reused = Kit.Button(root, { text = "Cancel" })
+      assert.are.equal(frame, reused.frame)
+      assert.is_false(glow(reused))
+      reused.frame.scripts.OnEnter()
+      assert.is_false(glow(reused))
+      -- And back again: the glow returns on the primary one.
+      root:Clear()
+      assert.is_true(glow(Kit.Button(root, { text = "Go", variant = "primary" })))
+    end)
+
+    it("never glows a dangerSolid button and fills it with blood under a danger border", function()
+      local button = Kit.Button(root, { text = "Delete", variant = "dangerSolid" })
+      assert.is_false(glow(button))
+      button.frame.scripts.OnEnter()
+      assert.is_false(glow(button))
+      button.frame.scripts.OnMouseDown()
+      assert.is_false(glow(button))
+      button.frame.scripts.OnLeave()
+      assert.are.same(token("blood"), button.shape.fillTextures.mid.color)
+      assert.are.same(token("danger"), border_color(button))
+      assert.are.same(
+        token("danger"),
+        { button.label.textColor[1], button.label.textColor[2], button.label.textColor[3], button.label.textColor[4] }
+      )
+    end)
+
+    it("fills the hover color of a secondary button and has no shape on a ghost one", function()
+      local secondary = Kit.Button(root, { text = "A" })
+      assert.are.same(token("control"), secondary.shape.fillTextures.mid.color)
+      secondary.frame.scripts.OnEnter()
+      assert.are.same(token("controlHover"), secondary.shape.fillTextures.mid.color)
+      assert.are.same(token("border"), border_color(secondary))
+      root:Clear()
+      local ghost = Kit.Button(root, { text = "A", variant = "ghost" })
+      assert.are.equal(0, ghost.shape.fillTextures.mid.color[4])
+      assert.is_false(ghost.shape.border.straight.top.shown)
+      assert.is_false(glow(ghost))
+    end)
+
+    it("shows the focus as borderStrong and an error as danger, the error winning", function()
+      local box = Kit.EditBox(root, {})
+      assert.are.same(token("line"), border_color(box))
+      box.frame:SetFocus()
+      assert.are.same(token("borderStrong"), border_color(box))
+      box:SetError(true)
+      assert.are.same(token("danger"), border_color(box))
+      box.frame:ClearFocus()
+      assert.are.same(token("danger"), border_color(box))
+      box:SetError(false)
+      assert.are.same(token("line"), border_color(box))
+      assert.are.same(token("input"), box.shape.fillTextures.mid.color)
+    end)
+
+    it("clears an error left on a pooled edit box", function()
+      Kit.EditBox(root, { error = true })
+      root:Clear()
+      local box = Kit.EditBox(root, {})
+      assert.are.same(token("line"), border_color(box))
+    end)
+
+    it("draws the same field border on a text area, a dropdown and a date field", function()
+      local area = Kit.TextArea(root, { error = true })
+      assert.are.same(token("danger"), border_color(area))
+      area.edit:SetFocus()
+      assert.are.same(token("danger"), border_color(area))
+      area:SetError(false)
+      assert.are.same(token("borderStrong"), border_color(area))
+      local dropdown = Kit.Dropdown(root, { items = {}, error = true })
+      assert.are.same(token("danger"), border_color(dropdown))
+      local date = Kit.DateField(root, {})
+      assert.are.same(token("line"), border_color(date))
+      date:SetError(true)
+      assert.are.same(token("danger"), border_color(date))
+    end)
+
+    it("gives a card a translucent gradient, an opaque one on request, and a highlight or special border", function()
+      local card = Kit.Card(root, {})
+      assert.are.equal(Kit.Theme.metrics.card.alpha, card.shape.fillTextures.top.color[4])
+      assert.are.same(token("border"), border_color(card))
+      assert.is_false(glow(card))
+      root:Clear()
+      local solid = Kit.Card(root, { solid = true })
+      assert.are.equal(1, solid.shape.fillTextures.top.color[4])
+      root:Clear()
+      local highlighted = Kit.Card(root, { highlight = true })
+      assert.are.same(token("borderStrong"), border_color(highlighted))
+      assert.is_true(glow(highlighted))
+      root:Clear()
+      local special = Kit.Card(root, { special = true })
+      assert.are.same(token("gold"), border_color(special))
+      assert.is_false(glow(special))
+    end)
+
+    it("tints a badge and a banner with the status color at 0.10 and no border", function()
+      local badge = Kit.Badge(root, { text = "Stale", color = "warning" })
+      assert.are.same({ Kit.Theme.Color("warning", 0.1) }, badge.shape.fillTextures.mid.color)
+      assert.is_false(badge.shape.border.straight.top.shown)
+      local banner = Kit.Banner(root, { kind = "danger", text = "No" })
+      assert.are.same({ Kit.Theme.Color("danger", 0.1) }, banner.shape.fillTextures.mid.color)
+    end)
+
+    it("marks the selected segment and the selected tab", function()
+      local segmented = Kit.Segmented(root, {
+        items = { { value = "a", text = "A" }, { value = "b", text = "B" } },
+        value = "a",
+      })
+      assert.are.same(token("control"), segmented.segments[1].shape.fillTextures.mid.color)
+      assert.are.equal(0, segmented.segments[2].shape.fillTextures.mid.color[4])
+      segmented.segments[2].frame.scripts.OnClick()
+      assert.are.equal(0, segmented.segments[1].shape.fillTextures.mid.color[4])
+      assert.are.same(token("control"), segmented.segments[2].shape.fillTextures.mid.color)
+      local strip = Kit.TabStrip(root, { tabs = { { value = "x", text = "X" } }, value = "x" })
+      strip:Layout(300)
+      assert.is_true(strip.piece:IsShown())
+      strip.value = "none"
+      strip:Layout(300)
+      assert.is_false(strip.piece:IsShown())
     end)
   end)
 

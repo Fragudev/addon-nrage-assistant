@@ -54,19 +54,21 @@ local function tooltipOn(obj)
   end)
 end
 
-local BUTTON_FILL = {
-  secondary = "control",
-  primary = "accent",
-  ghost = "transparent",
-  danger = "control",
-  dangerSolid = "danger",
+-- What a button draws in each variant (plan 5.3): its fill, the fill under the pointer, the border and the glow at
+-- rest and under the pointer. `ghost` has no shape at all: it draws a flat wash only while hovered.
+local BUTTON_LOOK = {
+  secondary = { fill = "control", hover = "controlHover", border = "border" },
+  primary = { fill = { gradient = "primary" }, glow = 0.45, hoverGlow = 0.6 },
+  danger = { fill = "transparent", hover = { color = "danger", alpha = 0.12 }, border = "danger" },
+  -- Never glows (D2): a destructive button must not look like the call to action.
+  dangerSolid = { fill = "blood", hover = { color = "danger", alpha = 0.3 }, border = "danger" },
 }
 local BUTTON_TEXT = {
   secondary = "text",
   primary = "onAccent",
   ghost = "info",
   danger = "danger",
-  dangerSolid = "onAccent",
+  dangerSolid = "danger",
 }
 local BUTTON_HEIGHT = {
   secondary = Theme.metrics.button,
@@ -77,16 +79,15 @@ local BUTTON_HEIGHT = {
 }
 
 -- A text button. opts: text, variant ("secondary" | "primary" | "ghost" | "danger" | "dangerSolid"), icon, onClick,
--- disabled, tooltip, height.
+-- disabled, tooltip, height, keepColor (a ghost button whose owner colors the label, as the tab strip does).
 Kit.Define("Button", {
   frameType = "Button",
   create = function(obj)
     obj.frame:RegisterForClicks("LeftButtonUp")
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "md" })
+    -- Only the ghost variant uses this flat wash, because it has no shape to recolor.
+    obj.bg = obj.frame:CreateTexture(nil, "BORDER")
     obj.bg:SetAllPoints(obj.frame)
-    obj.wash = obj.frame:CreateTexture(nil, "BORDER")
-    obj.wash:SetAllPoints(obj.frame)
-    obj.border = Pixel.Border(obj.frame, "border")
     obj.icon = obj.frame:CreateTexture(nil, "ARTWORK")
     obj.icon:SetSize(14, 14)
     obj.label = obj.frame:CreateFontString(nil, "OVERLAY")
@@ -97,22 +98,33 @@ Kit.Define("Button", {
         callback(obj, "onClick", obj)
       end
     end)
+    -- Sets the fill, the border and the glow every time, because the widget is pooled.
     function obj:refresh()
       local variant = self.opts.variant or "secondary"
-      self.wash:SetColorTexture(
-        Theme.Color((self.pressed and "selected") or (self.hovered and "hover") or "transparent")
-      )
+      local look = BUTTON_LOOK[variant]
+      local active = self.pressed or self.hovered
+      local shape = self.shape
+      if look then
+        shape:SetFill(active and look.hover or look.fill)
+        shape.border:SetShown(look.border ~= nil)
+        shape.border:SetColor(look.border or "transparent")
+        shape:SetGlow(look.glow and { color = "accent", alpha = active and look.hoverGlow or look.glow } or nil)
+        self.bg:SetColorTexture(Theme.Color("transparent"))
+      else
+        shape:SetFill("transparent")
+        shape.border:SetShown(false)
+        shape:SetGlow(nil)
+        self.bg:SetColorTexture(Theme.Color(self.pressed and "selected" or (self.hovered and "hover" or "transparent")))
+      end
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
-      if variant == "ghost" then
-        setColor(self.label, self.hovered and "text" or "accent")
+      if variant == "ghost" and not self.opts.keepColor then
+        setColor(self.label, self.hovered and "text" or "info")
       end
     end
   end,
   apply = function(obj, opts)
     local variant = opts.variant or "secondary"
     obj.hovered, obj.pressed = false, false
-    obj.bg:SetColorTexture(Theme.Color(BUTTON_FILL[variant] or "control"))
-    obj.border:SetColor(variant == "secondary" and "border" or (variant == "danger" and "danger" or "transparent"))
     obj.label:SetFontObject(Theme.StyleFont("button"))
     setColor(obj.label, BUTTON_TEXT[variant] or "text")
     obj.label:ClearAllPoints()
@@ -300,14 +312,12 @@ Kit.Define("Checkbox", {
 })
 
 -- A toggle pill (filters, enchant slots). opts: text, active, onToggle(active), color (token), disabled, fixed (a fixed
--- word, not a name or free text).
+-- word, not a name or free text), segment (a piece of a Segmented: no fill or border until selected or hovered).
 Kit.Define("Chip", {
   frameType = "Button",
   create = function(obj)
     obj.frame:RegisterForClicks("LeftButtonUp")
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
-    obj.border = Pixel.Border(obj.frame, "border")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
     obj.label = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.label:SetPoint("CENTER")
     tooltipOn(obj)
@@ -320,13 +330,22 @@ Kit.Define("Chip", {
     end)
     function obj:refresh()
       local token = self.opts.color or "accent"
-      if self.opts.active then
-        self.bg:SetColorTexture(Theme.Color(token, 0.18))
-        self.border:SetColor(token)
+      local shape = self.shape
+      if self.opts.segment then
+        local lit = self.opts.active or self.hovered
+        shape:SetFill(lit and (self.opts.active and "control" or "controlHover") or "transparent")
+        shape.border:SetShown(self.opts.active == true)
+        shape.border:SetColor("border")
+        setColor(self.label, self.opts.active and "text" or "dim")
+      elseif self.opts.active then
+        shape:SetFill({ color = token, alpha = 0.18 })
+        shape.border:SetShown(true)
+        shape.border:SetColor(token)
         setColor(self.label, token)
       else
-        self.bg:SetColorTexture(Theme.Color(self.hovered and "controlHover" or "control"))
-        self.border:SetColor("border")
+        shape:SetFill(self.hovered and "controlHover" or "control")
+        shape.border:SetShown(true)
+        shape.border:SetColor("border")
         setColor(self.label, "dim")
       end
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
@@ -359,6 +378,7 @@ Kit.Define("Segmented", {
       local segment = Kit.Chip(obj, {
         text = item.text,
         fixed = opts.fixed,
+        segment = true,
         active = item.value == opts.value,
         layout = {},
         onToggle = function()
@@ -397,22 +417,32 @@ Kit.Define("Segmented", {
 -- opts: tabs = { { value, text } ... }, value, onSelect(value).
 Kit.Define("TabStrip", {
   create = function(obj)
+    -- The selected tab sits on a small cut piece (plan 5.3), under the buttons, which are made later.
+    obj.piece = CreateFrame("Frame", nil, obj.frame)
+    obj.pieceShape = Kit.Shape.New(obj.piece, { cut = "sm" })
+    obj.pieceShape.border:SetShown(false)
     obj.line = obj.frame:CreateTexture(nil, "BACKGROUND")
     obj.line:SetPoint("BOTTOMLEFT")
     obj.line:SetPoint("BOTTOMRIGHT")
     obj.line:SetHeight(1)
-    obj.underline = obj.frame:CreateTexture(nil, "ARTWORK")
+    -- On the piece, because a child frame draws over the textures of its parent.
+    obj.underline = obj.piece:CreateTexture(nil, "ARTWORK")
+    obj.underline:SetPoint("BOTTOMLEFT")
+    obj.underline:SetPoint("BOTTOMRIGHT")
     obj.underline:SetHeight(2)
   end,
   apply = function(obj, opts)
     obj.line:SetColorTexture(Theme.Color("border"))
     obj.underline:SetColorTexture(Theme.Color("accent"))
+    obj.pieceShape:SetFill("control")
+    obj.piece:Hide()
     obj.value = opts.value
     obj.tabs = {}
     for _, tab in ipairs(opts.tabs or {}) do
       local button = Kit.Button(obj, {
         text = tab.text,
         variant = "ghost",
+        keepColor = true,
         height = 32,
         layout = {},
         onClick = function()
@@ -427,6 +457,7 @@ Kit.Define("TabStrip", {
   layout = function(obj, width)
     local x = 0
     obj.underline:Hide()
+    obj.piece:Hide()
     for _, button in ipairs(obj.tabs) do
       local w = math.min(button:NaturalWidth() + 8, math.max(0, width - x))
       button:Layout(w)
@@ -434,10 +465,11 @@ Kit.Define("TabStrip", {
       local selected = button.tab.value == obj.value
       setColor(button.label, selected and "text" or "dim")
       if selected then
-        obj.underline:ClearAllPoints()
-        obj.underline:SetPoint("BOTTOMLEFT", obj.frame, "BOTTOMLEFT", x, 0)
-        obj.underline:SetWidth(w)
         obj.underline:Show()
+        obj.piece:ClearAllPoints()
+        obj.piece:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
+        obj.piece:SetSize(w, 32)
+        obj.piece:Show()
       end
       x = x + w + 6
     end
@@ -455,9 +487,7 @@ Kit.Define("EditBox", {
     frame:SetAutoFocus(false)
     frame:SetTextInsets(10, 10, 0, 0)
     frame:SetJustifyH("LEFT")
-    obj.bg = frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(frame)
-    obj.border = Pixel.Border(frame, "border")
+    obj.shape = Kit.Shape.New(frame, { cut = "sm" })
     obj.hint = frame:CreateFontString(nil, "OVERLAY")
     obj.hint:SetPoint("LEFT", 10, 0)
     obj.hint:SetJustifyH("LEFT")
@@ -497,8 +527,7 @@ Kit.Define("EditBox", {
       callback(obj, "onChange", frame:GetText(), userInput == true)
     end)
     function obj:refresh()
-      local border = (self.opts.error and "danger") or (self.focused and "accent") or "border"
-      self.border:SetColor(border)
+      self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, self.focused))
       local empty = frame:GetText() == ""
       if empty and not self.focused and self.opts.placeholder then
         self.hint:Show()
@@ -518,7 +547,7 @@ Kit.Define("EditBox", {
     obj.stored = opts.text or ""
     frame:EnableMouse(not opts.disabled)
     frame:SetAlpha(opts.disabled and 0.5 or 1)
-    obj.bg:SetColorTexture(Theme.Color("input"))
+    obj.shape:SetFill("input")
     obj.hint:SetFontObject(Theme.StyleFont("body"))
     setColor(obj.hint, "muted")
     obj.hint:SetText(opts.placeholder or "")
@@ -572,13 +601,11 @@ function Widget:SetError(flag)
   end
 end
 
--- A multi-line text area inside a scroll frame (the export and import boxes). opts: text, readOnly, onChange(text),
--- height. The box takes the keyboard focus on demand (Widget:Focus) and can select all its text.
+-- A multi-line text area inside a scroll frame (the export and import boxes). opts: text, readOnly, error (boolean),
+-- onChange(text), height. The box takes the keyboard focus on demand (Widget:Focus) and can select all its text.
 Kit.Define("TextArea", {
   create = function(obj)
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
-    obj.border = Pixel.Border(obj.frame, "border")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
     obj.scroll = CreateFrame("ScrollFrame", nil, obj.frame)
     obj.scroll:SetPoint("TOPLEFT", 8, -8)
     obj.scroll:EnableMouseWheel(true)
@@ -596,17 +623,28 @@ Kit.Define("TextArea", {
       end
     end)
     obj.edit:SetScript("OnEditFocusGained", function()
+      obj.focused = true
+      obj:refresh()
       if obj.opts and obj.opts.readOnly then
         obj.edit:HighlightText()
       end
     end)
+    obj.edit:SetScript("OnEditFocusLost", function()
+      obj.focused = false
+      obj:refresh()
+    end)
+    function obj:refresh()
+      self.shape.border:SetColor(Kit.FieldBorder(self.opts and self.opts.error, self.focused))
+    end
     obj.scroll:SetScript("OnMouseWheel", function(_, delta)
       local current = obj.scroll:GetVerticalScroll()
       obj.scroll:SetVerticalScroll(math.max(0, current - delta * 30))
     end)
   end,
   apply = function(obj, opts)
-    obj.bg:SetColorTexture(Theme.Color("input"))
+    obj.focused = false
+    obj.shape:SetFill("input")
+    obj:refresh()
     setColor(obj.edit, "text")
     obj.edit:SetText(opts.text or "")
     obj.edit:SetCursorPosition(0)
@@ -637,16 +675,12 @@ function Widget:GetValueText()
 end
 
 -- A button that opens a menu of choices. opts: items = { { value, text, color, disabled } ... }, value, placeholder,
--- onChange(value), disabled.
+-- onChange(value), disabled, error (boolean).
 Kit.Define("Dropdown", {
   frameType = "Button",
   create = function(obj)
     obj.frame:RegisterForClicks("LeftButtonUp")
-    obj.bg = obj.frame:CreateTexture(nil, "BACKGROUND")
-    obj.bg:SetAllPoints(obj.frame)
-    obj.wash = obj.frame:CreateTexture(nil, "BORDER")
-    obj.wash:SetAllPoints(obj.frame)
-    obj.border = Pixel.Border(obj.frame, "border")
+    obj.shape = Kit.Shape.New(obj.frame, { cut = "sm" })
     obj.label = obj.frame:CreateFontString(nil, "OVERLAY")
     obj.label:SetPoint("LEFT", 10, 0)
     obj.label:SetPoint("RIGHT", -28, 0)
@@ -665,13 +699,13 @@ Kit.Define("Dropdown", {
       end
     end)
     function obj:refresh()
-      self.wash:SetColorTexture(Theme.Color(self.hovered and "hover" or "transparent"))
+      self.shape:SetFill(self.hovered and "controlHover" or "input")
+      self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, self.hovered))
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)
     end
   end,
   apply = function(obj, opts)
     obj.hovered = false
-    obj.bg:SetColorTexture(Theme.Color("control"))
     obj.label:SetFontObject(Theme.StyleFont("body"))
     Icons.Apply(obj.chevron, "chevron", "dim")
     obj.chevron:SetRotation(-math.pi / 2)
