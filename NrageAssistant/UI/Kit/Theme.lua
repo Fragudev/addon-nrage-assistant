@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- Design tokens of the UI kit (plan section 1): colors, fonts and metrics. Everything the widgets draw asks the
--- theme, so the look changes in one place, and the accent is a single token that can become a setting.
+-- theme, so the look changes in one place.
 -- Nothing here touches the client except Theme.Font (CreateFont), which only runs when a widget is built.
 local Kit = ns.Kit or {}
 ns.Kit = Kit
@@ -20,48 +20,54 @@ end
 
 local hex = Theme.Hex
 
--- The base palette "ember" (plan 1.1). White washes are white with a low alpha.
+-- The NRAGE palette (plan 5.1): red and black, with sand for neutral information. Washes are the accent with a low
+-- alpha, never white, because white looks grey on red-black.
+local ACCENT = "FF0019"
+
 Theme.colors = {
-  bg = hex("121010"),
-  panel = hex("191614"),
-  side = hex("0D0C0B"),
-  control = hex("231F1C"),
-  input = hex("0B0A09"),
-  border = { 1, 1, 1, 0.08 },
-  text = hex("F3EFEA"),
-  dim = hex("F3EFEA", 0.68),
-  muted = hex("F3EFEA", 0.5),
-  accent = hex("3FA7FF"),
-  onAccent = hex("0A0C10"),
-  success = hex("5BD69A"),
-  warning = hex("F5B84C"),
-  danger = hex("F07272"),
-  hover = { 1, 1, 1, 0.06 },
-  selected = { 1, 1, 1, 0.07 },
+  bg = hex("030001", 0.96),
+  panel = hex("0C0203"),
+  panelTop = hex("140405"),
+  side = hex("0C0203"),
+  control = hex(ACCENT, 0.06),
+  controlHover = hex(ACCENT, 0.16),
+  input = hex("050102"),
+  border = hex(ACCENT, 0.22),
+  borderStrong = hex(ACCENT, 0.6),
+  line = hex("3A0A10"),
+  text = hex("F4EBE8"),
+  dim = hex("A8918D"),
+  muted = hex("A8918D", 0.85),
+  accent = hex(ACCENT),
+  onAccent = hex("FFFFFF"),
+  info = hex("FFD9A8"),
+  success = hex("6FE08A"),
+  warning = hex("F0B85A"),
+  danger = hex("FF6A6A"),
+  hover = hex(ACCENT, 0.08),
+  selected = hex(ACCENT, 0.12),
   stripe = { 0, 0, 0, 0.14 },
   overlay = { 0, 0, 0, 0.5 },
-  gold = hex("E6BA66"),
+  gold = hex("F0B85A"),
   silver = hex("C0C6CF"),
   bronze = hex("C9A27E"),
+  ice = hex("5CC8FF"),
+  online = hex("45E07A"),
+  blood = hex("2A0006"),
+  -- Opaque grounds for the surfaces that must hide what is behind them (plan 5.7): the menus, the popups and the
+  -- calendar. The gradient tokens above may become translucent over the window scene; these never do.
+  panelSolid = hex("0C0203"),
+  panelTopSolid = hex("140405"),
+  controlSolid = hex("1A0508"),
   transparent = { 0, 0, 0, 0 },
 }
 
--- The accents the settings can offer later (the mockup shows these four).
-Theme.accents = {
-  blue = "3FA7FF",
-  gold = "E6BA66",
-  teal = "0CD29D",
-  bronze = "C9A27E",
+-- Pairs of colors for the surfaces drawn as a gradient (plan 5.1). `bar` has three stops.
+Theme.gradients = {
+  panel = { hex("140405"), hex("0C0203") },
+  primary = { hex("FF2236"), hex("C3000F") },
+  bar = { hex("7A000B"), hex("FF0019"), hex("FF7A5A") },
 }
-
-function Theme.SetAccent(name)
-  local value = Theme.accents[name]
-  if not value then
-    return false
-  end
-  Theme.colors.accent = hex(value)
-  return true
-end
 
 -- r, g, b, a of a token, optionally with another alpha ("danger" at 0.14 is the chip ground).
 function Theme.Color(name, alpha)
@@ -172,26 +178,34 @@ Theme.metrics = {
   scrollbar = 6,
 }
 
--- Fira Sans (SIL OFL 1.1, Media/Fonts/OFL.txt). When a file cannot be loaded the game font is used instead.
+-- Cinzel and Barlow Condensed (SIL OFL 1.1, Media/Fonts/OFL-*.txt). The label, button and display files are
+-- derived copies with capitals and tracking baked in (tools/make_fonts.py), so no string has to change. When a file
+-- cannot be loaded the game font is used instead.
 local FONT_DIR = "Interface\\AddOns\\NrageAssistant\\Media\\Fonts\\"
 Theme.FONT_FILES = {
-  regular = FONT_DIR .. "FiraSans-Regular.ttf",
-  medium = FONT_DIR .. "FiraSans-Medium.ttf",
-  semibold = FONT_DIR .. "FiraSans-SemiBold.ttf",
+  medium = FONT_DIR .. "BarlowCondensed-Medium.ttf",
+  semibold = FONT_DIR .. "BarlowCondensed-SemiBold.ttf",
+  bold = FONT_DIR .. "BarlowCondensed-Bold.ttf",
+  label = FONT_DIR .. "NrageLabel-SemiBold.ttf",
+  button = FONT_DIR .. "NrageButton-Bold.ttf",
+  display = FONT_DIR .. "NrageDisplay-Bold.ttf",
+  displayBlack = FONT_DIR .. "NrageDisplay-Black.ttf",
 }
 
--- Text styles of the plan (1.2): name -> { weight, size }.
+-- Text styles of the plan (5.2): name -> { weight, size }. Player names, item names and free text must never use
+-- `label`, `button` or a display weight: those draw capitals.
 Theme.styles = {
-  title = { "semibold", 22 },
-  hero = { "semibold", 18 },
-  window = { "semibold", 15 },
-  value = { "medium", 14 },
-  body = { "regular", 13 },
-  small = { "regular", 12 },
-  smallMedium = { "medium", 12 },
-  label = { "semibold", 11 },
-  tiny = { "regular", 10 },
-  nav = { "medium", 13 },
+  title = { "displayBlack", 22 },
+  hero = { "displayBlack", 18 },
+  window = { "display", 15 },
+  value = { "bold", 15 },
+  body = { "medium", 13 },
+  small = { "medium", 12 },
+  smallMedium = { "semibold", 12 },
+  label = { "label", 11 },
+  tiny = { "medium", 11 },
+  nav = { "button", 13 },
+  button = { "button", 13 },
 }
 
 local fonts = {}
@@ -204,7 +218,7 @@ function Theme.Font(weight, size)
     return fonts[key]
   end
   local font = CreateFont("NrageAssistantFont" .. key)
-  local file = Theme.FONT_FILES[weight] or Theme.FONT_FILES.regular
+  local file = Theme.FONT_FILES[weight] or Theme.FONT_FILES.medium
   local ok, loaded = pcall(font.SetFont, font, file, size, "")
   if not (ok and loaded) then
     pcall(font.SetFont, font, STANDARD_TEXT_FONT, size, "")

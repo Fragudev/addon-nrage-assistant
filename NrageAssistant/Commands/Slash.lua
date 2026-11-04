@@ -2,7 +2,7 @@ local _, ns = ...
 
 local L = ns.L
 
-local PREFIX = "|cff33ff99Nrage Assistant|r"
+local PREFIX = "|cffff0019Nrage Assistant|r"
 
 local function say(text)
   print(PREFIX .. " " .. text)

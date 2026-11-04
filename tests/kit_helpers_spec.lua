@@ -47,9 +47,9 @@ describe("Kit.Theme", function()
     }) do
       assert.is_table(Theme.colors[name], name)
     end
-    assert.are.same(Theme.Hex("121010"), Theme.colors.bg)
-    assert.are.same({ 1, 1, 1, 0.08 }, Theme.colors.border)
-    assert.are.equal(0.68, Theme.colors.dim[4])
+    assert.are.same(Theme.Hex("030001", 0.96), Theme.colors.bg)
+    assert.are.same(Theme.Hex("FF0019", 0.22), Theme.colors.border)
+    assert.are.equal(0.85, Theme.colors.muted[4])
   end)
 
   it("returns a color with another alpha when asked", function()
@@ -59,11 +59,29 @@ describe("Kit.Theme", function()
     assert.are.equal(Theme.colors.text[1], r)
   end)
 
-  it("changes the accent as one token", function()
-    assert.is_true(Theme.SetAccent("gold"))
-    assert.are.same(Theme.Hex("E6BA66"), Theme.colors.accent)
-    assert.is_false(Theme.SetAccent("pink"))
-    Theme.SetAccent("blue")
+  it("has the NRAGE tokens, solid grounds and gradients, and no accent setting", function()
+    for _, name in ipairs({
+      "panelTop",
+      "controlHover",
+      "borderStrong",
+      "line",
+      "info",
+      "ice",
+      "online",
+      "blood",
+      "panelSolid",
+      "panelTopSolid",
+      "controlSolid",
+    }) do
+      assert.is_table(Theme.colors[name], name)
+    end
+    assert.are.same(Theme.Hex("FF0019"), Theme.colors.accent)
+    assert.are.same(Theme.Hex("FFD9A8"), Theme.colors.info)
+    assert.are.equal(1, Theme.colors.panelSolid[4])
+    assert.are.same({ Theme.colors.panelTop, Theme.colors.panel }, Theme.gradients.panel)
+    assert.are.equal(3, #Theme.gradients.bar)
+    assert.is_nil(Theme.SetAccent)
+    assert.is_nil(Theme.accents)
   end)
 
   it("maps statuses, classes, qualities and positions", function()
@@ -90,23 +108,27 @@ describe("Kit.Theme", function()
       }
     end
     _G.STANDARD_TEXT_FONT = "fallback.ttf"
-    local regular = Theme.Font("regular", 13)
-    assert.are.equal(regular, Theme.Font("regular", 13))
+    local medium = Theme.Font("medium", 13)
+    assert.are.equal(medium, Theme.Font("medium", 13))
     Theme.Font("semibold", 22)
     assert.are.equal("fallback.ttf", made[#made].file)
-    assert.are.equal(Theme.Font("regular", 13), Theme.StyleFont("body"))
+    assert.are.equal(Theme.Font("medium", 13), Theme.StyleFont("body"))
     assert.are.equal(17, Theme.LineHeight("body"))
     _G.CreateFont, _G.STANDARD_TEXT_FONT = nil, nil
   end)
 
-  it("points at the Fira Sans files that ship with the addon", function()
+  it("points at the Cinzel and Barlow Condensed files that ship with the addon", function()
     for _, path in pairs(Theme.FONT_FILES) do
       local file = path:gsub("^Interface\\AddOns\\", ""):gsub("\\", "/")
       local handle = io.open(file, "r")
       assert.is_truthy(handle, file)
       handle:close()
     end
-    assert.is_truthy(io.open("NrageAssistant/Media/Fonts/OFL.txt", "r"))
+    assert.is_truthy(io.open("NrageAssistant/Media/Fonts/OFL-Cinzel.txt", "r"))
+    assert.is_truthy(io.open("NrageAssistant/Media/Fonts/OFL-BarlowCondensed.txt", "r"))
+    for _, spec in pairs(Theme.styles) do
+      assert.is_string(Theme.FONT_FILES[spec[1]], spec[1])
+    end
   end)
 end)
 

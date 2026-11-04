@@ -2,7 +2,7 @@ local addonName, ns = ...
 
 local Constants = ns.Constants
 local L = ns.L
-local PREFIX = "|cff33ff99Nrage Assistant|r"
+local PREFIX = "|cffff0019Nrage Assistant|r"
 
 local NOTICES = ns.Locale.Table(function()
   return {

@@ -6,7 +6,7 @@ local _, ns = ...
 -- Usage: /nrage debug layer start | stop | status | log | clear
 local LayerProbe = {}
 
-local PREFIX = "|cff33ff99Nrage Assistant|r"
+local PREFIX = "|cffff0019Nrage Assistant|r"
 local EVENTS = {
   "PLAYER_TARGET_CHANGED",
   "UPDATE_MOUSEOVER_UNIT",

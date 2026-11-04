@@ -5,7 +5,7 @@ local _, ns = ...
 -- Usage: /nrage debug lockdown start | stop | status | send | log | clear
 local Probe = {}
 
-local PREFIX = "|cff33ff99Nrage Assistant|r"
+local PREFIX = "|cffff0019Nrage Assistant|r"
 local POLL_SECONDS = 0.25
 local EVENTS = {
   "ENCOUNTER_START",
