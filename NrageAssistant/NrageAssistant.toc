@@ -80,6 +80,7 @@ Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
 UI\Kit\Pixel.lua
+UI\Kit\Shape.lua
 UI\Kit\Util.lua
 UI\Kit\Calendar.lua
 UI\Kit\Icons.lua
