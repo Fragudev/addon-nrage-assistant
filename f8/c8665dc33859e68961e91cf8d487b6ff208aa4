@@ -1,0 +1,19 @@
+docs/NRAGE_STYLE_PLAN.md
+  s_a7943e2b13c225::t_49a3f8151c0bf7 55-56,251-262,281-282,304-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f8c8665dc33859e68961e91cf8d487b6ff208aa4",
+  "prompts": {},
+  "sessions": {
+    "s_a7943e2b13c225": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8e821be-d395-4543-8acb-2c573d372309",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
