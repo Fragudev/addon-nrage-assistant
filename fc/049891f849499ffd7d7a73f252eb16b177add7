@@ -1,0 +1,39 @@
+NrageAssistant/Core/Init.lua
+  s_654fcf69c807e6::t_1e0aadf1171b49 18,921,944-947
+NrageAssistant/Domain/GuildRoster.lua
+  s_654fcf69c807e6::t_0fd09ac14a31f6 91,123,135,151
+NrageAssistant/Locales/esES.lua
+  s_654fcf69c807e6::t_7810beec29dad1 384
+NrageAssistant/Sync/Comm.lua
+  s_654fcf69c807e6::t_5c36feb2733a69 491-492,496,520
+NrageAssistant/UI/Kit/Controls.lua
+  s_654fcf69c807e6::t_54d40c4ddafca4 514-516,549,554-556,602-604,609-631
+NrageAssistant/UI/LootPopup.lua
+  s_654fcf69c807e6::t_f687ef440668e4 371,377-380
+NrageAssistant/UI/Main.lua
+  s_654fcf69c807e6::t_47cb2010445422 189-190,242
+NrageAssistant/UI/Tabs/Members.lua
+  s_654fcf69c807e6::t_9fb575ff0013a3 76
+tests/kit_fixes_spec.lua
+  s_654fcf69c807e6::t_bd669462617d30 42-78
+tests/support/fake_kit.lua
+  s_654fcf69c807e6::t_089688cb421aba 232-243
+tests/ui_smoke_spec.lua
+  s_654fcf69c807e6::t_3ed3e4bf4b3c33 3283,3295,3301,3304,3306,3309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "fc049891f849499ffd7d7a73f252eb16b177add7",
+  "prompts": {},
+  "sessions": {
+    "s_654fcf69c807e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f518b20b-158d-4081-8308-1d8f91d1f3fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
