@@ -368,11 +368,16 @@ function LootPopup.Start()
     now = ns.Platform.Now,
     timeout = ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS,
     status = function(text)
+      local firstCountdown = footer == nil
       footer = text
       if frame and frame:IsShown() and lastEntries then
         LootPopup.UpdateCountdown(live, text, function(sessionId)
           return controller:TimeLeft(sessionId)
         end, ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS)
+        -- The countdown takes the place of a shorter text and may wrap: the card fits it once, without redrawing.
+        if firstCountdown then
+          ns.PopupFrame.Fit(frame, content, WIDTH)
+        end
       end
     end,
   })

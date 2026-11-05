@@ -73,6 +73,7 @@ local function roster_row(card, roster, count, cmd)
       tooltip = L("Cancel"),
       layout = { width = 28 },
       onClick = function()
+        Kit.DiscardEdit()
         state.renaming = nil
         UI.Redraw()
       end,

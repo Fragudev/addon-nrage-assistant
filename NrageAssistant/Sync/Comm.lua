@@ -488,12 +488,12 @@ end
 -- the request went out. The requests are repeated after their cooldown, at most SYNC_RETRY_MAX times in all (and each
 -- request keeps its own cooldown), so this never turns into a storm.
 function Comm:NoteUnknownReply()
-  if not (self.lastSyncRequestAt or self.lastLedgerRequestAt) then
+  local constants = ns.Constants
+  if not (self.lastSyncRequestAt or self.lastLedgerRequestAt) or self.retryCount >= constants.SYNC_RETRY_MAX then
     return
   end
   self.droppedUnknown = true
-  local constants = ns.Constants
-  if self.retryPending or self.retryCount >= constants.SYNC_RETRY_MAX then
+  if self.retryPending then
     return
   end
   self.retryPending = true
@@ -517,7 +517,7 @@ end
 -- The guild roster became ready: when a reply was dropped because it was not, ask again now (the cooldowns still
 -- apply).
 function Comm:OnGuildRosterReady()
-  if self.droppedUnknown then
+  if self.droppedUnknown and self.retryCount < ns.Constants.SYNC_RETRY_MAX then
     self:RetryRequests()
   end
 end

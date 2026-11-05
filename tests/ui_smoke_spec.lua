@@ -3253,7 +3253,6 @@ describe("Window redraws and closing", function()
   local env
 
   after_each(function()
-    _G.GetCurrentKeyBoardFocus = nil
     pcall(env.close)
   end)
 
@@ -3281,10 +3280,7 @@ describe("Window redraws and closing", function()
     function()
       env = build("GM")
       env.open("pvp")
-      local focus = {}
-      _G.GetCurrentKeyBoardFocus = function()
-        return focus
-      end
+      env.ns.Kit.fake.editFocus = true
       local count = #env.ns.Kit.fake.nodes
       env.timers = {}
       env.ns.UI.PvPChanged()
@@ -3296,21 +3292,21 @@ describe("Window redraws and closing", function()
       assert.are.equal(count, #env.ns.Kit.fake.nodes)
       assert.are.equal(2, #env.timers)
 
-      focus = nil
+      env.ns.Kit.fake.editFocus = nil
       env.timers[2]()
       assert.is_true(#env.ns.Kit.fake.nodes > count)
     end
   )
 
-  it("still redraws at once what the player asked for while an edit box has the keyboard", function()
+  it("still redraws at once what the player asked for, committing the box that has the keyboard first", function()
     env = build("GM")
     env.open("pvp")
-    _G.GetCurrentKeyBoardFocus = function()
-      return {}
-    end
+    env.ns.Kit.fake.editFocus = true
     local count = #env.ns.Kit.fake.nodes
+    local commits = env.ns.Kit.fake.commits or 0
     env.ns.UI.Redraw()
     assert.is_true(#env.ns.Kit.fake.nodes > count)
+    assert.are.equal(commits + 1, env.ns.Kit.fake.commits)
   end)
 
   it("fans the loot changes out at most once per interval", function()

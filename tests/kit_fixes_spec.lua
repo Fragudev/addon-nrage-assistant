@@ -39,6 +39,43 @@ describe("Kit review fixes", function()
     fake.uninstall()
   end)
 
+  describe("the edit box being typed in", function()
+    local function typed(commits)
+      local box = Kit.EditBox(root, {
+        text = "old",
+        onCommit = function(value)
+          commits[#commits + 1] = value
+        end,
+      })
+      box.frame:SetFocus()
+      box.frame:SetText("new")
+      return box
+    end
+
+    it("is committed by CommitEdit, which a redraw calls before it releases the page", function()
+      local commits = {}
+      typed(commits)
+      assert.is_true(Kit.HasEditFocus())
+      Kit.CommitEdit()
+      assert.are.same({ "new" }, commits)
+      assert.is_false(Kit.HasEditFocus())
+    end)
+
+    it("is not committed by DiscardEdit, and goes back to its text", function()
+      local commits = {}
+      local box = typed(commits)
+      Kit.DiscardEdit()
+      assert.are.same({}, commits)
+      assert.are.equal("old", box.frame:GetText())
+      assert.is_false(Kit.HasEditFocus())
+    end)
+
+    it("stops counting as focused when it is released", function()
+      typed({}):Release()
+      assert.is_false(Kit.HasEditFocus())
+    end)
+  end)
+
   describe("releasing a widget", function()
     it("never commits the typed text of an edit box and pools it once", function()
       local commits = 0

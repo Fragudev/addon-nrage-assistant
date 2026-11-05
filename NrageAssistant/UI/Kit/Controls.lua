@@ -511,6 +511,9 @@ Kit.Define("TabStrip", {
 -- A single-line text box. opts: text, placeholder, maxLetters, numeric, disabled, error (boolean), onChange(text,
 -- userInput), onEnter(text), onCommit(text): Enter or losing the focus with a changed text (Escape restores the text
 -- that was there). The kit never saves anything: the callbacks do.
+-- The edit box that has the keyboard, if any.
+local focusedEdit
+
 Kit.Define("EditBox", {
   frameType = "EditBox",
   create = function(obj)
@@ -543,10 +546,14 @@ Kit.Define("EditBox", {
     frame:SetScript("OnEditFocusGained", function()
       obj.focused = true
       obj.escaped = false
+      focusedEdit = obj
       obj:refresh()
     end)
     frame:SetScript("OnEditFocusLost", function()
       obj.focused = false
+      if focusedEdit == obj then
+        focusedEdit = nil
+      end
       obj:refresh()
       if not obj.escaped and obj.opts and not obj.released then
         commit()
@@ -592,9 +599,35 @@ Kit.Define("EditBox", {
   end,
   reset = function(obj)
     obj.frame:ClearFocus()
+    if focusedEdit == obj then
+      focusedEdit = nil
+    end
     obj.frame:SetAlpha(1)
   end,
 })
+
+-- Is the player typing in a kit edit box? (The chat box does not count.)
+function Kit.HasEditFocus()
+  return focusedEdit ~= nil
+end
+
+-- Takes the focus away from the box being typed in, which commits its text. A release drops what was not committed,
+-- and a button does not take the focus away by itself, so whatever redraws a page calls this first.
+function Kit.CommitEdit()
+  if focusedEdit then
+    focusedEdit.frame:ClearFocus()
+  end
+end
+
+-- Like Escape in the box being typed in: its text goes back to what it was and nothing is committed.
+function Kit.DiscardEdit()
+  local edit = focusedEdit
+  if edit then
+    edit.escaped = true
+    edit.frame:SetText(edit.stored or "")
+    edit.frame:ClearFocus()
+  end
+end
 
 function Widget:GetText()
   if self.frame and self.kind == "EditBox" then

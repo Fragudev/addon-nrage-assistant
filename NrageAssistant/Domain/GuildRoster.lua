@@ -88,12 +88,8 @@ function GuildRoster:FindOwnName()
   end
 end
 
-function GuildRoster:Finish(entries, count)
+function GuildRoster:Finish(entries, count, keys)
   self.entries = entries
-  local keys = {}
-  for name in pairs(entries) do
-    keys[ns.Validate.NameKey(name)] = name
-  end
   self.keys = keys
   self.count = count
   self.lastCompletedAt = self.now()
@@ -124,7 +120,7 @@ function GuildRoster:Rebuild()
   self.lastStartedAt = self.now()
 
   local generation = self.generation
-  local entries, count, index = {}, 0, 1
+  local entries, keys, count, index = {}, {}, 0, 1
   local safe
   local function step()
     if generation ~= self.generation then
@@ -136,6 +132,7 @@ function GuildRoster:Rebuild()
       if entry and type(entry.name) == "string" then
         if not entries[entry.name] then
           count = count + 1
+          keys[ns.Validate.NameKey(entry.name)] = entry.name
         end
         entries[entry.name] = {
           rankName = entry.rankName,
@@ -151,7 +148,7 @@ function GuildRoster:Rebuild()
     if index <= total then
       self.schedule(0, safe)
     else
-      self:Finish(entries, count)
+      self:Finish(entries, count, keys)
     end
   end
   -- A step that raises must not leave `rebuilding` on for good: the state is reset and a later rebuild starts over.

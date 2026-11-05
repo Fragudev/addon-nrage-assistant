@@ -186,6 +186,8 @@ function UI.Redraw()
     return
   end
   closePagePopups()
+  -- Before the page goes: a text being typed is committed, not lost. Its commit may redraw too, which is harmless.
+  Kit.CommitEdit()
   local offset = page:GetScroll()
   -- What these views show is read from the character again each time they are drawn.
   if ns.character and (currentTab == "profile" or currentTab == "ready" or currentTab == "home") then
@@ -237,7 +239,7 @@ local FOCUS_RETRY_SECONDS = 1
 local focusWaiting = false
 
 local function syncRedraw()
-  if GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus() then
+  if Kit.HasEditFocus() then
     if not focusWaiting then
       focusWaiting = true
       C_Timer.After(FOCUS_RETRY_SECONDS, function()

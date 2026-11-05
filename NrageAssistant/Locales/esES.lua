@@ -381,7 +381,7 @@ ns.Locale.Register("es", {
   ["disabled: this addon is only for the Alliance."] = "desactivado: este addon es solo para la Alianza.",
   ["disabled: this addon is only for the PvP ruleset."] = "desactivado: este addon es solo para el reino PvP.",
   ["disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."] = "desactivado: los datos guardados son de una versión más reciente del addon. Actualiza el addon; tus datos no se han tocado.",
-  ["disabled: the saved data could not be updated to this version. Your data was left untouched; please report it."] = "desactivado: no se pudieron actualizar los datos guardados a esta versión. Tus datos no se han tocado; por favor, repórtalo.",
+  ["disabled: the saved data could not be updated to this version. Please report it before changing anything."] = "desactivado: no se pudieron actualizar los datos guardados a esta versión. Por favor, repórtalo antes de cambiar nada.",
   ["%s could not start; the rest of the addon works. Type /reload to retry."] = "%s no pudo iniciarse; el resto del addon funciona. Escribe /reload para reintentar.",
   -- UI/Kit
   ["Close"] = "Cerrar",

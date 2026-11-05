@@ -15,7 +15,7 @@ local NOTICES = ns.Locale.Table(function()
       "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
     ),
     migration_failed = L(
-      "disabled: the saved data could not be updated to this version. Your data was left untouched; please report it."
+      "disabled: the saved data could not be updated to this version. Please report it before changing anything."
     ),
   }
 end)
@@ -918,6 +918,7 @@ local ACTIVATION_STEPS = {
 
 -- The steps that raised in this session ({ step, error }), for /nrage debug and the tests.
 ns.startupErrors = {}
+local STARTUP_ERRORS_MAX = 20
 
 local function ReportStartupFailures(failed)
   if startupFailureShown or #failed == 0 then
@@ -940,7 +941,10 @@ local function Activate()
   for _, step in ipairs(ACTIVATION_STEPS) do
     local ok, err = pcall(step.run)
     if not ok then
-      ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
+      -- A core step is tried again on every guild event: the list keeps the first failures only.
+      if #ns.startupErrors < STARTUP_ERRORS_MAX then
+        ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
+      end
       failed[#failed + 1] = step.name
       if step.core then
         ns.active = false
