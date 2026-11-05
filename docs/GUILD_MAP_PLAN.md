@@ -28,11 +28,11 @@ implementing agent. Items marked **default** were not discussed explicitly and a
 
 ### 0.2 Privacy (default)
 
-A map position is finer than a layer, so sharing it is **off by default** (default). The settings are:
+Sharing the position is **on by default**, so the guild map works without setup, and the player can turn it off. The settings are:
 
 | Setting | Default | Effect |
 |---|---|---|
-| Share my position | off | publishes the own position to the guild |
+| Share my position | on | publishes the own position to the guild |
 | Show guildmates on the minimap | on | draws received positions on the minimap |
 | Show guildmates on the world map | on | draws received positions on the world map |
 

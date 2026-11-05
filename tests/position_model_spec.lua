@@ -10,10 +10,10 @@ local ns = load_model()
 local PositionModel, Constants = ns.PositionModel, ns.Constants
 
 describe("PositionModel.Settings", function()
-  it("shares nothing by default and shows the guild on both maps", function()
+  it("shares the position by default and shows the guild on both maps", function()
     local db = { global = {} }
-    assert.are.same({ share = false, minimap = true, worldmap = true }, PositionModel.Settings(db))
-    assert.are.same({ share = false, minimap = true, worldmap = true }, db.global.settings.position)
+    assert.are.same({ share = true, minimap = true, worldmap = true }, PositionModel.Settings(db))
+    assert.are.same({ share = true, minimap = true, worldmap = true }, db.global.settings.position)
   end)
 
   it("keeps what the player chose", function()
@@ -21,15 +21,27 @@ describe("PositionModel.Settings", function()
     assert.are.same({ share = true, minimap = false, worldmap = true }, PositionModel.Settings(db))
   end)
 
+  it("keeps sharing off for a player who turned it off", function()
+    local db = { global = { settings = { position = { share = false } } } }
+    assert.is_false(PositionModel.Settings(db).share)
+  end)
+
+  it("gives the share notice once", function()
+    local db = { global = { settings = { positionShareNotice = true } } }
+    assert.is_true(PositionModel.TakeShareNotice(db))
+    assert.is_false(PositionModel.TakeShareNotice(db))
+    assert.is_false(PositionModel.TakeShareNotice({ global = {} }))
+  end)
+
   it("falls back to the defaults for damaged values", function()
     for _, damaged in ipairs({ "x", 5, true }) do
       local db = { global = { settings = damaged } }
-      assert.are.same({ share = false, minimap = true, worldmap = true }, PositionModel.Settings(db))
+      assert.are.same({ share = true, minimap = true, worldmap = true }, PositionModel.Settings(db))
     end
     local db = { global = { settings = { position = { share = "yes", minimap = 0, worldmap = "no" } } } }
-    assert.are.same({ share = false, minimap = true, worldmap = true }, PositionModel.Settings(db))
+    assert.are.same({ share = true, minimap = true, worldmap = true }, PositionModel.Settings(db))
     db = { global = { settings = { position = "broken" } } }
-    assert.are.same({ share = false, minimap = true, worldmap = true }, PositionModel.Settings(db))
+    assert.are.same({ share = true, minimap = true, worldmap = true }, PositionModel.Settings(db))
   end)
 
   it("returns the stored table, so a change is saved", function()

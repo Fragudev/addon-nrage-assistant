@@ -56,9 +56,9 @@ seasons** with missions, a points ranking and end-of-season rewards.
 ### Guild map
 
 See your guildmates on the **minimap** and the **world map**, each one as a pin with their class icon. Hover a pin for
-the name, level, layer and how fresh the position is; members on another layer show half transparent. Sharing your own
-position is **off by default** and you turn it on in the settings. Nothing is sent from instances, battlegrounds or
-during an encounter.
+the name, level, layer and how fresh the position is; members on another layer show half transparent. Your own
+position is **shared with the guild by default**, and you can turn it off in the settings. Nothing is sent from
+instances, battlegrounds or during an encounter.
 
 ## Admin
 

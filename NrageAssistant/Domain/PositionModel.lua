@@ -8,17 +8,27 @@ local PositionModel = {}
 
 local FORGET = "P1:0"
 
--- The position settings, created and repaired as needed: { share, minimap, worldmap }. Sharing is off until the
--- player turns it on (a position is finer than a layer); drawing the guild is on until the player turns it off.
+-- The position settings, created and repaired as needed: { share, minimap, worldmap }. Sharing and drawing the guild
+-- are on until the player turns them off.
 function PositionModel.Settings(db)
   db.global.settings = type(db.global.settings) == "table" and db.global.settings or {}
   local settings = db.global.settings
   settings.position = type(settings.position) == "table" and settings.position or {}
   local position = settings.position
-  position.share = position.share == true
+  position.share = position.share ~= false
   position.minimap = position.minimap ~= false
   position.worldmap = position.worldmap ~= false
   return position
+end
+
+-- True once after the migration turned sharing on for this account, so the player can be told.
+function PositionModel.TakeShareNotice(db)
+  local settings = db.global.settings
+  if type(settings) ~= "table" or settings.positionShareNotice ~= true then
+    return false
+  end
+  settings.positionShareNotice = nil
+  return true
 end
 
 -- The zone coordinates 0..1 as the integers of the wire, clamped and rounded. Not a number gives nil.

@@ -2694,7 +2694,7 @@ describe("Window smoke test: settings, language and automatic refresh", function
     assert.is_false(env.ns.Settings.BlacklistSound(env.ns.db))
   end)
 
-  it("saves the position switches: sharing off by default, the guild drawn on both maps by default", function()
+  it("saves the position switches: sharing and the guild on both maps are on by default", function()
     local stack = open_settings()
     local calls = {}
     env.ns.SetPositionShare = function(share)
@@ -2706,13 +2706,13 @@ describe("Window smoke test: settings, language and automatic refresh", function
     local share = FakeKit.find(stack, "Switch", "Share my position")
     local minimap = FakeKit.find(stack, "Switch", "Show guildmates on the minimap")
     local worldmap = FakeKit.find(stack, "Switch", "Show guildmates on the world map")
-    assert.is_false(share.opts.checked)
+    assert.is_true(share.opts.checked)
     assert.is_true(minimap.opts.checked)
     assert.is_true(worldmap.opts.checked)
-    share.opts.onChange(true)
+    share.opts.onChange(false)
     minimap.opts.onChange(false)
     worldmap.opts.onChange(false)
-    assert.are.same({ { "share", true }, { "minimap", false }, { "worldmap", false } }, calls)
+    assert.are.same({ { "share", false }, { "minimap", false }, { "worldmap", false } }, calls)
   end)
 
   it("changes the language and draws the window again in it", function()
@@ -2841,15 +2841,35 @@ describe("Window smoke test: Professions", function()
     assert.is_truthy(env.text():find("Reading your own recipes is not available", 1, true))
   end)
 
-  it("lists who can craft a recipe and prefills a whisper from Ask", function()
+  it("lists who can craft a recipe and prefills a whisper from its dropdown", function()
     env = build("Member")
     env.recipeNames = { [10] = "Elixir of Might", [11] = "Flask of Wisdom" }
     share("Ann-Realm", 171, "Alchemy", { 10, 11 })
     env.open("professions")
     assert.is_truthy(env.text():find("Elixir of Might", 1, true))
-    assert.is_truthy(env.text():find("Ask Ann-Realm", 1, true))
-    env.press("Ask Ann-Realm")
+    -- The first dropdown is the profession filter; each recipe has its own after it.
+    local dropdown = FakeKit.find_all(env.page(), "Dropdown")[2]
+    assert.are.equal("Ask... (1)", dropdown.opts.placeholder)
+    assert.are.same({ { value = "Ann-Realm", text = "Ann-Realm" } }, dropdown.opts.items)
+    dropdown.opts.onChange("Ann-Realm")
     assert.are.equal("/w Ann-Realm Could you craft me [link10]?", env.prefilled)
+    assert.is_nil(dropdown:GetValue())
+  end)
+
+  it("disables the dropdown of a recipe nobody online can craft and names the crafters", function()
+    env = build("Member")
+    env.recipeNames = { [10] = "Elixir of Might" }
+    share("Ann-Realm", 171, "Alchemy", { 10 })
+    env.ns.guildRoster = {
+      Lookup = function()
+        return { online = false }
+      end,
+    }
+    env.open("professions")
+    local dropdown = FakeKit.find_all(env.page(), "Dropdown")[2]
+    assert.is_true(dropdown.opts.disabled)
+    assert.are.equal("Nobody online (1)", dropdown.opts.placeholder)
+    assert.are.equal("Ann-Realm", dropdown.opts.tooltip)
   end)
 
   it("searches by name and says when nothing matches", function()
