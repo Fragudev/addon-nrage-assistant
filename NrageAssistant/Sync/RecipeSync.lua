@@ -56,6 +56,27 @@ local function trimStaging(staging)
   end
 end
 
+-- Makes room for the lists of a new member: when the table is full, the member whose lists arrived longest ago goes,
+-- because a member who left the guild stops sending.
+local function makeRoom(recipes)
+  if countKeys(recipes) < ns.Constants.RECIPE_MEMBERS_MAX then
+    return
+  end
+  local oldestName, oldestAt
+  for name, professions in pairs(recipes) do
+    local at = 0
+    for _, record in pairs(type(professions) == "table" and professions or {}) do
+      if type(record) == "table" and type(record.receivedAt) == "number" and record.receivedAt > at then
+        at = record.receivedAt
+      end
+    end
+    if not oldestAt or at < oldestAt or (at == oldestAt and name < oldestName) then
+      oldestName, oldestAt = name, at
+    end
+  end
+  recipes[oldestName] = nil
+end
+
 -- `message` must already be validated by Protocol. `sender` and `role` come from the client.
 function RecipeSync.Apply(ctx, message, sender, role)
   if message.t ~= MESSAGE then
@@ -73,9 +94,6 @@ function RecipeSync.Apply(ctx, message, sender, role)
   if record and record.rev >= payload.rev then
     return false, "stale"
   end
-  if not owned and countKeys(ctx.recipes) >= constants.RECIPE_MEMBERS_MAX then
-    return false, "limit"
-  end
   if not record and owned and countKeys(owned) >= constants.RECIPE_PROFESSIONS_MAX then
     return false, "limit"
   end
@@ -90,13 +108,15 @@ function RecipeSync.Apply(ctx, message, sender, role)
     entry = { rev = payload.rev, parts = payload.parts, got = {}, count = 0, ids = 0, at = ctx.now() }
     ctx.staging[key] = entry
   end
-  if not entry.got[payload.part] then
+  local replaced = entry.got[payload.part]
+  if not replaced then
     entry.count = entry.count + 1
-    entry.ids = entry.ids + #payload.ids
-    if entry.ids > constants.RECIPES_MAX_PER_PROFESSION then
-      ctx.staging[key] = nil
-      return false, "limit"
-    end
+  end
+  -- A part that is sent again replaces the first one: the ids are counted again, not added twice.
+  entry.ids = entry.ids - (replaced and #replaced or 0) + #payload.ids
+  if entry.ids > constants.RECIPES_MAX_PER_PROFESSION then
+    ctx.staging[key] = nil
+    return false, "limit"
   end
   entry.got[payload.part] = payload.ids
   entry.name = payload.name or entry.name
@@ -118,8 +138,13 @@ function RecipeSync.Apply(ctx, message, sender, role)
     end
   end
   ctx.staging[key] = nil
+  -- The parts have to add up to what the list says it has (`total` is optional on the wire: older clients omit it).
+  if payload.total ~= nil and #ids ~= payload.total then
+    return false, "bad_parts"
+  end
   table.sort(ids)
   if not owned then
+    makeRoom(ctx.recipes)
     owned = {}
     ctx.recipes[sender] = owned
   end

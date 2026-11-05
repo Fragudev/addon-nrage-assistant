@@ -198,6 +198,26 @@ describe("EventService.Update and Delete", function()
     end
     assert.are.equal(Constants.TOMBSTONE_MAX, count)
   end)
+
+  it("drops assignment tombstones before the others when the list is full", function()
+    local ctx = build_ctx("rl")
+    ctx.tombstones["B:oldest"] = { at = 1, rev = 1 }
+    ctx.tombstones["R:old"] = { at = 2, rev = 1 }
+    ctx.tombstones["A:e:newer"] = { at = 500, rev = 1 }
+    for i = 1, Constants.TOMBSTONE_MAX - 3 do
+      ctx.tombstones["M:" .. i] = { at = 10 + i, rev = 1 }
+    end
+    local event = Service.Create(ctx, { title = "New" })
+    Service.Delete(ctx, event.eventId)
+    assert.is_nil(ctx.tombstones["A:e:newer"])
+    assert.is_truthy(ctx.tombstones["B:oldest"])
+    assert.is_truthy(ctx.tombstones["R:old"])
+    assert.is_truthy(ctx.tombstones["E:" .. event.eventId])
+  end)
+
+  it("keeps a tombstone at least as long as an event is retained", function()
+    assert.is_true(Constants.TOMBSTONE_TTL_SECONDS >= Constants.EVENT_RETENTION_SECONDS)
+  end)
 end)
 
 describe("EventService attendance", function()
@@ -416,7 +436,7 @@ describe("EventService.List and Purge", function()
 
   it("purges events past retention and expired tombstones only", function()
     local ctx = build_ctx("rl")
-    ctx.clock = 100 * 24 * 3600
+    ctx.clock = 200 * 24 * 3600
     ctx.events.old = { title = "Old", startAt = 1 }
     ctx.events.fresh = { title = "Fresh", startAt = ctx.clock - 10 }
     ctx.events.undated = { title = "Undated", updatedAt = ctx.clock - 10 }

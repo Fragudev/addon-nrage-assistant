@@ -209,6 +209,75 @@ describe("LootPopup controller countdown", function()
   end)
 end)
 
+describe("LootPopup session bookkeeping", function()
+  it("forgets the sessions that do not exist any more", function()
+    local env = build({ entry("s1"), entry("s2") })
+    env.controller:Dismiss("s1")
+    env.controller:Dismiss("gone")
+    env.controller.firstShown.gone = 5
+    env.controller.firstShown.s2 = 6
+    env.controller:Prune({ s1 = true, s2 = true })
+    assert.is_true(env.controller.dismissed.s1)
+    assert.is_nil(env.controller.dismissed.gone)
+    assert.is_nil(env.controller.firstShown.gone)
+    assert.are.equal(6, env.controller.firstShown.s2)
+  end)
+
+  it("moves the footer and the bars of a drawn popup without drawing it again", function()
+    local texts, values = {}, {}
+    local refs = {
+      footer = {
+        SetText = function(_, text)
+          texts[#texts + 1] = text
+        end,
+      },
+      bars = {
+        {
+          sessionId = "s1",
+          bar = {
+            SetValue = function(_, value)
+              values[#values + 1] = value
+            end,
+          },
+        },
+        {
+          sessionId = "s2",
+          bar = {
+            SetValue = function()
+              error("no time left for s2")
+            end,
+          },
+        },
+      },
+    }
+    ns.LootPopup.UpdateCountdown(refs, "soon", function(id)
+      return id == "s1" and 15 or nil
+    end, 60)
+    assert.are.same({ "soon" }, texts)
+    assert.are.same({ 0.25 }, values)
+    assert.has_no.errors(function()
+      ns.LootPopup.UpdateCountdown(nil, "x", function() end, 60)
+    end)
+  end)
+
+  it("moves the bar with its setter and never lays it out again", function()
+    local calls = {}
+    local bar = {
+      SetValue = function(_, value)
+        calls[#calls + 1] = value
+      end,
+      Layout = function()
+        error("the countdown must not lay the bar out")
+      end,
+    }
+    local refs = { bars = { { sessionId = "s1", bar = bar } } }
+    ns.LootPopup.UpdateCountdown(refs, nil, function()
+      return 30
+    end, 60)
+    assert.are.same({ 0.5 }, calls)
+  end)
+end)
+
 describe("LootPopup.Pending", function()
   local Roles = dofile("tests/support/roles.lua")
 

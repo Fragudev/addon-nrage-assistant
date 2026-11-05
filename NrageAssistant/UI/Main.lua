@@ -13,10 +13,26 @@ local L = ns.L
 -- refresh function; UI.LootChanged calls them all.
 UI.lootListeners = {}
 
+local LOOT_REDRAW_SECONDS = 0.25
+local lootThrottle
+
+-- Loot changed here or on a received message (a council opening a session sends a burst): the listeners run at most
+-- once per LOOT_REDRAW_SECONDS.
 function UI.LootChanged()
-  for _, listener in ipairs(UI.lootListeners) do
-    listener()
-  end
+  lootThrottle = lootThrottle
+    or ns.Throttle.New({
+      run = function()
+        for _, listener in ipairs(UI.lootListeners) do
+          listener()
+        end
+      end,
+      now = function()
+        return ns.Platform.Now()
+      end,
+      schedule = C_Timer.After,
+      interval = LOOT_REDRAW_SECONDS,
+    })
+  lootThrottle:Call()
 end
 
 local SIDEBAR_WIDTH = 200
@@ -136,17 +152,7 @@ end
 -- Shows what a command returned (a list of lines): a failure in danger, a change that was saved here but could not be
 -- sent in warning, anything else in success.
 function UI.Report(lines)
-  local kind = "success"
-  if ns.Validate.IsFailure(lines) then
-    kind = "danger"
-  elseif lines[2] then
-    kind = "warning"
-  end
-  local parts = {}
-  for _, line in ipairs(lines) do
-    parts[#parts + 1] = ns.ViewModel.Escape(line)
-  end
-  UI.Notify(kind, table.concat(parts, " "))
+  UI.Notify(ns.ViewModel.ReportBanner(lines))
 end
 
 -- The two-click confirmation of a destructive action (plan 1.4.11): the first click arms, the second confirms. Only one
@@ -169,11 +175,19 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Drawing
 
+-- Closes the menus and pickers opened from the page (a dropdown, a date picker): drawing the page again recycles the
+-- widgets they were opened for, so a pick would land on another row. The settings popover and the modal belong to the
+-- window, not to the page, and stay. Set below, next to the settings.
+local closePagePopups
+
 -- Draws the banner and the tab into the page again, keeping the scroll position.
 function UI.Redraw()
   if not (UI.IsOpen() and page) then
     return
   end
+  closePagePopups()
+  -- Before the page goes: a text being typed is committed, not lost. Its commit may redraw too, which is harmless.
+  Kit.CommitEdit()
   local offset = page:GetScroll()
   -- What these views show is read from the character again each time they are drawn.
   if ns.character and (currentTab == "profile" or currentTab == "ready" or currentTab == "home") then
@@ -218,6 +232,28 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- Redraws that follow what arrives from the guild: bursts count once per interval.
 
+-- A redraw that follows what arrived from the guild. While an edit box has the keyboard (a search or reason box being
+-- typed in) it would destroy that box mid-typing, so it waits and runs once the focus is gone. A redraw the player
+-- asked for with a click goes through UI.Redraw directly and is not held back.
+local FOCUS_RETRY_SECONDS = 1
+local focusWaiting = false
+
+local function syncRedraw()
+  if Kit.HasEditFocus() then
+    if not focusWaiting then
+      focusWaiting = true
+      C_Timer.After(FOCUS_RETRY_SECONDS, function()
+        focusWaiting = false
+        if UI.IsOpen() then
+          syncRedraw()
+        end
+      end)
+    end
+    return
+  end
+  UI.Redraw()
+end
+
 local function throttledRedraw(shown, seconds)
   local throttle
   return function()
@@ -226,9 +262,7 @@ local function throttledRedraw(shown, seconds)
     end
     throttle = throttle
       or ns.Throttle.New({
-        run = function()
-          UI.Redraw()
-        end,
+        run = syncRedraw,
         now = function()
           return ns.Platform.Now()
         end,
@@ -255,7 +289,7 @@ end, 1)
 function UI.PvPSeasonChanged(messageType)
   UI.PvPChanged()
   if messageType == "PVP_OFFICER" and currentTab == "roster" then
-    UI.Redraw()
+    syncRedraw()
   end
 end
 
@@ -279,7 +313,7 @@ end, 1)
 -- The guild's readiness rules changed: rare (one message per change), so no throttling.
 function UI.RulesChanged()
   if UI.IsOpen() and (currentTab == "ready" or currentTab == "rules") then
-    UI.Redraw()
+    syncRedraw()
   end
 end
 
@@ -309,7 +343,7 @@ function UI.ReadinessChanged()
       run = function()
         if UI.IsOpen() and ReadinessIsShown() and ns.character then
           ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
-          UI.Redraw()
+          syncRedraw()
         end
       end,
       now = function()
@@ -357,8 +391,13 @@ function UI.BuildSidebar()
     sidebar:Release()
   end
   local role = UI.Role()
-  -- The rank or the roster may have changed: a tab that is not visible any more gives way to Home.
-  currentTab = UI.ResolveTab(currentTab)
+  -- The rank or the roster may have changed: a tab that is not visible any more gives way to Home, with everything a
+  -- change of tab does (the banner, the armed action, the scroll, what is watched). SelectTab builds the sidebar.
+  local resolved = UI.ResolveTab(currentTab)
+  if resolved ~= currentTab then
+    UI.SelectTab(resolved)
+    return
+  end
   sidebar = Kit.Sidebar(window.body, {
     groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId()),
     value = currentTab,
@@ -480,6 +519,14 @@ local function buildSettings(stack)
   })
 end
 
+closePagePopups = function()
+  Kit.Menu.Close()
+  local popover = Kit.Popup.Get(1)
+  if popover:IsOpen() and popover.build ~= buildSettings then
+    popover:Close()
+  end
+end
+
 function UI.ToggleSettings()
   if not (window and ns.db) then
     return
@@ -505,6 +552,21 @@ function UI.OpenSettings()
   end
 end
 
+local pillTicker
+
+-- The window closed (its button, Escape or the toggle): nothing it armed or reported outlives it, and nothing keeps
+-- running for it.
+function UI.WindowClosed()
+  Kit.CloseAllPopups()
+  UI.WatchReadiness(false)
+  banner = nil
+  armed = nil
+  if pillTicker then
+    pillTicker:Cancel()
+    pillTicker = nil
+  end
+end
+
 local function buildWindow()
   -- An unpackaged checkout reports "dev": the header shows no badge for it, while the minimap and the login line do.
   local version = ns.GetVersion()
@@ -525,8 +587,7 @@ local function buildWindow()
     },
     onResize = onResize,
     onClose = function()
-      Kit.CloseAllPopups()
-      UI.WatchReadiness(false)
+      UI.WindowClosed()
     end,
   })
   UI.ApplyWindowStatus(window, "mainWindow", 1000, 640)
@@ -535,8 +596,12 @@ local function buildWindow()
   content:SetPoint("BOTTOMRIGHT", window.body, "BOTTOMRIGHT", 0, 0)
   page = Kit.ScrollArea(content, { gap = Kit.Theme.metrics.blockGap, pad = PAGE_PAD })
   Kit.Place(page, content, 0, 0)
-  if C_Timer.NewTicker then
-    C_Timer.NewTicker(2, function()
+end
+
+-- The sync pill follows the sync status while the window is open.
+local function startPillTicker()
+  if not pillTicker and C_Timer.NewTicker then
+    pillTicker = C_Timer.NewTicker(2, function()
       if UI.IsOpen() then
         UI.UpdatePill()
       end
@@ -550,13 +615,14 @@ function UI.Toggle()
   end
   if window and window:IsShown() then
     window:Hide()
-    UI.WatchReadiness(false)
+    UI.WindowClosed()
     return
   end
   if not window then
     buildWindow()
   end
   window:Show()
+  startPillTicker()
   UI.WatchReadiness(ReadinessIsShown())
   UI.BuildSidebar()
   UI.UpdatePill()

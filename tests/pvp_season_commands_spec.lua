@@ -298,6 +298,21 @@ describe("PvPSeasonCommands", function()
       assert.is_true(select(2, admin.run("grant")))
     end)
 
+    it("reads a player with several words, with or without points", function()
+      assert.are.equal("gave 10 points to Yonemon Gg.", admin.run("grant Yonemon Gg " .. missionId))
+      assert.are.equal("gave 40 points to Yonemon Gg.", admin.run("grant Yonemon Gg " .. missionId .. " 40"))
+      assert.are.equal("gave 5 points to Ann Bob.", admin.run("grant Ann Bob " .. missionId .. " 5"))
+    end)
+
+    it("refuses mistyped points instead of granting the mission points", function()
+      local before = #admin.sent
+      local out, failed = admin.run("grant Bob " .. missionId .. " 4O")
+      assert.is_true(failed)
+      assert.are.equal("give the points as a number, from 1 to 1000.", out)
+      assert.is_true(select(2, admin.run("grant Bob " .. missionId .. " forty")))
+      assert.are.equal(before, #admin.sent)
+    end)
+
     it("says when a change was saved here but not sent", function()
       admin.queued = false
       assert.is_truthy(
@@ -317,6 +332,17 @@ describe("PvPSeasonCommands", function()
       assert.is_true(failed)
       assert.are.equal("something_new", out)
     end)
+  end)
+
+  it("takes the command words in any case, and keeps the case of names and ids", function()
+    assert.is_truthy(admin.run("SEASON CREATE 5 One"):find("created the season 'One'", 1, true))
+    admin.run("Mission ADD 10 Hunt")
+    local missionId = admin.service:Missions(admin.service:ActiveSeason().id)[1].id
+    assert.is_truthy(admin.run("Season"):find("season 'One'", 1, true))
+    assert.are.equal("gave 10 points to Yonemon Gg.", admin.run("GRANT Yonemon Gg " .. missionId))
+    assert.are.equal("paused the mission 'Hunt'.", admin.run("Mission PAUSE " .. missionId))
+    assert.are.equal("resumed the mission 'Hunt'.", admin.run("MISSION Resume " .. missionId))
+    assert.are.equal("no claims waiting.", admin.run("QUEUE"))
   end)
 
   it("speaks Spanish when the client does", function()

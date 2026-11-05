@@ -80,7 +80,7 @@ local function ruleList(page, rules)
             UI.Disarm()
             local list, reason = ViewModel.WithoutRule(rules, row.id)
             if not list then
-              UI.Notify("danger", L("Not saved: ") .. ViewModel.RULE_ERRORS[reason])
+              UI.Notify("danger", L("Not saved: ") .. (ViewModel.RULE_ERRORS[reason] or tostring(reason)))
               return
             end
             if state.editing == row.id then
@@ -254,7 +254,7 @@ local function ruleForm(page, rules)
       local rule, reason = ViewModel.RuleFromFields(state.check, fields, rules, editing)
       if not rule then
         state.errors = { [ViewModel.RuleErrorField(reason)] = ViewModel.RULE_ERRORS[reason] }
-        UI.Notify("danger", L("Not saved: ") .. ViewModel.RULE_ERRORS[reason])
+        UI.Notify("danger", L("Not saved: ") .. (ViewModel.RULE_ERRORS[reason] or tostring(reason)))
         return
       end
       local list

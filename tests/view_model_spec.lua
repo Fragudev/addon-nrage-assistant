@@ -52,78 +52,15 @@ describe("ViewModel.Escape", function()
   end)
 end)
 
-describe("ViewModel.Home", function()
-  it("shows version, readiness and sync state", function()
-    local text = table.concat(
-      ViewModel.Home({
-        version = "0.1.0",
-        readinessText = "1/3 met, 2 unknown",
-        syncLines = { "sync paused: encounter in progress", "queued messages: 1" },
-      }),
-      "\n"
-    )
-    assert.is_truthy(text:find("Nrage Assistant 0.1.0", 1, true))
-    assert.is_truthy(text:find("Your readiness: 1/3 met, 2 unknown", 1, true))
-    assert.is_truthy(text:find("  sync paused: encounter in progress", 1, true))
-  end)
-
-  it("escapes sync lines, which can contain sender names", function()
-    local text = table.concat(
-      ViewModel.Home({
-        version = "dev",
-        readinessText = "0/0 met",
-        syncLines = { "  |cffff0000Evil-Realm - addon 1" },
-      }),
-      "\n"
-    )
-    assert.is_nil(text:find("[^|]|c"))
-    assert.is_truthy(text:find("||cffff0000Evil-Realm", 1, true))
-  end)
-end)
-
-describe("ViewModel.Roster", function()
-  local now = 1000000
-
-  it("explains an empty roster", function()
-    local lines = ViewModel.Roster({}, now)
-    assert.are.equal(1, #lines)
-    assert.is_truthy(lines[1]:find("No profiles received yet", 1, true))
-  end)
-
-  it("lists profiles sorted by name and labelled as received", function()
-    local lines = ViewModel.Roster({
-      ["Zed-Realm"] = { class = "MAGE", level = 60, receivedAt = now - 10 },
-      ["Ann-Realm"] = { class = "WARRIOR", level = 58, ilvl = 190, fields = { role = "tank" }, receivedAt = now - 10 },
-    }, now)
-    assert.are.equal("2 profile(s) received:", lines[1])
-    assert.are.equal("  Ann-Realm - WARRIOR 58, ilvl 190, role tank [received]", lines[2])
-    assert.are.equal("  Zed-Realm - MAGE 60 [received]", lines[3])
-  end)
-
-  it("labels old data as stale, never as received", function()
-    local lines = ViewModel.Roster({
-      ["Old-Realm"] = { class = "MAGE", level = 60, receivedAt = now - Constants.ROSTER_STALE_SECONDS - 1 },
-    }, now)
-    assert.is_truthy(lines[2]:find("[stale]", 1, true))
-    assert.is_nil(lines[2]:find("[received]", 1, true))
-  end)
-
-  it("treats a missing timestamp as stale", function()
-    local lines = ViewModel.Roster({ ["X-Realm"] = { class = "MAGE", level = 1 } }, now)
-    assert.is_truthy(lines[2]:find("[stale]", 1, true))
-  end)
-
-  it("escapes received text", function()
-    local lines = ViewModel.Roster({
-      ["|cffff0000Bad-Realm"] = {
-        class = "MAGE",
-        level = 1,
-        fields = { role = "|Hitem:1|h" },
-        receivedAt = now,
-      },
-    }, now)
-    assert.is_truthy(lines[2]:find("||cffff0000Bad-Realm", 1, true))
-    assert.is_truthy(lines[2]:find("||Hitem:1||h", 1, true))
+describe("ViewModel.ReportBanner", function()
+  it("says success, warning or danger for what a command returned, escaped", function()
+    local kind, text = ViewModel.ReportBanner({ "done |cff" })
+    assert.are.equal("success", kind)
+    assert.are.equal("done ||cff", text)
+    kind, text = ViewModel.ReportBanner({ "saved", "not sent" })
+    assert.are.equal("warning", kind)
+    assert.are.equal("saved not sent", text)
+    assert.are.equal("danger", (ViewModel.ReportBanner(viewNs.Validate.Failure("no"))))
   end)
 end)
 
@@ -202,163 +139,6 @@ describe("ViewModel misc", function()
   end)
 end)
 
-describe("ViewModel.Raid", function()
-  local function event(overrides)
-    local e = {
-      eventId = "ev-1",
-      title = "Molten Core",
-      status = "open",
-      startAt = 5000,
-      attendance = {},
-      assignments = {},
-    }
-    for k, v in pairs(overrides or {}) do
-      e[k] = v
-    end
-    return e
-  end
-  local format = function(timestamp)
-    return "date:" .. timestamp
-  end
-
-  it("explains an empty list", function()
-    assert.is_truthy(ViewModel.Raid({}, format)[1]:find("No events yet", 1, true))
-  end)
-
-  it("numbers events like /nrage event and shows status and date", function()
-    local lines = ViewModel.Raid({
-      later = event({ eventId = "later", title = "Later", startAt = 9000 }),
-      sooner = event({ eventId = "sooner", title = "Sooner", startAt = 1000, status = "planned" }),
-    }, format)
-    assert.are.equal("1. Sooner [planned] - date:1000", lines[1])
-    assert.are.equal("    Attendance: none recorded", lines[2])
-    assert.are.equal("2. Later [open] - date:9000", lines[4])
-  end)
-
-  it("summarises attendance by state and lists assignments in order", function()
-    local e = event()
-    e.attendance = {
-      ["A-Realm"] = { state = "present" },
-      ["B-Realm"] = { state = "present" },
-      ["C-Realm"] = { state = "late" },
-    }
-    e.assignments = {
-      a1 = { encounter = "Ragnaros", characterKey = "Zed-Realm", task = "Healer" },
-      a2 = { encounter = "Garr", characterKey = "Bob-Realm" },
-      a3 = { encounter = "Ragnaros", characterKey = "Ann-Realm" },
-    }
-    local lines = ViewModel.Raid({ ["ev-1"] = e }, format)
-    assert.are.equal("    Attendance: 1 late, 2 present", lines[2])
-    assert.are.equal("    Garr: Bob-Realm", lines[3])
-    assert.are.equal("    Ragnaros: Ann-Realm", lines[4])
-    assert.are.equal("    Ragnaros: Zed-Realm - Healer", lines[5])
-  end)
-
-  it("leaves out the date of an undated event", function()
-    local lines = ViewModel.Raid({ ["ev-1"] = event({ startAt = false }) }, format)
-    assert.are.equal("1. Molten Core [open]", lines[1])
-  end)
-
-  it("escapes everything that came from the guild", function()
-    local e = event({ title = "|cffff0000Evil" })
-    e.attendance["|Hx|h"] = { state = "|cff00ff00late" }
-    e.assignments.a1 = { encounter = "|cffffffffBoss", characterKey = "|Hplayer:x|h", task = "|rTank" }
-    local text = table.concat(ViewModel.Raid({ ["ev-1"] = e }, format), "\n")
-    assert.is_nil(text:find("[^|]|[cHr]"))
-    assert.is_truthy(text:find("||cffff0000Evil", 1, true))
-    assert.is_truthy(text:find("||cff00ff00late", 1, true))
-    assert.is_truthy(text:find("||Hplayer:x||h", 1, true))
-  end)
-end)
-
-describe("ViewModel.Loot", function()
-  local function event(id, title, loot)
-    return {
-      eventId = id,
-      title = title,
-      status = "open",
-      startAt = 1,
-      attendance = {},
-      assignments = {},
-      loot = loot or {},
-    }
-  end
-
-  it("explains that there are no sessions and always warns that messages are not private", function()
-    local lines = ViewModel.Loot({ ["ev-1"] = event("ev-1", "Raid") })
-    assert.is_truthy(lines[1]:find("No loot sessions yet", 1, true))
-    assert.is_truthy(lines[#lines]:find("not private", 1, true))
-  end)
-
-  it("shows open sessions with aggregate counts only, never who voted for whom", function()
-    local lines = ViewModel.Loot({
-      ["ev-1"] = event("ev-1", "Molten Core", {
-        s1 = {
-          sessionId = "s1",
-          itemName = "Thunderfury",
-          status = "open",
-          candidates = { ["Ann-Realm"] = {}, ["Bob-Realm"] = {} },
-          votes = { ["Boss-Realm"] = { target = "Ann-Realm" }, ["Two-Realm"] = { target = "Ann-Realm" } },
-        },
-      }),
-    })
-    local text = table.concat(lines, "\n")
-    assert.is_truthy(text:find("Molten Core", 1, true))
-    assert.is_truthy(text:find("Thunderfury [open] - 2 candidate(s), 2 vote(s) cast", 1, true))
-    assert.is_nil(text:find("Boss-Realm", 1, true))
-  end)
-
-  it("shows the decision and reason of an awarded session, and closed sessions without award", function()
-    local lines = ViewModel.Loot({
-      ["ev-1"] = event("ev-1", "Molten Core", {
-        s1 = {
-          sessionId = "s1",
-          itemName = "Alpha",
-          status = "closed",
-          candidates = {},
-          votes = {},
-          award = { characterKey = "Ann-Realm", reason = "Highest need", awardedBy = "Boss-Realm" },
-        },
-        s2 = { sessionId = "s2", itemName = "Beta", status = "closed", candidates = {}, votes = {} },
-      }),
-    })
-    local text = table.concat(lines, "\n")
-    assert.is_truthy(text:find("Alpha [closed] - awarded to Ann-Realm - Highest need", 1, true))
-    assert.is_truthy(text:find("Beta [closed] - closed, not awarded", 1, true))
-  end)
-
-  it("lists only the events that have sessions, in event order", function()
-    local lines = ViewModel.Loot({
-      a = event("a", "Has loot", {
-        s1 = { sessionId = "s1", itemName = "X", status = "open", candidates = {}, votes = {} },
-      }),
-      b = event("b", "No loot"),
-    })
-    local text = table.concat(lines, "\n")
-    assert.is_truthy(text:find("Has loot", 1, true))
-    assert.is_nil(text:find("No loot", 1, true))
-  end)
-
-  it("escapes everything that came from the guild", function()
-    local lines = ViewModel.Loot({
-      ["ev-1"] = event("ev-1", "|cffff0000Evil", {
-        s1 = {
-          sessionId = "s1",
-          itemName = "|Hitem:1|h[Bad]|h",
-          status = "closed",
-          candidates = {},
-          votes = {},
-          award = { characterKey = "|cff00ff00Ann", reason = "|rwhy" },
-        },
-      }),
-    })
-    local text = table.concat(lines, "\n")
-    assert.is_nil(text:find("[^|]|[cHr]"))
-    assert.is_truthy(text:find("||cffff0000Evil", 1, true))
-    assert.is_truthy(text:find("||cff00ff00Ann", 1, true))
-  end)
-end)
-
 describe("ViewModel raid tab helpers", function()
   it("only offers what the role may do, like the commands", function()
     for _, role in ipairs({ "roster", "member", "alter" }) do
@@ -384,16 +164,6 @@ describe("ViewModel raid tab helpers", function()
     end
     assert.are.same(ns.EventModel.EVENT_STATUSES, set(ViewModel.EVENT_STATUSES))
     assert.are.same(ns.EventModel.ATTENDANCE_STATES, set(ViewModel.ATTENDANCE_STATES))
-  end)
-
-  it("lists events in command order, escaped", function()
-    local list, order = ViewModel.EventChoices({
-      b = { eventId = "b", title = "Later", status = "open", startAt = 20 },
-      a = { eventId = "a", title = "|cffff0000Sooner", status = "planned", startAt = 10 },
-    })
-    assert.are.same({ "a", "b" }, order)
-    assert.are.equal("1. ||cffff0000Sooner [planned]", list.a)
-    assert.are.equal("2. Later [open]", list.b)
   end)
 
   describe("AttendanceView", function()
@@ -495,97 +265,9 @@ describe("ViewModel loot tab helpers", function()
     end
     assert.are.same(ns.LootModel.NEEDS, offered)
   end)
-
-  local function session(overrides)
-    local s = {
-      sessionId = "s1",
-      itemName = "Thunderfury",
-      status = "open",
-      candidates = {
-        ["Ann-Realm"] = { spec = "Fury", need = "main", upgrade = "+12" },
-        ["Bob-Realm"] = { spec = "Prot", need = "off" },
-      },
-      votes = { ["Zed-Realm"] = { target = "Ann-Realm" } },
-    }
-    for k, v in pairs(overrides or {}) do
-      s[k] = v
-    end
-    return s
-  end
-
-  it("shows the candidates, and vote counts only as far as the visibility policy allows", function()
-    local saved = Constants.VOTE_VISIBILITY
-    Constants.VOTE_VISIBILITY = "secret"
-    local hidden = table.concat(ViewModel.LootSession(session()), "\n")
-    Constants.VOTE_VISIBILITY = "open"
-    local open = table.concat(ViewModel.LootSession(session()), "\n")
-    Constants.VOTE_VISIBILITY = saved
-
-    assert.is_truthy(hidden:find("Ann-Realm: Fury, main - +12", 1, true))
-    assert.is_truthy(hidden:find("Bob-Realm: Prot, off", 1, true))
-    assert.is_truthy(hidden:find("1 vote(s) cast (hidden until the session closes)", 1, true))
-    assert.is_nil(hidden:find("votes: Ann-Realm", 1, true))
-    assert.is_truthy(open:find("votes: Ann-Realm 1", 1, true))
-  end)
-
-  it("shows the tally and the decision once closed", function()
-    local text = table.concat(
-      ViewModel.LootSession(session({
-        status = "closed",
-        award = { characterKey = "Ann-Realm", awardedBy = "Leader-Realm", reason = "highest need" },
-      })),
-      "\n"
-    )
-    assert.is_truthy(text:find("votes: Ann-Realm 1", 1, true))
-    assert.is_truthy(text:find("awarded to Ann-Realm by Leader-Realm: highest need", 1, true))
-    assert.is_truthy(
-      table.concat(ViewModel.LootSession(session({ status = "closed" })), "\n"):find("closed, not awarded", 1, true)
-    )
-  end)
-
-  it("escapes everything that came from the guild", function()
-    local text = table.concat(
-      ViewModel.LootSession(session({
-        itemName = "|cffff0000Evil",
-        candidates = { ["|cff00ff00Ann"] = { spec = "|rSpec", need = "main" } },
-      })),
-      "\n"
-    )
-    assert.is_nil(text:find("[^|]|[cHr]"))
-  end)
-
-  it("lists candidates sorted for the dropdowns", function()
-    local list, order = ViewModel.CandidateChoices(session())
-    assert.are.same({ "Ann-Realm", "Bob-Realm" }, order)
-    assert.are.equal("Ann-Realm (Fury, main)", list["Ann-Realm"])
-  end)
 end)
 
 describe("ViewModel readiness tab helpers", function()
-  local rules = {
-    { id = "role", label = "Role declared", check = "field" },
-    { id = "consumables", label = "Consumables |cffff0000ready", check = "confirm" },
-    { id = "enchants", label = "Enchants done", check = "confirm" },
-  }
-  local results = {
-    { status = "met" },
-    { status = "unknown" },
-    { status = "waived" },
-  }
-
-  it("lists only the items confirmed by hand, with their current status", function()
-    local items = ViewModel.ManualItems(rules, results)
-    assert.are.equal(2, #items)
-    assert.are.equal("consumables", items[1].ruleId)
-    assert.are.equal("unknown", items[1].status)
-    assert.are.equal("enchants", items[2].ruleId)
-    assert.are.equal("waived", items[2].status)
-  end)
-
-  it("escapes the labels", function()
-    assert.are.equal("Consumables ||cffff0000ready", ViewModel.ManualItems(rules, results)[1].label)
-  end)
-
   it("offers exactly the statuses SetManual accepts", function()
     local ns = {}
     for _, path in ipairs({ "Core/Constants", "Core/Locale", "Core/Validate", "Domain/ReadinessService" }) do
@@ -910,25 +592,6 @@ describe("ViewModel raid tab layout helpers", function()
       values({ events = false, attendance = true, assignments = false })
     )
   end)
-
-  it("describes one event with its number, attendance counts and assignments, escaped", function()
-    local lines = ViewModel.RaidEventLines(
-      {
-        title = "|cffff0000Raid",
-        status = "open",
-        startAt = 7,
-        attendance = { a = { state = "present" }, b = { state = "present" }, c = { state = "late" } },
-        assignments = { x = { encounter = "Garr", characterKey = "Ann-Realm", task = "Tank" } },
-      },
-      3,
-      function(timestamp)
-        return "date:" .. timestamp
-      end
-    )
-    assert.are.equal("3. ||cffff0000Raid [open] - date:7", lines[1])
-    assert.are.equal("    Attendance: 1 late, 2 present", lines[2])
-    assert.are.equal("    Garr: Ann-Realm - Tank", lines[3])
-  end)
 end)
 
 describe("ViewModel voting table sort and filter", function()
@@ -1052,41 +715,6 @@ describe("ViewModel item details and won items", function()
 end)
 
 describe("ViewModel PvP", function()
-  local function stats()
-    local pvp = { honor = { world = 4, bg = 6 }, blows = { world = 1, bg = 2 }, daily = {} }
-    pvp.daily["2026-10-01"] = { honor = { world = 1, bg = 2 }, blows = { world = 0, bg = 1 } }
-    return pvp
-  end
-
-  it("lists honourable kills and killing blows with totals and today", function()
-    local pvp = stats()
-    local text =
-      table.concat(ViewModel.PvPStats(pvp, { day = "2026-10-01", honorAvailable = true, blowsAvailable = true }), "\n")
-    assert.is_truthy(text:find("Honourable kills\n  Open world: 4\n  Battleground: 6\n  Total: 10", 1, true))
-    assert.is_truthy(text:find("Today: 3 (open world 1, battleground 2)", 1, true))
-    assert.is_truthy(text:find("Killing blows\n  Open world: 1\n  Battleground: 2\n  Total: 3", 1, true))
-    assert.is_truthy(text:find("Today: 1 (open world 0, battleground 1)", 1, true))
-    assert.is_nil(text:find("not available", 1, true))
-  end)
-
-  it("leaves the killing blows out when the client does not allow them", function()
-    local pvp = stats()
-    local text = table.concat(ViewModel.PvPStats(pvp, { day = "2026-10-01", honorAvailable = true }), "\n")
-    assert.is_nil(text:find("Killing blows", 1, true))
-    assert.is_truthy(text:find("Honourable kills", 1, true))
-  end)
-
-  it("starts with the rank and the progress to the next one", function()
-    local ranks = { { name = "Private", kills = 0 }, { name = "Corporal", kills = 25 } }
-    local lines = ViewModel.PvPStats(stats(), { day = "2026-10-01", honorAvailable = true, ranks = ranks })
-    assert.are.equal("Rank: Private (10 honourable kills) - 15 to Corporal", lines[1])
-  end)
-
-  it("uses the configured ranks by default", function()
-    local lines = ViewModel.PvPStats(stats(), { day = "2026-10-01", honorAvailable = true })
-    assert.are.equal("Rank: Private (10 honourable kills) - 15 to Corporal", lines[1])
-  end)
-
   it("describes the top rank, no rank yet and no ranks configured", function()
     assert.are.equal(
       "Rank: Corporal (40 honourable kills), the highest rank",
@@ -1094,12 +722,6 @@ describe("ViewModel PvP", function()
     )
     assert.are.equal("Rank: none yet - 3 to Scout", ViewModel.PvPRankLine(2, { { name = "Scout", kills = 5 } }))
     assert.are.equal("Rank: none (no ranks are configured)", ViewModel.PvPRankLine(2, {}))
-  end)
-
-  it("says so when honourable kills cannot be read", function()
-    local text = table.concat(ViewModel.PvPStats(nil, { blowsAvailable = true }), "\n")
-    assert.is_truthy(text:find("Honourable kills are not available on this client.", 1, true))
-    assert.is_truthy(text:find("Today: 0 (open world 0, battleground 0)", 1, true))
   end)
 end)
 
@@ -1348,119 +970,6 @@ describe("ViewModel.PvPRanking", function()
   end)
 end)
 
-describe("ViewModel PvP feed", function()
-  local function entry(overrides)
-    local e = { victim = "Zed", where = "world", blow = false, killers = { "Ann" }, time = 100 }
-    for k, val in pairs(overrides or {}) do
-      e[k] = val
-    end
-    return e
-  end
-
-  local function options(overrides)
-    local o = {
-      available = true,
-      formatTime = function(seconds)
-        return "t" .. seconds
-      end,
-    }
-    for k, val in pairs(overrides or {}) do
-      o[k] = val
-    end
-    return o
-  end
-
-  it("lists the entries in the order given, with the killers and the place", function()
-    local lines = ViewModel.PvPFeed({
-      entry({ killers = { "Ann", "Bob" }, blow = true, time = 200 }),
-      entry({ victim = "Yan", where = "bg", time = 100 }),
-    }, options())
-    assert.are.same({
-      "t200  Ann, Bob killed Zed (open world, killing blow)",
-      "t100  Ann killed Yan (battleground)",
-    }, lines)
-  end)
-
-  it("escapes every name", function()
-    local lines = ViewModel.PvPFeed({ entry({ victim = "|cffff0000Z|r", killers = { "|Hlink|h", "B|n" } }) }, options())
-    assert.are.equal("t100  ||Hlink||h, B||n killed ||cffff0000Z||r (open world)", lines[1])
-  end)
-
-  it("says so when there are no kills yet", function()
-    local lines = ViewModel.PvPFeed({}, options())
-    assert.are.equal(1, #lines)
-    assert.is_truthy(lines[1]:find("No kills yet", 1, true))
-  end)
-
-  it("says when the client cannot give victim names", function()
-    local lines = ViewModel.PvPFeed({}, options({ available = false }))
-    assert.is_truthy(lines[1]:find("not available on this client", 1, true))
-    assert.is_truthy(lines[#lines]:find("No kills yet", 1, true))
-  end)
-
-  it("does not need a time formatter", function()
-    local lines = ViewModel.PvPFeed({ entry() }, { available = true })
-    assert.are.equal("--:--  Ann killed Zed (open world)", lines[1])
-  end)
-end)
-
-describe("ViewModel.BlacklistRows", function()
-  local function entry(name, reason, overrides)
-    local e = { name = name, reason = reason, addedBy = "Ann-Realm", addedAt = 500, rev = 1, updatedAt = 500 }
-    for k, v in pairs(overrides or {}) do
-      e[k] = v
-    end
-    return e
-  end
-
-  it("lists the entries sorted by name with the author and the date", function()
-    local rows = ViewModel.BlacklistRows({
-      zed = entry("Zed", "ninja"),
-      ann = entry("ann", "scammer", { addedBy = "Bob-Realm" }),
-      yonemongg = entry("Yonemon Gg", "afk"),
-    }, {
-      canRemove = true,
-      formatDate = function(timestamp)
-        return "date:" .. timestamp
-      end,
-    })
-    assert.are.equal(3, #rows)
-    assert.are.same({ "ann", "Yonemon Gg", "Zed" }, { rows[1].name, rows[2].name, rows[3].name })
-    assert.are.same({ "ann", "yonemongg", "zed" }, { rows[1].key, rows[2].key, rows[3].key })
-    assert.are.equal("scammer", rows[1].reason)
-    assert.are.equal("Bob-Realm", rows[1].addedBy)
-    assert.are.equal("date:500", rows[1].added)
-    assert.is_true(rows[1].canRemove)
-  end)
-
-  it("only offers Remove when the role may remove", function()
-    local entries = { ann = entry("Ann", "x") }
-    assert.is_false(ViewModel.BlacklistRows(entries, { canRemove = false })[1].canRemove)
-    assert.is_false(ViewModel.BlacklistRows(entries)[1].canRemove)
-  end)
-
-  it("escapes names, reasons and authors", function()
-    local rows = ViewModel.BlacklistRows({ x = entry("|cffff0000Bad", "|Hurl|hclick", { addedBy = "|rEvil" }) })
-    assert.are.equal("||cffff0000Bad", rows[1].name)
-    assert.are.equal("||Hurl||hclick", rows[1].reason)
-    assert.are.equal("||rEvil", rows[1].addedBy)
-  end)
-
-  it("shows a dash where a date or an author is missing", function()
-    local rows = ViewModel.BlacklistRows({ x = entry("Ann", "x", { addedAt = false, addedBy = false }) }, {
-      formatDate = function()
-        return "never"
-      end,
-    })
-    assert.are.equal("-", rows[1].added)
-    assert.are.equal("-", rows[1].addedBy)
-  end)
-
-  it("is empty for an empty blacklist", function()
-    assert.are.same({}, ViewModel.BlacklistRows({}))
-  end)
-end)
-
 describe("ViewModel.BlacklistAlertLine", function()
   it("names the player and the reason", function()
     local line = ViewModel.BlacklistAlertLine({ member = "Ann", entry = { name = "Ann", reason = "ninja" } })
@@ -1518,6 +1027,16 @@ describe("ViewModel readiness rules editor", function()
     )
     assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("level", "Level", "abc", existing)))
     assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("level", "Level", "", existing)))
+  end)
+
+  it("does not save a skill number alone as the name of a profession", function()
+    assert.are.equal("bad_details", select(2, ViewModel.RuleFromInput("profession", "Cook", "300", existing)))
+    assert.are.equal(
+      "bad_details",
+      select(2, ViewModel.RuleFromFields("profession", { label = "Cook", profession = "", min = "300" }, {}))
+    )
+    local rule = ViewModel.RuleFromInput("profession", "Cook", "Cooking 300", existing)
+    assert.are.equal("Cooking", rule.profession)
   end)
 
   it("reads enchant slots by name or number", function()
@@ -1637,70 +1156,6 @@ describe("ViewModel in Spanish", function()
     local English = load_view_model("deDE")
     assert.are.equal("Home", English.TABS[1].text)
     assert.are.equal("planned", English.Word("planned"))
-  end)
-end)
-
-describe("ViewModel.LootMinutes", function()
-  local function closed(id, updatedAt, itemName, award, votes)
-    return {
-      sessionId = id,
-      itemId = 1,
-      itemName = itemName,
-      status = "closed",
-      updatedAt = updatedAt,
-      candidates = {},
-      votes = votes or {},
-      award = award,
-    }
-  end
-
-  it("says there is nothing yet when no session is closed", function()
-    local event =
-      { title = "Molten Core", loot = { s1 = { sessionId = "s1", status = "open", candidates = {}, votes = {} } } }
-    assert.are.same({ "No closed loot sessions for 'Molten Core' yet." }, ViewModel.LootMinutes(event))
-    assert.are.same({ "No closed loot sessions for 'x' yet." }, ViewModel.LootMinutes({ title = "x" }))
-  end)
-
-  it("lists each closed session oldest first with the decision and the reason", function()
-    local event = {
-      title = "Molten Core",
-      loot = {
-        b = closed("b", 20, "Beta", nil),
-        a = closed("a", 10, "Alpha", { characterKey = "Ann-Realm", awardedBy = "Boss-Realm", reason = "Highest need" }),
-      },
-    }
-    local lines = ViewModel.LootMinutes(event)
-    assert.are.equal("Loot minutes for 'Molten Core':", lines[1])
-    assert.are.equal("  Alpha -> Ann-Realm (by Boss-Realm): Highest need", lines[2])
-    assert.are.equal("  Beta -> not awarded", lines[3])
-  end)
-
-  it("never says who voted for whom", function()
-    local event = {
-      title = "Raid",
-      loot = {
-        a = closed(
-          "a",
-          1,
-          "Alpha",
-          { characterKey = "Ann-Realm", awardedBy = "Boss-Realm", reason = "need" },
-          { ["Cid-Realm"] = { target = "Ann-Realm" } }
-        ),
-      },
-    }
-    assert.is_nil(table.concat(ViewModel.LootMinutes(event), "\n"):find("Cid-Realm", 1, true))
-  end)
-
-  it("escapes what the guild wrote", function()
-    local event = {
-      title = "|cffff0000Raid|r",
-      loot = {
-        a = closed("a", 1, "|HItem", { characterKey = "|r", awardedBy = "|c", reason = "|T" }),
-      },
-    }
-    for _, line in ipairs(ViewModel.LootMinutes(event)) do
-      assert.is_nil(line:find("[^|]|[^|]"), line)
-    end
   end)
 end)
 

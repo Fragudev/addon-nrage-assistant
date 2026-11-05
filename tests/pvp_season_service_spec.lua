@@ -52,6 +52,9 @@ local function new_service(world, name, options)
       return options.role or world.roles[name]
     end,
     roleOf = function(who)
+      if options.roleOf then
+        return options.roleOf(who)
+      end
       return world.roles[who]
     end,
     send = function(messageType, payload, key)
@@ -65,6 +68,8 @@ local function new_service(world, name, options)
       closed[#closed + 1] = seasonId
     end,
     fits = options.fits,
+    rosterReady = options.rosterReady,
+    canonicalName = options.canonicalName,
   })
   service.sent, service.changes, service.closed, service.name = sent, changes, closed, name
   return service
@@ -560,6 +565,44 @@ describe("PvPSeasonService direct grants, voids and the grant list", function()
     relay(admin, officer)
   end)
 
+  it("refuses a player who is not in a roster that was read, and stores the roster's spelling", function()
+    local ready = true
+    local gm = new_service(world, "Boss", {
+      rosterReady = function()
+        return ready
+      end,
+      roleOf = function(name)
+        return ROLES[name] or ROLES[name:sub(1, 1):upper() .. name:sub(2)]
+      end,
+      canonicalName = function(name)
+        return name == "ann" and "Ann" or nil
+      end,
+    })
+    relay(admin, gm)
+    assert.are.equal("unknown_player", select(2, gm:DirectGrant("Zed", "m1")))
+    assert.are.equal("Ann", assert(gm:DirectGrant("ann", "m1")).player)
+    ready = false
+    assert.is_truthy(gm:DirectGrant("Zed", "m1"))
+  end)
+
+  it("resolves a differently spelled name before the roster check, and keeps invalid:ref first", function()
+    local gm = new_service(world, "Boss", {
+      rosterReady = function()
+        return true
+      end,
+      roleOf = function(name)
+        return ROLES[name]
+      end,
+      canonicalName = function(name)
+        return name:lower() == "ann" and "Ann" or nil
+      end,
+    })
+    relay(admin, gm)
+    assert.are.equal("Ann", assert(gm:DirectGrant("ANN", "m1")).player)
+    assert.are.equal("unknown_player", select(2, gm:DirectGrant("Anne", "m1")))
+    assert.are.equal("invalid:ref", select(2, gm:DirectGrant("a:b", "m1")))
+  end)
+
   it("lets only an admin grant without a claim, with the mission's points unless told otherwise", function()
     local grant = assert(admin:DirectGrant("Ann", "m1"))
     assert.are.equal(10, grant.points)
@@ -614,6 +657,20 @@ describe("PvPSeasonService closing a season", function()
     member = new_service(world, "Ann")
     relay(admin, officer)
     relay(admin, member)
+  end)
+
+  it("refuses to close before the guild roster is read", function()
+    local ready = false
+    local gm = new_service(world, "Boss", {
+      rosterReady = function()
+        return ready
+      end,
+    })
+    relay(admin, gm)
+    assert.are.equal("roster_not_ready", select(2, gm:CloseSeason()))
+    assert.is_truthy(gm:ActiveSeason())
+    ready = true
+    assert.is_truthy(gm:CloseSeason())
   end)
 
   it("freezes the standing, copies the prizes, sends the final and then the closed season", function()

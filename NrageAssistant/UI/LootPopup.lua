@@ -46,6 +46,18 @@ function Controller:TimeLeft(sessionId)
   return math.max(0, self.deps.timeout - (self.deps.now() - first))
 end
 
+-- Forgets the sessions that do not exist any more (`existing` is a set of session ids), so what was dismissed or timed
+-- does not pile up for as long as the game runs.
+function Controller:Prune(existing)
+  for _, set in ipairs({ self.dismissed, self.firstShown }) do
+    for id in pairs(set) do
+      if not existing[id] then
+        set[id] = nil
+      end
+    end
+  end
+end
+
 function Controller:Hide()
   self.shownKey = nil
   self.deps.hide()
@@ -132,7 +144,7 @@ end
 
 LootPopup.Controller = Controller
 
-local frame, content, lastEntries, footer
+local frame, content, lastEntries, footer, live
 local controller
 
 -- Only the players who may apply (rank roster and above) to the roster of a session are asked about it
@@ -162,9 +174,12 @@ end)
 -- Draws the items into `stack` (the newest on top; more than VISIBLE_ROWS scroll). handlers = { answer(entry, need),
 -- pass(entry), timeLeft(sessionId) -> seconds or nil, timeout (seconds or nil), spec (the spec a click puts, text),
 -- footer (text under the items) }. The frame around it is built apart, so this can be tested with the fake kit.
+-- Returns what changes while the popup stays up: { footer = the label under the items, bars = { { sessionId, bar } } },
+-- so the countdown can move in place (LootPopup.UpdateCountdown).
 function LootPopup.Draw(stack, entries, handlers)
   local Kit = ns.Kit
   local host = stack
+  local refs = { bars = {} }
   if #entries > VISIBLE_ROWS then
     host = Kit.ScrollArea(stack, { gap = 12, height = VISIBLE_ROWS * ROW_HEIGHT })
   end
@@ -203,16 +218,35 @@ function LootPopup.Draw(stack, entries, handlers)
     })
     local left = handlers.timeLeft(entry.sessionId)
     if left and handlers.timeout and handlers.timeout > 0 then
-      Kit.ProgressBar(card, { value = left / handlers.timeout, height = 2, color = "accent" })
+      local bar = Kit.ProgressBar(card, { value = left / handlers.timeout, height = 2, color = "accent" })
+      refs.bars[#refs.bars + 1] = { sessionId = entry.sessionId, bar = bar }
     end
   end
-  Kit.Label(stack, { text = handlers.footer, style = "small", color = "muted", wrap = true })
+  refs.footer = Kit.Label(stack, { text = handlers.footer, style = "small", color = "muted", wrap = true })
+  return refs
+end
+
+-- Moves the countdown of a drawn popup without drawing it again (which would reset its scroll and could swallow a
+-- click): the text under the items and the bar of each item. `timeLeft(sessionId)` -> seconds or nil.
+function LootPopup.UpdateCountdown(refs, text, timeLeft, timeout)
+  if not refs then
+    return
+  end
+  if refs.footer and text then
+    refs.footer:SetText(text)
+  end
+  for _, item in ipairs(refs.bars) do
+    local left = timeLeft(item.sessionId)
+    if left and timeout and timeout > 0 then
+      item.bar:SetValue(left / timeout)
+    end
+  end
 end
 
 local function answer(entry, need)
   local event = ns.db.global.events[entry.eventId]
   local session = event and event.loot[entry.sessionId]
-  controller:Dismiss(entry.sessionId)
+  local done = true
   if session and ns.comm then
     local loot = ns.LootCommands.New({
       events = ns.db.global.events,
@@ -226,6 +260,11 @@ local function answer(entry, need)
     for _, line in ipairs(lines) do
       print("Nrage Assistant: " .. line)
     end
+    -- A refused candidacy stays on offer, so the player can try again.
+    done = not ns.Validate.IsFailure(lines)
+  end
+  if done then
+    controller:Dismiss(entry.sessionId)
   end
   LootPopup.Refresh()
 end
@@ -246,63 +285,21 @@ local function handlers()
   }
 end
 
-local statusTarget = {
-  SetStatusTable = function(_, status)
-    frame.status = status
-    if type(status.left) == "number" and type(status.top) == "number" then
-      frame:ClearAllPoints()
-      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", status.left, status.top)
-    end
-  end,
-}
-
--- The floating card: made once, then filled again whenever the list or the time left changes.
+-- The floating card: made once, then filled again whenever the list changes.
 local function ensureFrame()
-  if frame then
-    return frame
+  if not frame then
+    frame = ns.PopupFrame.New({
+      name = "NrageAssistantLootPopup",
+      title = "Nrage Loot",
+      width = WIDTH,
+      windowName = "popup",
+      closeTooltip = L("Hide"),
+      onClose = function()
+        -- Hiding keeps the items waiting: they come back with the next session event, or from the Loot tab.
+        controller:Hide()
+      end,
+    })
   end
-  local Kit = ns.Kit
-  local Theme = Kit.Theme
-  frame = CreateFrame("Frame", "NrageAssistantLootPopup", UIParent)
-  frame:SetFrameStrata("DIALOG")
-  frame:SetClampedToScreen(true)
-  frame:SetMovable(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
-  -- A cut surface on the plain ground: it sits over the game, so it shows no scene and is not translucent.
-  frame.shape = Kit.Shape.New(frame, { cut = "lg" })
-  frame.shape:SetFill("bg")
-  frame.shape.border:SetColor("border")
-  frame.title = frame:CreateFontString(nil, "OVERLAY")
-  frame.title:SetPoint("TOPLEFT", 16, -14)
-  frame.title:SetFontObject(Theme.StyleFont("window"))
-  Kit.SetTextColor(frame.title, "text")
-  frame.title:SetText("Nrage Loot")
-  frame:SetScript("OnDragStart", function(self)
-    self:StartMoving()
-  end)
-  frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local status = self.status
-    local left, top = self:GetLeft(), self:GetTop()
-    if status and type(left) == "number" and type(top) == "number" then
-      status.left, status.top = left, top
-    end
-  end)
-  frame.hide = Kit.IconButton(frame, {
-    icon = "close",
-    tooltip = L("Hide"),
-    onClick = function()
-      -- Hiding keeps the items waiting: they come back with the next session event, or from the Loot tab.
-      controller:Hide()
-    end,
-  })
-  frame.hide:Layout(28)
-  frame.hide.frame:ClearAllPoints()
-  frame.hide.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -8)
-  ns.UI.ApplyWindowStatus(statusTarget, "popup", WIDTH, 0)
-  frame:Hide()
   return frame
 end
 
@@ -312,12 +309,8 @@ local function render()
     content:Release()
   end
   content = ns.Kit.Stack(frame, { gap = 12 })
-  LootPopup.Draw(content, lastEntries or {}, handlers())
-  local height = content:Layout(WIDTH - 32)
-  ns.Kit.Place(content, frame, 16, 48)
-  frame:SetSize(WIDTH, height + 48 + 16)
-  frame.shape:Resize()
-  frame:Show()
+  live = LootPopup.Draw(content, lastEntries or {}, handlers())
+  ns.PopupFrame.Fit(frame, content, WIDTH)
 end
 
 local function build(entries)
@@ -335,6 +328,7 @@ local function close()
     content = nil
   end
   lastEntries = nil
+  live = nil
 end
 
 -- The time left for a session, for the Loot tab.
@@ -352,6 +346,13 @@ end
 
 function LootPopup.Refresh()
   if controller and ns.active and ns.character and ns.db then
+    local existing = {}
+    for _, event in pairs(ns.db.global.events) do
+      for sessionId in pairs(event.loot or {}) do
+        existing[sessionId] = true
+      end
+    end
+    controller:Prune(existing)
     controller:Refresh()
   end
 end
@@ -367,9 +368,16 @@ function LootPopup.Start()
     now = ns.Platform.Now,
     timeout = ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS,
     status = function(text)
+      local firstCountdown = footer == nil
       footer = text
       if frame and frame:IsShown() and lastEntries then
-        render()
+        LootPopup.UpdateCountdown(live, text, function(sessionId)
+          return controller:TimeLeft(sessionId)
+        end, ns.Constants.LOOT_RESPONSE_TIMEOUT_SECONDS)
+        -- The countdown takes the place of a shorter text and may wrap: the card fits it once, without redrawing.
+        if firstCountdown then
+          ns.PopupFrame.Fit(frame, content, WIDTH)
+        end
       end
     end,
   })

@@ -91,6 +91,7 @@ local COMMANDS = {
   pvp = PvPCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
+    sub, action = sub:lower(), action:lower()
     if sub == "identity" then
       PrintIdentity()
     elseif sub == "lockdown" then
@@ -139,7 +140,8 @@ local COMMANDS = {
 SLASH_NRAGE1 = "/nrage"
 SlashCmdList.NRAGE = function(msg)
   local command, rest = msg:match("^(%S*)%s*(.-)$")
-  local handler = COMMANDS[command]
+  -- Only the command word is case-insensitive here; the text after it keeps its case (names, titles).
+  local handler = COMMANDS[command:lower()]
   if handler then
     handler(rest)
   elseif command == "" then

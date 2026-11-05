@@ -77,6 +77,10 @@ local function killCounters(page)
         return
       end
       UI.Disarm()
+      if not ns.comm then
+        UI.Notify("danger", L("Not reset: ") .. L("Not available"))
+        return
+      end
       local target = state.resetTarget
       state.resetTarget = nil
       local ok, outcome, sent = ns.comm:ResetPvP(target)
@@ -648,22 +652,7 @@ end
 
 local function dateField(parent, label, value, onChange)
   local field = Kit.Field(parent, { label = label, layout = { weight = 1 } })
-  Kit.DateField(field, {
-    value = value,
-    placeholder = L("Pick a date and time"),
-    format = ViewModel.DateText,
-    now = ns.Platform.ServerTime,
-    monthName = function(month)
-      return ViewModel.MONTHS_LONG[month]
-    end,
-    weekdayName = function(index)
-      return ViewModel.WEEKDAYS[index]:sub(1, 2)
-    end,
-    onChange = onChange,
-    onError = function()
-      UI.Notify("danger", L("That time does not exist on that day (the clocks change)."))
-    end,
-  })
+  Kit.DateField(field, UI.DateFieldOptions(value, onChange))
 end
 
 local function seasonAdmin(page)

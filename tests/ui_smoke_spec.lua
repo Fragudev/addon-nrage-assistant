@@ -3248,3 +3248,216 @@ describe("Window smoke test: Layers", function()
     assert.is_true(#env.ns.Kit.fake.nodes > count)
   end)
 end)
+
+describe("Window redraws and closing", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("closes the menus and pickers of the page on a redraw, but not the settings or a modal", function()
+    env = build("GM")
+    env.open("home")
+    local Kit = env.ns.Kit
+    local UI = env.ns.UI
+
+    Kit.fake.menu = { items = {} }
+    Kit.Popup.Get(1):Open(nil, 100, function() end, {})
+    UI.Redraw()
+    assert.is_nil(Kit.fake.menu)
+    assert.is_false(Kit.Popup.Get(1):IsOpen())
+
+    UI.ToggleSettings()
+    Kit.Modal.Open({ build = function() end })
+    UI.Redraw()
+    assert.is_true(Kit.Popup.Get(1):IsOpen())
+    assert.is_true(Kit.Modal.IsOpen())
+  end)
+
+  it(
+    "holds back a redraw that came from the guild while an edit box has the keyboard, and runs it afterwards",
+    function()
+      env = build("GM")
+      env.open("pvp")
+      env.ns.Kit.fake.editFocus = true
+      local count = #env.ns.Kit.fake.nodes
+      env.timers = {}
+      env.ns.UI.PvPChanged()
+      assert.are.equal(count, #env.ns.Kit.fake.nodes)
+      assert.are.equal(1, #env.timers)
+
+      -- Still typing: it waits again, once.
+      env.timers[1]()
+      assert.are.equal(count, #env.ns.Kit.fake.nodes)
+      assert.are.equal(2, #env.timers)
+
+      env.ns.Kit.fake.editFocus = nil
+      env.timers[2]()
+      assert.is_true(#env.ns.Kit.fake.nodes > count)
+    end
+  )
+
+  it("still redraws at once what the player asked for, committing the box that has the keyboard first", function()
+    env = build("GM")
+    env.open("pvp")
+    env.ns.Kit.fake.editFocus = true
+    local count = #env.ns.Kit.fake.nodes
+    local commits = env.ns.Kit.fake.commits or 0
+    env.ns.UI.Redraw()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+    assert.are.equal(commits + 1, env.ns.Kit.fake.commits)
+  end)
+
+  it("fans the loot changes out at most once per interval", function()
+    env = build("GM")
+    local calls = 0
+    env.ns.UI.lootListeners = {
+      function()
+        calls = calls + 1
+      end,
+    }
+    env.timers = {}
+    env.ns.UI.LootChanged()
+    env.ns.UI.LootChanged()
+    env.ns.UI.LootChanged()
+    assert.are.equal(1, calls)
+    assert.are.equal(1, #env.timers)
+    env.ns.Platform.Now = function()
+      return 5
+    end
+    env.timers[1]()
+    assert.are.equal(2, calls)
+  end)
+
+  it("forgets the banner and the armed action when the window closes", function()
+    env = build("GM")
+    env.open("home")
+    env.ns.UI.Arm("delete-everything")
+    env.ns.UI.Notify("success", "stale-banner")
+    assert.is_truthy(env.text():find("stale-banner", 1, true))
+    env.ns.UI.Toggle()
+    assert.is_false(env.ns.UI.IsArmed("delete-everything"))
+    env.ns.UI.Toggle()
+    assert.is_nil(env.text():find("stale-banner", 1, true))
+  end)
+
+  it("treats a tab that is not visible any more like a change of tab", function()
+    env = build("Member")
+    env.forceTabs = true
+    env.open("rules")
+    env.forceTabs = false
+    env.ns.UI.Arm("delete-everything")
+    env.ns.UI.Notify("danger", "stale-banner")
+    env.registered = {}
+    env.ns.UI.RostersChanged()
+    assert.are.equal("home", env.ns.UI.CurrentTab())
+    assert.is_false(env.ns.UI.IsArmed("delete-everything"))
+    assert.is_nil(env.text():find("stale-banner", 1, true))
+    assert.is_true(env.registered.PLAYER_LEVEL_UP)
+  end)
+
+  it("stops the sync pill ticker while the window is closed and starts it again on opening", function()
+    env = build("GM")
+    local tickers = {}
+    _G.C_Timer.NewTicker = function(_, fn)
+      local ticker = {
+        fn = fn,
+        Cancel = function(self)
+          self.cancelled = true
+        end,
+      }
+      tickers[#tickers + 1] = ticker
+      return ticker
+    end
+    env.open("home")
+    assert.are.equal(1, #tickers)
+    env.ns.UI.Toggle()
+    assert.is_true(tickers[1].cancelled)
+    env.ns.UI.Toggle()
+    assert.are.equal(2, #tickers)
+    assert.is_nil(tickers[2].cancelled)
+  end)
+end)
+
+describe("Window smoke test: tab regressions", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("shows the reason of an unmapped delete failure in Rules instead of raising", function()
+    env = build("GM")
+    env.ns.ViewModel.WithoutRule = function()
+      return nil, "mystery_reason"
+    end
+    env.open("rules")
+    -- The first click arms the delete, the second one (the same button, now a confirm) deletes.
+    FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
+    FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
+    assert.is_truthy(env.banner().opts.text:find("mystery_reason", 1, true))
+  end)
+
+  it("does not raise on a PvP reset when there is no comm, and reports it", function()
+    env = build("GM")
+    env.ns.db.global.pvpStats = { ["Ann-Realm"] = { honor = { world = 3, bg = 0 }, updatedAt = 900, rev = 1 } }
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
+    env.open("pvpadmin")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("season")
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.placeholder == "Member" then
+        d.opts.onChange("Ann-Realm")
+      end
+    end
+    env.press("Reset PvP counters")
+    env.ns.comm = nil
+    env.press("Confirm: reset")
+    assert.is_truthy(env.banner().opts.text:find("Not reset", 1, true))
+    assert.are.same({}, env.sent)
+  end)
+
+  it("keeps the edit open when the save fails and closes it on success", function()
+    env = build("Member")
+    env.ns.db.global.blacklist.ann = {
+      name = "Ann",
+      reason = "ninja",
+      addedBy = "Leader-Realm",
+      addedAt = 100,
+      rev = 1,
+      updatedAt = 1,
+    }
+    env.open("blacklist")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    env.tableRows()[1].cells.reason.opts.onChange("")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    assert.are.equal("danger", env.banner().opts.kind)
+    assert.are.equal("edit", env.tableRows()[1].cells.reason.widget)
+    env.tableRows()[1].cells.reason.opts.onChange("still ninja")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    assert.are.equal("success", env.banner().opts.kind)
+    assert.are.equal("still ninja", env.ns.db.global.blacklist.ann.reason)
+    local reason = env.tableRows()[1].cells.reason
+    assert.are_not.equal("edit", type(reason) == "table" and reason.widget or nil)
+  end)
+
+  it("refills a region by clearing it, drawing it again and relaying out", function()
+    env = build("GM")
+    local order = {}
+    local region = {
+      Clear = function()
+        order[#order + 1] = "clear"
+      end,
+    }
+    env.ns.UI.Relayout = function()
+      order[#order + 1] = "relayout"
+    end
+    env.ns.UI.Refill(region, function(drawn)
+      assert.are.equal(region, drawn)
+      order[#order + 1] = "draw"
+    end)
+    assert.are.same({ "clear", "draw", "relayout" }, order)
+  end)
+end)

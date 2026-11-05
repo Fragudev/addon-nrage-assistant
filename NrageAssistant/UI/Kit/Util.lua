@@ -236,3 +236,20 @@ function Util.Thumb(view, content, scroll, track, minimum)
   local top = math.floor((track - height) * Util.Clamp(scroll, 0, range) / range)
   return top, height
 end
+
+-- The first `count` UTF-8 characters of `text` (never half of a multi-byte one: "sáb" -> "sá" for 2).
+function Util.Chars(text, count)
+  text = tostring(text or "")
+  local last, seen = 0, 0
+  for index = 1, #text do
+    local byte = text:byte(index)
+    if byte < 128 or byte >= 192 then
+      if seen == count then
+        break
+      end
+      seen = seen + 1
+    end
+    last = index
+  end
+  return text:sub(1, last)
+end

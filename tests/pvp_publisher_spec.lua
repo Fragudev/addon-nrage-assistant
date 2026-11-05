@@ -159,6 +159,17 @@ describe("PvPPublisher", function()
     assert.is_true(ok)
   end)
 
+  it("plans another try when the server day cannot be read", function()
+    local env = build()
+    env.day = nil
+    env.publisher:Changed()
+    env.fire()
+    assert.are.equal(1, #env.timers)
+    env.day = "2026-10-01"
+    env.fire()
+    assert.are.equal(1, #env.sent)
+  end)
+
   describe("after login", function()
     it("sends once after the login delay when there are counters", function()
       local env = build()

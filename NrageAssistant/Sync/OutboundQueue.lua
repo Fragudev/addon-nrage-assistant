@@ -20,12 +20,26 @@ function OutboundQueue.New(options)
     maxItems = options.maxItems or constants.QUEUE_MAX_ITEMS,
     ttl = options.ttl or constants.QUEUE_TTL_SECONDS,
     maxJitter = options.maxJitter or constants.QUEUE_MAX_JITTER_SECONDS,
+    sendAttempts = options.sendAttempts or constants.QUEUE_SEND_ATTEMPTS,
     items = {},
+    -- Messages that never left: by reason, and in all (shown in the sync status).
+    droppedBy = { expired = 0, full = 0, error = 0 },
+    dropped = 0,
   }, OutboundQueue)
 end
 
 function OutboundQueue:Pending()
   return #self.items
+end
+
+-- How many more messages fit.
+function OutboundQueue:Free()
+  return math.max(0, self.maxItems - #self.items)
+end
+
+function OutboundQueue:CountDropped(reason, count)
+  self.droppedBy[reason] = (self.droppedBy[reason] or 0) + count
+  self.dropped = self.dropped + count
 end
 
 -- True while messages are being held back by the lockdown.
@@ -38,6 +52,8 @@ function OutboundQueue:DropExpired(now)
   for _, item in ipairs(self.items) do
     if now - item.queuedAt < self.ttl then
       kept[#kept + 1] = item
+    else
+      self:CountDropped("expired", 1)
     end
   end
   self.items = kept
@@ -60,6 +76,7 @@ function OutboundQueue:Enqueue(text, key, target)
   end
 
   if #self.items >= self.maxItems then
+    self:CountDropped("full", 1)
     return false, "full"
   end
 
@@ -94,6 +111,14 @@ function OutboundQueue:Flush()
       local ok = pcall(self.send, item.text, item.target)
       if ok then
         sent = sent + 1
+      else
+        -- Tried again on the next flush; dropped (and counted) once the attempts are used up.
+        item.attempts = (item.attempts or 0) + 1
+        if item.attempts < self.sendAttempts then
+          remaining[#remaining + 1] = item
+        else
+          self:CountDropped("error", 1)
+        end
       end
     else
       remaining[#remaining + 1] = item

@@ -203,13 +203,13 @@ local function ranking(page)
     onChange = function(text, userInput)
       if userInput and region then
         state.search = text
-        region:Clear()
-        drawRankingTable(
-          region,
-          ViewModel.RankingTable(rows, { search = state.search, limit = ns.Constants.PVP_RANKING_ROWS_MAX }),
-          columns.blows
-        )
-        UI.Relayout()
+        UI.Refill(region, function(target)
+          drawRankingTable(
+            target,
+            ViewModel.RankingTable(rows, { search = state.search, limit = ns.Constants.PVP_RANKING_ROWS_MAX }),
+            columns.blows
+          )
+        end)
       end
     end,
   })

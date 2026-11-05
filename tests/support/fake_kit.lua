@@ -229,6 +229,18 @@ function M.new(real)
       popup.open = false
     end
   end
+  -- `fake.editFocus` stands for a kit edit box that has the keyboard.
+  Kit.HasEditFocus = function()
+    return fake.editFocus ~= nil
+  end
+  Kit.CommitEdit = function()
+    fake.commits = (fake.commits or 0) + 1
+    fake.editFocus = nil
+  end
+  Kit.DiscardEdit = function()
+    fake.discards = (fake.discards or 0) + 1
+    fake.editFocus = nil
+  end
   Kit.Modal = {
     Open = function(opts)
       local stack = make("Stack", nil, {})

@@ -88,10 +88,23 @@ local function makeRoom(ctx, owner)
   ctx.pvpStats[oldestName] = nil
 end
 
-local function applyStats(ctx, payload, owner, role)
+-- `relayed`: the record comes from a snapshot, not from its owner. A relay may not push the revision far ahead, which
+-- would make the owner's own later messages look stale for good.
+local function applyStats(ctx, payload, owner, role, relayed)
   local denied = authorize(role, "pvp_publish")
   if denied then
     return false, denied
+  end
+  if relayed then
+    local held = ctx.pvpStats[owner]
+    local constants = ns.Constants
+    if held and type(held.rev) == "number" then
+      if payload.rev > held.rev + constants.PVP_SNAPSHOT_REV_JUMP_MAX then
+        return false, "implausible"
+      end
+    elseif payload.rev > constants.PVP_SNAPSHOT_REV_NEW_MAX then
+      return false, "implausible"
+    end
   end
 
   local floor = ctx.pvpResets[owner]
@@ -169,13 +182,14 @@ function PvPSync.IsPvPMessage(messageType)
 end
 
 -- `message` must already be validated by Protocol. `owner` is the sender of a guild message; for an item of a
--- snapshot it is the owner named in the item (see Transfer.ApplyItems). `role` is the sender's, from the roster.
-function PvPSync.Apply(ctx, message, owner, role)
+-- snapshot it is the owner named in the item (see Transfer.ApplyItems), and `relayed` is true. `role` is the
+-- sender's, from the roster.
+function PvPSync.Apply(ctx, message, owner, role, relayed)
   local applier = APPLIERS[message.t]
   if not applier then
     return false, "unsupported"
   end
-  return applier(ctx, message.p, owner, role)
+  return applier(ctx, message.p, owner, role, relayed)
 end
 
 -- The revision a reset of `target` needs to beat everything this client has seen of them.

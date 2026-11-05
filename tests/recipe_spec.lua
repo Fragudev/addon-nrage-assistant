@@ -200,15 +200,55 @@ describe("RecipeSync.Apply", function()
     assert.are.equal("unsupported", select(2, RecipeSync.Apply(c, other, "Ann-R", "member")))
   end)
 
-  it("bounds members, professions and half lists", function()
+  it("evicts the member whose lists arrived longest ago when the table is full", function()
     local c = ctx()
     for index = 1, ns.Constants.RECIPE_MEMBERS_MAX do
-      c.recipes["M" .. index] = {}
+      c.recipes["M" .. index] = { [171] = { rev = 1, ids = {}, receivedAt = 100 + index } }
     end
-    local ok, reason = RecipeSync.Apply(c, message(), "New-R", "member")
-    assert.is_false(ok)
-    assert.are.equal("limit", reason)
+    assert.is_true(RecipeSync.Apply(c, message(), "New-R", "member"))
+    assert.is_truthy(c.recipes["New-R"])
+    assert.is_nil(c.recipes["M1"])
+    assert.is_truthy(c.recipes["M2"])
+    local count = 0
+    for _ in pairs(c.recipes) do
+      count = count + 1
+    end
+    assert.are.equal(ns.Constants.RECIPE_MEMBERS_MAX, count)
+  end)
 
+  it("counts the ids again when a part is sent twice, and rejects parts that do not add up to the total", function()
+    local c = ctx()
+    local function ids(first, last)
+      local list = {}
+      for id = first, last do
+        list[#list + 1] = id
+      end
+      return list
+    end
+    assert.is_true(RecipeSync.Apply(c, message({ parts = 2, part = 1, ids = ids(1, 150) }), "Ann-R", "member"))
+    assert.are.equal(150, c.staging["Ann-R\n171"].ids)
+    -- The part is sent again, smaller: what it held before no longer counts.
+    assert.is_true(RecipeSync.Apply(c, message({ parts = 2, part = 1, ids = ids(1, 10) }), "Ann-R", "member"))
+    assert.are.equal(10, c.staging["Ann-R\n171"].ids)
+    assert.are.equal(1, c.staging["Ann-R\n171"].count)
+
+    -- A total that does not match what the parts hold.
+    local c2 = ctx()
+    RecipeSync.Apply(c2, message({ parts = 2, part = 1, total = 5, ids = { 1, 2 } }), "Ann-R", "member")
+    local ok, reason = RecipeSync.Apply(c2, message({ parts = 2, part = 2, total = 5, ids = { 3 } }), "Ann-R", "member")
+    assert.is_false(ok)
+    assert.are.equal("bad_parts", reason)
+    assert.is_nil(c2.recipes["Ann-R"])
+
+    -- A matching total is stored; no total (an older client) is accepted as before.
+    local c3 = ctx()
+    RecipeSync.Apply(c3, message({ parts = 2, part = 1, total = 3, ids = { 1, 2 } }), "Ann-R", "member")
+    assert.is_true(RecipeSync.Apply(c3, message({ parts = 2, part = 2, total = 3, ids = { 3 } }), "Ann-R", "member"))
+    assert.are.same({ 1, 2, 3 }, c3.recipes["Ann-R"][171].ids)
+  end)
+
+  it("bounds professions and half lists", function()
+    local ok, reason
     local c2 = ctx()
     c2.recipes["Ann-R"] = {}
     for index = 1, ns.Constants.RECIPE_PROFESSIONS_MAX do

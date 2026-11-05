@@ -292,9 +292,20 @@ function Diagnostics.Info(addon)
   if addon.PermissionService and addon.Platform then
     add(("own role: %s"):format(tostring(addon.PermissionService.OwnRole(addon.Platform))))
   end
+  for _, failure in ipairs(addon.startupErrors or {}) do
+    add(("startup error: %s: %s"):format(tostring(failure.step), tostring(failure.error)))
+  end
   if addon.comm then
     for _, line in ipairs(addon.comm:Status()) do
       add("sync: " .. line)
+    end
+    local info = addon.comm.StatusInfo and addon.comm:StatusInfo()
+    if info and (info.errorCount or 0) > 0 then
+      local last = info.lastError or {}
+      add(("sync errors: %d, last: %s: %s"):format(info.errorCount, tostring(last.kind), tostring(last.detail)))
+    end
+    if info and (info.dropped or 0) > 0 then
+      add(("sync messages dropped: %d"):format(info.dropped))
     end
   end
   return lines

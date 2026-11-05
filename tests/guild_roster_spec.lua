@@ -1,6 +1,7 @@
 local function load_roster()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/GuildRoster.lua"))("NrageAssistant", ns)
   return ns.GuildRoster
 end
@@ -32,6 +33,7 @@ local function build(members, options)
     chunk = options.chunk,
     max = options.max,
     minInterval = options.minInterval,
+    onReady = options.onReady,
   })
   -- Runs every scheduled step, in order, until nothing is left.
   function env.drain()
@@ -56,6 +58,19 @@ describe("GuildRoster", function()
     assert.is_nil(env.roster:Lookup("a-realm"))
     assert.is_nil(env.roster:Lookup("A"))
     assert.is_nil(env.roster:Lookup(nil))
+  end)
+
+  it("finds the roster's spelling of a name typed in any case or spacing", function()
+    local env = build({ member("Yonemon Gg"), member("B-Realm") })
+    assert.is_nil(env.roster:Canonical("yonemon gg"))
+    env.roster:Rebuild()
+    assert.are.equal("Yonemon Gg", env.roster:Canonical("yonemon gg"))
+    assert.are.equal("Yonemon Gg", env.roster:Canonical("YONEMONGG"))
+    assert.are.equal("B-Realm", env.roster:Canonical("b-realm"))
+    assert.is_nil(env.roster:Canonical("Yonemon"))
+    assert.is_nil(env.roster:Canonical(nil))
+    env.roster:Reset()
+    assert.is_nil(env.roster:Canonical("b-realm"))
   end)
 
   it("is not ready before the first rebuild", function()
@@ -118,6 +133,47 @@ describe("GuildRoster", function()
     env.roster:Rebuild()
     env.drain()
     assert.are.equal(3, env.roster:Count())
+  end)
+end)
+
+describe("GuildRoster failures and Reset", function()
+  it("recovers when a step raises: a later rebuild runs", function()
+    local env = build({ member("A-Realm"), member("B-Realm") }, { chunk = 1 })
+    local fail = true
+    env.platform.GetGuildRosterEntry = function(index)
+      if fail and index == 2 then
+        error("boom")
+      end
+      return env.members[index]
+    end
+    env.roster:Rebuild()
+    assert.has_no.errors(function()
+      env.drain()
+    end)
+    assert.is_false(env.roster:IsReady())
+    fail = false
+    env.roster:Rebuild()
+    env.drain()
+    assert.is_true(env.roster:IsReady())
+    assert.are.equal(2, env.roster:Count())
+  end)
+
+  it("drops the index on Reset and abandons a rebuild in flight", function()
+    local env = build({ member("A-Realm"), member("B-Realm") }, { chunk = 1 })
+    env.roster:Rebuild()
+    env.drain()
+    assert.is_true(env.roster:IsReady())
+    env.roster:Reset()
+    assert.is_false(env.roster:IsReady())
+    assert.is_nil(env.roster:Lookup("A-Realm"))
+    assert.are.equal(0, env.roster:Count())
+    env.roster:Rebuild()
+    env.roster:Reset()
+    env.drain()
+    assert.is_false(env.roster:IsReady())
+    env.roster:Rebuild()
+    env.drain()
+    assert.are.equal(2, env.roster:Count())
   end)
 end)
 
@@ -221,5 +277,20 @@ describe("GuildRoster:Names", function()
     assert.are.same({}, env.roster:Names())
     env.roster:Rebuild()
     assert.are.same({ "Ann-Realm", "Yonemon Gg-Realm", "Zed-Realm" }, env.roster:Names())
+  end)
+end)
+
+describe("GuildRoster.onReady", function()
+  it("is called once a rebuild completes, with the roster already answering", function()
+    local answered
+    local env
+    env = build({ { name = "Ann", rankName = "Member", rankIndex = 3 } }, {
+      onReady = function()
+        answered = env.roster:Lookup("Ann") ~= nil
+      end,
+    })
+    env.roster:Rebuild()
+    env.drain()
+    assert.is_true(answered)
   end)
 end)

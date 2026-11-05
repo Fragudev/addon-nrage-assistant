@@ -284,15 +284,31 @@ describe("PvPMissionService battleground wins", function()
     assert.are.equal(0, #member.char.kills)
   end)
 
-  it("does not log twice after a reload in the same battleground, but does for the next one", function()
+  it("does not log twice after a reload in the same battleground, but does for the next world", function()
     local world, _, member = setup({ kind = "bg_wins", count = 1 })
     member.world.winner = "Alliance"
     assert.is_true(member.missions:OnBattlegroundStatus())
-    member.missions:OnWorldEntered()
+    -- a /reload forgets the memory of the session: the marker saved with the log remains
+    member.missions.winLogged = false
+    member.missions:OnWorldEntered(false, true)
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    -- a login keeps it too (the player may be in the same battleground)
+    member.missions:OnWorldEntered(true, false)
     assert.is_false(member.missions:OnBattlegroundStatus())
     assert.are.equal(1, #member.char.kills)
-    member.missions:OnWorldEntered()
-    world.clock = world.clock + Constants.PVP_BG_WIN_DEDUPE_SECONDS
+    -- a loading screen into another world clears it
+    member.missions:OnWorldEntered(false, false)
+    world.clock = world.clock + 60
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.are.equal(2, #member.char.kills)
+  end)
+
+  it("counts two wins 20 minutes apart", function()
+    local world, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Alliance"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    member.missions:OnWorldEntered(false, false)
+    world.clock = world.clock + 20 * 60
     assert.is_true(member.missions:OnBattlegroundStatus())
     assert.are.equal(2, #member.char.kills)
   end)
@@ -527,6 +543,18 @@ describe("PvPMissionService announcements", function()
     fire(member)
     assert.are.equal(before, #member.sent)
     assert.are.equal(0, #member.timers)
+    assert.is_false(member.missions.looping)
+  end)
+
+  it("stops announcing a claim the season refuses for good", function()
+    local _, admin, member = pending_claim()
+    member.missions:StartAnnouncing()
+    assert(admin.season:SetMissionActive("m1", false))
+    relay(admin, member)
+    member.timers = { member.timers[1] }
+    fire(member)
+    assert.are.equal(0, #member.timers)
+    assert.is_false(member.missions:HasPending())
     assert.is_false(member.missions.looping)
   end)
 

@@ -134,6 +134,50 @@ describe("OutboundQueue", function()
     assert.are.same({ "good" }, sent)
   end)
 
+  it("tries a message whose send raised once more, then drops and counts it", function()
+    local attempts = 0
+    queue.send = function(text)
+      if text == "flaky" then
+        attempts = attempts + 1
+        if attempts < 2 then
+          error("boom")
+        end
+      end
+      sent[#sent + 1] = text
+    end
+    queue:Enqueue("flaky")
+    assert.are.equal(0, queue:Flush())
+    assert.are.equal(1, queue:Pending())
+    assert.are.equal(1, queue:Flush())
+    assert.are.same({ "flaky" }, sent)
+    assert.are.equal(0, queue.dropped)
+
+    queue.send = function()
+      error("always")
+    end
+    queue:Enqueue("doomed")
+    queue:Flush()
+    assert.are.equal(1, queue:Pending())
+    queue:Flush()
+    assert.are.equal(0, queue:Pending())
+    assert.are.equal(1, queue.dropped)
+    assert.are.equal(1, queue.droppedBy.error)
+  end)
+
+  it("counts what expired or was refused as full", function()
+    guard.locked = true
+    for i = 1, 3 do
+      queue:Enqueue("m" .. i)
+    end
+    assert.are.equal(0, queue:Free())
+    assert.are.equal("full", select(2, queue:Enqueue("extra")))
+    clock = 200
+    queue:DropExpired(clock)
+    assert.are.equal(1, queue.droppedBy.full)
+    assert.are.equal(3, queue.droppedBy.expired)
+    assert.are.equal(4, queue.dropped)
+  end)
+
   it("clears everything", function()
     queue:Enqueue("a")
     queue:Clear()

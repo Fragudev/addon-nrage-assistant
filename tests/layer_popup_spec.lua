@@ -102,6 +102,16 @@ describe("LayerPopup controller", function()
     assert.are.equal(1, env.alerts)
   end)
 
+  it("forgets the requests it alerted about once another one is on screen", function()
+    local env = build(helper_status())
+    env.controller:Refresh()
+    env.status = helper_status({ rid = "r2" })
+    env.controller:Refresh()
+    assert.is_nil(env.controller.alerted.r1)
+    assert.is_true(env.controller.alerted.r2)
+    assert.are.equal(2, env.alerts)
+  end)
+
   it("keeps working when the alert raises", function()
     local env = build(helper_status(), {
       alert = function()

@@ -32,6 +32,7 @@ local ERRORS = ns.Locale.Table(function()
     decided = L("that claim was decided already."),
     unknown_mission = L("that mission does not exist."),
     unknown_player = L("that player is not in the guild."),
+    roster_not_ready = L("the guild roster is still loading: try again in a moment."),
     unchanged = L("nothing to change."),
     limit = L("limit reached."),
     inactive = L("that mission is paused."),
@@ -83,7 +84,7 @@ end
 
 function PvPSeasonCommands:Season(args)
   local service = self.service
-  local action = args[1]
+  local action = (args[1] or ""):lower()
   if action == "create" then
     local days = tonumber(args[2])
     if not (days and days >= 1 and days <= MAX_SEASON_DAYS and days % 1 == 0) then
@@ -138,7 +139,7 @@ end
 
 function PvPSeasonCommands:Mission(args)
   local service = self.service
-  local action = args[1]
+  local action = (args[1] or ""):lower()
   if action == "add" then
     local points = tonumber(args[2])
     if not points then
@@ -222,8 +223,20 @@ function PvPSeasonCommands:Reject(args)
   return { L("rejected %s."):format(reject.claimId), sentNote(queued) }
 end
 
+-- Reads `<player...> <missionId> [points]`. The points are the last word when it is a number, the mission id is the
+-- word before them, and the player is everything before that, because names can have several words.
 function PvPSeasonCommands:Grant(args)
-  local grant, queued = self.service:DirectGrant(args[1] or "", args[2] or "", tonumber(args[3]))
+  local count = #args
+  local points = count > 0 and tonumber(args[count]) or nil
+  if points then
+    count = count - 1
+  elseif count >= 2 and self.service:Mission(args[count - 1]) then
+    -- A known mission followed by a word that is not a number: the points were mistyped, so do not grant the default.
+    return Failure(L("give the points as a number, from 1 to 1000."))
+  end
+  local player = table.concat(args, " ", 1, count - 1)
+  local missionId = args[count] or ""
+  local grant, queued = self.service:DirectGrant(player, missionId, points)
   if not grant then
     return Failure(fail(queued))
   end
@@ -240,10 +253,11 @@ local HANDLERS = {
   grant = PvPSeasonCommands.Grant,
 }
 
--- Runs the text that follows `/nrage pvp` and returns the lines to show.
+-- Runs the text that follows `/nrage pvp` and returns the lines to show. Only the command words are case-insensitive:
+-- the arguments carry player names and ids, which keep their case.
 function PvPSeasonCommands:Run(text)
   local args = words(text or "")
-  local handler = HANDLERS[table.remove(args, 1) or ""]
+  local handler = HANDLERS[(table.remove(args, 1) or ""):lower()]
   if not handler then
     return PvPSeasonCommands.Usage()
   end

@@ -11,6 +11,9 @@ local _, ns = ...
 --     now = function() -> server time,         newId = function() -> unique id,
 --     ownName = function() -> own character name,   ownRole = function() -> role or nil,
 --     roleOf = function(name) -> role or nil (the guild roster),
+--     rosterReady = function() -> boolean (optional: has the guild roster been read? Without it the roster is
+--       assumed ready),
+--     canonicalName = function(name) -> the roster's spelling of a name, or nil (optional, DirectGrant),
 --     send = function(messageType, payload, key) -> queued (true), or false plus a reason,
 --     onChange = function(messageType) (optional: the interface redraws),
 --     onSeasonClosed = function(seasonId) (optional: the per-character mission log of that season is dropped),
@@ -19,7 +22,7 @@ local _, ns = ...
 --
 -- Every action returns the record it made and whether it was queued for the guild (`false` means it was saved here
 -- but not sent: the lockdown, or a full queue); or nil plus the reason. Reasons: "forbidden", "invalid:<field>",
--- "no_season", "closed", "not_found", "decided", "unknown_mission", "unknown_player" and
+-- "no_season", "closed", "not_found", "decided", "unknown_mission", "unknown_player", "roster_not_ready" and
 -- the ones of PvPSeasonSync.Apply ("limit", "active_exists", "stale", ...).
 local PvPSeasonService = {}
 PvPSeasonService.__index = PvPSeasonService
@@ -39,6 +42,8 @@ function PvPSeasonService.New(deps)
     ownName = deps.ownName,
     ownRole = deps.ownRole,
     guildRoleOf = deps.roleOf,
+    rosterReady = deps.rosterReady,
+    canonicalName = deps.canonicalName,
     send = deps.send,
     onChange = deps.onChange,
     onSeasonClosed = deps.onSeasonClosed,
@@ -58,6 +63,11 @@ end
 -- Does this client approve claims (gm or cogm)?
 function PvPSeasonService:IsApprover()
   return self:CanPvP("pvp_claim_decide")
+end
+
+-- Has the guild roster been read (so a role lookup of a missing name means "not in the guild")? True without the dep.
+function PvPSeasonService:RosterReady()
+  return self.rosterReady == nil or self.rosterReady() ~= false
 end
 
 -- The rules a record goes through: the roster for roles, the own role for the own name.
@@ -424,6 +434,10 @@ function PvPSeasonService:CloseSeason(seasonId)
   if denied then
     return nil, denied
   end
+  -- The grants count through the roster: closing before it is read would freeze an empty, irreversible final.
+  if not self:RosterReady() then
+    return nil, "roster_not_ready"
+  end
   seasonId = seasonId or self.ledger.activeId
   local season = seasonId and self.ledger.seasons[seasonId]
   if not season then
@@ -720,6 +734,22 @@ function PvPSeasonService:DirectGrant(player, missionId, points)
   local clean, reason = Model.ValidateGrant(grant)
   if not clean then
     return nil, reason
+  end
+  -- With a roster that was read, a name that is not in the guild gets no points (the own name always exists).
+  if self.rosterReady ~= nil and self:RosterReady() and clean.player ~= self.ownName() and self.guildRoleOf then
+    -- The roster's spelling wins over the typed one ("yonemon gg" is "Yonemon Gg"); a real typo has none.
+    local canonical = self.canonicalName and self.canonicalName(clean.player)
+    local name = type(canonical) == "string" and canonical ~= "" and canonical or clean.player
+    if self.guildRoleOf(name) == nil then
+      return nil, "unknown_player"
+    end
+    if name ~= clean.player then
+      clean.player = name
+      clean, reason = Model.ValidateGrant(clean)
+      if not clean then
+        return nil, reason
+      end
+    end
   end
   local payload, queued = self:Commit("PVP_GRANT", clean, "PG:" .. clean.id)
   if not payload then

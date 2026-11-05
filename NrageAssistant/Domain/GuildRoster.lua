@@ -19,11 +19,15 @@ function GuildRoster.New(deps)
     -- Optional: how this character finds itself in the roster (by GUID) and what to do with the name.
     ownGuid = deps.ownGuid,
     onOwnName = deps.onOwnName,
+    -- Optional: called after every completed rebuild, once the roster can answer for its members.
+    onReady = deps.onReady,
     entries = {},
+    keys = {},
     count = 0,
     rebuilding = false,
     dirty = false,
     retryPending = false,
+    generation = 0,
     lastStartedAt = nil,
     lastCompletedAt = nil,
   }, GuildRoster)
@@ -36,6 +40,15 @@ function GuildRoster:Lookup(name)
     return nil
   end
   return self.entries[name]
+end
+
+-- The roster's own spelling of a name typed in any case or spacing ("yonemon gg" -> "Yonemon Gg"), or nil. Reads an
+-- index built when a rebuild finishes, so it costs one lookup.
+function GuildRoster:Canonical(name)
+  if type(name) ~= "string" then
+    return nil
+  end
+  return self.keys[ns.Validate.NameKey(name)]
 end
 
 -- Every known member name, sorted: what the window offers when a member has to be picked.
@@ -75,12 +88,16 @@ function GuildRoster:FindOwnName()
   end
 end
 
-function GuildRoster:Finish(entries, count)
+function GuildRoster:Finish(entries, count, keys)
   self.entries = entries
+  self.keys = keys
   self.count = count
   self.lastCompletedAt = self.now()
   self.rebuilding = false
   self:FindOwnName()
+  if self.onReady then
+    self.onReady()
+  end
   if self.dirty then
     self.dirty = false
     self:Rebuild()
@@ -102,14 +119,20 @@ function GuildRoster:Rebuild()
   self.rebuilding = true
   self.lastStartedAt = self.now()
 
-  local entries, count, index = {}, 0, 1
+  local generation = self.generation
+  local entries, keys, count, index = {}, {}, 0, 1
+  local safe
   local function step()
+    if generation ~= self.generation then
+      return -- a Reset came in: this rebuild belongs to the old guild
+    end
     local last = math.min(index + self.chunk - 1, total)
     for i = index, last do
       local entry = self.platform.GetGuildRosterEntry(i)
       if entry and type(entry.name) == "string" then
         if not entries[entry.name] then
           count = count + 1
+          keys[ns.Validate.NameKey(entry.name)] = entry.name
         end
         entries[entry.name] = {
           rankName = entry.rankName,
@@ -123,12 +146,33 @@ function GuildRoster:Rebuild()
     end
     index = last + 1
     if index <= total then
-      self.schedule(0, step)
+      self.schedule(0, safe)
     else
-      self:Finish(entries, count)
+      self:Finish(entries, count, keys)
     end
   end
-  step()
+  -- A step that raises must not leave `rebuilding` on for good: the state is reset and a later rebuild starts over.
+  safe = function()
+    if not pcall(step) and generation == self.generation then
+      self.rebuilding = false
+      self.dirty = false
+    end
+  end
+  safe()
+end
+
+-- The character changed guild (or left it): the index belongs to the old one. Drops it, so the roster reads as not
+-- ready until the next rebuild completes, and abandons a rebuild in flight.
+function GuildRoster:Reset()
+  self.generation = self.generation + 1
+  self.entries = {}
+  self.keys = {}
+  self.count = 0
+  self.ownName = nil
+  self.rebuilding = false
+  self.dirty = false
+  self.lastStartedAt = nil
+  self.lastCompletedAt = nil
 end
 
 -- Called on GUILD_ROSTER_UPDATE (which fires often): rebuilds at most once per minInterval, and

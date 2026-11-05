@@ -110,6 +110,7 @@ UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
+UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua
 UI\VotingFrame.lua

@@ -12,7 +12,7 @@ local _, ns = ...
 -- A roster that was deleted (its tombstone "R:<id>") takes no rules, and its record is dropped (Forget).
 --
 -- ctx = { records = db.global.readinessRulesByRoster, rosters, members, tombstones, now = function() }
--- Returns true, or false plus "unknown_sender" | "forbidden" | "tombstoned" | "stale" | "unsupported".
+-- Returns true, or false plus "unknown_sender" | "forbidden" | "tombstoned" | "stale" | "limit" | "unsupported".
 local ReadinessRulesSync = {}
 
 local Rules = ns.SyncRules
@@ -56,6 +56,9 @@ function ReadinessRulesSync.Apply(ctx, message, sender, role)
     return false, "stale"
   end
   if not record then
+    if Rules.CountKeys(ctx.records) >= ns.Constants.ROSTERS_MAX then
+      return false, "limit"
+    end
     record = {}
     ctx.records[payload.rosterId] = record
   end

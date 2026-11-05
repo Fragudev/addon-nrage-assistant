@@ -83,9 +83,11 @@ local function actionsOf(row, cmd)
         tooltip = L("Save"),
         layout = {},
         onClick = function()
-          local reason = state.editReason
-          state.editing = nil
-          UI.Report(cmd:Add(row.name, reason))
+          local lines = cmd:Add(row.name, state.editReason)
+          if not ns.Validate.IsFailure(lines) then
+            state.editing = nil
+          end
+          UI.Report(lines)
         end,
       },
     }
@@ -223,9 +225,9 @@ UI.Register("blacklist", function(page)
     onChange = function(text, userInput)
       if userInput and region then
         state.search = text
-        region:Clear()
-        drawTable(region, cmd, role)
-        UI.Relayout()
+        UI.Refill(region, function(target)
+          drawTable(target, cmd, role)
+        end)
       end
     end,
   })

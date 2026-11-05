@@ -64,13 +64,20 @@ describe("Inbox", function()
     assert.is_true(inbox:Accept("B-Realm", "id-1", 0))
   end)
 
-  it("refuses new senders when the tracker is full of active ones", function()
-    local inbox = Inbox.New({ maxSenders = 2 })
+  it("evicts the sender tracked longest when the tracker is full of active ones", function()
+    local inbox = Inbox.New({ maxSenders = 2, maxPerWindow = 1 })
     assert.is_true(inbox:Accept("A-Realm", "1", 0))
-    assert.is_true(inbox:Accept("B-Realm", "1", 0))
-    local ok, reason = inbox:Accept("C-Realm", "1", 1)
-    assert.is_false(ok)
-    assert.are.equal("rate_limited", reason)
+    assert.is_true(inbox:Accept("B-Realm", "1", 1))
+    -- C is not refused for good: A, the oldest, makes room (and may start a fresh window afterwards).
+    assert.is_true(inbox:Accept("C-Realm", "1", 2))
+    assert.are.equal(2, inbox.senderCount)
+    assert.is_nil(inbox.windows["A-Realm"])
+    -- B is still counted: its limit holds.
+    assert.is_false(inbox:Accept("B-Realm", "2", 3))
+  end)
+
+  it("is sized to the guild limit", function()
+    assert.is_true(Inbox.New().maxSenders >= 1000)
   end)
 
   it("reclaims tracker slots from senders whose window expired", function()

@@ -66,9 +66,8 @@ end
 
 -- Sharing was switched off: tell the guild once to forget this member. Not throttled, because it is a privacy action.
 function LayerPublisher:Forget()
-  if not self.published then
-    return false
-  end
+  -- Sent whatever the flag says: after a /reload it is false until the first publish, yet the guild still holds the
+  -- last one. It is a rare, user-driven action.
   if sendPayload(self, { map = 0, layer = 0 }) then
     self.published = false
     self.lastSentAt = nil

@@ -240,6 +240,21 @@ describe("ReadinessRulesSync.Apply", function()
     assert.are.equal("unknown_sender", reason)
   end)
 
+  it("keeps at most ROSTERS_MAX sets, but still updates one it holds", function()
+    local ctx = context()
+    for index = 1, ns.Constants.ROSTERS_MAX do
+      ctx.records["held" .. index] = { rev = 1, updatedAt = 1, updatedBy = "Boss", rules = {} }
+    end
+    local ok, reason = Sync.Apply(ctx, message(), "Boss", "gm")
+    assert.is_false(ok)
+    assert.are.equal("limit", reason)
+    assert.is_nil(ctx.records.r1)
+
+    ctx.records.r1 = { rev = 1, updatedAt = 1, updatedBy = "Boss", rules = {} }
+    ctx.records.held1 = nil
+    assert.is_true(Sync.Apply(ctx, message({ rev = 2 }), "Boss", "gm"))
+  end)
+
   it("refuses the rules of a roster that was deleted", function()
     local ctx = context()
     ctx.tombstones["R:r1"] = { rev = 3, at = 1 }

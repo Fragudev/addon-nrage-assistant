@@ -1,0 +1,278 @@
+-- Core/Init.lua wires the whole addon at load time, so these specs load every file in TOC order, replace the
+-- client-facing pieces with spies and drive the real event handlers.
+local function build()
+  local frames, printed = {}, {}
+  local saved = {
+    CreateFrame = _G.CreateFrame,
+    print = _G.print,
+    C_Timer = _G.C_Timer,
+    NrageAssistantDB = _G.NrageAssistantDB,
+  }
+
+  _G.CreateFrame = function()
+    local frame = { events = {} }
+    function frame:RegisterEvent(event)
+      self.events[event] = true
+    end
+    function frame:UnregisterEvent(event)
+      self.events[event] = nil
+    end
+    function frame:SetScript(name, fn)
+      self[name] = fn
+    end
+    frames[#frames + 1] = frame
+    return frame
+  end
+  _G.print = function(text)
+    printed[#printed + 1] = text
+  end
+  _G.C_Timer = {
+    After = function() end,
+    NewTicker = function() end,
+  }
+  _G.NrageAssistantDB = nil
+
+  local ns = {}
+  dofile("tests/support/addon.lua")(ns)
+
+  local platform = ns.Platform
+  platform.IsInGuild = function()
+    return true
+  end
+  platform.GetGuildClubId = function()
+    return ns.Constants.GUILD_CLUB_ID
+  end
+  platform.GetFaction = function()
+    return ns.Constants.FACTION
+  end
+  platform.GetRealmName = function()
+    return "Test" .. ns.Constants.RULESET_REALM_MARKER
+  end
+  platform.GetLegacyIdentityKey = function()
+    return "Me-Realm"
+  end
+  platform.LootWindowAvailable = function()
+    return true
+  end
+
+  local calls = {}
+  local function spy(owner, name, label)
+    owner[name] = function()
+      calls[#calls + 1] = label
+    end
+  end
+  ns.Comm.Start = function()
+    calls[#calls + 1] = "comm"
+    ns.comm = ns.comm or {}
+    return ns.comm
+  end
+  platform.ServerTime = os.time
+  spy(ns.MinimapButton, "Create", "minimap")
+  spy(ns.MinimapButton, "Refresh", "minimapRefresh")
+  spy(ns.LootPopup, "Start", "lootPopup")
+  spy(ns.VotingFrame, "Start", "votingFrame")
+  spy(ns.LayerPopup, "Start", "layerPopup")
+  ns.GuildRoster.New = function()
+    calls[#calls + 1] = "roster"
+    return {
+      Request = function() end,
+      Rebuild = function() end,
+      Reset = function()
+        calls[#calls + 1] = "rosterReset"
+      end,
+    }
+  end
+  ns.ProfileService.Refresh = function() end
+  ns.EventService.Purge = function() end
+
+  local env = { ns = ns, frames = frames, printed = printed, calls = calls }
+
+  -- The addon frame is the first one created by Init.lua after the files before it created theirs.
+  function env.mainFrame()
+    for _, frame in ipairs(frames) do
+      if frame.events.PLAYER_LOGIN then
+        return frame
+      end
+    end
+  end
+
+  function env.fire(event, ...)
+    env.mainFrame().OnEvent(env.mainFrame(), event, ...)
+  end
+
+  function env.lootFrames()
+    local count = 0
+    for _, frame in ipairs(frames) do
+      if frame.events.LOOT_OPENED then
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  function env.loadedMessages()
+    local count = 0
+    for _, line in ipairs(printed) do
+      if line:find("loaded", 1, true) then
+        count = count + 1
+      end
+    end
+    return count
+  end
+
+  function env.restore()
+    _G.CreateFrame = saved.CreateFrame
+    _G.print = saved.print
+    _G.C_Timer = saved.C_Timer
+    _G.NrageAssistantDB = saved.NrageAssistantDB
+  end
+  return env
+end
+
+describe("Init", function()
+  local env
+
+  before_each(function()
+    env = build()
+  end)
+
+  after_each(function()
+    env.restore()
+  end)
+
+  describe("Activate", function()
+    it("runs the steps in order and leaves the addon active", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.is_true(env.ns.active)
+      assert.are.same({}, env.ns.startupErrors)
+      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup" }, env.calls)
+      assert.are.equal(1, env.loadedMessages())
+    end)
+
+    it("keeps starting the later steps when one raises, and tells the user once", function()
+      env.ns.LootPopup.Start = function()
+        error("boom")
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.is_true(env.ns.active)
+      assert.is_true(env.lootFrames() == 1)
+      assert.are.equal("lootPopup", env.ns.startupErrors[1].step)
+      assert.is_truthy(env.ns.startupErrors[1].error:find("boom", 1, true))
+      assert.is_truthy(table.concat(env.calls, ","):find("votingFrame", 1, true))
+      local failures = 0
+      for _, line in ipairs(env.printed) do
+        if line:find("could not start", 1, true) then
+          failures = failures + 1
+        end
+      end
+      assert.are.equal(1, failures)
+    end)
+
+    it("stays inactive and tries again when a core step raises", function()
+      local fails = true
+      env.ns.Comm.Start = function()
+        if fails then
+          error("no transport")
+        end
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.is_false(env.ns.active)
+      assert.is_nil(table.concat(env.calls, ","):find("roster", 1, true))
+      assert.are.equal(0, env.loadedMessages())
+      fails = false
+      env.fire("PLAYER_GUILD_UPDATE")
+      assert.is_true(env.ns.active)
+      assert.are.equal(1, env.loadedMessages())
+    end)
+
+    it("does not repeat one-time work when access is lost and regained", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local roster = env.ns.guildRoster
+      env.ns.Platform.GetFaction = function()
+        return "Horde"
+      end
+      env.fire("PLAYER_GUILD_UPDATE")
+      assert.is_false(env.ns.active)
+      env.ns.Platform.GetFaction = function()
+        return env.ns.Constants.FACTION
+      end
+      env.fire("PLAYER_GUILD_UPDATE")
+      assert.is_true(env.ns.active)
+      assert.are.equal(1, env.lootFrames())
+      assert.are.equal(1, env.loadedMessages())
+      assert.are.equal(roster, env.ns.guildRoster)
+      local starts = {}
+      for _, label in ipairs(env.calls) do
+        starts[label] = (starts[label] or 0) + 1
+      end
+      assert.are.equal(1, starts.lootPopup)
+      assert.are.equal(1, starts.votingFrame)
+      assert.are.equal(1, starts.roster)
+      assert.are.equal(1, starts.rosterReset)
+    end)
+  end)
+
+  describe("database", function()
+    it("turns the addon off with a notice when a migration raises, and leaves the saved data alone", function()
+      local raw = { global = { schemaVersion = 1 } }
+      _G.NrageAssistantDB = raw
+      env.ns.Store.Load = function()
+        error("bad migration")
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      assert.are.equal("migration_failed", env.ns.dbError)
+      assert.is_nil(env.ns.db)
+      assert.are.equal(raw, _G.NrageAssistantDB)
+      env.fire("PLAYER_LOGIN")
+      assert.is_falsy(env.ns.active)
+      assert.are.same({ "minimapRefresh" }, env.calls)
+      local text = table.concat(env.printed, "\n")
+      assert.is_truthy(text:find("could not be updated", 1, true))
+    end)
+
+    it("keeps the newer schema notice", function()
+      _G.NrageAssistantDB = { global = { schemaVersion = 999 } }
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.are.equal("newer_schema", env.ns.dbError)
+      assert.is_truthy(table.concat(env.printed, "\n"):find("newer version", 1, true))
+    end)
+  end)
+
+  describe("IsDevBuild", function()
+    it("is true while the version token is not replaced and false in a packaged build", function()
+      local original = _G.C_AddOns.GetAddOnMetadata
+      assert.is_true(env.ns.IsDevBuild())
+      _G.C_AddOns.GetAddOnMetadata = function()
+        return "1.2.3"
+      end
+      assert.is_false(env.ns.IsDevBuild())
+      _G.C_AddOns.GetAddOnMetadata = original
+    end)
+
+    it("makes every probe unavailable and register nothing in a release build", function()
+      local original = _G.C_AddOns.GetAddOnMetadata
+      _G.C_AddOns.GetAddOnMetadata = function()
+        return "1.2.3"
+      end
+      local before = #env.frames
+      for _, probe in ipairs({ env.ns.Probe, env.ns.PvPProbe, env.ns.LayerProbe }) do
+        probe.Handle("start")
+        probe.Handle("send")
+      end
+      _G.C_AddOns.GetAddOnMetadata = original
+      assert.are.equal(before, #env.frames)
+      local unavailable = 0
+      for _, line in ipairs(env.printed) do
+        if line:find("only available in a development build", 1, true) then
+          unavailable = unavailable + 1
+        end
+      end
+      assert.are.equal(6, unavailable)
+    end)
+  end)
+end)
