@@ -1,0 +1,25 @@
+NrageAssistant/UI/Kit/Shell.lua
+  s_2855dfa1d831f9::t_13fa519642db4d 562,769
+NrageAssistant/UI/Kit/Text.lua
+  s_2855dfa1d831f9::t_2bcd13c6f952fb 373,375
+release-notes/v1.0.2.md
+  s_2855dfa1d831f9::t_6deb9338aec2a9 1-8
+tests/support/fake_frames.lua
+  s_2855dfa1d831f9::t_56b0dae9aca009 144-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "0a6d145de44c3f5803ab8e0253f663b037ba6ef0",
+  "prompts": {},
+  "sessions": {
+    "s_2855dfa1d831f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89512588-83cb-440f-afcb-47ba0e607908",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
