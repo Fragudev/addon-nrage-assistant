@@ -235,16 +235,15 @@ describe("LootPopup session bookkeeping", function()
         {
           sessionId = "s1",
           bar = {
-            width = 100,
-            Layout = function(self, width)
-              values[#values + 1] = { self.value, width }
+            SetValue = function(_, value)
+              values[#values + 1] = value
             end,
           },
         },
         {
           sessionId = "s2",
           bar = {
-            Layout = function()
+            SetValue = function()
               error("no time left for s2")
             end,
           },
@@ -255,10 +254,27 @@ describe("LootPopup session bookkeeping", function()
       return id == "s1" and 15 or nil
     end, 60)
     assert.are.same({ "soon" }, texts)
-    assert.are.same({ { 0.25, 100 } }, values)
+    assert.are.same({ 0.25 }, values)
     assert.has_no.errors(function()
       ns.LootPopup.UpdateCountdown(nil, "x", function() end, 60)
     end)
+  end)
+
+  it("moves the bar with its setter and never lays it out again", function()
+    local calls = {}
+    local bar = {
+      SetValue = function(_, value)
+        calls[#calls + 1] = value
+      end,
+      Layout = function()
+        error("the countdown must not lay the bar out")
+      end,
+    }
+    local refs = { bars = { { sessionId = "s1", bar = bar } } }
+    ns.LootPopup.UpdateCountdown(refs, nil, function()
+      return 30
+    end, 60)
+    assert.are.same({ 0.5 }, calls)
   end)
 end)
 

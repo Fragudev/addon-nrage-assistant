@@ -737,12 +737,14 @@ function PvPSeasonService:DirectGrant(player, missionId, points)
   end
   -- With a roster that was read, a name that is not in the guild gets no points (the own name always exists).
   if self.rosterReady ~= nil and self:RosterReady() and clean.player ~= self.ownName() and self.guildRoleOf then
-    if self.guildRoleOf(clean.player) == nil then
+    -- The roster's spelling wins over the typed one ("yonemon gg" is "Yonemon Gg"); a real typo has none.
+    local canonical = self.canonicalName and self.canonicalName(clean.player)
+    local name = type(canonical) == "string" and canonical ~= "" and canonical or clean.player
+    if self.guildRoleOf(name) == nil then
       return nil, "unknown_player"
     end
-    local canonical = self.canonicalName and self.canonicalName(clean.player)
-    if type(canonical) == "string" and canonical ~= "" then
-      clean.player = canonical
+    if name ~= clean.player then
+      clean.player = name
       clean, reason = Model.ValidateGrant(clean)
       if not clean then
         return nil, reason

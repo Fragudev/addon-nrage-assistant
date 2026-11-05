@@ -352,12 +352,60 @@ local function flat(texture, color)
   Theme.Gradient(texture, "HORIZONTAL", color, color)
 end
 
+-- Draws the fill, the ticks and the glow of a bar for `width` (the value is already clamped).
+local function paint(obj, width)
+  local filled = math.floor(width * obj.value)
+  local drawn = filled > 0
+  local height = obj.barHeight
+  if obj.xp then
+    -- Two halves, so the brightest color of the gradient is always at the tip.
+    local first = math.ceil(filled / 2)
+    obj.fill:SetWidth(math.max(first, 0.001))
+    obj.fill2:SetWidth(math.max(filled - first, 0.001))
+  else
+    obj.fill:SetWidth(math.max(filled, 0.001))
+  end
+  obj.fill:SetShown(drawn)
+  obj.fill2:SetShown(obj.xp and drawn)
+  local px = Kit.Pixel.Size(obj.frame)
+  for index, tick in ipairs(obj.ticks) do
+    tick:ClearAllPoints()
+    if obj.xp and drawn then
+      local x = Kit.Pixel.Snap(width * index / (XP_TICKS + 1), px)
+      tick:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
+      tick:SetPoint("BOTTOMLEFT", obj.frame, "BOTTOMLEFT", x, 0)
+      tick:SetWidth(px)
+      tick:SetColorTexture(0, 0, 0, 1)
+      tick:Show()
+    else
+      tick:Hide()
+    end
+  end
+  obj.glow:ClearAllPoints()
+  if obj.xp and drawn and obj.glowOk and height >= TIP_GLOW_MIN_HEIGHT then
+    local size = height + TIP_GLOW_SIZE * 2
+    obj.glow:SetSize(size, size)
+    obj.glow:SetPoint("CENTER", obj.fill2, "RIGHT", 0, 0)
+    obj.glow:Show()
+  else
+    obj.glow:Hide()
+  end
+  return height
+end
+
 -- A bar. opts: value (0..1), color (token), height, xp (the red three-stop bar of plan 5.4: a gradient fill that
 -- brightens toward the tip, 19 ticks and a glow at the tip when it is 8 or more high), label and valueText (xp only,
 -- in the `label` style over the bar). A `color` other than the accent stays flat even with xp, so a complete bar is
--- green.
+-- green. bar:SetValue(value) moves the fill in place (clamped to 0..1) without laying out the parent; before the
+-- first layout there is no width yet, so the value waits for it.
 Kit.Define("ProgressBar", {
   create = function(obj)
+    obj.SetValue = function(self, value)
+      self.value = Util.Clamp(value or 0, 0, 1)
+      if self.width then
+        paint(self, self.width)
+      end
+    end
     obj.track = obj.frame:CreateTexture(nil, "BACKGROUND")
     obj.track:SetAllPoints(obj.frame)
     obj.border = Kit.Pixel.Border(obj.frame, TRACK_BORDER)
@@ -416,43 +464,7 @@ Kit.Define("ProgressBar", {
     obj.rightText:SetShown(obj.xp and obj.rightText:GetText() ~= "")
   end,
   layout = function(obj, width)
-    local filled = math.floor(width * obj.value)
-    local drawn = filled > 0
-    local height = obj.barHeight
-    if obj.xp then
-      -- Two halves, so the brightest color of the gradient is always at the tip.
-      local first = math.ceil(filled / 2)
-      obj.fill:SetWidth(math.max(first, 0.001))
-      obj.fill2:SetWidth(math.max(filled - first, 0.001))
-    else
-      obj.fill:SetWidth(math.max(filled, 0.001))
-    end
-    obj.fill:SetShown(drawn)
-    obj.fill2:SetShown(obj.xp and drawn)
-    local px = Kit.Pixel.Size(obj.frame)
-    for index, tick in ipairs(obj.ticks) do
-      tick:ClearAllPoints()
-      if obj.xp and drawn then
-        local x = Kit.Pixel.Snap(width * index / (XP_TICKS + 1), px)
-        tick:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", x, 0)
-        tick:SetPoint("BOTTOMLEFT", obj.frame, "BOTTOMLEFT", x, 0)
-        tick:SetWidth(px)
-        tick:SetColorTexture(0, 0, 0, 1)
-        tick:Show()
-      else
-        tick:Hide()
-      end
-    end
-    obj.glow:ClearAllPoints()
-    if obj.xp and drawn and obj.glowOk and height >= TIP_GLOW_MIN_HEIGHT then
-      local size = height + TIP_GLOW_SIZE * 2
-      obj.glow:SetSize(size, size)
-      obj.glow:SetPoint("CENTER", obj.fill2, "RIGHT", 0, 0)
-      obj.glow:Show()
-    else
-      obj.glow:Hide()
-    end
-    return height
+    return paint(obj, width)
   end,
 })
 

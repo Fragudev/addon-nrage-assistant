@@ -796,6 +796,9 @@ local function StartPvPSeason()
     rosterReady = function()
       return ns.guildRoster ~= nil and ns.guildRoster:IsReady()
     end,
+    canonicalName = function(name)
+      return ns.guildRoster and ns.guildRoster:Canonical(name) or nil
+    end,
     send = function(messageType, payload, key)
       return ns.comm:Send(messageType, payload, key)
     end,

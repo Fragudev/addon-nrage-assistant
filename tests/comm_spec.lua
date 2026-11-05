@@ -604,6 +604,110 @@ describe("Comm snapshot for late joiners", function()
     assert.are.equal(1, leader.comm.servedCount)
   end)
 
+  describe("election among several leaders", function()
+    local online
+
+    -- Own name is Me-Realm: the candidates are sorted by name and the first SYNC_SERVE_LEADERS answer.
+    local function add_leader(name, isOnline)
+      leader.roles[name] = "rl"
+      online[name] = isOnline
+      leader.comm:RememberPeer(name, { version = "0.1.0" })
+    end
+
+    before_each(function()
+      online = {}
+      leader.comm.isOnline = function(name)
+        return online[name]
+      end
+    end)
+
+    it("answers when it is among the first leaders by name", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Zzz-Realm", true)
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+      assert.are.equal(1, #leader.scheduled)
+    end)
+
+    it("stays silent when enough other online leaders come first, without marking the requester served", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Bbb-Realm", true)
+      local ok, reason = leader.comm:HandleSyncRequest("Joiner-Realm")
+      assert.is_false(ok)
+      assert.are.equal("not_elected", reason)
+      assert.are.equal(0, #leader.scheduled)
+      assert.is_nil(leader.comm.served["Joiner-Realm"])
+      assert.are.equal(0, leader.comm.servedCount)
+    end)
+
+    it("answers when the requester asks again after being left to the others", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Bbb-Realm", true)
+      assert.are.equal("not_elected", select(2, leader.comm:HandleSyncRequest("Joiner-Realm")))
+      leader.clock = ns.Constants.SYNC_RETRY_DELAY_SECONDS
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+      assert.are.equal(1, #leader.scheduled)
+      -- Served now: the cooldown applies as usual.
+      assert.are.equal("cooldown", select(2, leader.comm:HandleSyncRequest("Joiner-Realm")))
+    end)
+
+    it("goes back to the election once the escalation window has passed", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Bbb-Realm", true)
+      assert.are.equal("not_elected", select(2, leader.comm:HandleSyncRequest("Joiner-Realm")))
+      leader.clock = ns.Constants.SYNC_ELECTION_ESCALATE_SECONDS
+      assert.are.equal("not_elected", select(2, leader.comm:HandleSyncRequest("Joiner-Realm")))
+    end)
+
+    it("answers when it knows no peers", function()
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+    end)
+
+    it("answers when it has no online lookup", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Bbb-Realm", true)
+      leader.comm.isOnline = nil
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+    end)
+
+    it("answers when the roster cannot say who is online or who is a leader", function()
+      add_leader("Aaa-Realm", nil)
+      add_leader("Bbb-Realm", true)
+      leader.roles["Bbb-Realm"] = nil
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+    end)
+
+    it("does not count an offline, incompatible, stale or non-leader peer", function()
+      add_leader("Aaa-Realm", false)
+      add_leader("Bbb-Realm", true)
+      leader.comm:RememberPeer("Ccc-Realm", { incompatible = true })
+      leader.roles["Ccc-Realm"], online["Ccc-Realm"] = "rl", true
+      leader.roles["Ddd-Realm"], online["Ddd-Realm"] = "member", true
+      leader.comm:RememberPeer("Ddd-Realm", { version = "0.1.0" })
+      add_leader("Eee-Realm", true)
+      leader.comm.peers["Eee-Realm"].seenAt = leader.clock - ns.Constants.PEERS_TTL_SECONDS
+      leader.clock = leader.clock + 1
+      -- Only Bbb counts: Me is second, so it answers.
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+    end)
+
+    it("does not count the requester as a candidate", function()
+      add_leader("Aaa-Realm", true)
+      add_leader("Joiner-Realm", true)
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+      -- For anyone else, the same leaders do count.
+      add_leader("Bbb-Realm", true)
+      assert.are.equal("not_elected", select(2, leader.comm:HandleSyncRequest("Late-Realm")))
+    end)
+
+    it("keeps the cooldown for an elected leader", function()
+      add_leader("Zzz-Realm", true)
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+      assert.are.equal("cooldown", select(2, leader.comm:HandleSyncRequest("Joiner-Realm")))
+      leader.clock = ns.Constants.SYNC_SERVE_COOLDOWN_SECONDS
+      assert.is_true(leader.comm:HandleSyncRequest("Joiner-Realm"))
+    end)
+  end)
+
   it("limits how often a joiner asks", function()
     assert.is_true(joiner.comm:RequestSync())
     local ok, reason = joiner.comm:RequestSync()

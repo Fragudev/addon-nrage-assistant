@@ -238,8 +238,7 @@ function LootPopup.UpdateCountdown(refs, text, timeLeft, timeout)
   for _, item in ipairs(refs.bars) do
     local left = timeLeft(item.sessionId)
     if left and timeout and timeout > 0 then
-      item.bar.value = math.max(0, math.min(1, left / timeout))
-      item.bar:Layout(item.bar.width)
+      item.bar:SetValue(left / timeout)
     end
   end
 end

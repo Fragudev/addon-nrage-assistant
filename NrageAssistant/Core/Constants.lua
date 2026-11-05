@@ -112,6 +112,10 @@ ns.Constants = {
   SYNC_LOGIN_REQUEST_DELAY_MAX = 20,
   SYNC_RESPONSE_DELAY_MIN = 1,
   SYNC_RESPONSE_DELAY_MAX = 10,
+  -- Leaders that answer one SYNC_REQ: the first SYNC_SERVE_LEADERS online leaders by name (a leader that cannot tell
+  -- answers anyway). A requester that asks again within SYNC_ELECTION_ESCALATE_SECONDS is answered by every leader.
+  SYNC_SERVE_LEADERS = 2,
+  SYNC_ELECTION_ESCALATE_SECONDS = 300,
   -- A reply dropped because the guild roster was not loaded yet (unknown_sender) makes the client ask again, after
   -- this long (more than the request cooldowns) and at most SYNC_RETRY_MAX times.
   SYNC_RETRY_DELAY_SECONDS = 65,

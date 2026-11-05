@@ -585,6 +585,24 @@ describe("PvPSeasonService direct grants, voids and the grant list", function()
     assert.is_truthy(gm:DirectGrant("Zed", "m1"))
   end)
 
+  it("resolves a differently spelled name before the roster check, and keeps invalid:ref first", function()
+    local gm = new_service(world, "Boss", {
+      rosterReady = function()
+        return true
+      end,
+      roleOf = function(name)
+        return ROLES[name]
+      end,
+      canonicalName = function(name)
+        return name:lower() == "ann" and "Ann" or nil
+      end,
+    })
+    relay(admin, gm)
+    assert.are.equal("Ann", assert(gm:DirectGrant("ANN", "m1")).player)
+    assert.are.equal("unknown_player", select(2, gm:DirectGrant("Anne", "m1")))
+    assert.are.equal("invalid:ref", select(2, gm:DirectGrant("a:b", "m1")))
+  end)
+
   it("lets only an admin grant without a claim, with the mission's points unless told otherwise", function()
     local grant = assert(admin:DirectGrant("Ann", "m1"))
     assert.are.equal(10, grant.points)

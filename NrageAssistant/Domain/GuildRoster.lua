@@ -22,6 +22,7 @@ function GuildRoster.New(deps)
     -- Optional: called after every completed rebuild, once the roster can answer for its members.
     onReady = deps.onReady,
     entries = {},
+    keys = {},
     count = 0,
     rebuilding = false,
     dirty = false,
@@ -39,6 +40,15 @@ function GuildRoster:Lookup(name)
     return nil
   end
   return self.entries[name]
+end
+
+-- The roster's own spelling of a name typed in any case or spacing ("yonemon gg" -> "Yonemon Gg"), or nil. Reads an
+-- index built when a rebuild finishes, so it costs one lookup.
+function GuildRoster:Canonical(name)
+  if type(name) ~= "string" then
+    return nil
+  end
+  return self.keys[ns.Validate.NameKey(name)]
 end
 
 -- Every known member name, sorted: what the window offers when a member has to be picked.
@@ -80,6 +90,11 @@ end
 
 function GuildRoster:Finish(entries, count)
   self.entries = entries
+  local keys = {}
+  for name in pairs(entries) do
+    keys[ns.Validate.NameKey(name)] = name
+  end
+  self.keys = keys
   self.count = count
   self.lastCompletedAt = self.now()
   self.rebuilding = false
@@ -154,6 +169,7 @@ end
 function GuildRoster:Reset()
   self.generation = self.generation + 1
   self.entries = {}
+  self.keys = {}
   self.count = 0
   self.ownName = nil
   self.rebuilding = false

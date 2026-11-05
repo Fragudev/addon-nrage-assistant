@@ -16,7 +16,7 @@ Comm.__index = Comm
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
 --       onRosterChange(messageType) (optional), pvpSeason (the season ledger table, see PvPSeasonSync),
 --       onPvPSeasonChange(messageType) and onPvPSeasonClosed(seasonId) (optional), ledgerInbox (optional),
---       roleOf(sender) -> role or nil, ownRole() -> role or nil,
+--       roleOf(sender) -> role or nil, ownRole() -> role or nil, isOnline(name) -> boolean or nil (optional),
 --       snapshotInbox (optional), version (string), now() -> seconds, schedule(delaySeconds, fn),
 --       random(low, high) -> number
 function Comm.New(deps)
@@ -30,6 +30,7 @@ function Comm.New(deps)
     tombstones = deps.tombstones,
     roleOf = deps.roleOf,
     ownRole = deps.ownRole,
+    isOnline = deps.isOnline,
     onLootChange = deps.onLootChange,
     onEventChange = deps.onEventChange,
     pvpStats = deps.pvpStats or {},
@@ -73,6 +74,8 @@ function Comm.New(deps)
     snapshotInbox = deps.snapshotInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.SYNC_INBOX_MAX_PER_WINDOW }),
     served = {},
     servedCount = 0,
+    deferred = {},
+    deferredCount = 0,
     recentSenders = {},
     lastSyncRequestAt = nil,
     lastSnapshot = nil,
@@ -320,6 +323,60 @@ function Comm:HandleMessage(text, sender, channel)
   return false, "wrong_channel"
 end
 
+-- Whether this client is one of the first SYNC_SERVE_LEADERS online leaders (by name) that should answer `requester`.
+-- The candidates are this client plus the peers that sent a compatible HELLO, are leaders and online according to
+-- the local guild roster, and were heard from within PEERS_TTL_SECONDS. A peer that cannot be confirmed online or as
+-- a leader is not counted, so doubt only ever adds answers. Without the data (no online lookup, no own name) it
+-- answers, as old versions do.
+function Comm:IsElectedToServe(requester)
+  local constants = ns.Constants
+  local ownName = self.platform.GetIdentityKey()
+  if not self.isOnline or type(ownName) ~= "string" or ownName == "" then
+    return true
+  end
+  local now = self.now()
+  local candidates = { ownName }
+  for name, peer in pairs(self.peers) do
+    if
+      name ~= ownName
+      and name ~= requester
+      and not peer.incompatible
+      and now - peer.seenAt < constants.PEERS_TTL_SECONDS
+      and self.isOnline(name) == true
+      and ns.PermissionService.Can(self.roleOf(name), "raid_manage")
+    then
+      candidates[#candidates + 1] = name
+    end
+  end
+  table.sort(candidates)
+  for i = 1, math.min(constants.SYNC_SERVE_LEADERS, #candidates) do
+    if candidates[i] == ownName then
+      return true
+    end
+  end
+  return false
+end
+
+-- Remembers that `sender` was left to the elected leaders, so that asking again gets an answer from everyone.
+function Comm:DeferRequester(sender, now)
+  local constants = ns.Constants
+  if not self.deferred[sender] then
+    if self.deferredCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+      for name, at in pairs(self.deferred) do
+        if now - at >= constants.SYNC_ELECTION_ESCALATE_SECONDS then
+          self.deferred[name] = nil
+          self.deferredCount = self.deferredCount - 1
+        end
+      end
+      if self.deferredCount >= constants.SYNC_SERVED_MAX_ENTRIES then
+        return
+      end
+    end
+    self.deferredCount = self.deferredCount + 1
+  end
+  self.deferred[sender] = now
+end
+
 -- Snapshot request from a late joiner. Only a leader (by guild rank) answers, because
 -- only a leader's data will be accepted by the requester; each requester is served at most once per
 -- cooldown, after a random delay so several leaders do not all answer at the same instant.
@@ -337,6 +394,15 @@ function Comm:HandleSyncRequest(sender)
   local last = self.served[sender]
   if last and now - last < constants.SYNC_SERVE_COOLDOWN_SECONDS then
     return false, "cooldown"
+  end
+  -- Not elected: stay silent, unless this requester already asked and went unanswered (it asks again after a while).
+  local deferredAt = self.deferred[sender]
+  if deferredAt and now - deferredAt < constants.SYNC_ELECTION_ESCALATE_SECONDS then
+    self.deferred[sender] = nil
+    self.deferredCount = self.deferredCount - 1
+  elseif not self:IsElectedToServe(sender) then
+    self:DeferRequester(sender, now)
+    return false, "not_elected"
   end
   if not last then
     if self.servedCount >= constants.SYNC_SERVED_MAX_ENTRIES then
@@ -1209,6 +1275,11 @@ function Comm.Start()
     end,
     ownRole = function()
       return ns.PermissionService.OwnRole(platform)
+    end,
+    -- nil when the roster does not know the member (or is not loaded): the election then does not count them.
+    isOnline = function(name)
+      local entry = ns.guildRoster and ns.guildRoster:Lookup(name)
+      return entry and entry.online
     end,
     onLootChange = function()
       if ns.UI and ns.UI.LootChanged then

@@ -1,6 +1,7 @@
 local function load_roster()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Core/Validate.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/GuildRoster.lua"))("NrageAssistant", ns)
   return ns.GuildRoster
 end
@@ -57,6 +58,19 @@ describe("GuildRoster", function()
     assert.is_nil(env.roster:Lookup("a-realm"))
     assert.is_nil(env.roster:Lookup("A"))
     assert.is_nil(env.roster:Lookup(nil))
+  end)
+
+  it("finds the roster's spelling of a name typed in any case or spacing", function()
+    local env = build({ member("Yonemon Gg"), member("B-Realm") })
+    assert.is_nil(env.roster:Canonical("yonemon gg"))
+    env.roster:Rebuild()
+    assert.are.equal("Yonemon Gg", env.roster:Canonical("yonemon gg"))
+    assert.are.equal("Yonemon Gg", env.roster:Canonical("YONEMONGG"))
+    assert.are.equal("B-Realm", env.roster:Canonical("b-realm"))
+    assert.is_nil(env.roster:Canonical("Yonemon"))
+    assert.is_nil(env.roster:Canonical(nil))
+    env.roster:Reset()
+    assert.is_nil(env.roster:Canonical("b-realm"))
   end)
 
   it("is not ready before the first rebuild", function()

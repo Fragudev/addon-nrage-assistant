@@ -3383,3 +3383,85 @@ describe("Window redraws and closing", function()
     assert.is_nil(tickers[2].cancelled)
   end)
 end)
+
+describe("Window smoke test: tab regressions", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("shows the reason of an unmapped delete failure in Rules instead of raising", function()
+    env = build("GM")
+    env.ns.ViewModel.WithoutRule = function()
+      return nil, "mystery_reason"
+    end
+    env.open("rules")
+    -- The first click arms the delete, the second one (the same button, now a confirm) deletes.
+    FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
+    FakeKit.find(env.page(), "List").opts.rows[1].rights[1].opts.onClick()
+    assert.is_truthy(env.banner().opts.text:find("mystery_reason", 1, true))
+  end)
+
+  it("does not raise on a PvP reset when there is no comm, and reports it", function()
+    env = build("GM")
+    env.ns.db.global.pvpStats = { ["Ann-Realm"] = { honor = { world = 3, bg = 0 }, updatedAt = 900, rev = 1 } }
+    env.open("pvp")
+    FakeKit.find(env.page(), "TabStrip").opts.onSelect("stats")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("ranking")
+    env.open("pvpadmin")
+    FakeKit.find(env.page(), "Segmented").opts.onChange("season")
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.placeholder == "Member" then
+        d.opts.onChange("Ann-Realm")
+      end
+    end
+    env.press("Reset PvP counters")
+    env.ns.comm = nil
+    env.press("Confirm: reset")
+    assert.is_truthy(env.banner().opts.text:find("Not reset", 1, true))
+    assert.are.same({}, env.sent)
+  end)
+
+  it("keeps the edit open when the save fails and closes it on success", function()
+    env = build("Member")
+    env.ns.db.global.blacklist.ann = {
+      name = "Ann",
+      reason = "ninja",
+      addedBy = "Leader-Realm",
+      addedAt = 100,
+      rev = 1,
+      updatedAt = 1,
+    }
+    env.open("blacklist")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    env.tableRows()[1].cells.reason.opts.onChange("")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    assert.are.equal("danger", env.banner().opts.kind)
+    assert.are.equal("edit", env.tableRows()[1].cells.reason.widget)
+    env.tableRows()[1].cells.reason.opts.onChange("still ninja")
+    env.tableRows()[1].cells.edit.opts.onClick()
+    assert.are.equal("success", env.banner().opts.kind)
+    assert.are.equal("still ninja", env.ns.db.global.blacklist.ann.reason)
+    local reason = env.tableRows()[1].cells.reason
+    assert.are_not.equal("edit", type(reason) == "table" and reason.widget or nil)
+  end)
+
+  it("refills a region by clearing it, drawing it again and relaying out", function()
+    env = build("GM")
+    local order = {}
+    local region = {
+      Clear = function()
+        order[#order + 1] = "clear"
+      end,
+    }
+    env.ns.UI.Relayout = function()
+      order[#order + 1] = "relayout"
+    end
+    env.ns.UI.Refill(region, function(drawn)
+      assert.are.equal(region, drawn)
+      order[#order + 1] = "draw"
+    end)
+    assert.are.same({ "clear", "draw", "relayout" }, order)
+  end)
+end)
