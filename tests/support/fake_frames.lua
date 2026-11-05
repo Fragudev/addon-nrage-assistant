@@ -141,7 +141,9 @@ local function make_region(kind, parent)
   function methods.SetScrollChild(self, child)
     self.scrollChild = child
   end
-  function methods.CreateTexture(self, _, layer, _, sub)
+  -- Strict on the template, as the client is: a sublevel passed third is read as a template name and raises.
+  function methods.CreateTexture(self, _, layer, template, sub)
+    assert(template == nil or type(template) == "string", "CreateTexture: the third argument is the template name")
     local texture = make_region("Texture", self)
     texture.layer, texture.sublevel = layer, sub
     self.children[#self.children + 1] = texture

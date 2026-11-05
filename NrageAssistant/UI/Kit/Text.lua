@@ -370,9 +370,9 @@ Kit.Define("ProgressBar", {
     obj.fill2:SetPoint("BOTTOMLEFT", obj.fill, "BOTTOMRIGHT")
     obj.ticks = {}
     for index = 1, XP_TICKS do
-      obj.ticks[index] = obj.frame:CreateTexture(nil, "ARTWORK", 2)
+      obj.ticks[index] = obj.frame:CreateTexture(nil, "ARTWORK", nil, 2)
     end
-    obj.glow = obj.frame:CreateTexture(nil, "ARTWORK", 1)
+    obj.glow = obj.frame:CreateTexture(nil, "ARTWORK", nil, 1)
     obj.glow:SetTexture(GLOW_FILE)
     -- A normally blended halo would be a smudge, so a client that refuses ADD gets no glow.
     obj.glowOk = pcall(obj.glow.SetBlendMode, obj.glow, "ADD")
