@@ -1,0 +1,23 @@
+NrageAssistant/Core/Constants.lua
+  s_2855dfa1d831f9::t_d43eebdd051d9e 8-9,11
+docs/API_NOTES.md
+  s_2855dfa1d831f9::t_317e28efa3dd11 12-13
+release-notes/v1.0.1.md
+  s_2855dfa1d831f9::t_38fdb951b5e161 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e434b19727d15214a2acc6d9cf0b5d0e05fc5139",
+  "prompts": {},
+  "sessions": {
+    "s_2855dfa1d831f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89512588-83cb-440f-afcb-47ba0e607908",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
