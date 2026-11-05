@@ -739,6 +739,7 @@ ns.Locale.Register("es", {
   ["Layer %s"] = "Capa %s",
   ["%d s ago"] = "hace %d s",
   ["Share my position"] = "Compartir mi posición",
+  ["disabled: the client did not give the guild data. Type /reload to try again."] = "desactivado: el cliente no ha dado los datos de la hermandad. Escribe /reload para reintentarlo.",
   ["your position is now shared with the guild. You can turn it off in the settings."] = "ahora tu posición se comparte con la hermandad. Puedes desactivarlo en los ajustes.",
   ["Guildmates see where you are on the map. Turn it off and they forget it."] = "Los compañeros de la guild ven dónde estás en el mapa. Si lo apagas, se olvidan de ti.",
   ["Show guildmates on the minimap"] = "Mostrar a la guild en el minimapa",
