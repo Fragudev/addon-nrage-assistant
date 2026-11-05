@@ -1,0 +1,47 @@
+NrageAssistant/Core/Constants.lua
+  s_2855dfa1d831f9::t_9346e9726328ad 5,85
+NrageAssistant/Core/Init.lua
+  s_2855dfa1d831f9::t_dc624b78edf42a 821-825
+NrageAssistant/Core/Store.lua
+  s_2855dfa1d831f9::t_7843c0ed77e0ae 148-158
+NrageAssistant/Domain/PositionModel.lua
+  s_2855dfa1d831f9::t_fb43ff3fd08b29 11-12,18,24-33
+NrageAssistant/Locales/esES.lua
+  s_2855dfa1d831f9::t_222e9a174afaf8 653-655,742
+NrageAssistant/UI/Tabs/Professions.lua
+  s_2855dfa1d831f9::t_b9f4d5e6f16ecf 4-6,95-102,104-119,158
+NrageAssistant/UI/ViewModelProfessions.lua
+  s_2855dfa1d831f9::t_fc21dc3ce0859a 60,87,134-161
+docs/CURSEFORGE_DESCRIPTION.md
+  s_2855dfa1d831f9::t_eb5de615d387b9 59-61
+docs/GUILD_MAP_PLAN.md
+  s_2855dfa1d831f9::t_2e0b792fda9edd 31,35
+release-notes/v1.0.3.md
+  s_2855dfa1d831f9::t_5cc4ab9aca8f7f 1-14
+tests/constants_spec.lua
+  s_2855dfa1d831f9::t_6664cbbc21560a 14
+tests/position_model_spec.lua
+  s_2855dfa1d831f9::t_fbd32773e06c88 13,15-16,24-35,39,42,44
+tests/store_spec.lua
+  s_2855dfa1d831f9::t_82eb76fb5b2670 11-27,45,53,67,74,109,137,164,224,233,253,283,300,325,347,396
+tests/ui_smoke_spec.lua
+  s_2855dfa1d831f9::t_0e4d9cbc2927c8 2697,2709,2712,2715,2844,2850-2854,2856-2872
+tests/view_model_spec.lua
+  s_2855dfa1d831f9::t_639b58885a18d9 2853,2858-2876
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "3f81fdbd8e533c7a52ad29688043c6228be81446",
+  "prompts": {},
+  "sessions": {
+    "s_2855dfa1d831f9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89512588-83cb-440f-afcb-47ba0e607908",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
