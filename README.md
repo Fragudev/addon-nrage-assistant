@@ -136,7 +136,7 @@ The full walkthrough, tab by tab and role by role, is the [user guide](docs/USER
 
 | Command | Description |
 |---|---|
-| `/nrage debug ...` | `selftest`, `info`, `identity`, `roster`, `senders`, `lockdown`, `pvp`, `layer` |
+| `/nrage debug ...` | `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`; development builds only: `lockdown`, `pvp`, `layer` |
 
 </details>
 
