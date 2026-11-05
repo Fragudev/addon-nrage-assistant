@@ -11,6 +11,9 @@ ns.Constants = {
   -- The PvP ruleset shows up in the normalized realm name (beta: "ClassicBetaPvP", live EU: "CAMWOWEU4Realm2PvP").
   -- Matched as a plain substring so a rename of the realm prefix does not break it.
   RULESET_REALM_MARKER = "PvP",
+  -- Around login the client may not have the guild data yet: the access check waits up to one minute for it.
+  ACCESS_RETRY_SECONDS = 2,
+  ACCESS_RETRY_MAX = 30,
 
   -- Free-text profile fields a player can declare by hand (source = "declared").
   MANUAL_FIELDS = { role = true, role2 = true, main = true, notes = true },

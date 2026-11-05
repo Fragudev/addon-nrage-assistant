@@ -10,6 +10,7 @@ local NOTICES = ns.Locale.Table(function()
     wrong_guild = L("disabled: this addon is only for the Nrage guild."),
     wrong_faction = L("disabled: this addon is only for the Alliance."),
     wrong_ruleset = L("disabled: this addon is only for the PvP ruleset."),
+    pending = L("disabled: the client did not give the guild data. Type /reload to try again."),
     incompatible_data = L(
       "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
     ),
@@ -827,27 +828,36 @@ end
 
 local noticeShown = false
 
--- Re-evaluated on login and on guild changes; shows at most one notice per session.
-local function EvaluateAccess()
-  local ok, reason = ns.AccessGuard.Evaluate(ns.Platform, Constants)
-  if ok and ns.dbError then
-    ok, reason = false, "incompatible_data"
-  end
-
-  if ok then
-    if not ns.active then
-      Activate()
+-- Checked on login and on guild changes; shows at most one notice per session.
+local accessMonitor = ns.AccessGuard.NewMonitor({
+  evaluate = function()
+    local ok, reason = ns.AccessGuard.Evaluate(ns.Platform, Constants)
+    if ok and ns.dbError then
+      return false, "incompatible_data"
     end
-    return
-  end
-
-  ns.active = false
-  ns.MinimapButton.Refresh()
-  if not noticeShown then
-    noticeShown = true
-    print(("%s %s"):format(PREFIX, NOTICES[reason]))
-  end
-end
+    return ok, reason
+  end,
+  isActive = function()
+    return ns.active
+  end,
+  activate = Activate,
+  deactivate = function(reason)
+    ns.active = false
+    ns.MinimapButton.Refresh()
+    if not noticeShown then
+      noticeShown = true
+      print(("%s %s"):format(PREFIX, NOTICES[reason]))
+    end
+  end,
+  schedule = function(seconds, fn)
+    C_Timer.After(seconds, fn)
+  end,
+  onWait = function()
+    ns.Platform.RequestGuildRoster()
+  end,
+  retrySeconds = Constants.ACCESS_RETRY_SECONDS,
+  retryMax = Constants.ACCESS_RETRY_MAX,
+})
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
@@ -863,8 +873,10 @@ frame:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "GUILD_ROSTER_UPDATE" then
     if ns.active and ns.guildRoster then
       ns.guildRoster:OnUpdate()
+    elseif not ns.active then
+      accessMonitor:Check()
     end
   else
-    EvaluateAccess()
+    accessMonitor:Check()
   end
 end)
