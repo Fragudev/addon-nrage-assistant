@@ -156,6 +156,37 @@ local MIGRATIONS = {
       settings.positionShareNotice = true
     end
   end,
+  -- v15: NameKey lowers the accented capitals of UTF-8 names too. Blacklist keys saved before kept them ("Angel" with
+  -- a capital A-acute), so they are rebuilt from the saved name, and so are the removal marks "B:<key>". When two
+  -- keys end up equal, the one with the higher revision stays.
+  [15] = function(db)
+    local global = ensureTable(db, "global")
+    local function rekey(map, prefix)
+      local moves = {}
+      for key, value in pairs(map) do
+        if type(key) == "string" and key:sub(1, #prefix) == prefix then
+          local fresh = prefix .. ns.Validate.NameKey(key:sub(#prefix + 1))
+          if fresh ~= key then
+            moves[#moves + 1] = { from = key, to = fresh, value = value }
+          end
+        end
+      end
+      table.sort(moves, function(a, b)
+        return a.from < b.from
+      end)
+      for _, move in ipairs(moves) do
+        map[move.from] = nil
+        local current = map[move.to]
+        local currentRev = type(current) == "table" and current.rev or -1
+        local movedRev = type(move.value) == "table" and move.value.rev or -1
+        if type(currentRev) ~= "number" or type(movedRev) ~= "number" or movedRev > currentRev then
+          map[move.to] = move.value
+        end
+      end
+    end
+    rekey(ensureTable(global, "blacklist"), "")
+    rekey(ensureTable(ensureTable(global, "sync"), "tombstones"), "B:")
+  end,
 }
 
 local function versionOf(db)

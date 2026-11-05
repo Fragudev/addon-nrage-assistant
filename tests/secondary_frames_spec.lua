@@ -113,6 +113,10 @@ describe("Secondary windows on the real kit", function()
       Redraw = function() end,
     }
     assert(loadfile("NrageAssistant/UI/Tabs/Loot.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/Domain/LayerModel.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/UI/ViewModelLayers.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/UI/LayerPopup.lua"))("NrageAssistant", ns)
+    assert(loadfile("NrageAssistant/UI/PopupFrame.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/UI/LootPopup.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/UI/VotingFrame.lua"))("NrageAssistant", ns)
   end)
@@ -157,6 +161,108 @@ describe("Secondary windows on the real kit", function()
       timers[index].fn()
     end
     assert.is_true(_G.NrageAssistantLootPopup.shown)
+  end)
+
+  it("builds the layer popup on the shared card, and closes it with its button", function()
+    local close
+    local realIconButton = ns.Kit.IconButton
+    ns.Kit.IconButton = function(parent, opts)
+      close = opts.onClick
+      return realIconButton(parent, opts)
+    end
+    local ignored = false
+    ns.layerSwap = {
+      Status = function()
+        return { rid = "r1", role = "helper", stage = "request", requester = "Ann", map = 0, layer = 1, left = 30 }
+      end,
+      Ignore = function()
+        ignored = true
+      end,
+    }
+    local realPrint = _G.print
+    ns.Platform.ShowRaidNotice = function() end
+    ns.Platform.PlayAlertSound = function() end
+    _G.print = function() end
+    ns.LayerPopup.Start()
+    ns.LayerPopup.Refresh()
+    _G.print = realPrint
+    assert.is_true(_G.NrageAssistantLayerPopup.shown)
+    close()
+    assert.is_false(_G.NrageAssistantLayerPopup.shown)
+    assert.is_true(ignored)
+    ns.Kit.IconButton = realIconButton
+  end)
+
+  it("moves the countdown in place instead of drawing the popup again", function()
+    local drawn, labels = 0, {}
+    local realButton, realLabel = ns.Kit.Button, ns.Kit.Label
+    ns.Kit.Button = function(parent, opts)
+      drawn = drawn + 1
+      return realButton(parent, opts)
+    end
+    ns.Kit.Label = function(parent, opts)
+      local label = realLabel(parent, opts)
+      labels[#labels + 1] = label
+      return label
+    end
+    ns.LootPopup.Start()
+    ns.db.global.events.e1.loot.s1 = session("s1", "Sword")
+    ns.db.global.events.e1.loot.s1.candidates = {}
+    ns.LootPopup.Refresh()
+    local buttonsAfterShow = drawn
+    assert.is_true(buttonsAfterShow > 0)
+    for index = 1, #timers do
+      timers[index].fn()
+    end
+    assert.are.equal(buttonsAfterShow, drawn)
+    assert.is_truthy(labels[#labels]:GetText():find("Passing on the next item", 1, true))
+    ns.Kit.Button, ns.Kit.Label = realButton, realLabel
+  end)
+
+  describe("answering from the loot popup", function()
+    local pressed
+
+    before_each(function()
+      pressed = nil
+      local realButton = ns.Kit.Button
+      ns.Kit.Button = function(parent, opts)
+        if opts.text == "Main spec" then
+          pressed = opts.onClick
+        end
+        return realButton(parent, opts)
+      end
+      ns.comm = {
+        NextId = function()
+          return "id"
+        end,
+        SendLootCandidate = function()
+          return true
+        end,
+      }
+      ns.LootPopup.Start()
+      ns.db.global.events.e1.loot.s1 = session("s1", "Sword")
+      ns.db.global.events.e1.loot.s1.candidates = {}
+      ns.LootPopup.Refresh()
+    end)
+
+    it("dismisses the item once the candidacy was accepted", function()
+      local realPrint = _G.print
+      _G.print = function() end
+      pressed()
+      _G.print = realPrint
+      assert.is_false(_G.NrageAssistantLootPopup.shown)
+    end)
+
+    it("keeps the item on offer when the candidacy was refused, so it can be tried again", function()
+      ns.LootService.Register = function()
+        return nil, "locked_down"
+      end
+      local realPrint = _G.print
+      _G.print = function() end
+      pressed()
+      _G.print = realPrint
+      assert.is_true(_G.NrageAssistantLootPopup.shown)
+    end)
   end)
 
   it("opens the voting window for a new session and shows the candidates", function()

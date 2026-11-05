@@ -32,6 +32,7 @@ read_globals = {
   "GetItemInfo",
   "GetItemInfoInstant",
   "GetGuildRosterInfo",
+  "GetCurrentKeyBoardFocus",
   "GetNumGuildMembers",
   "C_Spell",
   "CreateFont",

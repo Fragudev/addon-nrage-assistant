@@ -69,6 +69,15 @@ describe("LayerDirectory", function()
     assert.is_true(env.directory:Apply("M1", { map = 0, layer = 2 }))
   end)
 
+  it("evicts stale entries so a new sender is not refused", function()
+    for index = 1, ns.Constants.GUILD_ROSTER_MAX do
+      env.directory:Apply("M" .. index, { map = 0, layer = 1 })
+    end
+    env.clock = env.clock + ns.Constants.LAYER_STATE_TTL + 1
+    assert.is_true(env.directory:Apply("OneMore", { map = 0, layer = 1 }))
+    assert.are.equal(1, env.directory.count)
+  end)
+
   it("groups the members of a continent by layer, most crowded first", function()
     env.directory:Apply("Cid", { map = 0, layer = 20 })
     env.directory:Apply("Ann", { map = 0, layer = 10 })

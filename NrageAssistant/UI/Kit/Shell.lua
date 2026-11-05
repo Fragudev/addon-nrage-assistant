@@ -39,7 +39,6 @@ local function newPopup(layer)
   popup.shape = Kit.Shape.New(popup.frame, { cut = "md" })
   popup.shape:SetFill({ gradient = "panelSolid" })
   popup.frame:Hide()
-  popup.holder = { frame = popup.frame }
   return popup
 end
 
@@ -247,10 +246,16 @@ local function buildModal()
   overlay.title:SetFontObject(Theme.StyleFont("window"))
   setColor(overlay.title, "text")
   overlay:Hide()
+  -- Every way out (the close button, Escape through UISpecialFrames, another Hide) ends here, so onClose runs once.
   overlay:SetScript("OnHide", function()
     if modalFrame and modalFrame.stack then
       modalFrame.stack:Release()
       modalFrame.stack = nil
+    end
+    local onClose = overlay.onClose
+    overlay.onClose = nil
+    if onClose then
+      onClose()
     end
   end)
   table.insert(UISpecialFrames, "NrageAssistantModal")
@@ -292,11 +297,6 @@ end
 function Modal.Close()
   if modalFrame and modalFrame:IsShown() then
     modalFrame:Hide()
-    local onClose = modalFrame.onClose
-    modalFrame.onClose = nil
-    if onClose then
-      onClose()
-    end
   end
 end
 
@@ -364,6 +364,9 @@ Kit.Define("DateField", {
       end
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, false))
     end
   end,
@@ -588,6 +591,9 @@ Kit.Define("NavRow", {
       end
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       local selected = self.opts.selected
       if selected then
         self.wash:SetColorTexture(Theme.Color("selected"))
@@ -641,7 +647,7 @@ Kit.Define("UserCard", {
     Icons.Apply(obj.avatar, "hex", "accent", 0.18)
     obj.initial:SetFontObject(Theme.StyleFont("value"))
     setColor(obj.initial, "accent")
-    obj.initial:SetText((opts.name or "?"):sub(1, 1):upper())
+    obj.initial:SetText(Util.Upper(Util.Chars(opts.name or "?", 1)))
     obj.name:SetFontObject(Theme.StyleFont("smallMedium"))
     setColor(obj.name, "text")
     obj.name:SetText(opts.name or "")
@@ -815,7 +821,7 @@ function Window.New(opts)
 
   frame:SetScript("OnSizeChanged", function()
     self:UpdateShape()
-    self:NotifyResize()
+    self:ScheduleResize()
   end)
   frame:SetScript("OnHide", function()
     Kit.CloseAllPopups()
@@ -926,7 +932,30 @@ function Window:SetPill(text, status)
   self.pill:Show()
 end
 
+-- A drag fires a size event every frame and each full layout is expensive, so the layout waits RESIZE_DELAY and runs
+-- once for the latest size. Letting go of the grip (and Show) call NotifyResize, which also cancels the wait.
+local RESIZE_DELAY = 0.05
+
+function Window:ScheduleResize()
+  if not (C_Timer and C_Timer.After) then
+    self:NotifyResize()
+    return
+  end
+  if self.resizePending then
+    return
+  end
+  self.resizePending = true
+  local generation = self.resizeGeneration or 0
+  C_Timer.After(RESIZE_DELAY, function()
+    if self.resizePending and (self.resizeGeneration or 0) == generation then
+      self:NotifyResize()
+    end
+  end)
+end
+
 function Window:NotifyResize()
+  self.resizePending = false
+  self.resizeGeneration = (self.resizeGeneration or 0) + 1
   local opts = self.opts
   if opts.onResize then
     local m = Theme.metrics

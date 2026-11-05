@@ -508,9 +508,6 @@ Kit.Define("Banner", {
     local textHeight = math.ceil(obj.fs:GetStringHeight() or 16)
     return math.max(40, textHeight + 22)
   end,
-  reset = function(obj)
-    obj.close:SetScript("OnClick", nil)
-  end,
 })
 
 -- A centered icon, a title and a hint inside a card. opts: icon, title, hint.

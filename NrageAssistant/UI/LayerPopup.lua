@@ -61,6 +61,12 @@ function Controller:Refresh()
     self:Hide()
     return
   end
+  -- Only the swap on screen can still be alerted about: the ones before it are forgotten.
+  for rid in pairs(self.alerted) do
+    if rid ~= status.rid then
+      self.alerted[rid] = nil
+    end
+  end
   local key = keyOf(status)
   if key == self.closedKey then
     return
@@ -171,68 +177,26 @@ function LayerPopup.Draw(stack, view, onPress)
   return countdown
 end
 
-local statusTarget = {
-  SetStatusTable = function(_, status)
-    frame.status = status
-    if type(status.left) == "number" and type(status.top) == "number" then
-      frame:ClearAllPoints()
-      frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", status.left, status.top)
-    end
-  end,
-}
-
 -- The floating card: made once, then filled again whenever the swap moves to another step.
 local function ensureFrame()
-  if frame then
-    return frame
+  if not frame then
+    frame = ns.PopupFrame.New({
+      name = "NrageAssistantLayerPopup",
+      title = "Nrage Layers",
+      width = WIDTH,
+      windowName = "layerPopup",
+      closeTooltip = L("Close"),
+      onClose = function()
+        controller:Closed()
+        close()
+        -- A helper who closes the window only stops seeing the request.
+        local status = ns.layerSwap and ns.layerSwap:Status()
+        if status and status.role == "helper" and status.stage == "request" then
+          ns.layerSwap:Ignore()
+        end
+      end,
+    })
   end
-  local Kit = ns.Kit
-  local Theme = Kit.Theme
-  frame = CreateFrame("Frame", "NrageAssistantLayerPopup", UIParent)
-  frame:SetFrameStrata("DIALOG")
-  frame:SetClampedToScreen(true)
-  frame:SetMovable(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
-  -- A cut surface on the plain ground: it sits over the game, so it shows no scene and is not translucent.
-  frame.shape = Kit.Shape.New(frame, { cut = "lg" })
-  frame.shape:SetFill("bg")
-  frame.shape.border:SetColor("border")
-  frame.title = frame:CreateFontString(nil, "OVERLAY")
-  frame.title:SetPoint("TOPLEFT", 16, -14)
-  frame.title:SetFontObject(Theme.StyleFont("window"))
-  Kit.SetTextColor(frame.title, "text")
-  frame.title:SetText("Nrage Layers")
-  frame:SetScript("OnDragStart", function(self)
-    self:StartMoving()
-  end)
-  frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local status = self.status
-    local left, top = self:GetLeft(), self:GetTop()
-    if status and type(left) == "number" and type(top) == "number" then
-      status.left, status.top = left, top
-    end
-  end)
-  frame.hide = Kit.IconButton(frame, {
-    icon = "close",
-    tooltip = L("Close"),
-    onClick = function()
-      controller:Closed()
-      close()
-      -- A helper who closes the window only stops seeing the request.
-      local status = ns.layerSwap and ns.layerSwap:Status()
-      if status and status.role == "helper" and status.stage == "request" then
-        ns.layerSwap:Ignore()
-      end
-    end,
-  })
-  frame.hide:Layout(28)
-  frame.hide.frame:ClearAllPoints()
-  frame.hide.frame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -8)
-  ns.UI.ApplyWindowStatus(statusTarget, "layerPopup", WIDTH, 0)
-  frame:Hide()
   return frame
 end
 
@@ -243,11 +207,7 @@ local function build(view)
   end
   content = ns.Kit.Stack(frame, { gap = 12 })
   countdownLabel = LayerPopup.Draw(content, view, press)
-  local height = content:Layout(WIDTH - 32)
-  ns.Kit.Place(content, frame, 16, 48)
-  frame:SetSize(WIDTH, height + 48 + 16)
-  frame.shape:Resize()
-  frame:Show()
+  ns.PopupFrame.Fit(frame, content, WIDTH)
 end
 
 function LayerPopup.Refresh()

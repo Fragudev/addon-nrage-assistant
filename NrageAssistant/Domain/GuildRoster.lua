@@ -19,11 +19,14 @@ function GuildRoster.New(deps)
     -- Optional: how this character finds itself in the roster (by GUID) and what to do with the name.
     ownGuid = deps.ownGuid,
     onOwnName = deps.onOwnName,
+    -- Optional: called after every completed rebuild, once the roster can answer for its members.
+    onReady = deps.onReady,
     entries = {},
     count = 0,
     rebuilding = false,
     dirty = false,
     retryPending = false,
+    generation = 0,
     lastStartedAt = nil,
     lastCompletedAt = nil,
   }, GuildRoster)
@@ -81,6 +84,9 @@ function GuildRoster:Finish(entries, count)
   self.lastCompletedAt = self.now()
   self.rebuilding = false
   self:FindOwnName()
+  if self.onReady then
+    self.onReady()
+  end
   if self.dirty then
     self.dirty = false
     self:Rebuild()
@@ -102,8 +108,13 @@ function GuildRoster:Rebuild()
   self.rebuilding = true
   self.lastStartedAt = self.now()
 
+  local generation = self.generation
   local entries, count, index = {}, 0, 1
+  local safe
   local function step()
+    if generation ~= self.generation then
+      return -- a Reset came in: this rebuild belongs to the old guild
+    end
     local last = math.min(index + self.chunk - 1, total)
     for i = index, last do
       local entry = self.platform.GetGuildRosterEntry(i)
@@ -123,12 +134,32 @@ function GuildRoster:Rebuild()
     end
     index = last + 1
     if index <= total then
-      self.schedule(0, step)
+      self.schedule(0, safe)
     else
       self:Finish(entries, count)
     end
   end
-  step()
+  -- A step that raises must not leave `rebuilding` on for good: the state is reset and a later rebuild starts over.
+  safe = function()
+    if not pcall(step) and generation == self.generation then
+      self.rebuilding = false
+      self.dirty = false
+    end
+  end
+  safe()
+end
+
+-- The character changed guild (or left it): the index belongs to the old one. Drops it, so the roster reads as not
+-- ready until the next rebuild completes, and abandons a rebuild in flight.
+function GuildRoster:Reset()
+  self.generation = self.generation + 1
+  self.entries = {}
+  self.count = 0
+  self.ownName = nil
+  self.rebuilding = false
+  self.dirty = false
+  self.lastStartedAt = nil
+  self.lastCompletedAt = nil
 end
 
 -- Called on GUILD_ROSTER_UPDATE (which fires often): rebuilds at most once per minInterval, and

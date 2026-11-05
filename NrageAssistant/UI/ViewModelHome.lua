@@ -94,22 +94,8 @@ end
 -- planned. Past and cancelled events are ignored (an open event is kept until it is closed). `events` is what the
 -- viewer sees (RosterService.FilterEvents).
 function ViewModel.NextEventCard(events, now)
-  local list = {}
-  for _, event in ipairs(ns.EventService.List({ events = events })) do
-    local active = event.status == "planned" or event.status == "open"
-    local upcoming = event.startAt == nil or event.startAt >= now or event.status == "open"
-    if active and upcoming then
-      list[#list + 1] = event
-    end
-  end
   -- The soonest dated one; an undated event only when nothing is dated.
-  local best
-  for _, event in ipairs(list) do
-    if event.startAt and (not best or not best.startAt or event.startAt < best.startAt) then
-      best = event
-    end
-  end
-  best = best or list[1]
+  local best = ViewModel.NextEvent(events, now)
   if not best then
     return nil
   end

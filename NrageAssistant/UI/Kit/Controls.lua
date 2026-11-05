@@ -100,6 +100,9 @@ Kit.Define("Button", {
     end)
     -- Sets the fill, the border and the glow every time, because the widget is pooled.
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       local variant = self.opts.variant or "secondary"
       local look = BUTTON_LOOK[variant]
       local active = self.pressed or self.hovered
@@ -180,6 +183,9 @@ Kit.Define("IconButton", {
       end
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       local variant = self.opts.variant or "ghost"
       local base = variant == "secondary" and "control" or "transparent"
       self.bg:SetColorTexture(Theme.Color((self.pressed and "selected") or (self.hovered and "hover") or base))
@@ -219,8 +225,11 @@ Kit.Define("Switch", {
     obj.knob = obj.frame:CreateTexture(nil, "OVERLAY")
     obj.knob:SetSize(m.knob, m.knob)
     obj.text = obj.frame:CreateFontString(nil, "OVERLAY")
-    obj.text:SetPoint("LEFT")
     obj.text:SetJustifyH("LEFT")
+    obj.desc = obj.frame:CreateFontString(nil, "OVERLAY")
+    obj.desc:SetJustifyH("LEFT")
+    obj.desc:SetJustifyV("TOP")
+    obj.desc:SetWordWrap(true)
     obj.frame:SetScript("OnClick", function()
       if obj.opts and not obj.opts.disabled then
         obj:SetChecked(not obj.checked)
@@ -232,11 +241,30 @@ Kit.Define("Switch", {
     obj.text:SetFontObject(Theme.StyleFont("body"))
     setColor(obj.text, "text")
     obj.text:SetText(opts.label or "")
+    obj.desc:SetFontObject(Theme.StyleFont("small"))
+    setColor(obj.desc, "dim")
+    obj.desc:SetText(opts.description or "")
+    obj.desc:SetShown(opts.description ~= nil and opts.description ~= "")
     obj.frame:SetAlpha(opts.disabled and 0.4 or 1)
     obj:SetChecked(opts.checked)
   end,
-  layout = function()
-    return 36
+  -- A description goes under the label, left of the track, and makes the row taller.
+  layout = function(obj, width)
+    obj.text:ClearAllPoints()
+    obj.desc:ClearAllPoints()
+    local description = obj.opts.description
+    if not description or description == "" then
+      obj.text:SetWidth(0)
+      obj.text:SetPoint("LEFT")
+      return 36
+    end
+    local textWidth = math.max(0, width - Theme.metrics.switch.width - 12)
+    obj.text:SetWidth(textWidth)
+    obj.desc:SetWidth(textWidth)
+    obj.text:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", 0, -4)
+    obj.desc:SetPoint("TOPLEFT", obj.frame, "TOPLEFT", 0, -(4 + Theme.LineHeight("body") + 2))
+    local measured = math.ceil(obj.desc:GetStringHeight() or 0)
+    return math.max(36, 4 + Theme.LineHeight("body") + 2 + math.max(Theme.LineHeight("small"), measured) + 4)
   end,
   reset = function(obj)
     obj.frame:SetAlpha(1)
@@ -329,6 +357,9 @@ Kit.Define("Chip", {
       end
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       local token = self.opts.color or "accent"
       local shape = self.shape
       if self.opts.segment then
@@ -517,7 +548,7 @@ Kit.Define("EditBox", {
     frame:SetScript("OnEditFocusLost", function()
       obj.focused = false
       obj:refresh()
-      if not obj.escaped and obj.opts then
+      if not obj.escaped and obj.opts and not obj.released then
         commit()
       end
       obj.escaped = false
@@ -527,6 +558,9 @@ Kit.Define("EditBox", {
       callback(obj, "onChange", frame:GetText(), userInput == true)
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, self.focused))
       local empty = frame:GetText() == ""
       if empty and not self.focused and self.opts.placeholder then
@@ -618,9 +652,18 @@ Kit.Define("TextArea", {
       obj.edit:ClearFocus()
     end)
     obj.edit:SetScript("OnTextChanged", function(_, userInput)
-      if userInput then
-        callback(obj, "onChange", obj.edit:GetText())
+      if not userInput then
+        return
       end
+      -- A read-only box (the export) takes the focus and selects its text but never keeps a typed change.
+      if obj.readOnly then
+        if obj.edit:GetText() ~= obj.shownText then
+          obj.edit:SetText(obj.shownText or "")
+          obj.edit:HighlightText()
+        end
+        return
+      end
+      callback(obj, "onChange", obj.edit:GetText())
     end)
     obj.edit:SetScript("OnEditFocusGained", function()
       obj.focused = true
@@ -634,6 +677,9 @@ Kit.Define("TextArea", {
       obj:refresh()
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       self.shape.border:SetColor(Kit.FieldBorder(self.opts and self.opts.error, self.focused))
     end
     obj.scroll:SetScript("OnMouseWheel", function(_, delta)
@@ -646,9 +692,10 @@ Kit.Define("TextArea", {
     obj.shape:SetFill("input")
     obj:refresh()
     setColor(obj.edit, "text")
-    obj.edit:SetText(opts.text or "")
-    obj.edit:SetCursorPosition(0)
     obj.readOnly = opts.readOnly == true
+    obj.shownText = opts.text or ""
+    obj.edit:SetText(obj.shownText)
+    obj.edit:SetCursorPosition(0)
     obj.edit:EnableMouse(true)
   end,
   layout = function(obj, width)
@@ -699,6 +746,9 @@ Kit.Define("Dropdown", {
       end
     end)
     function obj:refresh()
+      if not self.opts then
+        return
+      end
       self.shape:SetFill(self.hovered and "controlHover" or "input")
       self.shape.border:SetColor(Kit.FieldBorder(self.opts.error, self.hovered))
       self.frame:SetAlpha(self.opts.disabled and 0.4 or 1)

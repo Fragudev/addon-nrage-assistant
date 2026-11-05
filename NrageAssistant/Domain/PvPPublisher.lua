@@ -58,6 +58,8 @@ function PvPPublisher:Send()
   local deps = self.deps
   local day = deps.day()
   if not day then
+    -- No server day yet: try again later, the counters stay dirty.
+    self:Schedule()
     return false, "no_day"
   end
 

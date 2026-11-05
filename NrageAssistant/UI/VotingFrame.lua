@@ -62,9 +62,17 @@ function Controller:Refresh()
   end
 
   local fresh = {}
+  local open = {}
   for _, id in ipairs(self.deps.openSessionIds()) do
+    open[id] = true
     if not self.seen[id] then
       fresh[#fresh + 1] = id
+    end
+  end
+  -- A session that is not open any more is forgotten, so the table does not grow for as long as the game runs.
+  for id in pairs(self.seen) do
+    if not open[id] then
+      self.seen[id] = nil
     end
   end
   if #fresh == 0 then
@@ -165,13 +173,8 @@ local redraw
 
 -- What an action returned, shown in the window.
 local function report(lines)
-  local kind = "success"
-  if ns.Validate.IsFailure(lines) then
-    kind = "danger"
-  elseif lines[2] then
-    kind = "warning"
-  end
-  lastMessage = { kind = kind, text = table.concat(lines, " ") }
+  local kind, text = ns.ViewModel.ReportBanner(lines)
+  lastMessage = { kind = kind, text = text }
   closeArmed = nil
   redraw()
 end

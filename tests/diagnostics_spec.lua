@@ -353,6 +353,18 @@ describe("Diagnostics.Info", function()
     assert.is_truthy(text:find("sync: queued messages: 0", 1, true))
   end)
 
+  it("reports startup failures and sync errors when there are any", function()
+    local addon = addon_with_data()
+    addon.startupErrors = { { step = "pvp", error = "boom" } }
+    addon.comm.StatusInfo = function()
+      return { errorCount = 2, lastError = { kind = "snapshot", detail = "bad item" }, dropped = 3 }
+    end
+    local text = table.concat(Diagnostics.Info(addon), "\n")
+    assert.is_truthy(text:find("startup error: pvp: boom", 1, true))
+    assert.is_truthy(text:find("sync errors: 2, last: snapshot: bad item", 1, true))
+    assert.is_truthy(text:find("sync messages dropped: 3", 1, true))
+  end)
+
   it("still works before the database or the sync exist", function()
     local addon = addon_with_data()
     addon.db, addon.comm, addon.active = nil, nil, nil

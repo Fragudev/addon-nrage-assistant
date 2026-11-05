@@ -43,11 +43,14 @@ end
 local function addTombstone(ctx, key, rev)
   local tombstones = ctx.tombstones
   if not tombstones[key] and countKeys(tombstones) >= ns.Constants.TOMBSTONE_MAX then
-    -- Full: drop the oldest one rather than refuse a deletion.
-    local oldestKey, oldestAt
+    -- Full: drop one rather than refuse a deletion. An assignment tombstone ("A:") goes first (the least costly one
+    -- to lose: its event is usually gone or its roster is rebuilt), the oldest of its kind; the others ("E:", "B:",
+    -- "R:", "M:") only when there is no assignment one.
+    local oldestKey, oldestAt, oldestIsA
     for existing, entry in pairs(tombstones) do
-      if not oldestAt or entry.at < oldestAt then
-        oldestKey, oldestAt = existing, entry.at
+      local isA = existing:sub(1, 2) == "A:"
+      if not oldestAt or (isA and not oldestIsA) or (isA == oldestIsA and entry.at < oldestAt) then
+        oldestKey, oldestAt, oldestIsA = existing, entry.at, isA
       end
     end
     tombstones[oldestKey] = nil

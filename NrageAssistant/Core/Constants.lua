@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 14,
+  SCHEMA_VERSION = 15,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -31,7 +31,8 @@ ns.Constants = {
   -- Sized for raid operations: an RL recording attendance for a whole raid sends one message per row.
   INBOX_MAX_PER_WINDOW = 60,
   INBOX_WINDOW_SECONDS = 60,
-  INBOX_MAX_SENDERS = 200,
+  -- Sized to the guild limit (GUILD_ROSTER_MAX): when it is full the oldest window goes, so nobody is refused for good.
+  INBOX_MAX_SENDERS = 1000,
 
   -- Minimum time between two publications of the own profile.
   PUBLISH_COOLDOWN_SECONDS = 30,
@@ -111,6 +112,10 @@ ns.Constants = {
   SYNC_LOGIN_REQUEST_DELAY_MAX = 20,
   SYNC_RESPONSE_DELAY_MIN = 1,
   SYNC_RESPONSE_DELAY_MAX = 10,
+  -- A reply dropped because the guild roster was not loaded yet (unknown_sender) makes the client ask again, after
+  -- this long (more than the request cooldowns) and at most SYNC_RETRY_MAX times.
+  SYNC_RETRY_DELAY_SECONDS = 65,
+  SYNC_RETRY_MAX = 3,
 
   -- Text import/export of raid data. LibDeflate has no output limit, so the encoded input is capped
   -- first (a deflate stream expands at most ~1000x) and the result is capped again afterwards.
@@ -123,8 +128,10 @@ ns.Constants = {
   EVENT_ATTENDANCE_MAX = 60,
   EVENT_ASSIGNMENTS_MAX = 50,
   EVENT_RETENTION_SECONDS = 90 * 24 * 3600,
-  TOMBSTONE_MAX = 500,
-  TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+  -- A tombstone outlives the retention of the events (plus a margin), or a client that was away would bring a
+  -- deleted record back. The cap leaves room for a busy guild over that time.
+  TOMBSTONE_MAX = 1000,
+  TOMBSTONE_TTL_SECONDS = 120 * 24 * 3600,
 
   -- The guild logo as a game texture (TGA, no extension), and the minimap button around it.
   LOGO_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\nrage_logo",
@@ -161,6 +168,11 @@ ns.Constants = {
   -- one hour's worth), which limits a modified client; it cannot prevent one.
   PVP_MAX_KILLS = 1000000,
   PVP_MAX_KILLS_PER_HOUR = 300,
+  -- A snapshot relays the record of another member: its `rev` may be at most this far above the one held (publishing
+  -- raises it by one at most once a minute), or below PVP_SNAPSHOT_REV_NEW_MAX for a member not held yet. The member's
+  -- own messages are not limited.
+  PVP_SNAPSHOT_REV_JUMP_MAX = 2000,
+  PVP_SNAPSHOT_REV_NEW_MAX = 100000,
   -- The own counters are sent at most this often (a change waits for the next slot, a burst of kills is one message).
   PVP_SYNC_INTERVAL_SECONDS = 60,
   -- A change is sent no sooner than this, so the two readings of one kill (PVP_RECHECK_SECONDS) become one message.
@@ -246,6 +258,9 @@ ns.Constants = {
   PVP_LEDGER_SERVE_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_PAGE_ITEMS = 400,
   PVP_LEDGER_PAGES_MAX = 100,
+  -- A catch-up whisper is only expected for this long after the own request went out (it comes after a delay of up
+  -- to SYNC_RESPONSE_DELAY_MAX and, paced, in several batches).
+  PVP_LEDGER_EXPECT_SECONDS = 300,
   -- Prize tiers, best first: the keys of prizes.tiers and of a delivery. A position 1..10 maps to exactly one tier.
   PVP_PRIZE_TIERS = { "1", "2", "3", "4-6", "7-10" },
   -- Points are never spent; at least this many are needed to be ranked (and to get a prize).
@@ -254,10 +269,9 @@ ns.Constants = {
   -- PvP missions: detection (docs/PVP_MISSIONS_PLAN.md, sections 2 and 5).
   -- The own kill log of a character keeps at most PVP_MISSION_KILLS_MAX rows (oldest dropped first). A victim counts at
   -- most PVP_VICTIM_DAILY_CAP times per server day across all missions. A battleground win is logged once per
-  -- instance; PVP_BG_WIN_DEDUPE_SECONDS covers a reload inside the same battleground.
+  -- instance (a marker saved with the log survives a reload and is cleared by the next real world entry).
   PVP_MISSION_KILLS_MAX = 2000,
   PVP_VICTIM_DAILY_CAP = 3,
-  PVP_BG_WIN_DEDUPE_SECONDS = 1800,
   -- The unit cache (victim class and race) lives in memory only: at most PVP_UNIT_CACHE_MAX names, least recently
   -- seen dropped first, and an entry older than PVP_UNIT_CACHE_TTL seconds is ignored.
   PVP_UNIT_CACHE_MAX = 500,
@@ -334,10 +348,13 @@ ns.Constants = {
   POSITION_REDRAW_SECONDS = 1,
 
   -- Received data kept in memory or SavedVariables.
-  ROSTER_MAX_ENTRIES = 500,
+  -- Sized to the guild limit (GUILD_ROSTER_MAX); a full table drops the received profile that arrived longest ago.
+  ROSTER_MAX_ENTRIES = 1000,
   -- A received profile older than this is shown as stale, never as current.
   ROSTER_STALE_SECONDS = 7 * 24 * 3600,
-  PEERS_MAX_ENTRIES = 200,
+  -- Peers are sized to the guild limit too; one not heard from for PEERS_TTL_SECONDS goes first, then the oldest.
+  PEERS_MAX_ENTRIES = 1000,
+  PEERS_TTL_SECONDS = 24 * 3600,
 
   -- HELLO: sent shortly after login, and once more (jittered, rate limited) when a new peer shows up.
   HELLO_LOGIN_DELAY_MIN = 2,
@@ -350,6 +367,13 @@ ns.Constants = {
   -- Outbound queue: bounded, expiring, and jittered when it drains after a lockdown.
   QUEUE_MAX_ITEMS = 100,
   QUEUE_TTL_SECONDS = 120,
+  -- Room a paced multi-message send (the ledger pages) leaves free for other traffic, and how it paces itself when the
+  -- queue has no room: it tries again every QUEUE_PACE_SECONDS, at most QUEUE_PACE_RETRIES times.
+  QUEUE_RESERVED_ITEMS = 20,
+  QUEUE_PACE_SECONDS = 15,
+  QUEUE_PACE_RETRIES = 8,
+  -- A message whose transmission raised is tried once more before it is dropped.
+  QUEUE_SEND_ATTEMPTS = 2,
   QUEUE_MAX_JITTER_SECONDS = 5,
 
   -- The guild's own readiness rules (admins set them, see ReadinessRules): at most this many in one set.

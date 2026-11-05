@@ -139,6 +139,11 @@ local ACTIONS = {
 }
 
 function Probe.Handle(action)
+  -- Release builds ship this file but never run it (ns.IsDevBuild).
+  if not ns.IsDevBuild() then
+    say("the lockdown probe is only available in a development build.")
+    return
+  end
   local run = ACTIONS[action or ""]
   if run then
     run()

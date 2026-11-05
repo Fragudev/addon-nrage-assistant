@@ -24,7 +24,7 @@ PvPMissionService.__index = PvPMissionService
 
 function PvPMissionService.New(deps)
   return setmetatable(
-    { deps = deps, unitSource = false, winSource = false, looping = false, winLogged = false },
+    { deps = deps, unitSource = false, winSource = false, looping = false, winLogged = false, refused = {} },
     PvPMissionService
   )
 end
@@ -64,6 +64,7 @@ function PvPMissionService:WriteLog(season)
     log.seasonId = season.id
     log.kills = {}
     log.claims = {}
+    log.bgWinLogged = nil
   end
   log.kills = log.kills or {}
   log.claims = log.claims or {}
@@ -116,34 +117,48 @@ end
 function PvPMissionService:OnBattlegroundStatus()
   local season = self:Season()
   local platform = self.deps.platform
-  if not season or self.winLogged or platform.IsInBattleground() ~= true then
+  if not season or self:WinLogged() or platform.IsInBattleground() ~= true then
     return false
   end
   local winner = platform.GetBattlegroundWinner()
   if not winner or winner ~= platform.GetPlayerFaction() then
     return false
   end
-  self.winLogged = true
   local now = self.deps.now()
   local log = self:WriteLog(season)
   if not log then
     return false
   end
-  -- A reload inside the same battleground forgets the flag; the log remembers.
-  for index = #log.kills, 1, -1 do
-    local row = log.kills[index]
-    if row.bgWin and now - row.at < ns.Constants.PVP_BG_WIN_DEDUPE_SECONDS then
-      return false
-    end
-  end
+  -- The marker is saved with the log, so a reload inside the same battleground does not log the win again. A real
+  -- world entry clears it (OnWorldEntered).
+  log.bgWinLogged = true
+  self.winLogged = true
   append(log, { at = now, bgWin = true, mapId = platform.GetPlayerMapId() })
   self:Changed()
   return true
 end
 
--- A new world (login, a loading screen): the next battleground win is a new one.
-function PvPMissionService:OnWorldEntered()
+-- Has the win of the battleground the player is in been logged already? The saved marker survives a /reload.
+function PvPMissionService:WinLogged()
+  local log = self.deps.log()
+  if type(log) == "table" then
+    return log.bgWinLogged == true
+  end
+  return self.winLogged
+end
+
+-- PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi). A loading screen into another world makes the next
+-- battleground win a new one. A /reload or a login keeps the marker: the player may still be in the same battleground
+-- (a login into another place is cleared by the next loading screen). Without arguments it counts as a new world.
+function PvPMissionService:OnWorldEntered(isInitialLogin, isReloadingUi)
+  if isInitialLogin or isReloadingUi then
+    return
+  end
   self.winLogged = false
+  local log = self.deps.log()
+  if type(log) == "table" then
+    log.bgWinLogged = nil
+  end
 end
 
 -- Which sources of data this client has: kills (the feed has a victim name), zones (the map id is readable), class
@@ -267,26 +282,36 @@ function PvPMissionService:Claim(missionId, note)
   return claim, queued
 end
 
--- Are there local claims of the active season still waiting for a decision?
+-- Are there local claims of the active season still waiting for a decision (and still worth announcing)?
 function PvPMissionService:HasPending()
   local season = self.deps.season:ActiveSeason()
   if not season then
     return false
   end
-  for _, entry in pairs(self:ReadLog(season).claims) do
-    if self:EntryState(entry) == "pending" then
+  for id, entry in pairs(self:ReadLog(season).claims) do
+    if self:EntryState(entry) == "pending" and not self.refused[id] then
       return true
     end
   end
   return false
 end
 
+-- Reasons SubmitClaim gives that no retry will change: the mission was paused, the season is over or the limit of the
+-- mission is reached. A claim refused like that stops being announced.
+local PERMANENT_REFUSAL = {
+  inactive = true,
+  out_of_season = true,
+  no_season = true,
+  unknown_mission = true,
+  limit = true,
+}
+
 -- Sends the pending claims again (the same claim is the same id, so a receiver that has it ignores the repeat).
--- Returns how many went out.
+-- Returns how many went out and how many were refused for good (those are not announced again this session).
 function PvPMissionService:Reannounce()
   local season = self.deps.season:ActiveSeason()
   if not season then
-    return 0
+    return 0, 0
   end
   local claims = self:ReadLog(season).claims
   local ids = {}
@@ -294,13 +319,19 @@ function PvPMissionService:Reannounce()
     ids[#ids + 1] = id
   end
   table.sort(ids)
-  local sent = 0
+  local sent, dead = 0, 0
   for _, id in ipairs(ids) do
     local entry = claims[id]
     local claim = entry.claim
     local parts = ns.PvPSeasonModel.ParseClaimId(id)
-    if claim and parts and self:EntryState(entry) == "pending" and claim.seasonId == season.id then
-      local again = self.deps.season:SubmitClaim({
+    if
+      claim
+      and parts
+      and not self.refused[id]
+      and self:EntryState(entry) == "pending"
+      and claim.seasonId == season.id
+    then
+      local again, why = self.deps.season:SubmitClaim({
         missionId = claim.missionId,
         at = claim.at,
         n = parts.n,
@@ -310,10 +341,13 @@ function PvPMissionService:Reannounce()
       })
       if again then
         sent = sent + 1
+      elseif PERMANENT_REFUSAL[why] then
+        dead = dead + 1
+        self.refused[id] = true
       end
     end
   end
-  return sent
+  return sent, dead
 end
 
 function PvPMissionService:Tick()

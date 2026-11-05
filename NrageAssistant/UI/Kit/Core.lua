@@ -103,18 +103,29 @@ function Widget:Clear()
   self.items = {}
 end
 
+-- Hides the shared tooltip when `frame` owns it (a released frame must not leave its tooltip on the screen).
+function Kit.HideTooltipFor(frame)
+  local tip = GameTooltip
+  if tip and tip.GetOwner and tip:GetOwner() == frame and tip.Hide then
+    tip:Hide()
+  end
+end
+
+-- `released` is set first: the reset below can clear an edit box focus, whose handlers must see the widget as gone
+-- (an unsaved text is dropped, never committed, so a release never re-enters a redraw) and must not pool it twice.
 function Widget:Release()
   if self.released then
     return
   end
+  self.released = true
   self:Clear()
   if self.spec.reset then
     self.spec.reset(self)
   end
+  Kit.HideTooltipFor(self.frame)
   self.frame:Hide()
   self.frame:ClearAllPoints()
   self.frame:SetParent(nil)
-  self.released = true
   self.opts = nil
   self.parent = nil
   local pool = pools[self.kind]
@@ -291,7 +302,7 @@ Kit.Define("Flow", {
       end
     end
     local y = 0
-    for lineIndex, line in ipairs(Util.WrapLines(width, widths, obj.gap)) do
+    for _, line in ipairs(Util.WrapLines(width, widths, obj.gap)) do
       local x, tallest = 0, 0
       for _, index in ipairs(line) do
         local h = shown[index].obj:Layout(widths[index])
@@ -299,7 +310,7 @@ Kit.Define("Flow", {
         x = x + widths[index] + obj.gap
         tallest = math.max(tallest, h)
       end
-      y = y + tallest + (lineIndex > 0 and obj.rowGap or 0)
+      y = y + tallest + obj.rowGap
     end
     return math.max(0, y - obj.rowGap)
   end,

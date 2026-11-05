@@ -30,6 +30,27 @@ local state = {
   templateName = "",
 }
 
+-- The options every date field of the tabs shares (the Raid forms and the PvP season dates): the weekday headers are
+-- the first two characters of the weekday name, cut by character so an accent is never split.
+function UI.DateFieldOptions(value, onChange)
+  return {
+    value = value,
+    placeholder = L("Pick a date and time"),
+    format = ViewModel.DateText,
+    now = ns.Platform.ServerTime,
+    monthName = function(month)
+      return ViewModel.MONTHS_LONG[month]
+    end,
+    weekdayName = function(index)
+      return Kit.Util.Chars(ViewModel.WEEKDAYS[index], 2)
+    end,
+    onChange = onChange,
+    onError = function()
+      UI.Notify("danger", L("That time does not exist on that day (the clocks change)."))
+    end,
+  }
+end
+
 local function services()
   local global = ns.db.global
   local raid = ns.RaidCommands.New({
@@ -65,7 +86,7 @@ end)
 -- ---------------------------------------------------------------------------------------------------------------
 -- The new-event form
 
-local function newEventForm(parent, raid, actions, role)
+local function newEventForm(parent, raid, role)
   local global = ns.db.global
   local card = Kit.Card(parent, { title = L("New event"), gap = 10 })
   local title = Kit.Field(card, { label = L("Title") })
@@ -77,24 +98,12 @@ local function newEventForm(parent, raid, actions, role)
     end,
   })
   local when = Kit.Field(card, { label = L("Date and time") })
-  Kit.DateField(when, {
-    value = state.draft.startAt,
-    placeholder = L("Pick a date and time"),
-    format = ViewModel.DateText,
-    now = ns.Platform.ServerTime,
-    monthName = function(month)
-      return ViewModel.MONTHS_LONG[month]
-    end,
-    weekdayName = function(index)
-      return ViewModel.WEEKDAYS[index]:sub(1, 2)
-    end,
-    onChange = function(timestamp)
+  Kit.DateField(
+    when,
+    UI.DateFieldOptions(state.draft.startAt, function(timestamp)
       state.draft.startAt = timestamp
-    end,
-    onError = function()
-      UI.Notify("danger", L("That time does not exist on that day (the clocks change)."))
-    end,
-  })
+    end)
+  )
   local status = Kit.Field(card, { label = L("Status") })
   Kit.Dropdown(status, {
     items = ViewModel.EventStatusChoices(),
@@ -142,9 +151,6 @@ local function newEventForm(parent, raid, actions, role)
       UI.Redraw()
     end,
   })
-  if not actions.events then
-    card:SetShown(false)
-  end
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
@@ -194,7 +200,7 @@ local function eventList(parent, events, actions, raid, role)
     })
   end
   if state.newOpen and actions.events then
-    newEventForm(column, raid, actions, role)
+    newEventForm(column, raid, role)
   end
 
   local rows = ViewModel.EventListRows(events, {
@@ -273,24 +279,12 @@ local function detailsTab(parent, event, raid, role)
   })
   local second = Kit.Row(card, { gap = 16 })
   local when = Kit.Field(second, { label = L("Date and time"), layout = { weight = 1 } })
-  Kit.DateField(when, {
-    value = event.startAt,
-    placeholder = L("Pick a date and time"),
-    format = ViewModel.DateText,
-    now = ns.Platform.ServerTime,
-    monthName = function(month)
-      return ViewModel.MONTHS_LONG[month]
-    end,
-    weekdayName = function(index)
-      return ViewModel.WEEKDAYS[index]:sub(1, 2)
-    end,
-    onChange = function(timestamp)
+  Kit.DateField(
+    when,
+    UI.DateFieldOptions(event.startAt, function(timestamp)
       UI.Report(raid:SetEventStartAt(event, timestamp))
-    end,
-    onError = function()
-      UI.Notify("danger", L("That time does not exist on that day (the clocks change)."))
-    end,
-  })
+    end)
+  )
   if ns.PermissionService.IsGlobal(role) then
     local roster = Kit.Field(second, { label = L("Roster"), layout = { weight = 1 } })
     Kit.Dropdown(roster, {

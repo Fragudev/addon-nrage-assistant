@@ -372,6 +372,34 @@ describe("Transfer.BuildSnapshot and ApplyItems", function()
   end)
 end)
 
+describe("Transfer.ApplyItems with a failing item", function()
+  it("skips an item that raises, counts it, keeps the error and carries on with the rest", function()
+    local s = populated()
+    local good = Transfer.BuildItems(s.events, s.tombstones)
+    local items = {
+      setmetatable({ t = "EVENT_UPSERT" }, {
+        __index = function()
+          error("boom")
+        end,
+      }),
+    }
+    for _, item in ipairs(good) do
+      items[#items + 1] = item
+    end
+    local target = store()
+    local summary = Transfer.ApplyItems(
+      items,
+      { events = target.events, tombstones = target.tombstones, now = target.ctx().now },
+      "Lead-Realm",
+      "gm"
+    )
+    assert.are.equal(1, summary.skipped.error)
+    assert.is_truthy(summary.firstError:find("boom", 1, true))
+    assert.is_true(summary.applied > 0)
+    assert.is_truthy(next(target.events))
+  end)
+end)
+
 describe("Transfer sign-ups in a snapshot", function()
   local source, event
 
@@ -497,6 +525,93 @@ describe("Transfer with loot sessions", function()
     end
   end)
 
+  describe("the awarder of a relayed award", function()
+    local function award_item(source)
+      local snapshot = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
+      for _, item in ipairs(snapshot) do
+        if item.t == "LOOT_AWARD" then
+          return item, snapshot
+        end
+      end
+    end
+
+    local function receiver(roleOf)
+      local target = store()
+      return target,
+        {
+          events = target.events,
+          tombstones = target.tombstones,
+          now = target.ctx().now,
+          roleOf = roleOf,
+          rosterOf = function()
+            return "r1"
+          end,
+        }
+    end
+
+    it("travels with the item of the snapshot and is kept when the receiver knows them as a loot manager", function()
+      local source, event, awarded = with_loot()
+      local item, snapshot = award_item(source)
+      assert.are.equal("Leader-Realm", item.awardedBy)
+      local target, ctx = receiver(function(name)
+        return name == "Leader-Realm" and "rl" or "gm"
+      end)
+      Transfer.ApplyItems(snapshot, ctx, "Boss-Realm", "gm")
+      assert.are.equal("Leader-Realm", target.events[event.eventId].loot[awarded.sessionId].award.awardedBy)
+    end)
+
+    it(
+      "falls back to the sender for an older snapshot, an unknown awarder or a member who cannot manage loot",
+      function()
+        local source, event, awarded = with_loot()
+        local item, snapshot = award_item(source)
+        local function awarder_with(roleOf, edit)
+          local target, ctx = receiver(roleOf)
+          local copy = {}
+          for index, entry in ipairs(snapshot) do
+            copy[index] = entry == item and { t = entry.t, p = entry.p, awardedBy = edit(entry.awardedBy) } or entry
+          end
+          Transfer.ApplyItems(copy, ctx, "Boss-Realm", "gm")
+          return target.events[event.eventId].loot[awarded.sessionId].award.awardedBy
+        end
+        local function manager()
+          return "gm"
+        end
+        local function keep(by)
+          return by
+        end
+        assert.are.equal(
+          "Boss-Realm",
+          awarder_with(manager, function()
+            return nil
+          end)
+        )
+        assert.are.equal(
+          "Boss-Realm",
+          awarder_with(manager, function()
+            return "|cffff0000Nobody"
+          end)
+        )
+        assert.are.equal(
+          "Boss-Realm",
+          awarder_with(function(name)
+            return name == "Leader-Realm" and "member" or "gm"
+          end, keep)
+        )
+        assert.are.equal(
+          "Boss-Realm",
+          awarder_with(function(name)
+            if name ~= "Leader-Realm" then
+              return "gm"
+            end
+          end, keep)
+        )
+        -- No guild roster (a text import): the item cannot be checked, so the importer stays the awarder.
+        assert.are.equal("Boss-Realm", awarder_with(nil, keep))
+      end
+    )
+  end)
+
   it("puts an event's loot in its snapshot", function()
     local source = with_loot()
     local snapshot = Transfer.BuildSnapshot(source.events, source.tombstones, 5)
@@ -528,6 +643,10 @@ describe("Transfer PvP items in a snapshot", function()
       tombstones = {},
       pvpStats = {},
       pvpResets = {},
+      -- The guild roster of the receiver: every owner of a relayed record has to be somebody it knows.
+      roleOf = function()
+        return "member"
+      end,
       now = function()
         return 10000
       end,
@@ -620,6 +739,49 @@ describe("Transfer PvP items in a snapshot", function()
     assert.are.equal(5, summary.skipped.bad_owner)
     assert.are.equal(1, summary.skipped.bad_payload)
     assert.is_nil(next(ctx.pvpStats))
+  end)
+
+  it("skips a record whose owner the guild roster does not know, or cannot be checked", function()
+    local items = Transfer.BuildSnapshot({}, {}, 5, source_context(), 10)
+    local ctx = pvp_context({
+      roleOf = function(name)
+        return name == "Ann-Realm" and "member" or nil
+      end,
+    })
+    local summary = Transfer.ApplyItems(items, ctx, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.skipped.unknown_owner)
+    assert.is_truthy(ctx.pvpStats["Ann-Realm"])
+    assert.is_nil(ctx.pvpStats["Bob-Realm"])
+
+    local blind = pvp_context({ roleOf = false })
+    summary = Transfer.ApplyItems(items, blind, "Lead-Realm", "rl")
+    assert.are.equal(2, summary.skipped.unknown_owner)
+    assert.is_nil(next(blind.pvpStats))
+  end)
+
+  it("limits how far a relay can raise the revision of a member", function()
+    local function item(rev)
+      local r = record(30)
+      r.rev = rev
+      return { t = "PVP_STATS", p = r, owner = "Ann-Realm" }
+    end
+    local ctx = pvp_context()
+    ctx.pvpStats["Ann-Realm"] = record(10)
+    ctx.pvpStats["Ann-Realm"].rev = 50
+    local summary =
+      Transfer.ApplyItems({ item(50 + ns.Constants.PVP_SNAPSHOT_REV_JUMP_MAX + 1) }, ctx, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.skipped.implausible)
+    assert.are.equal(50, ctx.pvpStats["Ann-Realm"].rev)
+    summary = Transfer.ApplyItems({ item(50 + ns.Constants.PVP_SNAPSHOT_REV_JUMP_MAX) }, ctx, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.applied)
+
+    -- A member not held yet: no huge revision either, which would make their own messages stale for good.
+    local fresh = pvp_context()
+    summary = Transfer.ApplyItems({ item(ns.Constants.PVP_SNAPSHOT_REV_NEW_MAX + 1) }, fresh, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.skipped.implausible)
+    assert.is_nil(fresh.pvpStats["Ann-Realm"])
+    summary = Transfer.ApplyItems({ item(ns.Constants.PVP_SNAPSHOT_REV_NEW_MAX) }, fresh, "Lead-Realm", "rl")
+    assert.are.equal(1, summary.applied)
   end)
 
   it("does not apply PvP items to a context without PvP tables, such as a text import", function()

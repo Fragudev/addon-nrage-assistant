@@ -42,6 +42,7 @@ function Transfer.BuildItems(events, tombstones)
     -- Sessions and awards only: candidates and votes cannot be re-attributed to another sender.
     for _, item in ipairs(ns.LootSync.SessionItems(eventId, event)) do
       add(item.t, item.p)
+      items[#items].awardedBy = item.awardedBy
     end
   end
 
@@ -189,17 +190,38 @@ end
 -- sender of the snapshot, so it only counts when that is an admin). Only a snapshot names an owner.
 local function applyPvPItem(item, ctx, sender, role)
   local owner = sender
+  local relayed = false
   if item.t == "PVP_STATS" then
     if not ns.EventModel.IsCharacterKey(item.owner) then
       return false, "bad_owner"
     end
+    -- The owner has to be somebody this client's own guild roster knows: a relay cannot invent members.
+    if not ctx.roleOf or ctx.roleOf(item.owner) == nil then
+      return false, "unknown_owner"
+    end
     owner = item.owner
+    relayed = true
   end
   local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
   if not message then
     return false, invalid
   end
-  return ns.PvPSync.Apply(ctx, message, owner, role)
+  return ns.PvPSync.Apply(ctx, message, owner, role, relayed)
+end
+
+-- The original awarder of a LOOT_AWARD item, when it can be trusted: a character key that this client's own guild
+-- roster knows as somebody who manages loot. Nil otherwise (a text import never has a roster), and the sender stays
+-- the awarder.
+local function relayedAwarder(item, ctx)
+  local by = item.awardedBy
+  if type(by) ~= "string" or not ctx.roleOf or not ns.EventModel.IsCharacterKey(by) then
+    return nil
+  end
+  local role = ctx.roleOf(by)
+  if role ~= nil and ns.PermissionService.Can(role, "loot_manage") then
+    return by
+  end
+  return nil
 end
 
 -- A blacklist item of a snapshot, applied as if its sender had sent it. The author and date it carries are only
@@ -254,14 +276,15 @@ end
 -- now } as for EventSync; PvP items are only applied when `ctx.pvpStats` is there (see PvPSync) and blacklist items
 -- when `ctx.blacklist` is (see BlacklistSync), which a text import never provides; the readiness rules likewise
 -- when `ctx.readinessRules` is there. Returns { total, applied, pvp (how many of those were PvP), blacklist (how
--- many were blacklist), rules (how many roster rule sets were applied), skipped = { [reason] = count } }.
+-- many were blacklist), rules (how many roster rule sets were applied), skipped = { [reason] = count },
+-- firstError (the first error an item raised, if any) }.
 function Transfer.ApplyItems(items, ctx, sender, role)
   local summary = { total = #items, applied = 0, pvp = 0, blacklist = 0, rules = 0, rosters = 0, skipped = {} }
   local function skip(why)
     summary.skipped[why] = (summary.skipped[why] or 0) + 1
   end
 
-  for _, item in ipairs(items) do
+  local function applyOne(item)
     if type(item) == "table" and type(item.t) == "string" and ctx.pvpStats and ns.PvPSync.IsPvPMessage(item.t) then
       local ok, why = applyPvPItem(item, ctx, sender, role)
       if ok then
@@ -317,10 +340,13 @@ function Transfer.ApplyItems(items, ctx, sender, role)
       if not message then
         skip(invalid)
       else
-        -- A sign-up in a snapshot is relayed by a leader; see EventSync's applySignupUpsert.
+        -- A sign-up in a snapshot is relayed by a leader; see EventSync's applySignupUpsert. An award keeps its
+        -- original awarder; see LootSync's applyAward.
         local applyCtx = ctx
         if item.t == "SIGNUP_UPSERT" then
           applyCtx = setmetatable({ relay = true }, { __index = ctx })
+        elseif item.t == "LOOT_AWARD" then
+          applyCtx = setmetatable({ awardedBy = relayedAwarder(item, ctx) }, { __index = ctx })
         end
         local ok, why = ns.EventSync.Apply(applyCtx, message, sender, role)
         if ok then
@@ -329,6 +355,16 @@ function Transfer.ApplyItems(items, ctx, sender, role)
           skip(why)
         end
       end
+    end
+  end
+
+  -- An item that raises is skipped (and counted) instead of aborting the rest of the snapshot; the first error is kept
+  -- for the debug output.
+  for _, item in ipairs(items) do
+    local ok, err = pcall(applyOne, item)
+    if not ok then
+      skip("error")
+      summary.firstError = summary.firstError or tostring(err)
     end
   end
   return summary

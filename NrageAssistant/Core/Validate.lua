@@ -23,10 +23,20 @@ function Validate.Id(value)
   return Validate.Text(value, 40) and value:find("^[%w%-_]+$") ~= nil
 end
 
+-- The capital letters of the Latin-1 Supplement (A-grave to Thorn, two bytes \195\128 to \195\158) become their small
+-- letters by adding 32 to the second byte. The multiplication sign (\195\151) is not a letter and stays.
+local function LowerLatin1(second)
+  if second == "\151" then
+    return nil
+  end
+  return "\195" .. string.char(second:byte() + 32)
+end
+
 -- Lowercase, no whitespace: "Some Name" and "somename" are the same name. Used to compare names that people type
--- or that come from different places, never to display them.
+-- or that come from different places, never to display them. string.lower only knows ASCII, so the accented
+-- capitals of UTF-8 names ("Angel" with an acute accent) are lowered here as well.
 function Validate.NameKey(text)
-  return (text:lower():gsub("%s+", ""))
+  return (text:lower():gsub("\195([\128-\158])", LowerLatin1):gsub("%s+", ""))
 end
 
 -- What a command (RaidCommands, LootCommands...) returns when it did not do what was asked: the lines to show, marked

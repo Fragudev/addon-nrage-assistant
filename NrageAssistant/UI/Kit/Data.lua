@@ -265,8 +265,10 @@ Kit.Define("TableRow", {
         if not hit then
           hit = { frame = CreateFrame("Button", nil, obj.frame) }
           hit.frame:SetScript("OnClick", function()
-            if obj.opts and obj.opts.onSort then
-              obj.opts.onSort(column.key)
+            -- The hit frame is pooled with the row: the column is read now, not the one it was made for.
+            local current = obj.columns and obj.columns[index]
+            if obj.opts and obj.opts.onSort and current then
+              obj.opts.onSort(current.key)
             end
           end)
           hit.frame:SetScript("OnEnter", function()

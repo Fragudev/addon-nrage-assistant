@@ -14,6 +14,9 @@ local NOTICES = ns.Locale.Table(function()
     incompatible_data = L(
       "disabled: saved data comes from a newer version of the addon. Update the addon; your data was left untouched."
     ),
+    migration_failed = L(
+      "disabled: the saved data could not be updated to this version. Your data was left untouched; please report it."
+    ),
   }
 end)
 
@@ -25,8 +28,20 @@ function ns.GetVersion()
   return version
 end
 
+-- A release build has its version written into the .toc when it is packaged (tools/package.sh); the token that is
+-- still there means the addon runs from a source checkout. The debug probes only work in such a build.
+function ns.IsDevBuild()
+  local version = C_AddOns.GetAddOnMetadata(addonName, "Version")
+  return not version or version == "@project-version@"
+end
+
 local function InitDatabase()
-  local db, err = ns.Store.Load(NrageAssistantDB)
+  -- A migration that raises must not leave the addon without a database or without a reason: the saved data stays
+  -- as it was and the addon turns itself off with a notice.
+  local loaded, db, err = pcall(ns.Store.Load, NrageAssistantDB)
+  if not loaded then
+    db, err = nil, "migration_failed"
+  end
   if db then
     NrageAssistantDB = db
     ns.db = db
@@ -42,7 +57,13 @@ end
 -- button (warning mark and tooltip); /nrage debug selftest still prints the full result.
 local SELFTEST_DELAY_SECONDS = 10
 
+local selfTestScheduled = false
+
 local function ScheduleSelfTest()
+  if selfTestScheduled then
+    return
+  end
+  selfTestScheduled = true
   C_Timer.After(SELFTEST_DELAY_SECONDS, function()
     local results = ns.Diagnostics.SelfTest(_G, ns)
     ns.selfTestFailures = ns.Diagnostics.Failures(results)
@@ -101,14 +122,15 @@ local function StartPvPMissions(feed)
   missions.unitSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_NAMEPLATE_EVENT) or missions.unitSource
   missions.winSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WIN_EVENT)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
-  frame:SetScript("OnEvent", function(_, event, unit)
+  -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit.
+  frame:SetScript("OnEvent", function(_, event, unit, isReloadingUi)
     if not ns.active then
       return
     end
     if event == PVP_MISSION_WIN_EVENT then
       pcall(missions.OnBattlegroundStatus, missions)
     elseif event == PVP_MISSION_WORLD_EVENT then
-      missions:OnWorldEntered()
+      missions:OnWorldEntered(unit, isReloadingUi)
     else
       pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
     end
@@ -644,14 +666,17 @@ end
 -- The items of the last corpse looted, for the "Last boss loot" strip of the Loot tab. Kept in memory only, and only
 -- when
 -- the client lets the addon read the loot window (Platform.LootWindowAvailable): otherwise the strip is not shown.
+local bossLootStarted = false
+
 local function StartBossLoot()
-  if not ns.Platform.LootWindowAvailable() then
+  if bossLootStarted or not ns.Platform.LootWindowAvailable() then
     return
   end
   local lootFrame = CreateFrame("Frame")
   if not ns.Platform.TryRegisterEvent(lootFrame, "LOOT_OPENED") then
     return
   end
+  bossLootStarted = true
   lootFrame:SetScript("OnEvent", function()
     if ns.active then
       local items = ns.Platform.GetLootWindowItems()
@@ -768,6 +793,9 @@ local function StartPvPSeason()
     roleOf = function(name)
       return ns.guildRoster and ns.PermissionService.RoleOf(ns.guildRoster, name) or nil
     end,
+    rosterReady = function()
+      return ns.guildRoster ~= nil and ns.guildRoster:IsReady()
+    end,
     send = function(messageType, payload, key)
       return ns.comm:Send(messageType, payload, key)
     end,
@@ -786,39 +814,147 @@ local function StartPvPSeason()
   })
 end
 
-local function Activate()
-  ns.active = true
-  -- The saved data of this character keeps the key it always had; the shared name is resolved later.
-  ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetLegacyIdentityKey())
-  ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
-  ns.EventService.Purge({
-    events = ns.db.global.events,
-    tombstones = ns.db.global.sync.tombstones,
-    now = ns.Platform.ServerTime,
-  })
-  ns.Comm.Start()
-  ns.MinimapButton.Create()
-  ns.guildRoster = ns.GuildRoster.New({
-    platform = ns.Platform,
-    schedule = C_Timer.After,
-    now = ns.Platform.Now,
-    ownGuid = ns.Platform.GetGUID,
-    onOwnName = ns.Platform.SetCanonicalName,
-  })
+local loadedShown = false
+local startupFailureShown = false
+
+-- The popups build their controller on every call: once only, like the other Start functions.
+local lootPopupStarted = false
+local votingFrameStarted = false
+
+local function StartLootPopup()
+  if lootPopupStarted then
+    return
+  end
+  lootPopupStarted = true
+  ns.LootPopup.Start()
+end
+
+local function StartVotingFrame()
+  if votingFrameStarted then
+    return
+  end
+  votingFrameStarted = true
+  ns.VotingFrame.Start()
+end
+
+-- The guild roster is built once; a later activation only asks the client for fresh data.
+local function StartGuildRoster()
+  if not ns.guildRoster then
+    ns.guildRoster = ns.GuildRoster.New({
+      platform = ns.Platform,
+      schedule = C_Timer.After,
+      now = ns.Platform.Now,
+      ownGuid = ns.Platform.GetGUID,
+      onOwnName = ns.Platform.SetCanonicalName,
+      onReady = function()
+        if ns.comm then
+          ns.comm:OnGuildRosterReady()
+        end
+      end,
+    })
+  end
   ns.guildRoster:Request()
   ns.guildRoster:Rebuild()
-  StartPvPSeason()
-  ns.LootPopup.Start()
-  ns.VotingFrame.Start()
-  StartPvP()
-  StartBlacklist()
-  StartLayer()
-  StartPosition()
-  StartBossLoot()
-  StartRecipes()
-  StartAutoPublish()
-  ScheduleSelfTest()
-  print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))
+end
+
+-- The steps of an activation, in order. Each one runs on its own (pcall), so one that raises costs only its own
+-- feature. A `core` step is one the others stand on: the character data and the transport. If it fails, nothing after
+-- it runs and the addon stays inactive, so the next guild event tries again; the other steps are safe to repeat
+-- because each Start function runs only once. The saved data of this character keeps the key it always had; the
+-- shared name is resolved later.
+local ACTIVATION_STEPS = {
+  {
+    name = "character",
+    core = true,
+    run = function()
+      ns.character = ns.Store.GetChar(ns.db, ns.Platform.GetLegacyIdentityKey())
+    end,
+  },
+  {
+    name = "profile",
+    run = function()
+      ns.ProfileService.Refresh(ns.Platform, ns.character.profile)
+    end,
+  },
+  {
+    name = "purge",
+    run = function()
+      ns.EventService.Purge({
+        events = ns.db.global.events,
+        tombstones = ns.db.global.sync.tombstones,
+        now = ns.Platform.ServerTime,
+      })
+    end,
+  },
+  {
+    name = "comm",
+    core = true,
+    run = function()
+      ns.Comm.Start()
+    end,
+  },
+  {
+    name = "minimap",
+    run = function()
+      ns.MinimapButton.Create()
+    end,
+  },
+  { name = "roster", run = StartGuildRoster },
+  { name = "pvpSeason", run = StartPvPSeason },
+  { name = "lootPopup", run = StartLootPopup },
+  { name = "votingFrame", run = StartVotingFrame },
+  { name = "pvp", run = StartPvP },
+  { name = "blacklist", run = StartBlacklist },
+  { name = "layer", run = StartLayer },
+  { name = "position", run = StartPosition },
+  { name = "bossLoot", run = StartBossLoot },
+  { name = "recipes", run = StartRecipes },
+  { name = "autoPublish", run = StartAutoPublish },
+  { name = "selfTest", run = ScheduleSelfTest },
+}
+
+-- The steps that raised in this session ({ step, error }), for /nrage debug and the tests.
+ns.startupErrors = {}
+
+local function ReportStartupFailures(failed)
+  if startupFailureShown or #failed == 0 then
+    return
+  end
+  startupFailureShown = true
+  print(
+    ("%s %s"):format(
+      PREFIX,
+      L("%s could not start; the rest of the addon works. Type /reload to retry."):format(table.concat(failed, ", "))
+    )
+  )
+end
+
+-- ns.active means the core (character data and transport) is up. A feature that failed to start does not turn it
+-- off: it is listed in ns.startupErrors and the rest keeps working.
+local function Activate()
+  ns.active = true
+  local failed = {}
+  for _, step in ipairs(ACTIVATION_STEPS) do
+    local ok, err = pcall(step.run)
+    if not ok then
+      ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
+      failed[#failed + 1] = step.name
+      if step.core then
+        ns.active = false
+        break
+      end
+    end
+  end
+  ReportStartupFailures(failed)
+  if not ns.active then
+    return
+  end
+  if not loadedShown then
+    loadedShown = true
+    print(
+      L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion())
+    )
+  end
   if ns.PositionModel.TakeShareNotice(ns.db) then
     print(
       ("%s %s"):format(PREFIX, L("your position is now shared with the guild. You can turn it off in the settings."))
@@ -833,7 +969,7 @@ local accessMonitor = ns.AccessGuard.NewMonitor({
   evaluate = function()
     local ok, reason = ns.AccessGuard.Evaluate(ns.Platform, Constants)
     if ok and ns.dbError then
-      return false, "incompatible_data"
+      return false, ns.dbError == "migration_failed" and "migration_failed" or "incompatible_data"
     end
     return ok, reason
   end,
@@ -843,6 +979,10 @@ local accessMonitor = ns.AccessGuard.NewMonitor({
   activate = Activate,
   deactivate = function(reason)
     ns.active = false
+    -- The ranks of the guild just left must not answer for anybody in the next one.
+    if ns.guildRoster then
+      ns.guildRoster:Reset()
+    end
     ns.MinimapButton.Refresh()
     if not noticeShown then
       noticeShown = true

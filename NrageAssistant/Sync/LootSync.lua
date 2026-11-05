@@ -124,7 +124,14 @@ local function applyAward(ctx, payload, sender, role)
 
   session.itemId, session.itemName = payload.itemId, payload.itemName
   session.status = "closed"
-  session.award = { characterKey = payload.characterKey, reason = payload.reason, awardedBy = sender, at = updatedAt }
+  -- A snapshot names the original awarder (Transfer.ApplyItems sets `ctx.awardedBy` after checking them); otherwise it
+  -- is the sender.
+  session.award = {
+    characterKey = payload.characterKey,
+    reason = payload.reason,
+    awardedBy = ctx.awardedBy or sender,
+    at = updatedAt,
+  }
   stampReceived(session, payload, updatedAt, sender)
   return true
 end
@@ -272,7 +279,9 @@ function LootSync.SessionItems(eventId, event)
   for _, sessionId in ipairs(ids) do
     local session = event.loot[sessionId]
     if session.status == "closed" and session.award then
-      items[#items + 1] = { t = "LOOT_AWARD", p = LootSync.AwardPayload(eventId, session) }
+      -- Outside `p` (like the author of a blacklist entry): a client that does not know the field ignores it.
+      items[#items + 1] =
+        { t = "LOOT_AWARD", p = LootSync.AwardPayload(eventId, session), awardedBy = session.award.awardedBy }
     else
       items[#items + 1] = { t = "LOOT_SESSION", p = LootSync.SessionPayload(eventId, session) }
     end

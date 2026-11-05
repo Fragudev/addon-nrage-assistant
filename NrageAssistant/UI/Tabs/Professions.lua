@@ -193,9 +193,9 @@ UI.Register("professions", function(page)
     onChange = function(text, userInput)
       if userInput and region then
         state.search = text
-        region:Clear()
-        drawResults(region, index)
-        UI.Relayout()
+        UI.Refill(region, function(target)
+          drawResults(target, index)
+        end)
       end
     end,
   })

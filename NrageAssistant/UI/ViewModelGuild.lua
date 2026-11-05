@@ -342,6 +342,9 @@ function ViewModel.RuleFromFields(check, fields, rules, id)
   elseif check == "profession" then
     local name = (fields.profession or ""):match("^%s*(.-)%s*$")
     local min = (fields.min or ""):match("^%s*(.-)%s*$")
+    if name == "" and min ~= "" then
+      return nil, "bad_details"
+    end
     details = min ~= "" and (name .. " " .. min) or name
   elseif check == "field" then
     details = fields.field or ""

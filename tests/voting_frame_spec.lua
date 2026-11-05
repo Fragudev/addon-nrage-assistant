@@ -85,6 +85,16 @@ describe("VotingFrame controller", function()
     assert.are.same({ { "s1" } }, env.opened)
   end)
 
+  it("forgets the sessions that are not open any more", function()
+    local env = build({ "s1", "s2" })
+    env.controller:Refresh()
+    assert.is_true(env.controller.seen.s1)
+    env.ids = { "s2" }
+    env.controller:Refresh()
+    assert.is_nil(env.controller.seen.s1)
+    assert.is_true(env.controller.seen.s2)
+  end)
+
   it("opens once for several sessions that arrive together", function()
     local env = build({})
     env.ids = { "s1", "s2" }

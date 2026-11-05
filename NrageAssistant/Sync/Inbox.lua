@@ -33,8 +33,23 @@ function Inbox:PruneExpiredWindows(now)
   end
 end
 
--- Counts one message from `sender`. Returns false when the sender is over its limit or the tracker
--- is full of active senders (new senders are refused rather than evicting old ones).
+-- Forgets the sender whose window started longest ago, to make room for a new one. The tracker is sized to the guild,
+-- so this only happens when more senders than that show up; nobody is refused for good.
+function Inbox:EvictOldestWindow()
+  local oldestSender, oldestStart
+  for sender, state in pairs(self.windows) do
+    if not oldestStart or state.start < oldestStart or (state.start == oldestStart and sender < oldestSender) then
+      oldestSender, oldestStart = sender, state.start
+    end
+  end
+  if oldestSender then
+    self.windows[oldestSender] = nil
+    self.senderCount = self.senderCount - 1
+  end
+end
+
+-- Counts one message from `sender`. Returns false when the sender is over its limit. When the tracker is full of
+-- senders the one that has been tracked longest makes room.
 function Inbox:AllowRate(sender, now)
   local state = self.windows[sender]
   if state and now - state.start >= self.window then
@@ -47,7 +62,7 @@ function Inbox:AllowRate(sender, now)
     if self.senderCount >= self.maxSenders then
       self:PruneExpiredWindows(now)
       if self.senderCount >= self.maxSenders then
-        return false
+        self:EvictOldestWindow()
       end
     end
     state = { start = now, count = 0 }

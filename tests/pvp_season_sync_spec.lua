@@ -40,6 +40,8 @@ local ROLES = {
   Bob = "member",
   Cat = "member",
 }
+-- A catch-up is only believed about other authors when whoever whispered it is a gm or cogm.
+local GLOBAL_RELAY = { sender = "Boss", global = true }
 local DAY = 86400
 local T0 = 1792454400 -- 2026-10-20 00:00 UTC
 local SEASON_START, SEASON_END = T0 - 10 * DAY, T0 + 30 * DAY
@@ -285,18 +287,45 @@ describe("PvPSeasonSync seasons, missions, prizes and officers", function()
     assert.are.equal("Boss", stored.updatedBy)
   end)
 
-  it("refuses a second active season, and accepts one once the first is closed", function()
+  it("elects one active season among several, the same on every client whatever order they arrived in", function()
+    local seasons = {
+      { seasonRecord(), "Boss" },
+      { seasonRecord({ id = "s2", name = "Two" }), "Boss" },
+      { seasonRecord({ id = "s3", name = "Three", rev = 2 }), "Boss" },
+      { seasonRecord({ id = "s4", name = "Four", rev = 2, updatedAt = T0 + 5 }), "Off" },
+      { seasonRecord({ id = "s5", name = "Five", rev = 2, updatedAt = T0 + 5 }), "Boss" },
+    }
+    -- Every rotation (and the reverse) of the arrival order ends with the same winner: s4 (rev, then time, then the
+    -- larger author, "Off" over "Boss").
+    for shift = 0, #seasons - 1 do
+      for _, reverse in ipairs({ false, true }) do
+        local other = new_client()
+        for step = 1, #seasons do
+          local index = (step + shift - 1) % #seasons + 1
+          if reverse then
+            index = #seasons + 1 - index
+          end
+          assert.is_true(other.deliver("PVP_SEASON", seasons[index][1], seasons[index][2]))
+        end
+        assert.are.equal("s4", other.ledger.activeId, ("shift %d, reverse %s"):format(shift, tostring(reverse)))
+      end
+    end
+  end)
+
+  it("hands the active season to the one that outranks the rest when the first is closed", function()
     assert.is_true(client.deliver("PVP_SEASON", seasonRecord(), "Boss"))
-    local ok, reason = client.deliver("PVP_SEASON", seasonRecord({ id = "s2", name = "Two" }), "Boss")
-    assert.is_false(ok)
-    assert.are.equal("active_exists", reason)
-    assert.is_nil(client.ledger.seasons.s2)
+    assert.is_true(client.deliver("PVP_SEASON", seasonRecord({ id = "s2", name = "Two", rev = 2 }), "Boss"))
+    assert.are.equal("s2", client.ledger.activeId)
+    assert.is_true(
+      client.deliver("PVP_SEASON", seasonRecord({ id = "s2", rev = 3, state = "closed", updatedAt = T0 + 1 }), "Boss")
+    )
+    assert.are.equal("s1", client.ledger.activeId)
     assert.is_true(
       client.deliver("PVP_SEASON", seasonRecord({ rev = 2, state = "closed", updatedAt = T0 + 1 }), "Boss")
     )
     assert.is_nil(client.ledger.activeId)
-    assert.is_true(client.deliver("PVP_SEASON", seasonRecord({ id = "s2", name = "Two" }), "Boss"))
-    assert.are.equal("s2", client.ledger.activeId)
+    assert.is_true(client.deliver("PVP_SEASON", seasonRecord({ id = "s3", name = "Three" }), "Boss"))
+    assert.are.equal("s3", client.ledger.activeId)
   end)
 
   it("follows revisions: a newer edit wins, an older or equal one does not", function()
@@ -911,7 +940,7 @@ describe("PvPSeasonSync ledger catch-up", function()
     end
 
     local fresh = new_client()
-    local summary = Sync.ApplyItems(fresh.ctx(), items)
+    local summary = Sync.ApplyItems(fresh.ctx(), items, GLOBAL_RELAY)
     assert.are.equal(#items, summary.total)
     assert.are.equal(#items, summary.applied)
     assert.are.same(Sync.Summary(relay.ledger, "s1"), Sync.Summary(fresh.ledger, "s1"))
@@ -928,10 +957,57 @@ describe("PvPSeasonSync ledger catch-up", function()
         entry.by = "Ann"
       end
     end
-    local summary = Sync.ApplyItems(fresh.ctx(), items)
+    local summary = Sync.ApplyItems(fresh.ctx(), items, GLOBAL_RELAY)
     assert.is_true(summary.applied < summary.total)
     assert.is_nil(fresh.ledger.activeId)
     assert.is_nil(next(fresh.ledger.missions))
+  end)
+
+  it("only believes an author other than the relay when the relay is a gm or cogm", function()
+    local relay = seeded_admin()
+    local items = Sync.LedgerItems(relay.ledger, { "s1" })
+
+    -- An officer (rl) naming the guild master as the author of a season, a grant and a final: nothing is applied.
+    local forged = new_client()
+    local summary = Sync.ApplyItems(forged.ctx(), items, { sender = "Rl", global = false })
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(#items, summary.forged)
+    assert.is_nil(forged.ledger.activeId)
+    assert.is_nil(next(forged.ledger.seasons))
+    assert.is_nil(next(forged.ledger.grants))
+
+    local finals = new_client()
+    local final = {
+      t = "PVP_FINAL",
+      by = "Boss",
+      p = {
+        seasonId = "s1",
+        name = "Season One",
+        startsAt = SEASON_START,
+        endsAt = SEASON_END,
+        closedAt = T0 + 900,
+        standings = { { pos = 1, player = "Ann", points = 10, lastAt = T0 + 10 } },
+        prizes = {},
+      },
+    }
+    summary = Sync.ApplyItems(finals.ctx(), { final }, { sender = "Rl", global = false })
+    assert.are.equal(0, summary.applied)
+    assert.is_nil(next(finals.ledger.finals))
+
+    -- A relay that is not global is believed for records it authored itself, if its role allows them (it does not
+    -- for an admin record), and without a relay nothing is believed.
+    local own = new_client()
+    local entry = { t = "PVP_SEASON", p = seasonRecord(), by = "Rl" }
+    summary = Sync.ApplyItems(own.ctx(), { entry }, { sender = "Rl", global = false })
+    assert.are.equal(0, summary.forged)
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(0, Sync.ApplyItems(new_client().ctx(), items).applied)
+
+    -- A gm or cogm relays them all.
+    local trusted = new_client()
+    summary = Sync.ApplyItems(trusted.ctx(), items, { sender = "Off", global = true })
+    assert.are.equal(#items, summary.applied)
+    assert.are.equal(0, summary.forged)
   end)
 
   it("skips items that are not records, have no author or do not validate", function()
@@ -945,7 +1021,7 @@ describe("PvPSeasonSync ledger catch-up", function()
       { t = "PVP_SEASON", p = seasonRecord() },
       { t = "PVP_SEASON", p = seasonRecord(), by = "a:b" },
       good,
-    })
+    }, GLOBAL_RELAY)
     assert.are.equal(7, summary.total)
     assert.are.equal(1, summary.applied)
   end)
@@ -994,7 +1070,7 @@ describe("PvPSeasonSync ledger catch-up", function()
     assert.is_nil(seen.PVP_VOID)
 
     local fresh = new_client()
-    Sync.ApplyItems(fresh.ctx(), items)
+    Sync.ApplyItems(fresh.ctx(), items, GLOBAL_RELAY)
     assert.are.equal("Bob", fresh.ledger.finals.s1.standings[1].player)
     assert.is_true(fresh.ledger.deliveries.s1.Bob.delivered)
     assert.are.same(Sync.Summary(relay.ledger, "s1"), Sync.Summary(fresh.ledger, "s1"))
@@ -1074,7 +1150,7 @@ describe("PvPSeasonSync ledger catch-up", function()
       assert.are.equal("PVP_LEDGER_DATA", message.t)
       assert.is_true(#message.p.items <= Constants.PVP_LEDGER_PAGE_ITEMS)
       total = total + #message.p.items
-      Sync.ApplyItems(fresh.ctx(), message.p.items)
+      Sync.ApplyItems(fresh.ctx(), message.p.items, GLOBAL_RELAY)
     end
     assert.are.equal(#items, total)
     assert.are.same(Sync.Summary(relay.ledger, "s1"), Sync.Summary(fresh.ledger, "s1"))
@@ -1114,7 +1190,7 @@ local function catchUp(from, to)
   end
   local items = Sync.LedgerItems(from.ledger, Sync.ScopeFor(from.ledger, request))
   for _, page in ipairs(Sync.Paginate(items, fits_one_whisper, Constants.PVP_LEDGER_PAGE_ITEMS)) do
-    Sync.ApplyItems(to.ctx(), page)
+    Sync.ApplyItems(to.ctx(), page, GLOBAL_RELAY)
   end
   return true
 end

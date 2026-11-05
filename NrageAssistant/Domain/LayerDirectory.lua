@@ -34,12 +34,30 @@ function LayerDirectory:Apply(sender, state)
   end
   if not self.entries[sender] then
     if self.count >= constants.GUILD_ROSTER_MAX then
-      return false, "limit"
+      -- Stale entries are never listed anyway: drop them before refusing a new sender.
+      self:Prune()
+      if self.count >= constants.GUILD_ROSTER_MAX then
+        return false, "limit"
+      end
     end
     self.count = self.count + 1
   end
   self.entries[sender] = { map = state.map, layer = state.layer, at = self.deps.now() }
   return true
+end
+
+-- Drops the entries older than Constants.LAYER_STATE_TTL. Returns how many.
+function LayerDirectory:Prune()
+  local now = self.deps.now()
+  local removed = 0
+  for name, entry in pairs(self.entries) do
+    if now - entry.at > ns.Constants.LAYER_STATE_TTL then
+      self.entries[name] = nil
+      self.count = self.count - 1
+      removed = removed + 1
+    end
+  end
+  return removed
 end
 
 function LayerDirectory:Remove(sender)

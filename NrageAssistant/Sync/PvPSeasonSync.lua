@@ -5,7 +5,8 @@ local _, ns = ...
 --
 -- "admin" below means gm or cogm: the PvP officer flag no longer gives any power (the PVP_OFFICER records are still
 -- accepted from an admin and kept, but nothing reads them).
---   PVP_SEASON   season        admin       conflicts: SyncRules.Wins by rev; a second active season is refused
+--   PVP_SEASON   season        admin       conflicts: SyncRules.Wins by rev; of several active seasons the one that
+--                                          outranks the others is the active one (rev, updatedAt, author, id)
 --   PVP_MISSION  mission       admin       SyncRules.Wins
 --   PVP_PRIZES   prizes        admin       SyncRules.Wins, the whole record replaces the previous one
 --   PVP_OFFICER  officer       admin       SyncRules.Wins
@@ -17,15 +18,16 @@ local _, ns = ...
 --   PVP_FINAL    final         admin       the first one of a season wins and is authoritative
 --
 -- Authority is never in the message. `by`, the author, is the sender of a guild message, or, inside the ledger
--- catch-up of a trusted relay (a leader: checked by Comm before anything is decoded),
--- the author the item names: the one documented exception to "the author is the sender", the same trust PVP_STATS
--- snapshots give a relay. An author's role comes from the receiver's own guild roster (`ctx.roleOf`). A record whose
--- author may not write it is refused.
+-- catch-up of a relay (a leader, checked by Comm before anything is decoded) that is a gm or cogm, the author the item
+-- names: the one documented exception to "the author is the sender". A relay that is not a gm or cogm only carries
+-- what it authored itself (item author == relay), so an officer cannot put words in the guild master's mouth. An
+-- author's role comes from the receiver's own guild roster (`ctx.roleOf`). A record whose author may not write it is
+-- refused.
 --
 -- ctx = { ledger = db.global.pvpSeason, now = function(), roleOf = function(name) -> role or nil,
 --         isApprover = function() -> boolean (this client approves claims), onSeasonClosed = function(seasonId) }
 -- Every Apply returns true, or false plus:
---   "unknown_sender" | "forbidden" | "stale" | "duplicate" | "limit" | "closed" | "active_exists" | "unknown_season" |
+--   "unknown_sender" | "forbidden" | "stale" | "duplicate" | "limit" | "closed" | "unknown_season" |
 --   "unknown_mission" | "inactive" | "bad_period" | "out_of_season" | "future" | "decided" | "not_approver" |
 --   "bad_player" | "invalid" | "unsupported"
 local PvPSeasonSync = {}
@@ -74,6 +76,38 @@ local function copyList(list)
     out[index] = value
   end
   return out
+end
+
+-- Which season is the active one? Several can hold state "active" (two admins started one each, or a catch-up brought
+-- one); the one that outranks the others wins on every client, whatever order they arrived in: higher `rev`, then later
+-- `updatedAt`, then the larger author, then the larger id.
+local function outranks(a, b)
+  if a.rev ~= b.rev then
+    return a.rev > b.rev
+  end
+  if a.updatedAt ~= b.updatedAt then
+    return a.updatedAt > b.updatedAt
+  end
+  if (a.updatedBy or "") ~= (b.updatedBy or "") then
+    return (a.updatedBy or "") > (b.updatedBy or "")
+  end
+  return a.id > b.id
+end
+
+local function electActive(ledger)
+  local best
+  for _, season in pairs(ledger.seasons) do
+    if
+      type(season) == "table"
+      and season.state == "active"
+      and type(season.rev) == "number"
+      and type(season.updatedAt) == "number"
+      and (not best or outranks(season, best))
+    then
+      best = season
+    end
+  end
+  ledger.activeId = best and best.id or nil
 end
 
 ---------------------------------------------------------------------------------------------------------------------
@@ -150,20 +184,13 @@ local function applySeason(ctx, payload, by)
   elseif countKeys(ledger.seasons) >= ns.Constants.PVP_SEASONS_MAX then
     return false, "limit"
   end
-  if payload.state == "active" and ledger.activeId and ledger.activeId ~= payload.id then
-    return false, "active_exists"
-  end
 
   season = season or { id = payload.id }
   season.name, season.startsAt, season.endsAt, season.state =
     payload.name, payload.startsAt, payload.endsAt, payload.state
   season.rev, season.updatedAt, season.updatedBy = payload.rev, updatedAt, by
   ledger.seasons[payload.id] = season
-  if payload.state == "active" then
-    ledger.activeId = payload.id
-  elseif ledger.activeId == payload.id then
-    ledger.activeId = nil
-  end
+  electActive(ledger)
   return true
 end
 
@@ -535,7 +562,8 @@ local function applyFinal(ctx, payload, by)
     }
   end
   if ledger.activeId == payload.seasonId then
-    ledger.activeId = nil
+    -- Another season that was started at the same time may take its place.
+    electActive(ledger)
   end
   cleanup(ledger, payload.seasonId)
   rebuildDeliveries(ledger, final, by)
@@ -578,15 +606,22 @@ function PvPSeasonSync.Apply(ctx, message, by)
   return applier(ctx, message.p, by)
 end
 
--- The items of one page of a ledger catch-up, each applied as if its author had sent it. An item that does not
--- validate, is not a record of this feature or names no author is skipped. Returns { applied, total }.
-function PvPSeasonSync.ApplyItems(ctx, items)
-  local summary = { applied = 0, total = #items }
+-- The items of one page of a ledger catch-up, each applied as if its author had sent it. `relay` = { sender = the
+-- whisperer, global = whether they are a gm or cogm }: only a global relay may name other authors; any other relay is
+-- believed about its own records alone (item author == relay). An item that does not validate, is not a record of
+-- this feature, names no author or an author the relay may not name is skipped. Returns { applied, total, forged
+-- (how many were skipped for the author) }.
+function PvPSeasonSync.ApplyItems(ctx, items, relay)
+  local summary = { applied = 0, total = #items, forged = 0 }
   for _, entry in ipairs(items) do
     if type(entry) == "table" and PvPSeasonSync.IsRecordMessage(entry.t) and entry.t ~= "PVP_CLAIM" then
       local message = ns.Protocol.Validate(ns.Protocol.Build(entry.t, entry.p, "ledger"))
-      if message and Model.IsPlayer(entry.by) and PvPSeasonSync.Apply(ctx, message, entry.by) then
-        summary.applied = summary.applied + 1
+      if message and Model.IsPlayer(entry.by) then
+        if not (relay and (relay.global or entry.by == relay.sender)) then
+          summary.forged = summary.forged + 1
+        elseif PvPSeasonSync.Apply(ctx, message, entry.by) then
+          summary.applied = summary.applied + 1
+        end
       end
     end
   end

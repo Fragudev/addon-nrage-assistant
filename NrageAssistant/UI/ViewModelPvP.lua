@@ -82,6 +82,7 @@ ViewModel.PVP_ERRORS = ns.Locale.Table(function()
     decided = L("it was decided already."),
     unknown_mission = L("that mission does not exist."),
     unknown_player = L("that player is not in the guild."),
+    roster_not_ready = L("the guild roster is still loading: try again in a moment."),
     unchanged = L("nothing changed."),
     inactive = L("the mission is paused."),
     out_of_season = L("that is outside the season dates."),

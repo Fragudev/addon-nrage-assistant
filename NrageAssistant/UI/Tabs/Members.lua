@@ -25,6 +25,13 @@ local state = {
   newRoster = "",
 }
 
+-- Redraws the part of a tab that a search box filters (clear, draw again, lay out), without rebuilding the page.
+function UI.Refill(region, draw)
+  region:Clear()
+  draw(region)
+  UI.Relayout()
+end
+
 local function commands()
   local global = ns.db.global
   return ns.RosterCommands.New({
@@ -300,10 +307,9 @@ local function toolbar(page, getRegion, role, selection)
       if userInput then
         state.search = text
         state.limit = ROWS_STEP
-        local region = getRegion()
-        region:Clear()
-        drawTable(region, role, selection)
-        UI.Relayout()
+        UI.Refill(getRegion(), function(region)
+          drawTable(region, role, selection)
+        end)
       end
     end,
   })
