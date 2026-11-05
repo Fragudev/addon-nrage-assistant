@@ -559,7 +559,7 @@ Kit.Define("NavRow", {
     obj.bar:SetWidth(Theme.metrics.navBar)
     -- A small halo around the bar of the selected row, blended with ADD. Without ADD it would be a smudge, so a
     -- client that refuses it shows the bar alone.
-    obj.barGlow = obj.frame:CreateTexture(nil, "BACKGROUND", 1)
+    obj.barGlow = obj.frame:CreateTexture(nil, "BACKGROUND", nil, 1)
     obj.barGlow:SetTexture(NAV_GLOW_FILE)
     obj.barGlow:SetPoint("TOPLEFT", obj.bar, "TOPLEFT", -NAV_GLOW, NAV_GLOW)
     obj.barGlow:SetPoint("BOTTOMRIGHT", obj.bar, "BOTTOMRIGHT", NAV_GLOW, -NAV_GLOW)
@@ -766,7 +766,7 @@ function Window.New(opts)
   self.logo:SetSize(m.logo, m.logo)
   self.logo:SetPoint("LEFT", 14, 0)
   -- A soft accent halo behind the logo.
-  self.logoGlow = header:CreateTexture(nil, "ARTWORK", -1)
+  self.logoGlow = header:CreateTexture(nil, "ARTWORK", nil, -1)
   self.logoGlow:SetTexture(LOGO_GLOW_FILE)
   self.logoGlow:SetPoint("CENTER", self.logo, "CENTER")
   self.logoGlow:SetSize(m.logo * 2, m.logo * 2)
