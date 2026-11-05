@@ -650,8 +650,9 @@ ns.Locale.Register("es", {
 
   -- The Professions tab
   ["Shared with the guild: the recipes you have learned, once you open each profession."] = "Compartido con la hermandad: las recetas que has aprendido, cuando abras cada profesión.",
-  ["+%d more"] = "+%d más",
-  ["Ask %s"] = "Pedir a %s",
+  ["Ask... (%d)"] = "Pedir a... (%d)",
+  ["Online (%d)"] = "Conectados (%d)",
+  ["Nobody online (%d)"] = "Nadie conectado (%d)",
   ["Connected only"] = "Solo conectados",
   ["My professions"] = "Mis profesiones",
   ["No recipe matches"] = "Ninguna receta coincide",
@@ -738,6 +739,7 @@ ns.Locale.Register("es", {
   ["Layer %s"] = "Capa %s",
   ["%d s ago"] = "hace %d s",
   ["Share my position"] = "Compartir mi posición",
+  ["your position is now shared with the guild. You can turn it off in the settings."] = "ahora tu posición se comparte con la hermandad. Puedes desactivarlo en los ajustes.",
   ["Guildmates see where you are on the map. Turn it off and they forget it."] = "Los compañeros de la guild ven dónde estás en el mapa. Si lo apagas, se olvidan de ti.",
   ["Show guildmates on the minimap"] = "Mostrar a la guild en el minimapa",
   ["Show guildmates on the world map"] = "Mostrar a la guild en el mapa del mundo",

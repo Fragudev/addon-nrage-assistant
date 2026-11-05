@@ -818,6 +818,11 @@ local function Activate()
   StartAutoPublish()
   ScheduleSelfTest()
   print(L("%s %s loaded. Click the minimap button or type /nrage to open the window."):format(PREFIX, ns.GetVersion()))
+  if ns.PositionModel.TakeShareNotice(ns.db) then
+    print(
+      ("%s %s"):format(PREFIX, L("your position is now shared with the guild. You can turn it off in the settings."))
+    )
+  end
 end
 
 local noticeShown = false

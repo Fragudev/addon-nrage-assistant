@@ -1,8 +1,9 @@
 local _, ns = ...
 
 -- Professions (plan 3.10): the recipes every member with the addon has learned, shared by themselves, and a search that
--- finds who can craft one. The online crafters come first; "Ask" opens the chat box with a whisper typed in, which the
--- player sends (the addon never whispers by itself). Your own recipes are read when you open a profession window.
+-- finds who can craft one. Each recipe has a dropdown with its online crafters; picking one opens the chat box with a
+-- whisper typed in, which the player sends (the addon never whispers by itself). Your own recipes are read when you
+-- open a profession window.
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
@@ -91,33 +92,31 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- The results
 
-local function askButton(row, recipe, crafter)
-  local info = recipeInfo(recipe.recipeId)
-  local line = Kit.Row(row, { gap = 6, align = "center" })
-  Kit.Icon(line, {
-    icon = "dot",
-    size = 14,
-    color = crafter.online == true and "success" or "muted",
-    layout = { width = 14 },
-  })
-  if ns.Platform.CanPrefillChat() then
-    Kit.Button(line, {
-      text = L("Ask %s"):format(crafter.label),
-      icon = "send",
-      disabled = crafter.online == false,
-      layout = { width = "auto" },
-      onClick = function()
-        local thing = info and (info.link or info.name) or recipe.plainName
-        ns.Platform.PrefillChat(ViewModel.AskText(crafter.name, thing))
-      end,
-    })
-  else
-    Kit.Label(line, {
-      text = crafter.label,
-      color = crafter.online == true and "text" or "muted",
-      layout = { width = "auto" },
-    })
+-- One dropdown per recipe with who can be asked. Picking a name types the whisper; the dropdown then goes back to its
+-- placeholder, so the same crafter can be picked again.
+local function askDropdown(row, recipe)
+  local choices = ViewModel.CrafterChoices(recipe.crafters)
+  local canAsk = ns.Platform.CanPrefillChat()
+  local placeholder = L("Nobody online (%d)"):format(#recipe.crafters)
+  if #choices > 0 then
+    placeholder = (canAsk and L("Ask... (%d)") or L("Online (%d)")):format(#choices)
   end
+  local dropdown
+  dropdown = Kit.Dropdown(row, {
+    items = choices,
+    placeholder = placeholder,
+    disabled = #choices == 0,
+    tooltip = #choices == 0 and ViewModel.OfflineCraftersText(recipe.crafters) or nil,
+    layout = { width = 200 },
+    onChange = function(name)
+      dropdown:SetValue(nil)
+      if canAsk then
+        local info = recipeInfo(recipe.recipeId)
+        local thing = info and (info.link or info.name) or recipe.plainName
+        ns.Platform.PrefillChat(ViewModel.AskText(name, thing))
+      end
+    end,
+  })
 end
 
 local function drawResults(region, index)
@@ -156,16 +155,7 @@ local function drawResults(region, index)
       layout = { weight = 2 },
     })
     Kit.Label(row, { text = recipe.professionName, color = "dim", style = "small", layout = { width = 110 } })
-    local crafters = Kit.Row(row, { gap = 12, align = "center", layout = { weight = 3 } })
-    for _, crafter in ipairs(recipe.crafters) do
-      askButton(crafters, recipe, crafter)
-    end
-    if recipe.more > 0 then
-      Kit.Label(
-        crafters,
-        { text = L("+%d more"):format(recipe.more), style = "small", color = "muted", layout = { width = 60 } }
-      )
-    end
+    askDropdown(row, recipe)
   end
   if data.shown < data.total then
     Kit.Label(region, {

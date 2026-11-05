@@ -2850,13 +2850,30 @@ describe("ViewModel recipes", function()
     assert.are.equal(164, items[3].value)
   end)
 
-  it("lists recipes by id with the online crafters first and a more counter", function()
+  it("lists recipes by id with every crafter, the online ones first", function()
     local result = ViewModel.RecipeResults({ index = index(), online = online, nameOf = nameOf })
     assert.are.equal(2, result.total)
     assert.are.equal("Elixir", result.rows[1].name)
     assert.are.equal("Zed", result.rows[1].crafters[1].name)
-    assert.are.equal(Constants.RECIPE_ASK_MAX, #result.rows[1].crafters)
-    assert.are.equal(2, result.rows[1].more)
+    assert.are.equal(5, #result.rows[1].crafters)
+  end)
+
+  it("offers the online and unknown crafters, never the offline ones", function()
+    local items = ViewModel.CrafterChoices({
+      { name = "Zed Gg", label = "Zed Gg", online = true },
+      { name = "Ann", label = "Ann", online = nil },
+      { name = "Dan", label = "Dan", online = false },
+    })
+    assert.are.same({ { value = "Zed Gg", text = "Zed Gg" }, { value = "Ann", text = "Ann" } }, items)
+  end)
+
+  it("names the first offline crafters and counts the rest", function()
+    local crafters = {}
+    for position = 1, Constants.RECIPE_OFFLINE_NAMES_MAX + 2 do
+      crafters[position] = { label = "C" .. position }
+    end
+    assert.are.equal("C1, C2, C3, C4, C5 and 2 more", ViewModel.OfflineCraftersText(crafters))
+    assert.are.equal("C1, C2", ViewModel.OfflineCraftersText({ crafters[1], crafters[2] }))
   end)
 
   it("searches by name or id, filters by profession and hides offline crafters", function()

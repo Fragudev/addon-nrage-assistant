@@ -145,6 +145,17 @@ local MIGRATIONS = {
       end
     end
   end,
+  -- v14: sharing the position became the default. Until now every client saved share = false without the player
+  -- choosing it, so an explicit choice cannot be told apart: it is turned on once, and the player is told at login
+  -- (PositionModel.TakeShareNotice). Turning it off afterwards stays off.
+  [14] = function(db)
+    local settings = ensureTable(ensureTable(db, "global"), "settings")
+    local position = settings.position
+    if type(position) == "table" and position.share == false then
+      position.share = true
+      settings.positionShareNotice = true
+    end
+  end,
 }
 
 local function versionOf(db)

@@ -57,7 +57,7 @@ end
 --   limit          how many recipes to return (default Constants.RECIPE_RESULTS_MAX)
 -- }
 -- Returns { rows, shown, total }; each row = { recipeId, name, professionId, professionName, crafters = { { name,
--- label, online } }, more }.
+-- label, online } } }.
 -- With no search the recipes come in id order and only the ones shown are named; with a search every candidate is
 -- named and
 -- the matches come sorted by name.
@@ -78,19 +78,13 @@ function ViewModel.RecipeResults(args)
     if #crafters == 0 then
       return nil
     end
-    local shown = {}
-    for position = 1, math.min(#crafters, ns.Constants.RECIPE_ASK_MAX) do
-      shown[position] = crafters[position]
-    end
     return {
       recipeId = id,
       name = Escape(name or args.nameOf(id) or fallbackName(id)),
       plainName = name or args.nameOf(id) or fallbackName(id),
       professionId = entry.professionId,
       professionName = Escape(args.index.professions[entry.professionId] or tostring(entry.professionId)),
-      crafters = shown,
-      more = #crafters - #shown,
-      others = crafters,
+      crafters = crafters,
     }
   end
 
@@ -137,9 +131,34 @@ function ViewModel.RecipeResults(args)
   return { rows = rows, shown = #rows, total = total }
 end
 
--- The text the "Ask" button puts in the chat box: a whisper the player sends with Enter. `thing` is the item link of
--- the
--- recipe when the client gives one, else its name.
+-- The crafters of a recipe that can be asked, as dropdown items: the online ones, and the ones whose state is unknown
+-- because the roster has not arrived yet.
+function ViewModel.CrafterChoices(crafters)
+  local items = {}
+  for _, crafter in ipairs(crafters) do
+    if crafter.online ~= false then
+      items[#items + 1] = { value = crafter.name, text = crafter.label }
+    end
+  end
+  return items
+end
+
+-- Who can craft a recipe when nobody is online, for a tooltip: the first names, then how many are left.
+function ViewModel.OfflineCraftersText(crafters)
+  local labels = {}
+  for position = 1, math.min(#crafters, ns.Constants.RECIPE_OFFLINE_NAMES_MAX) do
+    labels[position] = crafters[position].label
+  end
+  local text = table.concat(labels, ", ")
+  local rest = #crafters - #labels
+  if rest > 0 then
+    text = text .. " " .. L("and %d more"):format(rest)
+  end
+  return text
+end
+
+-- The text the crafter dropdown puts in the chat box: a whisper the player sends with Enter. `thing` is the item link
+-- of the recipe when the client gives one, else its name.
 function ViewModel.AskText(crafter, thing)
   return ("/w %s %s"):format(crafter, L("Could you craft me %s?"):format(thing))
 end

@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 13,
+  SCHEMA_VERSION = 14,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -82,7 +82,7 @@ ns.Constants = {
   RECIPE_LOGIN_SEND_DELAY_MAX = 60,
   -- The Professions tab shows at most this many recipes, and this many crafters with an "Ask" button each.
   RECIPE_RESULTS_MAX = 100,
-  RECIPE_ASK_MAX = 3,
+  RECIPE_OFFLINE_NAMES_MAX = 5,
 
   -- Raid rosters (teams): definitions and the roster and role of each member, both set by the guild master and synced.
   ROSTERS_MAX = 20,
