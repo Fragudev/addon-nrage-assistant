@@ -9,8 +9,8 @@ from it and measured behaviour belong here.
 | Item | Value | Where it is used |
 |---|---|---|
 | Interface number (`select(4, GetBuildInfo())`) | 16001 (beta) | TOC |
-| Normalized realm name | `ClassicBetaPvP` (beta) | ruleset check: the PvP ruleset is detected as the substring `PvP` |
-| Guild club id (`C_Club.GetGuildClubId()`) | read once by a Nrage member (the value is in `Constants.lua`); that it is the same across sessions and members is not confirmed yet | access check |
+| Normalized realm name | `ClassicBetaPvP` (beta), `CAMWOWEU4Realm2PvP` (live, EU) | ruleset check: the PvP ruleset is detected as the substring `PvP` |
+| Guild club id (`C_Club.GetGuildClubId()`) | read by a Nrage member on live (the value is in `Constants.lua`); it changed from beta to live because the guild was created again; that it is the same across sessions and members is not confirmed yet | access check |
 | Faction | `Alliance` | access check |
 
 | Character names | **can have several words** (`Yonemon Gg`, `Black Coffee`) | everywhere a character is named |

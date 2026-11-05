@@ -5,10 +5,10 @@ ns.Constants = {
   SCHEMA_VERSION = 13,
 
   GUILD_NAME = "Nrage",
-  -- Measured on the Forever beta client (build 16001) with /nrage debug identity.
-  GUILD_CLUB_ID = 22626971,
+  -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
+  GUILD_CLUB_ID = 215701462,
   FACTION = "Alliance",
-  -- The PvP ruleset shows up in the normalized realm name (beta: "ClassicBetaPvP").
+  -- The PvP ruleset shows up in the normalized realm name (beta: "ClassicBetaPvP", live EU: "CAMWOWEU4Realm2PvP").
   -- Matched as a plain substring so a rename of the realm prefix does not break it.
   RULESET_REALM_MARKER = "PvP",
 
