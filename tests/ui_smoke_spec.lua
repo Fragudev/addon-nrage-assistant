@@ -123,6 +123,12 @@ local function build(rank, locale)
     GetIdentityKey = function()
       return "Leader-Realm"
     end,
+    GetLegacyIdentityKey = function()
+      return "Leader-Realm"
+    end,
+    NormalizeName = function(name)
+      return name
+    end,
     ServerTime = function()
       return 1000
     end,

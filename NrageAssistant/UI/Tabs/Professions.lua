@@ -49,11 +49,11 @@ local function currentIndex()
       return ns.guildRoster.entries[name] ~= nil
     end
   end
-  return ns.RecipeService.Index(
-    { key = ns.Platform.GetIdentityKey(), recipes = ns.character.recipes },
-    ns.db.global.recipes,
-    known
-  )
+  return ns.RecipeService.Index({
+    key = ns.Platform.GetIdentityKey(),
+    alias = ns.Platform.NormalizeName(ns.Platform.GetLegacyIdentityKey()),
+    recipes = ns.character.recipes,
+  }, ns.db.global.recipes, known)
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
