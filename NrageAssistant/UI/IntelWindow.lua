@@ -187,6 +187,19 @@ local function windowHeight(rows)
   return HEADER + TABS + rows * ROW_HEIGHT + FOOTER + PAD
 end
 
+-- Does an open bounty (an active mission of the season that names this player) exist? Read when a row is drawn.
+local function hasBounty(key)
+  local season = ns.pvpSeason
+  if not (key and season) then
+    return false
+  end
+  local active = season:ActiveSeason()
+  if not active then
+    return false
+  end
+  return ns.ViewModel.PvPBountyKeys(season:Missions(active.id))[key] == true
+end
+
 -- The text of a row (its name, level, guild and age), in the colours of the kit.
 local function drawRow(index, slot)
   local Kit = ns.Kit
@@ -219,7 +232,8 @@ local function drawRow(index, slot)
   else
     row.bar:SetColorTexture(Kit.Theme.Color("border"))
   end
-  row.mark:SetText((data.kos or data.stealth) and "!" or "")
+  local bounty = hasBounty(data.key)
+  row.mark:SetText((data.kos or data.stealth or bounty) and "!" or "")
   Kit.SetTextColor(row.mark, data.kos and "danger" or "warning")
   local alpha = 1
   if slot.state == "left" then
@@ -240,7 +254,7 @@ local function showTooltip(index)
   local Kit = ns.Kit
   local kosEntry = ns.intel and select(2, ns.intel:IsKos(data.key)) or nil
   GameTooltip:SetOwner(rowFrames[index], "ANCHOR_RIGHT")
-  for line, entry in ipairs(ns.ViewModel.IntelRowTooltip(data, kosEntry)) do
+  for line, entry in ipairs(ns.ViewModel.IntelRowTooltip(data, kosEntry, hasBounty(data.key))) do
     local color = Kit.Theme.colors[entry.color]
     if line == 1 then
       color = Kit.Theme.ClassColor(data.class) or color

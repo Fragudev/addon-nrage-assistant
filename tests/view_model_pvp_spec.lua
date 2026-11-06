@@ -10,6 +10,7 @@ local function load_view_model(locale)
     "Domain/PvPService",
     "Domain/PermissionService",
     "Domain/PvPSeasonModel",
+    "Domain/IntelModel",
     "Domain/RosterService",
     "Domain/RecipeService",
     "Domain/EventModel",
@@ -511,6 +512,57 @@ describe("ViewModel mission criteria and cards", function()
   end)
 end)
 
+describe("ViewModel bounties", function()
+  it("saves and reopens the kind and the target, and drops the target for other kinds", function()
+    local draft = ViewModel.PvPMissionDraft(nil)
+    draft.kind, draft.target, draft.count, draft.distinct = "kos", "  Zed ", "2", "name"
+    local fields = ViewModel.PvPMissionFields(draft)
+    assert.are.same({ "kos", "Zed", "none", "any" }, {
+      fields.goal.kind,
+      fields.goal.target,
+      fields.goal.distinct,
+      fields.goal.place,
+    })
+    draft.target = "  "
+    assert.is_nil(ViewModel.PvPMissionFields(draft).goal.target)
+    local reopened = ViewModel.PvPMissionDraft({
+      id = "m1",
+      title = "T",
+      points = 5,
+      goal = { kind = "kos", count = 1, zones = {}, place = "any", distinct = "none", target = "Zed" },
+      repeatKind = "once",
+    })
+    assert.are.same({ "kos", "Zed" }, { reopened.kind, reopened.target })
+    draft.kind, draft.target = "kills", "Zed"
+    assert.is_nil(ViewModel.PvPMissionFields(draft).goal.target)
+  end)
+
+  it("shows the target as a chip, offers the kind and needs the kill source", function()
+    local m = { repeatKind = "once", goal = { kind = "kos", count = 1, zones = {}, target = "Zed" } }
+    assert.are.equal("Bounty: Zed", ViewModel.PvPCriteriaChips(m)[1])
+    m.goal.target = nil
+    assert.are.equal("Kill on Sight", ViewModel.PvPCriteriaChips(m)[1])
+    local kinds = {}
+    for _, item in ipairs(ViewModel.PvPGoalChoices()) do
+      kinds[item.value] = true
+    end
+    assert.is_true(kinds.kos)
+    assert.is_false(ViewModel.PvPGoalAvailable(m.goal, { kills = false }))
+    assert.is_true(ViewModel.PvPGoalAvailable(m.goal, { kills = true }))
+  end)
+
+  it("lists the targets of the active bounties by key", function()
+    local keys = ViewModel.PvPBountyKeys({
+      { active = true, goal = { kind = "kos", target = "Zed-Realm" } },
+      { active = false, goal = { kind = "kos", target = "Paused" } },
+      { active = true, goal = { kind = "kos" } },
+      { active = true, goal = { kind = "kills", target = "Nope" } },
+    })
+    assert.are.same({ zed = true }, keys)
+    assert.are.same({}, ViewModel.PvPBountyKeys(nil))
+  end)
+end)
+
 describe("ViewModel mission form", function()
   it("starts a new mission with sensible values, and the form values of an existing one", function()
     local draft = ViewModel.PvPMissionDraft(nil)
@@ -600,9 +652,9 @@ describe("ViewModel mission form", function()
   end)
 
   it("offers the goal kinds, hiding battleground wins when the client cannot read them", function()
-    assert.are.same({ "kills", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices(nil)))
-    assert.are.same({ "kills", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = true })))
-    assert.are.same({ "kills", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = false })))
+    assert.are.same({ "kills", "kos", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices(nil)))
+    assert.are.same({ "kills", "kos", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = true })))
+    assert.are.same({ "kills", "kos", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = false })))
     assert.are.same({ "any", "world", "bg" }, values(ViewModel.PvPPlaceChoices()))
     assert.are.same({ "none", "name", "class", "race", "class_race" }, values(ViewModel.PvPDistinctChoices()))
     assert.are.same({ "once", "daily", "weekly" }, values(ViewModel.PvPRepeatChoices()))

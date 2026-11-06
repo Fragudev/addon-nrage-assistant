@@ -187,6 +187,7 @@ function ViewModel.IntelKosRows(service, ctx)
         canEdit = true,
         canRemove = true,
         canPromote = false,
+        canBounty = guild and ctx.canBounty == true or false,
       }
       if guild then
         local by = Model.Plain(entry.addedBy)
@@ -800,7 +801,7 @@ function ViewModel.IntelWarnColor(kind)
 end
 
 -- The lines of the tooltip of a row: { { text, color } }. `kosEntry` is the Kill on Sight entry of the player, if any.
-function ViewModel.IntelRowTooltip(row, kosEntry)
+function ViewModel.IntelRowTooltip(row, kosEntry, bounty)
   local lines = { { text = row.nameText, color = "text" } }
   local detail = {}
   if row.levelText ~= "??" then
@@ -822,6 +823,9 @@ function ViewModel.IntelRowTooltip(row, kosEntry)
     local text = L("Kill on Sight: %s"):format(ViewModel.IntelCategoryName(kosEntry.category))
     local reason = Model.Plain(kosEntry.reason, ns.Constants.INTEL_REASON_MAX)
     lines[#lines + 1] = { text = reason and (text .. " - " .. Escape(reason)) or text, color = "danger" }
+  end
+  if bounty then
+    lines[#lines + 1] = { text = L("Open bounty on this player."), color = "warning" }
   end
   lines[#lines + 1] = { text = L("Left click: target. Shift: Kill on Sight. Ctrl: Ignore."), color = "muted" }
   lines[#lines + 1] = { text = L("Right click: menu."), color = "muted" }

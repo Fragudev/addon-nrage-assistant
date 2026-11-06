@@ -205,6 +205,14 @@ describe("the lists", function()
     local gm = ViewModel.IntelKosRows(env.service, { role = "gm", actor = "Boss-Realm" })
     assert.is_true(gm[2].canEdit and gm[2].canRemove)
     assert.are.equal("", gm[2].added)
+
+    -- Only the guild rows can become a bounty, and only when the caller may manage missions.
+    local admin = ViewModel.IntelKosRows(env.service, { role = "gm", actor = "Boss-Realm", canBounty = true })
+    assert.are.same(
+      { false, true, false, true },
+      { admin[1].canBounty, admin[2].canBounty, admin[3].canBounty, admin[4].canBounty }
+    )
+    assert.is_false(rows[2].canBounty)
   end)
 
   it("cuts the statistics and gives the figures of each player", function()
@@ -697,6 +705,9 @@ describe("notices", function()
     assert.are.equal("Kill on Sight: Camper", bare[2].text)
     assert.are.equal(4, #bare)
     assert.are.equal(4, #ViewModel.IntelRowTooltip(ViewModel.IntelRow({ key = "x", name = "X", level = 5 }, nil)))
+    local marked = ViewModel.IntelRowTooltip(ViewModel.IntelRow({ key = "x", name = "X", level = 5 }, nil), nil, true)
+    assert.are.equal(5, #marked)
+    assert.are.equal("Open bounty on this player.", marked[3].text)
   end)
 end)
 

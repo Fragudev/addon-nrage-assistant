@@ -404,6 +404,20 @@ local function kosActions(row)
       },
     }
   end
+  if row.canBounty then
+    -- Admins turn a guild KOS player into a bounty; the button shares the slot of "Share with the guild".
+    promote = {
+      widget = "iconButton",
+      opts = {
+        icon = "swords",
+        tooltip = L("Create bounty"),
+        layout = {},
+        onClick = function()
+          UI.PvPNewBounty(row.name)
+        end,
+      },
+    }
+  end
   if row.canRemove then
     remove = removeButton(row)
   end
@@ -415,6 +429,7 @@ local function kosTable(page)
     role = UI.Role(),
     actor = ns.Platform.GetIdentityKey(),
     formatDate = ns.Platform.FormatDate,
+    canBounty = UI.PvPNewBounty ~= nil and ns.PermissionService.Can(UI.Role(), "pvp_mission_manage"),
   })
   local list = {}
   for _, row in ipairs(rows) do

@@ -338,7 +338,12 @@ end
 -- Missions
 
 ViewModel.PVP_GOAL_KINDS = ns.Locale.Table(function()
-  return { kills = L("Player kills"), bg_wins = L("Battleground wins"), manual = L("Manual") }
+  return {
+    kills = L("Player kills"),
+    kos = L("Kill on Sight kills"),
+    bg_wins = L("Battleground wins"),
+    manual = L("Manual"),
+  }
 end)
 
 ViewModel.PVP_PLACES = ns.Locale.Table(function()
@@ -359,7 +364,7 @@ ViewModel.PVP_REPEATS = ns.Locale.Table(function()
   return { once = L("Once"), daily = L("Daily"), weekly = L("Weekly") }
 end)
 
-local GOAL_ORDER = { "kills", "bg_wins", "manual" }
+local GOAL_ORDER = { "kills", "kos", "bg_wins", "manual" }
 local PLACE_ORDER = { "any", "world", "bg" }
 local DISTINCT_ORDER = { "none", "name", "class", "race", "class_race" }
 local REPEAT_ORDER = { "once", "daily", "weekly" }
@@ -424,6 +429,9 @@ function ViewModel.PvPCriteriaChips(mission, zoneName)
       add(L("Battleground"))
       add(L("%d wins"):format(goal.count))
     else
+      if goal.kind == "kos" then
+        add(goal.target and L("Bounty: %s"):format(Escape(goal.target)) or L("Kill on Sight"))
+      end
       local distinct = goal.distinct or "none"
       if distinct ~= "none" then
         add(ViewModel.PVP_DISTINCT[distinct])
@@ -448,7 +456,7 @@ local function requirements(goal)
   local needs = {}
   if goal.kind == "bg_wins" then
     needs[#needs + 1] = "bgWins"
-  elseif goal.kind == "kills" then
+  elseif goal.kind == "kills" or goal.kind == "kos" then
     needs[#needs + 1] = "kills"
     if #(goal.zones or {}) > 0 then
       needs[#needs + 1] = "zones"
@@ -600,6 +608,7 @@ function ViewModel.PvPMissionDraft(mission)
       zones = "",
       place = "any",
       distinct = "none",
+      target = "",
       repeatKind = "once",
       perPlayer = "1",
       active = true,
@@ -616,6 +625,7 @@ function ViewModel.PvPMissionDraft(mission)
     zones = table.concat(goal.zones or {}, ", "),
     place = goal.place or "any",
     distinct = goal.distinct or "none",
+    target = goal.target or "",
     repeatKind = mission.repeatKind,
     perPlayer = tostring(mission.perPlayer or 1),
     active = mission.active ~= false,
@@ -648,6 +658,12 @@ function ViewModel.PvPMissionFields(draft)
     if draft.kind == "kills" then
       goal.place = draft.place or "any"
       goal.distinct = draft.distinct or "none"
+    elseif draft.kind == "kos" then
+      goal.place = draft.place or "any"
+      local target = type(draft.target) == "string" and draft.target:match("^%s*(.-)%s*$") or ""
+      if target ~= "" then
+        goal.target = target
+      end
     end
   end
   return {
@@ -660,6 +676,22 @@ function ViewModel.PvPMissionFields(draft)
     perPlayer = perPlayer,
     active = draft.active ~= false,
   }
+end
+
+-- The keys (IntelModel.Key) of the players an open bounty names: the active missions of kind "kos" with a target.
+-- `missions` is PvPSeasonService:Missions(seasonId) (paused ones are not in it).
+function ViewModel.PvPBountyKeys(missions)
+  local keys = {}
+  for _, mission in ipairs(missions or {}) do
+    local goal = mission.goal
+    if mission.active ~= false and goal and goal.kind == "kos" and goal.target then
+      local key = ns.IntelModel.Key(goal.target)
+      if key then
+        keys[key] = true
+      end
+    end
+  end
+  return keys
 end
 
 -- The seasons a mission set can be cloned from: the ones other than `activeId` that hold missions, newest first, as
