@@ -1,0 +1,25 @@
+NrageAssistant/Domain/RecipeService.lua
+  s_654fcf69c807e6::t_49abb2297dc93d 106-109,117,120-123,131-132
+NrageAssistant/UI/Tabs/Professions.lua
+  s_654fcf69c807e6::t_7a89ab9c288241 52-56
+tests/recipe_spec.lua
+  s_654fcf69c807e6::t_fd32473dff55c5 105-123
+tests/ui_smoke_spec.lua
+  s_654fcf69c807e6::t_680c9a6af8a7ac 126-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "1c852eba6e2bb11969f98d2b0bf44e8b50b55700",
+  "prompts": {},
+  "sessions": {
+    "s_654fcf69c807e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f518b20b-158d-4081-8308-1d8f91d1f3fd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
