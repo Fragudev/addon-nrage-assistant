@@ -13,6 +13,9 @@ globals = {
 
 -- WoW client API used by the addon. Extend as new APIs are adopted.
 read_globals = {
+  "IsShiftKeyDown",
+  "IsControlKeyDown",
+  "IsAltKeyDown",
   "C_DeathRecap",
   "DeathRecap_GetEvents",
   "GetChannelList",

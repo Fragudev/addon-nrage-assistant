@@ -353,6 +353,15 @@ describe("Init", function()
       env.ns.UI.IntelChanged = nil
     end)
 
+    it("starts the compact window", function()
+      local started = 0
+      env.ns.IntelWindow.Start = function()
+        started = started + 1
+      end
+      start()
+      assert.are.equal(1, started)
+    end)
+
     it("tells the player once that sharing the sightings is on, and only when Intel is running", function()
       start()
       local notices = 0

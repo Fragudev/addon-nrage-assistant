@@ -129,6 +129,7 @@ UI\LayerPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua
+UI\IntelWindow.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\TemplateCommands.lua

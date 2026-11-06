@@ -661,3 +661,24 @@ describe("Platform alert and result readers", function()
     end)
   end)
 end)
+
+describe("Platform modifier keys", function()
+  it("reads the modifier keys, and false for a key the client cannot read", function()
+    with_globals({
+      IsShiftKeyDown = function()
+        return true
+      end,
+      IsControlKeyDown = function()
+        return false
+      end,
+      IsAltKeyDown = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.are.same({ true, false, false }, { load_platform().ModifierKeys() })
+    end)
+    with_globals({ IsShiftKeyDown = false, IsControlKeyDown = false, IsAltKeyDown = false }, function()
+      assert.are.same({ false, false, false }, { load_platform().ModifierKeys() })
+    end)
+  end)
+end)

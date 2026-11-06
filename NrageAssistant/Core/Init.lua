@@ -848,6 +848,9 @@ local function StartIntel()
       directory:Prune()
     end
   end)
+
+  -- The compact window starts on its own (pcall), like each part of the interface: one that fails costs only itself.
+  pcall(ns.IntelWindow.Start)
 end
 
 -- Who is nearby now: the enemies read here plus the sightings of the guild on the same map.

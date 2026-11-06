@@ -1374,4 +1374,16 @@ function Platform.GetDeathKiller()
   return ok and killer or nil
 end
 
+-- Which modifier keys are held now, as `shift, ctrl, alt` (booleans; false when the client does not say).
+function Platform.ModifierKeys()
+  local function down(read)
+    if not read then
+      return false
+    end
+    local ok, value = pcall(read)
+    return ok and value == true
+  end
+  return down(IsShiftKeyDown), down(IsControlKeyDown), down(IsAltKeyDown)
+end
+
 ns.Platform = Platform
