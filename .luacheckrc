@@ -16,6 +16,7 @@ read_globals = {
   "IsShiftKeyDown",
   "IsControlKeyDown",
   "IsAltKeyDown",
+  "WorldMapFrame",
   "C_DeathRecap",
   "DeathRecap_GetEvents",
   "GetChannelList",

@@ -362,6 +362,25 @@ describe("Init", function()
       assert.are.equal(1, started)
     end)
 
+    it("builds the pins of the enemies from the ones seen here and the sightings of the guild", function()
+      start()
+      env.ns.intel:OnSeen({ name = "Fay", class = "MAGE" }, { map = 1411, x = 5000, y = 2500 })
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 100, y = 200 })
+      local controller = env.ns.intelMapPins
+      local names = {}
+      for _, pin in ipairs(controller.deps.pins()) do
+        names[#names + 1] = pin.name
+      end
+      table.sort(names)
+      assert.are.same({ "Eve", "Fay" }, names)
+      env.ns.db.global.settings.intel.mapMode = "none"
+      assert.are.same({}, controller.deps.pins())
+      local settings = controller.deps.settings()
+      assert.is_true(settings.minimap and settings.worldmap)
+      assert.is_false(settings.follow)
+      assert.are.equal(env.ns.Platform.ShowWorldMap, controller.deps.follow)
+    end)
+
     it("tells the player once that sharing the sightings is on, and only when Intel is running", function()
       start()
       local notices = 0

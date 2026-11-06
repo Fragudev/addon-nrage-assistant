@@ -851,6 +851,43 @@ local function StartIntel()
 
   -- The compact window starts on its own (pcall), like each part of the interface: one that fails costs only itself.
   pcall(ns.IntelWindow.Start)
+
+  -- The enemy pins on the maps: the ones seen here and the sightings of the guild, by the map mode of the player.
+  local function enemyPins()
+    local layers = {}
+    if ns.layerDirectory then
+      for _, entry in ipairs(ns.layerDirectory:Fresh()) do
+        layers[entry.name] = entry
+      end
+    end
+    return ns.IntelPins.Build({
+      own = service:Nearby(platform.Now()),
+      remote = directory:List(),
+      now = platform.Now,
+      mapMode = settings().mapMode,
+      ownMap = platform.GetPlayerMapId(),
+      continentOf = platform.GetContinentMapId,
+      ownLayer = ns.layerTracker and ns.layerTracker:Current() or nil,
+      layerOf = function(reporter)
+        return layers[reporter]
+      end,
+      kosOf = function(key)
+        return service:IsKos(key)
+      end,
+      isIgnored = function(key)
+        return service:IsIgnored(key)
+      end,
+    })
+  end
+  ns.intelMapPins = ns.MapPins.StartEnemies({
+    now = platform.Now,
+    after = C_Timer.After,
+    pins = enemyPins,
+    settings = function()
+      return { minimap = true, worldmap = true, follow = settings().mapFollow }
+    end,
+    follow = platform.ShowWorldMap,
+  })
 end
 
 -- Who is nearby now: the enemies read here plus the sightings of the guild on the same map.

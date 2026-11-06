@@ -1386,4 +1386,28 @@ function Platform.ModifierKeys()
   return down(IsShiftKeyDown), down(IsControlKeyDown), down(IsAltKeyDown)
 end
 
+-- Is the world map open now? False when it is closed or the client has none.
+function Platform.WorldMapOpen()
+  local ok, open = pcall(function()
+    return WorldMapFrame ~= nil and WorldMapFrame:IsShown() == true
+  end)
+  return ok and open == true
+end
+
+-- Makes an open world map show `mapId`. Does nothing, and gives false, when the map is closed, the id is not a map or
+-- the client refuses (the map can be busy). Not measured yet.
+function Platform.ShowWorldMap(mapId)
+  if type(mapId) ~= "number" or not Platform.WorldMapOpen() then
+    return false
+  end
+  return (
+    pcall(function()
+      if WorldMapFrame.GetMapID and WorldMapFrame:GetMapID() == mapId then
+        return
+      end
+      WorldMapFrame:SetMapID(mapId)
+    end)
+  )
+end
+
 ns.Platform = Platform

@@ -682,3 +682,73 @@ describe("Platform modifier keys", function()
     end)
   end)
 end)
+
+describe("Platform world map", function()
+  it("knows whether the world map is open", function()
+    local platform = load_platform()
+    with_globals({
+      WorldMapFrame = {
+        IsShown = function()
+          return true
+        end,
+      },
+    }, function()
+      assert.is_true(platform.WorldMapOpen())
+    end)
+    with_globals({
+      WorldMapFrame = {
+        IsShown = function()
+          return false
+        end,
+      },
+    }, function()
+      assert.is_false(platform.WorldMapOpen())
+    end)
+    with_globals({ WorldMapFrame = false }, function()
+      assert.is_false(platform.WorldMapOpen())
+    end)
+    with_globals({
+      WorldMapFrame = {
+        IsShown = function()
+          error("restricted")
+        end,
+      },
+    }, function()
+      assert.is_false(platform.WorldMapOpen())
+    end)
+  end)
+
+  it("shows a map on the world map only when it is open and the id is a map", function()
+    local platform = load_platform()
+    local shown = {}
+    local frame = {
+      open = true,
+      current = 1,
+      IsShown = function(self)
+        return self.open
+      end,
+      GetMapID = function(self)
+        return self.current
+      end,
+      SetMapID = function(_, id)
+        shown[#shown + 1] = id
+      end,
+    }
+    with_globals({ WorldMapFrame = frame }, function()
+      assert.is_true(platform.ShowWorldMap(1411))
+      assert.are.same({ 1411 }, shown)
+      frame.current = 1411
+      assert.is_true(platform.ShowWorldMap(1411))
+      assert.are.same({ 1411 }, shown)
+      assert.is_false(platform.ShowWorldMap("1411"))
+      frame.open = false
+      assert.is_false(platform.ShowWorldMap(1412))
+      assert.are.same({ 1411 }, shown)
+      frame.open = true
+      frame.SetMapID = function()
+        error("busy")
+      end
+      assert.is_false(platform.ShowWorldMap(1413))
+    end)
+  end)
+end)

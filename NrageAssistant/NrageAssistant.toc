@@ -69,6 +69,7 @@ Domain\IntelPublisher.lua
 Domain\IntelAlerts.lua
 Domain\IntelReport.lua
 Domain\IntelImport.lua
+Domain\IntelPins.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
