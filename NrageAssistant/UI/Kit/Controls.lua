@@ -212,6 +212,47 @@ Kit.Define("IconButton", {
   end,
 })
 
+-- A row of small diamonds, some filled: the members of a party. opts: total (how many diamonds, default 5), filled,
+-- size (default 12), tooltip (the same information as text, since color alone says it badly).
+local PIPS_MAX = 8
+local PIP_GAP = 4
+
+Kit.Define("Pips", {
+  create = function(obj)
+    obj.frame:EnableMouse(true)
+    obj.dots = {}
+    for index = 1, PIPS_MAX do
+      obj.dots[index] = obj.frame:CreateTexture(nil, "ARTWORK")
+    end
+    tooltipOn(obj)
+  end,
+  apply = function(obj, opts)
+    obj.size = opts.size or 12
+    obj.total = math.min(PIPS_MAX, opts.total or 5)
+    for index, dot in ipairs(obj.dots) do
+      if index <= obj.total then
+        dot:SetSize(obj.size, obj.size)
+        dot:ClearAllPoints()
+        dot:SetPoint("LEFT", obj.frame, "LEFT", (index - 1) * (obj.size + PIP_GAP), 0)
+        -- A free seat is the same diamond, dimmer: the shape stays and only the fill changes.
+        if index <= (opts.filled or 0) then
+          Icons.Apply(dot, "diamond", "accent")
+        else
+          Icons.Apply(dot, "diamond", "muted", 0.35)
+        end
+      else
+        dot:Hide()
+      end
+    end
+  end,
+  layout = function(obj)
+    return obj.size
+  end,
+  natural = function(obj)
+    return obj.total * obj.size + (obj.total - 1) * PIP_GAP
+  end,
+})
+
 -- A switch: a 34x18 track and a 14px knob; with `label` it is a settings row (label left, switch right).
 -- opts: label, description, checked, onChange(checked), disabled.
 Kit.Define("Switch", {

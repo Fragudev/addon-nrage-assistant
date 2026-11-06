@@ -199,7 +199,8 @@ Kit.Define("Stack", {
 })
 
 -- Children side by side. opts: gap, height (minimum), align ("top" | "center"). A child's layout is { width = n }
--- (fixed), { width = "auto" } (what the child asks for through NaturalWidth) or { weight = w } (default 1).
+-- (fixed), { width = "auto" } (what the child asks for through NaturalWidth) or { weight = w } (default 1). A row of
+-- children that all have a width asks for their sum, so it can be "auto" itself.
 Kit.Define("Row", {
   apply = function(obj, opts)
     obj.gap = opts.gap or 12
@@ -237,6 +238,20 @@ Kit.Define("Row", {
       x = x + widths[index] + obj.gap
     end
     return tallest
+  end,
+  natural = function(obj)
+    local total, shown = 0, 0
+    for _, item in ipairs(obj.items) do
+      if not item.obj.hidden then
+        local width = item.layout.width
+        if width == "auto" then
+          width = item.obj:NaturalWidth()
+        end
+        total = total + (type(width) == "number" and width or 80)
+        shown = shown + 1
+      end
+    end
+    return total + math.max(0, shown - 1) * obj.gap
   end,
 })
 

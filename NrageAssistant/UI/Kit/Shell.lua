@@ -549,6 +549,7 @@ end
 
 local NAV_GLOW_FILE = "Interface\\AddOns\\NrageAssistant\\Media\\Shapes\\glow"
 local NAV_GLOW = 6 -- units the halo reaches past the bar
+local NAV_BADGE_ROOM = 26 -- units kept free on the right of a row that has a badge
 
 Kit.Define("NavRow", {
   frameType = "Button",
@@ -577,6 +578,9 @@ Kit.Define("NavRow", {
     obj.label:SetPoint("RIGHT", -8, 0)
     obj.label:SetJustifyH("LEFT")
     obj.label:SetWordWrap(false)
+    obj.badge = obj.frame:CreateFontString(nil, "OVERLAY")
+    obj.badge:SetPoint("RIGHT", -12, 0)
+    obj.badge:SetJustifyH("RIGHT")
     obj.frame:SetScript("OnEnter", function()
       obj.hovered = true
       obj:refresh()
@@ -590,6 +594,19 @@ Kit.Define("NavRow", {
         obj.opts.onClick(obj.opts.value)
       end
     end)
+    -- The optional count on the right (`opts.badge`, a text). Without one the label keeps all its width, so a row
+    -- without a badge looks as it always did. Called again to change the count without building the row again.
+    function obj:SetBadge(text)
+      if self.opts then
+        self.opts.badge = text
+      end
+      local has = type(text) == "string" and text ~= ""
+      self.label:ClearAllPoints()
+      self.label:SetPoint("LEFT", 16 + size + Theme.metrics.navGap, 0)
+      self.label:SetPoint("RIGHT", has and -(NAV_BADGE_ROOM + 8) or -8, 0)
+      self.badge:SetText(has and text or "")
+      self.badge:SetShown(has)
+    end
     function obj:refresh()
       if not self.opts then
         return
@@ -614,6 +631,9 @@ Kit.Define("NavRow", {
     obj.hovered = false
     obj.label:SetFontObject(Theme.StyleFont("nav"))
     obj.label:SetText(opts.text or "")
+    obj.badge:SetFontObject(Theme.StyleFont("tiny"))
+    setColor(obj.badge, "info")
+    obj:SetBadge(opts.badge)
     obj:refresh()
   end,
   layout = function()
@@ -662,7 +682,8 @@ Kit.Define("UserCard", {
   end,
 })
 
--- opts: groups = { { label, items = { { value, text, icon } } } }, value, onSelect(value), user = { name, detail },
+-- opts: groups = { { label, items = { { value, text, icon, badge } } } }, value, onSelect(value),
+-- user = { name, detail },
 -- translucent (the window shows its scene behind it). It sits on the bottom left of the window, so only that
 -- corner is cut: the others would poke out of the window's own cut.
 Kit.Define("Sidebar", {
@@ -676,6 +697,7 @@ Kit.Define("Sidebar", {
       obj,
       { gap = 2, pad = { Theme.metrics.sidebarPadX, Theme.metrics.sidebarPadY, Theme.metrics.sidebarPadX, 0 } }
     )
+    obj.rows = {}
     for index, group in ipairs(opts.groups or {}) do
       if group.label then
         Kit.Label(obj.nav, {
@@ -686,10 +708,11 @@ Kit.Define("Sidebar", {
         })
       end
       for _, item in ipairs(group.items) do
-        Kit.NavRow(obj.nav, {
+        obj.rows[item.value] = Kit.NavRow(obj.nav, {
           value = item.value,
           text = item.text,
           icon = item.icon,
+          badge = item.badge,
           selected = item.value == opts.value,
           onClick = opts.onSelect,
         })
@@ -712,6 +735,15 @@ Kit.Define("Sidebar", {
     return height or 0
   end,
 })
+
+-- Changes the badge of the item `value` (a text, or nil for none) without building the sidebar again. An item that is
+-- not there is left alone.
+function Widget:SetItemBadge(value, text)
+  local row = self.rows and self.rows[value]
+  if row and not row.released then
+    row:SetBadge(text)
+  end
+end
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- Window: the frame with its header (logo, title, version, sync pill, buttons), the body below it, dragging and
