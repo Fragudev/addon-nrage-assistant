@@ -605,7 +605,13 @@ describe("Init", function()
       _G.C_Timer.After = function(seconds, fn)
         timers[#timers + 1] = { seconds = seconds, fn = fn }
       end
+      -- The login delays are random and can equal the delay looked for below, so they are pinned to their minimum.
+      local realRandom = math.random
+      rawset(math, "random", function(low)
+        return low
+      end)
       start()
+      rawset(math, "random", realRandom)
       local reminder
       for _, timer in ipairs(timers) do
         if timer.seconds == env.ns.Constants.INTEL_REMINDER_DELAY_SECONDS then
