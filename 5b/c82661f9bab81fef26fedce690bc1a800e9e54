@@ -1,0 +1,31 @@
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_344a1a1241c862 110-113
+NrageAssistant/Domain/PvPMissionService.lua
+  s_0e68a66d17ed7f::t_43f565589b0ff9 20-21,94-96,98
+NrageAssistant/Domain/PvPMissionTracker.lua
+  s_0e68a66d17ed7f::t_a8b7982f419a1e 95-109,114-122,233
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_0e68a66d17ed7f::t_ae1c5bed874e9c 9,35,276-286,373-375,382
+tests/pvp_mission_service_spec.lua
+  s_0e68a66d17ed7f::t_b5d278cbf3de26 11,77,119-121,176-202
+tests/pvp_mission_tracker_spec.lua
+  s_0e68a66d17ed7f::t_c94258a1d25570 146-177
+tests/pvp_season_model_spec.lua
+  s_0e68a66d17ed7f::t_10e1c9b56f6864 4-10,173-196,255-262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "5bc82661f9bab81fef26fedce690bc1a800e9e54",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
