@@ -1,0 +1,25 @@
+docs/API_NOTES.md
+  s_0e68a66d17ed7f::t_ec1b21c973a287 148-157,243
+docs/PRIVACY.md
+  s_0e68a66d17ed7f::t_9c1f141ca1ff90 8-9,30-34,39,119-144,156,160-162,176-177
+docs/PROTOCOL.md
+  s_0e68a66d17ed7f::t_85f9a59e6e8e73 65-67,92,220-244,295-325
+docs/USER_GUIDE.md
+  s_0e68a66d17ed7f::t_d62e9f0680d037 236,435,636-768,799
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "ca10100dacec76f4498ad5bcc07654decb268797",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
