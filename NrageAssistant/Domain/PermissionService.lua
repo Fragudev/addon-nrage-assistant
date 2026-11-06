@@ -62,6 +62,13 @@ local ACTIONS = {
   -- Changing the reason of a player who is already listed: the member who added the entry may (see
   -- BlacklistService.CanEdit), and so may gm and cogm, for any entry.
   blacklist_edit_any = GLOBAL_ONLY,
+  -- Intel (docs/PVP_INTEL_PLAN.md): sharing the sightings of enemy players, and the guild Kill On Sight list. Every
+  -- member adds; the member who added an entry changes and removes it (GuildKosService.CanEdit, CanRemove), and so
+  -- may gm and cogm, for any entry.
+  intel_share = EVERYONE,
+  kos_add = EVERYONE,
+  kos_edit_any = GLOBAL_ONLY,
+  kos_remove_any = GLOBAL_ONLY,
   moderate = GLOBAL_ONLY,
   -- PvP seasons (docs/PVP_MISSIONS_PLAN.md section 3): every member claims, gm and cogm do everything else.
   pvp_claim_decide = GLOBAL_ONLY,

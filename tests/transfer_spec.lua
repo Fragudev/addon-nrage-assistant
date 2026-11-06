@@ -17,6 +17,8 @@ local function load_modules()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/IntelModel",
+    "Domain/GuildKosService",
     "Domain/ReadinessRules",
     "Sync/Protocol",
     "Sync/SyncRules",
@@ -24,6 +26,7 @@ local function load_modules()
     "Sync/LootSync",
     "Sync/PvPSync",
     "Sync/BlacklistSync",
+    "Sync/GuildKosSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/RecipeSync",
@@ -957,6 +960,113 @@ describe("Transfer blacklist items in a snapshot", function()
     local plain = Transfer.BuildItems({}, s.tombstones)
     for _, item in ipairs(plain) do
       assert.is_false(item.t == "BLACKLIST_UPSERT" or item.t == "BLACKLIST_DELETE")
+    end
+  end)
+end)
+
+describe("Transfer guild Kill On Sight items in a snapshot", function()
+  local function entry(name, overrides)
+    local e = {
+      name = name,
+      category = "gank",
+      reason = "ninja",
+      addedBy = "Ann-Realm",
+      addedAt = 500,
+      rev = 1,
+      updatedAt = 9000,
+      updatedBy = "Ann-Realm",
+    }
+    for k, v in pairs(overrides or {}) do
+      e[k] = v
+    end
+    return e
+  end
+
+  local function context(overrides)
+    local ctx = {
+      events = {},
+      tombstones = {},
+      guildKos = {},
+      now = function()
+        return 10000
+      end,
+    }
+    for k, v in pairs(overrides or {}) do
+      ctx[k] = v
+    end
+    return ctx
+  end
+
+  local function source()
+    return context({
+      guildKos = { bob = entry("Bob"), eve = entry("Eve", { addedBy = "Cid-Realm", updatedAt = 9500 }) },
+      tombstones = { ["K:gone"] = { at = 10, rev = 4 }, ["B:other"] = { at = 10, rev = 2 } },
+    })
+  end
+
+  local function build(s, max)
+    return Transfer.BuildSnapshot({}, s.tombstones, 5, nil, nil, nil, nil, nil, nil, nil, nil, s.guildKos, max)
+  end
+
+  it("adds the entries with their author and the removals", function()
+    local s = source()
+    local items = build(s, 10)
+    local types = {}
+    for _, item in ipairs(items) do
+      types[#types + 1] = item.t
+    end
+    assert.are.same({ "KOS_UPSERT", "KOS_UPSERT", "KOS_DELETE" }, types)
+    assert.are.equal("eve", items[1].p.key)
+    assert.are.equal("Cid-Realm", items[1].addedBy)
+    assert.are.same({ key = "gone", rev = 4 }, items[3].p)
+  end)
+
+  it("adds nothing without the table or with a cap of zero", function()
+    local s = source()
+    assert.are.equal(0, #build(s, 0))
+    assert.are.equal(0, #build({ tombstones = s.tombstones }, 10))
+  end)
+
+  it("applies the entries as the sender with the author kept, and the removals under the sender's role", function()
+    local items = build(source(), 10)
+    local target = context()
+    local summary = Transfer.ApplyItems(items, target, "Lead-Realm", "rl")
+    assert.are.equal(2, summary.guildKos)
+    assert.are.equal("Cid-Realm", target.guildKos.eve.addedBy)
+    assert.are.equal("Lead-Realm", target.guildKos.eve.updatedBy)
+    assert.are.equal(1, summary.skipped.forbidden)
+    assert.is_nil(target.tombstones["K:gone"])
+
+    local admin = context()
+    summary = Transfer.ApplyItems(items, admin, "Boss-Realm", "gm")
+    assert.are.equal(3, summary.guildKos)
+    assert.are.equal(4, admin.tombstones["K:gone"].rev)
+  end)
+
+  it("skips an item that does not validate or whose author is unusable", function()
+    local ctx = context()
+    local good = { key = "ann", name = "Ann", category = "gank", rev = 1, updatedAt = 10 }
+    local summary = Transfer.ApplyItems({
+      { t = "KOS_UPSERT", p = good, addedBy = "|cffff0000Evil", addedAt = 5 },
+      { t = "KOS_UPSERT", p = { key = "ann", name = "Ann", category = "nope", rev = 1, updatedAt = 10 } },
+    }, ctx, "Lead-Realm", "rl")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(1, summary.skipped.bad_origin)
+    assert.are.equal(1, summary.skipped.bad_payload)
+  end)
+
+  it("does not apply them to a context without the table, such as a text import", function()
+    local items = build(source(), 10)
+    local ctx = context()
+    ctx.guildKos = nil
+    local summary = Transfer.ApplyItems(items, ctx, "import", "gm")
+    assert.are.equal(0, summary.applied)
+    assert.are.equal(3, summary.skipped.unsupported)
+  end)
+
+  it("keeps the list out of the text export", function()
+    for _, item in ipairs(Transfer.BuildItems({}, source().tombstones)) do
+      assert.is_false(item.t == "KOS_UPSERT" or item.t == "KOS_DELETE")
     end
   end)
 end)

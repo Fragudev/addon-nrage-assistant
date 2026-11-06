@@ -27,22 +27,7 @@ local BlacklistSync = {}
 local Rules = ns.SyncRules
 local countKeys, authorize, clampTimestamp = Rules.CountKeys, Rules.Authorize, Rules.ClampTimestamp
 
-local MAX_TIMESTAMP = 4102444800 -- 2100-01-01, as in Protocol
-
--- The original author and date an item of a snapshot may carry, or nil when it carries none. Returns false when
--- one of them is there but unusable.
-local function readOrigin(origin)
-  if origin == nil then
-    return nil
-  end
-  if type(origin) ~= "table" or not ns.EventModel.IsCharacterKey(origin.addedBy) then
-    return false
-  end
-  if not ns.Validate.Int(origin.addedAt, 0, MAX_TIMESTAMP) then
-    return false
-  end
-  return { addedBy = origin.addedBy, addedAt = origin.addedAt }
-end
+local readOrigin = Rules.ReadOrigin
 
 local function applyUpsert(ctx, payload, sender, role, origin)
   local denied = authorize(role, "blacklist_add")

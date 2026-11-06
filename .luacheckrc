@@ -42,6 +42,7 @@ read_globals = {
   "UnitIsPlayer",
   "UnitIsEnemy",
   "UnitIsUnit",
+  "LE_PARTY_CATEGORY_INSTANCE",
   "GetZonePVPInfo",
   "C_CVar",
   "GetCVar",

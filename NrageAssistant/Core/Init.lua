@@ -658,6 +658,58 @@ local function StartIntel()
   })
   ns.intel, ns.intelDetector = service, detector
 
+  -- Sightings: shared with the guild (or the battleground group) on their own prefix, and the ones received kept in
+  -- memory (docs/PROTOCOL.md). The receiving side is registered in Comm.Start, which looks ns.intelSync up.
+  platform.RegisterPrefix(Constants.INTEL_PREFIX)
+  local directory = ns.IntelDirectory.New({
+    now = platform.Now,
+    onChange = function()
+      if ns.UI and ns.UI.IntelChanged then
+        ns.UI.IntelChanged()
+      end
+    end,
+  })
+  local publisher = ns.IntelPublisher.New({
+    now = platform.Now,
+    settings = function()
+      return ns.Settings.Intel(ns.db)
+    end,
+    canSend = function()
+      return ns.lockdown:CanSend()
+    end,
+    instanceKind = platform.GetInstanceKind,
+    groupChannel = platform.GroupDistribution,
+    isIgnored = function(name)
+      return service:IsIgnored(name)
+    end,
+    send = function(text, channel)
+      if not ChatThrottleLib then
+        return false
+      end
+      ChatThrottleLib:SendAddonMessage("BULK", Constants.INTEL_PREFIX, text, channel)
+      return true
+    end,
+  })
+  ns.intelDirectory, ns.intelPublisher = directory, publisher
+  ns.intelSync = ns.IntelSync.New({
+    platform = platform,
+    inbox = ns.Inbox.New({ maxPerWindow = Constants.INTEL_INBOX_MAX_PER_WINDOW }),
+    -- Looked up lazily, like the roles of Comm: the guild roster may not be ready yet.
+    roleOf = function(sender)
+      if not ns.guildRoster then
+        return nil
+      end
+      return ns.PermissionService.RoleOf(ns.guildRoster, sender)
+    end,
+    directory = directory,
+    now = platform.Now,
+  })
+  detector.deps.onContact = function(result, details, spot)
+    if not result.ignored then
+      publisher:Offer(details, spot, result.kos ~= nil)
+    end
+  end
+
   ns.intelEvents = {}
   local intelFrame = CreateFrame("Frame")
   for _, spec in ipairs(INTEL_UNIT_EVENTS) do
@@ -683,6 +735,29 @@ local function StartIntel()
       pcall(detector.Rescan, detector)
     end
   end)
+  C_Timer.NewTicker(Constants.INTEL_SHARE_TICK_SECONDS, function()
+    if ns.active then
+      pcall(publisher.Tick, publisher)
+      directory:Prune()
+    end
+  end)
+end
+
+-- Who is nearby now: the enemies read here plus the sightings of the guild on the same map.
+function ns.IntelNearby()
+  if not ns.intel then
+    return {}
+  end
+  local map = ns.Platform.GetPlayerMapId()
+  local remote = map and ns.intelDirectory and ns.intelDirectory:List(map) or {}
+  return ns.intel:Nearby(ns.Platform.Now(), remote)
+end
+
+-- A guild Kill On Sight entry arrived: the Intel views are drawn again.
+function ns.GuildKosChanged()
+  if ns.UI and ns.UI.IntelChanged then
+    ns.UI.IntelChanged()
+  end
 end
 
 -- The events that change what is shared in the profile: gear, level and professions.

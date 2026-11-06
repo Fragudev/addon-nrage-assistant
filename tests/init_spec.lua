@@ -288,6 +288,69 @@ describe("Init", function()
       assert.are.equal(2500, env.ns.db.global.intel.players.bob.lastY)
     end)
 
+    it("shares what it reads and shows the sightings of the guild as nearby", function()
+      local sent = {}
+      _G.ChatThrottleLib = {
+        SendAddonMessage = function(_, priority, prefix, text, channel)
+          sent[#sent + 1] = { priority = priority, prefix = prefix, text = text, channel = channel }
+        end,
+      }
+      local _, tickers = start()
+      env.ns.lockdown = {
+        CanSend = function()
+          return true
+        end,
+      }
+      env.units.nameplate1 = { name = "Bob", class = "ROGUE", race = "ORC", faction = "Horde", level = 60 }
+      env.ns.intelDetector:Rescan()
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_SHARE_TICK_SECONDS then
+          pcall(ticker.fn)
+        end
+      end
+      _G.ChatThrottleLib = nil
+      assert.are.equal(1, #sent)
+      assert.are.equal("BULK", sent[1].priority)
+      assert.are.equal(env.ns.Constants.INTEL_PREFIX, sent[1].prefix)
+      assert.are.equal("GUILD", sent[1].channel)
+      assert.are.equal("I1:1411:5000:2500:4:6:60:0:Bob", sent[1].text)
+
+      env.ns.guildRoster = {
+        Lookup = function()
+          return { rankName = "Miembro", rankIndex = 5 }
+        end,
+      }
+      assert.is_true(env.ns.intelSync:Handle("I1:1411:1:2:0:0:0:0:Eve", "GUILD", "Ann"))
+      local names = {}
+      for _, item in ipairs(env.ns.IntelNearby()) do
+        names[#names + 1] = item.name .. "/" .. tostring(item.source)
+      end
+      table.sort(names)
+      assert.are.same({ "Bob/nil", "Eve/Ann" }, names)
+    end)
+
+    it("redraws the Intel views when a guild Kill On Sight entry arrives", function()
+      start()
+      local redraws = 0
+      env.ns.UI.IntelChanged = function()
+        redraws = redraws + 1
+      end
+      env.ns.GuildKosChanged()
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1 })
+      assert.are.equal(2, redraws)
+      env.ns.UI.IntelChanged = nil
+      env.ns.GuildKosChanged()
+    end)
+
+    it("shows no remote sightings when the own map is unknown", function()
+      start()
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1 })
+      env.ns.Platform.GetPlayerMapId = function()
+        return nil
+      end
+      assert.are.same({}, env.ns.IntelNearby())
+    end)
+
     it("reads the unit an event names, and ignores events while the addon is off", function()
       local intelFrame = start()
       env.units.nameplate7 = { name = "Eve", faction = "Horde" }

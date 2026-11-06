@@ -19,6 +19,8 @@ local function load_addon()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/IntelModel",
+    "Domain/GuildKosService",
     "Domain/ReadinessRules",
     "Sync/Codec",
     "Sync/Protocol",
@@ -29,6 +31,7 @@ local function load_addon()
     "Sync/LootSync",
     "Sync/PvPSync",
     "Sync/BlacklistSync",
+    "Sync/GuildKosSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/PvPSeasonSync",
@@ -62,6 +65,8 @@ local function build_env()
     pvpKills = {},
     blacklist = {},
     blacklistChanges = {},
+    guildKos = {},
+    guildKosChanges = {},
     readinessRules = {},
     rulesChanges = {},
     ownResets = {},
@@ -132,6 +137,10 @@ local function build_env()
     blacklist = env.blacklist,
     onBlacklistChange = function(messageType)
       env.blacklistChanges[#env.blacklistChanges + 1] = messageType
+    end,
+    guildKos = env.guildKos,
+    onGuildKosChange = function(messageType)
+      env.guildKosChanges[#env.guildKosChanges + 1] = messageType
     end,
     readinessRules = env.readinessRules,
     onRulesChange = function(messageType)
@@ -1665,6 +1674,179 @@ describe("Comm blacklist", function()
   end)
 end)
 
+describe("Comm guild Kill On Sight", function()
+  local env
+
+  local function upsert(overrides)
+    local p = { key = "yonemongg", name = "Yonemon Gg", category = "gank", reason = "ninja", rev = 1, updatedAt = 4990 }
+    for k, v in pairs(overrides or {}) do
+      p[k] = v
+    end
+    return p
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.roles["Cid-Realm"] = "member"
+    env.roles["Boss-Realm"] = "gm"
+  end)
+
+  it("stores an entry from any member, with the sender as the author, and tells the interface", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("KOS_UPSERT", upsert()), "Ann-Realm", "GUILD"))
+    assert.are.equal("Ann-Realm", env.guildKos.yonemongg.addedBy)
+    assert.are.equal("gank", env.guildKos.yonemongg.category)
+    assert.are.same({ "KOS_UPSERT" }, env.guildKosChanges)
+  end)
+
+  it("drops an entry from a sender the roster does not know", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("KOS_UPSERT", upsert()), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.guildKos)
+    assert.are.same({}, env.guildKosChanges)
+  end)
+
+  it("lets the author or a gm remove an entry, and not another member", function()
+    env.comm:HandleMessage(env.wire("KOS_UPSERT", upsert(), "u1"), "Ann-Realm", "GUILD")
+    local forged = env.wire("KOS_DELETE", { key = "yonemongg", rev = 2 }, "d1")
+    local ok, reason = env.comm:HandleMessage(forged, "Cid-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("forbidden", reason)
+    assert.is_truthy(env.guildKos.yonemongg)
+
+    assert.is_true(
+      env.comm:HandleMessage(env.wire("KOS_DELETE", { key = "yonemongg", rev = 2 }, "d2"), "Ann-Realm", "GUILD")
+    )
+    assert.is_nil(env.guildKos.yonemongg)
+    assert.are.equal(2, env.tombstones["K:yonemongg"].rev)
+    assert.are.same({ "KOS_UPSERT", "KOS_DELETE" }, env.guildKosChanges)
+  end)
+
+  it("drops an entry whose key does not belong to its name", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("KOS_UPSERT", upsert({ key = "other" })), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("bad_key", reason)
+  end)
+
+  it("sends an entry keyed by player, so a newer edit replaces a queued one", function()
+    env.locked = true
+    local entry = { name = "Yonemon Gg", category = "gank", reason = "ninja", rev = 1, updatedAt = 4990 }
+    assert.is_true(env.comm:SendGuildKosUpsert("yonemongg", entry))
+    entry.rev, entry.category = 2, "camp"
+    assert.is_true(env.comm:SendGuildKosUpsert("yonemongg", entry))
+    assert.are.equal(1, env.queue:Pending())
+
+    env.locked = false
+    env.queue:Flush()
+    assert.are.equal(1, #env.sent)
+    local decoded = env.codec:Decode(env.sent[1])
+    assert.are.equal("KOS_UPSERT", decoded.t)
+    assert.are.equal(2, decoded.p.rev)
+    assert.are.equal("camp", decoded.p.category)
+  end)
+
+  it("sends a removal with the revision of its tombstone, and refuses one without a tombstone", function()
+    assert.are.same({ false, "no_tombstone" }, { env.comm:SendGuildKosDelete("yonemongg") })
+    env.tombstones["K:yonemongg"] = { at = 1, rev = 3 }
+    assert.is_true(env.comm:SendGuildKosDelete("yonemongg"))
+    local decoded = env.codec:Decode(env.sent[1])
+    assert.are.equal("KOS_DELETE", decoded.t)
+    assert.are.same({ key = "yonemongg", rev = 3 }, decoded.p)
+  end)
+
+  describe("in a snapshot", function()
+    local leader
+
+    local function entry(name, overrides)
+      local e = {
+        name = name,
+        category = "gank",
+        reason = "ninja",
+        addedBy = "Ann-Realm",
+        addedAt = 500,
+        rev = 1,
+        updatedAt = 4000,
+        updatedBy = "Ann-Realm",
+      }
+      for k, v in pairs(overrides or {}) do
+        e[k] = v
+      end
+      return e
+    end
+
+    before_each(function()
+      leader = build_env()
+      leader.ownRole = "gm"
+      env.roles["Lead-Realm"] = "gm"
+    end)
+
+    it("gives a late joiner the entries with their author, and the removals", function()
+      leader.guildKos.yonemongg = entry("Yonemon Gg")
+      leader.guildKos.bob = entry("Bob", { addedBy = "Cid-Realm" })
+      leader.tombstones["K:gone"] = { at = 10, rev = 5 }
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      assert.are.equal("Ann-Realm", env.guildKos.yonemongg.addedBy)
+      assert.are.equal("Cid-Realm", env.guildKos.bob.addedBy)
+      assert.are.equal("Lead-Realm", env.guildKos.bob.updatedBy)
+      assert.are.equal(5, env.tombstones["K:gone"].rev)
+      assert.are.same({ "SYNC_DATA" }, env.guildKosChanges)
+    end)
+
+    it("stays under the byte cap with a maximal number of maximal entries and removals", function()
+      math.randomseed(31)
+      local function noise(length)
+        local chars = {}
+        for i = 1, length do
+          chars[i] = string.char(math.random(97, 122))
+        end
+        return table.concat(chars)
+      end
+      local constants = ns.Constants
+      for i = 1, constants.INTEL_KOS_MAX do
+        local name = noise(constants.INTEL_NAME_MAX)
+        leader.guildKos[name] = entry(name, {
+          reason = noise(constants.INTEL_REASON_MAX),
+          addedBy = noise(60),
+          addedAt = math.random(1, 2000000000),
+          rev = math.random(1, 2000000000),
+          updatedAt = 1000 + i,
+        })
+        leader.tombstones["K:" .. noise(constants.INTEL_NAME_MAX)] = { at = i, rev = math.random(1, 2000000000) }
+      end
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      assert.is_true(#leader.sent[1] <= constants.SYNC_MAX_ENCODED_BYTES, #leader.sent[1])
+
+      assert.is_true(env.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      local received = 0
+      for _ in pairs(env.guildKos) do
+        received = received + 1
+      end
+      assert.is_true(received >= 1 and received <= constants.INTEL_KOS_SNAPSHOT_MAX, received)
+    end)
+
+    it("shrinks the list together with the events when the snapshot would not fit", function()
+      local saved = ns.Constants.SYNC_MAX_ENCODED_BYTES
+      ns.Constants.SYNC_MAX_ENCODED_BYTES = 1500
+      math.randomseed(9)
+      for i = 1, 100 do
+        local chars = {}
+        for j = 1, 30 do
+          chars[j] = string.char(math.random(97, 122))
+        end
+        local name = table.concat(chars)
+        leader.guildKos[name] = entry(name, { updatedAt = 1000 + i })
+      end
+      local ok = leader.comm:SendSnapshot("Joiner-Realm")
+      ns.Constants.SYNC_MAX_ENCODED_BYTES = saved
+      assert.is_true(ok)
+      assert.is_true(#leader.sent[1] <= 1500)
+    end)
+  end)
+end)
+
 describe("Comm readiness rules", function()
   local env
 
@@ -2732,6 +2914,7 @@ describe("Comm resilience", function()
         applied = 1,
         pvp = 0,
         blacklist = 0,
+        guildKos = 0,
         rules = 0,
         rosters = 0,
         skipped = { error = 1 },

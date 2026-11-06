@@ -672,6 +672,24 @@ function Platform.EnableEnemyNameplates()
   return (pcall(writer, "nameplateShowEnemies", "1"))
 end
 
+-- The addon channel a message to the group goes to: "INSTANCE_CHAT" in an instance group (a battleground), "RAID" in a
+-- raid, "PARTY" in a party, nil when the player is alone or the client does not say.
+function Platform.GroupDistribution()
+  local ok, channel = pcall(function()
+    if IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+      return "INSTANCE_CHAT"
+    end
+    if IsInRaid and IsInRaid() then
+      return "RAID"
+    end
+    if IsInGroup and IsInGroup() then
+      return "PARTY"
+    end
+    return nil
+  end)
+  return ok and channel or nil
+end
+
 local CONTINENT_MAP_TYPE = 2
 local MAP_PARENT_STEPS = 10
 

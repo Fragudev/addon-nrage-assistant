@@ -409,3 +409,45 @@ describe("Platform.GetContinentMapId", function()
     end)
   end)
 end)
+
+describe("Platform.GroupDistribution", function()
+  local function channel(state)
+    local result
+    with_globals({
+      LE_PARTY_CATEGORY_INSTANCE = 2,
+      IsInGroup = function(category)
+        if category == 2 then
+          return state.instance == true
+        end
+        return state.party == true
+      end,
+      IsInRaid = function()
+        return state.raid == true
+      end,
+    }, function()
+      result = load_platform().GroupDistribution()
+    end)
+    return result
+  end
+
+  it("names the channel of the group the player is in", function()
+    assert.are.equal("INSTANCE_CHAT", channel({ instance = true, raid = true, party = true }))
+    assert.are.equal("RAID", channel({ raid = true, party = true }))
+    assert.are.equal("PARTY", channel({ party = true }))
+  end)
+
+  it("gives nil when the player is alone or the client does not say", function()
+    assert.is_nil(channel({}))
+    with_globals({ IsInGroup = false, IsInRaid = false }, function()
+      assert.is_nil(load_platform().GroupDistribution())
+    end)
+    with_globals({
+      IsInGroup = function()
+        error("restricted")
+      end,
+      IsInRaid = false,
+    }, function()
+      assert.is_nil(load_platform().GroupDistribution())
+    end)
+  end)
+end)
