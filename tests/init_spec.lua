@@ -72,6 +72,7 @@ local function build()
   spy(ns.LootPopup, "Start", "lootPopup")
   spy(ns.VotingFrame, "Start", "votingFrame")
   spy(ns.LayerPopup, "Start", "layerPopup")
+  spy(ns.LfgPopup, "Start", "lfgPopup")
   ns.GuildRoster.New = function()
     calls[#calls + 1] = "roster"
     return {
@@ -146,7 +147,7 @@ describe("Init", function()
       env.fire("PLAYER_LOGIN")
       assert.is_true(env.ns.active)
       assert.are.same({}, env.ns.startupErrors)
-      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup" }, env.calls)
+      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup", "lfgPopup" }, env.calls)
       assert.are.equal(1, env.loadedMessages())
     end)
 

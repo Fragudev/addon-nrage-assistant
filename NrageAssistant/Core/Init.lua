@@ -537,11 +537,17 @@ local function StartLfg()
     board = board,
     onChange = function()
       ns.UI.LfgChanged()
+      ns.LfgPopup.Refresh()
     end,
   })
   ns.lfgBoard, ns.lfgService = board, service
   ns.comm.lfgService = service
-  ns.comm.onLfgChange = ns.UI.LfgChanged
+  -- A received post or step changes the board (the count of the sidebar) and may bring an applicant to the popup.
+  ns.comm.onLfgChange = function()
+    ns.UI.LfgChanged()
+    ns.LfgPopup.Refresh()
+  end
+  ns.LfgPopup.Start()
 
   local lfgFrame = CreateFrame("Frame")
   platform.TryRegisterEvent(lfgFrame, "GROUP_ROSTER_UPDATE")

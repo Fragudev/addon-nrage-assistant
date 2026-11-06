@@ -82,6 +82,7 @@ describe("ViewModel misc", function()
       ready = true,
       loot = true,
       pvp = true,
+      groups = true,
       raid = true,
       rules = true,
       roster = true,
@@ -97,10 +98,10 @@ describe("ViewModel misc", function()
       assert.is_truthy(tab.icon, tab.value)
     end
     assert.are.same(
-      { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster", "pvpadmin" },
+      { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster", "pvpadmin" },
       order
     )
-    for _, value in ipairs({ "home", "professions", "events", "ready", "loot", "pvp" }) do
+    for _, value in ipairs({ "home", "professions", "events", "ready", "loot", "pvp", "groups" }) do
       assert.are.equal("guild", groups[value], value)
     end
     for _, value in ipairs({ "raid", "rules", "roster", "pvpadmin" }) do
@@ -123,6 +124,7 @@ describe("ViewModel misc", function()
       ready = "Raid check",
       loot = "Loot",
       pvp = "PvP",
+      groups = "Groups",
       raid = "Raid",
       rules = "Roster rules",
       roster = "Members",
@@ -1173,7 +1175,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
     return labels, values
   end
 
-  local GUILD_ALL = { "home", "professions", "events", "ready", "loot", "pvp" }
+  local GUILD_ALL = { "home", "professions", "events", "ready", "loot", "pvp", "groups" }
 
   it("groups the tabs in Guild and Admin, with no unlabeled group", function()
     local labels, values = navValues("gm")
@@ -1191,8 +1193,8 @@ describe("ViewModel sidebar, user card and sync pill", function()
       officer = { GUILD_ALL, { "raid", "rules", "roster" } },
       rl = { GUILD_ALL, { "raid", "rules", "roster" } },
       roster = { GUILD_ALL },
-      member = { { "home", "professions", "pvp" } },
-      alter = { { "home", "professions", "pvp" } },
+      member = { { "home", "professions", "pvp", "groups" } },
+      alter = { { "home", "professions", "pvp", "groups" } },
     }
     for role, groups in pairs(expected) do
       local _, values = navValues(role, "r1")
@@ -1201,7 +1203,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
   end)
 
   it("shows the ranks that depend on a roster nothing but the Guild basics without one", function()
-    local basics = { { "home", "professions", "pvp" } }
+    local basics = { { "home", "professions", "pvp", "groups" } }
     for _, role in ipairs({ "roster", "member", "alter" }) do
       local labels, values = navValues(role, nil)
       assert.are.same({ "Guild" }, labels, role)
@@ -1209,12 +1211,12 @@ describe("ViewModel sidebar, user card and sync pill", function()
     end
     -- The Admin group opens with admin_view, but its tabs follow their own scope: rl without a roster has none.
     local _, rl = navValues("rl", nil)
-    assert.are.same({ { "home", "professions", "pvp" }, {} }, { rl[1], rl[2] or {} })
+    assert.are.same({ { "home", "professions", "pvp", "groups" }, {} }, { rl[1], rl[2] or {} })
     -- gm, cogm and officer reach every roster, so a missing roster of their own changes nothing for them.
     local _, gm = navValues("gm", nil)
     assert.are.same({ GUILD_ALL, { "raid", "rules", "roster", "pvpadmin" } }, gm)
     local _, officer = navValues("officer", nil)
-    assert.are.same({ { "home", "professions", "pvp" }, { "rules", "roster" } }, officer)
+    assert.are.same({ { "home", "professions", "pvp", "groups" }, { "rules", "roster" } }, officer)
   end)
 
   it("keeps the Admin group away from roster, member and alter, and from a player without a rank", function()
@@ -1226,6 +1228,42 @@ describe("ViewModel sidebar, user card and sync pill", function()
     for _, group in ipairs(ViewModel.NavGroups(nil, nil)) do
       assert.are_not.equal("Admin", group.label)
     end
+  end)
+
+  it("shows the open groups on the Groups item and on no other", function()
+    local function badges(count)
+      local found = {}
+      for _, group in ipairs(ViewModel.NavGroups("gm", "r1", count)) do
+        for _, item in ipairs(group.items) do
+          found[item.value] = item.badge
+        end
+      end
+      return found
+    end
+    assert.are.same({ groups = "4" }, badges(4))
+    assert.are.same({}, badges(0))
+    assert.are.same({}, badges(nil))
+    assert.are.same({ groups = "99+" }, badges(250))
+    assert.are.same(
+      {},
+      (function()
+        local found = {}
+        for _, group in ipairs(ViewModel.NavGroups("gm", "r1")) do
+          for _, item in ipairs(group.items) do
+            found[item.value] = item.badge
+          end
+        end
+        return found
+      end)()
+    )
+  end)
+
+  it("counts the open groups for the sidebar", function()
+    assert.are.equal("3", ViewModel.GroupsBadge(3))
+    assert.are.equal("99+", ViewModel.GroupsBadge(100))
+    assert.is_nil(ViewModel.GroupsBadge(0))
+    assert.is_nil(ViewModel.GroupsBadge(nil))
+    assert.is_nil(ViewModel.GroupsBadge("3"))
   end)
 
   it("tells which tabs a player sees, hidden and unknown ones never", function()
@@ -1278,7 +1316,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
     ns.Locale.UsePreference("es", "enUS")
     assert.are.equal("Inicio", vm.TABS[1].text)
     assert.are.equal("Inicio", vm.NavGroups("member")[1].items[1].text)
-    assert.are.equal("Reglas del roster", vm.TABS[8].text)
+    assert.are.equal("Reglas del roster", vm.TABS[9].text)
     assert.are.equal("cumplido", vm.Word("met"))
     ns.Locale.UsePreference("auto", "enUS")
     assert.are.equal("Home", vm.TABS[1].text)

@@ -299,6 +299,31 @@ UI.LayersChanged = throttledRedraw(function()
   return currentTab == "layers" or currentTab == "home"
 end, ns.Constants.LAYER_REDRAW_SECONDS)
 
+-- The open groups of the board, the own one included: the count of the Groups item of the sidebar.
+local function openGroups()
+  return ns.lfgBoard and ns.lfgBoard:OpenCount() or 0
+end
+
+-- Changes the count of the sidebar without building it again. Cheap, and not tied to the tab on screen: the count is
+-- on every tab.
+function UI.RefreshGroupsBadge()
+  if UI.IsOpen() and sidebar then
+    sidebar:SetItemBadge("groups", ns.ViewModel.GroupsBadge(openGroups()))
+  end
+end
+
+local groupsRedraw = throttledRedraw(function()
+  return currentTab == "groups" or currentTab == "home"
+end, ns.Constants.LFG_REDRAW_SECONDS)
+
+-- The board, the own post or the own application changed (a whole guild logging in sends one post each): the count of
+-- the sidebar follows at once, and the Groups tab (and Home, which shows the count) is drawn again at most once per
+-- LFG_REDRAW_SECONDS.
+function UI.LfgChanged()
+  UI.RefreshGroupsBadge()
+  groupsRedraw()
+end
+
 -- A blacklist entry arrived from the guild (a snapshot brings the whole list), or the group changed.
 UI.BlacklistChanged = throttledRedraw(function()
   return currentTab == "blacklist"
@@ -473,7 +498,7 @@ function UI.BuildSidebar()
     return
   end
   sidebar = Kit.Sidebar(window.body, {
-    groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId()),
+    groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId(), openGroups()),
     value = currentTab,
     onSelect = function(value)
       UI.SelectTab(value)

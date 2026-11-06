@@ -356,6 +356,8 @@ ns.Constants = {
   LFG_REDRAW_SECONDS = 1,
   -- How often the board and the own applicants are swept of what nobody refreshed.
   LFG_SWEEP_SECONDS = 15,
+  -- A Groups popup that cannot be shown during a lockdown tries again after this long.
+  LFG_POPUP_RETRY_SECONDS = 5,
 
   -- Guild map. Positions travel on their own addon prefix (not through the NRAGE envelope): a message is
   -- "P1:<map>:<x>:<y>" of at most POSITION_MAX_BYTES bytes, x and y in 0..10000. The own position is checked every

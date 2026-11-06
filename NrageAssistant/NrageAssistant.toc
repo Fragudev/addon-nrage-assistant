@@ -113,6 +113,7 @@ UI\ViewModelPvP.lua
 UI\ViewModelProfessions.lua
 UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
+UI\ViewModelGroups.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -129,9 +130,11 @@ UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
+UI\Tabs\Groups.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua
+UI\LfgPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua
