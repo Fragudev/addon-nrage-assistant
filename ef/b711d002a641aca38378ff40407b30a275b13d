@@ -1,0 +1,33 @@
+NrageAssistant/UI/Tabs/PvPIntel.lua
+  s_0e68a66d17ed7f::t_3aee2b8d779337 495-497
+release-notes/v1.1.0.md
+  s_0e68a66d17ed7f::t_2e7cdd20bede49 12
+NrageAssistant/Locales/esES.lua
+  s_0e68a66d17ed7f::t_dd8b8878f00c1f 975,1058,1165
+NrageAssistant/Commands/IntelCommands.lua
+  s_0e68a66d17ed7f::t_d70c8db643e5d3 33
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_b9aedcedf7c9c4 1331-1333,1342,1344
+tests/intel_commands_spec.lua
+  s_0e68a66d17ed7f::t_e0264ee891bf50 394-396
+NrageAssistant/UI/IntelWindow.lua
+  s_0e68a66d17ed7f::t_3dcfa6ffdff6e9 419-424,697,705-711,717-720,727,732-733,735-739,762
+tests/intel_window_spec.lua
+  s_0e68a66d17ed7f::t_8cdecd1df209ea 249,262-264,666-713
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "efb711d002a641aca38378ff40407b30a275b13d",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
