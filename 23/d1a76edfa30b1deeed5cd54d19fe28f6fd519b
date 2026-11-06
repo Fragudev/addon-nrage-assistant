@@ -1,0 +1,23 @@
+NrageAssistant/Domain/LfgBoard.lua
+  s_3dfa5a4152a3e7::t_2bfdd1071eb28d 1-196
+NrageAssistant/NrageAssistant.toc
+  s_3dfa5a4152a3e7::t_cbd2b0938a2d9e 75
+tests/lfg_board_spec.lua
+  s_3dfa5a4152a3e7::t_65fa580d6335eb 1-245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "23d1a76edfa30b1deeed5cd54d19fe28f6fd519b",
+  "prompts": {},
+  "sessions": {
+    "s_3dfa5a4152a3e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4194495b-b937-4815-b37c-df57a62e9ec6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
