@@ -1,7 +1,13 @@
 -- The pure rules of PvP seasons: period keys, claim ids, validation, officer intervals, the ranking and the digest.
 local function load_model()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PermissionService", "Domain/PvPSeasonModel" }) do
+  for _, path in ipairs({
+    "Core/Constants",
+    "Core/Validate",
+    "Domain/PermissionService",
+    "Domain/PvPSeasonModel",
+    "Domain/IntelModel",
+  }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns.PvPSeasonModel, ns.Constants
@@ -164,6 +170,30 @@ describe("PvPSeasonModel.ValidateMission", function()
     assert.are.same({ kind = "manual", count = 1, zones = {}, place = "any", distinct = "none" }, clean.goal)
   end)
 
+  it("keeps a bounty target cleaned, and drops it for any other kind", function()
+    local bounty = copy(good, { goal = { kind = "kos", count = 1, target = "  Zed-Realm " } })
+    assert.are.equal("Zed", assert(Model.ValidateMission(bounty)).goal.target)
+    local none = copy(good, { goal = { kind = "kos", count = 2 } })
+    assert.is_nil(assert(Model.ValidateMission(none)).goal.target)
+    local kills = copy(good, { goal = { kind = "kills", target = "Zed" } })
+    assert.is_nil(assert(Model.ValidateMission(kills)).goal.target)
+    for _, target in ipairs({ "", "a|b", "a:b", 5 }) do
+      local _, why = Model.ValidateMission(copy(good, { goal = { kind = "kos", target = target } }))
+      assert.are.equal("invalid:goal", why)
+    end
+  end)
+
+  it("refuses a target when the name rules are not loaded", function()
+    local bare = {}
+    for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PvPSeasonModel" }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", bare)
+    end
+    local _, why =
+      bare.PvPSeasonModel.ValidateMission(copy(good, { goal = { kind = "kos", count = 1, target = "Zed" } }))
+    assert.are.equal("invalid:goal", why)
+    assert(bare.PvPSeasonModel.ValidateMission(copy(good, { goal = { kind = "kos", count = 1 } })))
+  end)
+
   it("refuses each field out of bounds", function()
     local function goal(change)
       return copy(good, { goal = copy(good.goal, change) })
@@ -220,6 +250,14 @@ describe("PvPSeasonModel.ValidateClaim", function()
 
   it("accepts a clean claim", function()
     assert.are.same(good, assert(Model.ValidateClaim(good)))
+  end)
+
+  it("keeps the kos flag of a kill in the evidence and refuses any other value", function()
+    local row = copy(good.evidence[1], { kos = true })
+    assert.is_true(assert(Model.ValidateClaim(copy(good, { evidence = { row } }))).evidence[1].kos)
+    assert.is_nil(assert(Model.ValidateClaim(good)).evidence[1].kos)
+    local _, why = Model.ValidateClaim(copy(good, { evidence = { copy(row, { kos = false }) } }))
+    assert.are.equal("invalid:evidence", why)
   end)
 
   it("accepts a claim with no evidence, summary or note", function()

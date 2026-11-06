@@ -6,7 +6,7 @@ local _, ns = ...
 -- Records (all ids are `[A-Za-z0-9_-]{1,40}`; times are server time; a name is a character name as the guild roster
 -- writes it, possibly several words):
 --   season   { id, name, startsAt, endsAt, state = "active" | "closed", rev, updatedAt }
---   mission  { id, seasonId, title, desc, points, goal = { kind, count, zones, place, distinct }, repeatKind,
+--   mission  { id, seasonId, title, desc, points, goal = { kind, count, zones, place, distinct, target? }, repeatKind,
 --              perPlayer, active, rev, updatedAt }
 --   claim    { id, missionId, seasonId, periodKey, player, at, summary, evidence, note }
 --   grant    { id, seasonId, player, missionId, points, at }          (+ `by`, who authored it)
@@ -32,7 +32,7 @@ local MAX_ITEM_ID = 10000000
 local MAX_TOKEN = 20
 
 PvPSeasonModel.STATES = { active = true, closed = true }
-PvPSeasonModel.GOAL_KINDS = { kills = true, bg_wins = true, manual = true }
+PvPSeasonModel.GOAL_KINDS = { kills = true, kos = true, bg_wins = true, manual = true }
 PvPSeasonModel.PLACES = { any = true, world = true, bg = true }
 PvPSeasonModel.DISTINCT = { none = true, name = true, class = true, race = true, class_race = true }
 PvPSeasonModel.REPEAT_KINDS = { once = true, daily = true, weekly = true }
@@ -273,7 +273,17 @@ local function validateGoal(goal)
       zones[index] = mapId
     end
   end
-  return { kind = goal.kind, count = count, zones = zones, place = place, distinct = distinct }
+  local clean = { kind = goal.kind, count = count, zones = zones, place = place, distinct = distinct }
+  -- A bounty ("kos") may name one victim. The name is cleaned with IntelModel (loaded after this file, so it is looked
+  -- up at call time; a client without it refuses a target rather than keep one unchecked). Any other kind drops it.
+  if goal.kind == "kos" and goal.target ~= nil then
+    local target = ns.IntelModel and ns.IntelModel.CleanName(goal.target) or nil
+    if not target then
+      return nil
+    end
+    clean.target = target
+  end
+  return clean
 end
 
 function PvPSeasonModel.ValidateMission(fields)
@@ -360,13 +370,16 @@ local function validateEvidenceRow(row)
     end
     return { at = row.at, bgWin = true, mapId = mapId }
   end
+  if row.kos ~= nil and row.kos ~= true then
+    return nil
+  end
   if not (isText(row.victim, ns.Constants.PVP_FEED_VICTIM_MAX) and type(row.place) == "string") then
     return nil
   end
   if row.place ~= "world" and row.place ~= "bg" then
     return nil
   end
-  local clean = { at = row.at, victim = row.victim, mapId = mapId, place = row.place }
+  local clean = { at = row.at, victim = row.victim, mapId = mapId, place = row.place, kos = row.kos }
   if row.class ~= nil then
     if not isToken(row.class) then
       return nil

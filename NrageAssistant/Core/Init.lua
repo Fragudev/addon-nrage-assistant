@@ -107,6 +107,10 @@ local function StartPvPMissions(feed)
     isActive = function()
       return ns.active == true
     end,
+    isGuildKos = function(name)
+      local guildKos = ns.db and ns.db.global and ns.db.global.guildKos
+      return guildKos ~= nil and ns.GuildKosService.Find(guildKos, name) ~= nil
+    end,
     onChange = function()
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()
