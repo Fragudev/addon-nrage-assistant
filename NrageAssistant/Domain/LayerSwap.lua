@@ -146,6 +146,12 @@ function LayerSwap:Status()
   }
 end
 
+-- Is this client in a swap that has not ended? The Groups flow reads it to stay out of the way (docs/LFG_PLAN.md 2.4).
+function LayerSwap:IsActive()
+  local swap = self.swap
+  return swap ~= nil and not FINAL[swap.stage]
+end
+
 -- Can this client ask for a swap now? Returns true, or false plus "busy" | "locked" | a reason of the eligibility.
 function LayerSwap:CanRequest()
   local swap = self.swap
