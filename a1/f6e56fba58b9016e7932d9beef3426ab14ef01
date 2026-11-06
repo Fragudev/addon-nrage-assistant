@@ -1,0 +1,55 @@
+.luacheckrc
+  s_0e68a66d17ed7f::t_06a50c58f34ff6 16-20
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_925900d36e25e5 242-245,620-621,713-747,750,752,760-763,768-778,781,785
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_703a58be8997bf 1238-1376
+NrageAssistant/Domain/IntelAlerts.lua
+  s_0e68a66d17ed7f::t_e8a243cc072a99 1-334
+NrageAssistant/Domain/IntelDetector.lua
+  s_0e68a66d17ed7f::t_230ce3ebfb8684 27,30,33,37-40,65-66,80-82,133-181
+NrageAssistant/Domain/IntelDirectory.lua
+  s_0e68a66d17ed7f::t_6e442062b3c1e3 11,13-14,67,81,83-85
+NrageAssistant/Domain/IntelModel.lua
+  s_0e68a66d17ed7f::t_9b2024575afe3e 41-50
+NrageAssistant/Domain/IntelReport.lua
+  s_0e68a66d17ed7f::t_289304e0f321df 1-135
+NrageAssistant/Domain/IntelService.lua
+  s_0e68a66d17ed7f::t_42a031824d91fe 56,60-66,183-186,189,206-265,326-340,493,563
+NrageAssistant/Locales/esES.lua
+  s_0e68a66d17ed7f::t_5f065b211fba61 964-979
+NrageAssistant/NrageAssistant.toc
+  s_0e68a66d17ed7f::t_d5332844b3e0db 69-70
+tests/init_spec.lua
+  s_0e68a66d17ed7f::t_36410d0432cac8 390-480
+tests/intel_alerts_spec.lua
+  s_0e68a66d17ed7f::t_7c18569408817c 1-467
+tests/intel_detector_spec.lua
+  s_0e68a66d17ed7f::t_14216e1eece63f 251-332
+tests/intel_directory_spec.lua
+  s_0e68a66d17ed7f::t_7ac18d62ef8cbd 160-179
+tests/intel_model_spec.lua
+  s_0e68a66d17ed7f::t_a1d91f0c13fb4a 237-246
+tests/intel_report_spec.lua
+  s_0e68a66d17ed7f::t_eb1ad74656fca8 1-148
+tests/intel_service_spec.lua
+  s_0e68a66d17ed7f::t_fc1120dc08560b 437-501
+tests/platform_intel_spec.lua
+  s_0e68a66d17ed7f::t_2b93c9324c1658 454-663
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a1f6e56fba58b9016e7932d9beef3426ab14ef01",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
