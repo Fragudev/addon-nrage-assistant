@@ -72,6 +72,7 @@ Domain\IntelImport.lua
 Domain\IntelPins.lua
 Domain\IntelMinimapTooltip.lua
 Domain\LfgModel.lua
+Domain\LfgBoard.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
