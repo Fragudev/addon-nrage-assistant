@@ -1,0 +1,19 @@
+docs/PVP_INTEL_PLAN.md
+  s_0e68a66d17ed7f::t_8a209a7d0b299f 1-467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9efc07f50aeda72b7432600a242eeb449de3fdcd",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
