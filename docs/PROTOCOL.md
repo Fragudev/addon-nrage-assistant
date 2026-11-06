@@ -62,6 +62,9 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_KILL` | guild | `victim` (text, 1 to 40 bytes), `where` (`world` or `bg`), `blow` (boolean) | anyone; the killer is the sender |
 | `BLACKLIST_UPSERT` | guild | `key`, `name` (1 to 40 bytes), `reason` (1 to 100 bytes), `rev`, `updatedAt` | anyone; the author is the sender |
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
+| `KOS_UPSERT` | guild | `key` (the name key, no `:`), `name` (1 to 40 bytes), `category` (`gank`, `camp`, `corpse`, `objective`, `insult` or `other`), optional `reason` (up to 100 bytes), `rev`, `updatedAt` | anyone adds; for an entry that exists, its author, gm or cogm; the author is the sender |
+| `KOS_DELETE` | guild | `key`, `rev` | the author of the entry, gm or cogm; gm or cogm for an entry this client does not hold |
+| `I1` sighting (prefix `NRAGEINT`, plain text, not an envelope type) | guild in the open world; the group in a battleground | `map`, `x`, `y`, `class`, `race`, `level`, `flags`, `name` (see *Enemy sightings*) | anyone in the guild roster; the sender is the client that sent it |
 | `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
 | `ROSTER_UPSERT` | guild | `rosterId`, `name` (1 to 30 bytes, plain text), `rev`, `updatedAt` | admin |
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
@@ -86,7 +89,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `SYNC_REQ` | guild | none | anyone |
 | `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules or roster messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
-`guid` is deliberately never sent.
+`guid` is deliberately never sent. Intel sightings are not in this table: they use their own prefix, see *Enemy sightings* below.
 
 ## Conflict resolution
 
@@ -214,6 +217,31 @@ P1:0                   "forget me"
 - The receiver keeps `{ map, x, y, at }` per sender, in memory, for 60 seconds, at most 200 senders (new ones are
   refused when full).
 
+## Enemy sightings (NRAGEINT)
+
+Intel tells the guild about the enemy players its owner sees. A sighting does not use the `NRAGE` envelope, LibSerialize
+or LibDeflate: it is a short text that is read as it is, so there is no decoder to attack. It has its own prefix,
+`NRAGEINT`, registered by the client like `NRAGE`.
+
+- **Text:** `I1:<map>:<x>:<y>:<class>:<race>:<level>:<flags>:<name>`, at most 96 bytes.
+  - `map` 1 to 9999; `x` and `y` 0 to 10000. They are the **reporter's** position (the client gives no coordinates for
+    an enemy), in zone coordinates times 10000.
+  - `class` and `race` are positions in the fixed lists of the constants, and `0` is unknown.
+  - `level` 0 to 100, `0` is unknown. `flags` 0 to 3: bit 1 is stealth, bit 2 an estimated level (a skull enemy).
+  - `name` is last, so it is the only field that can hold spaces. It is a clean name (1 to 40 bytes, no `|`, `:` or
+    control character).
+  - Any other text, extra field, or value out of range is dropped (`bad_format` or `out_of_range`).
+- **Channels.** `GUILD` (open world), and `RAID`, `PARTY` or `INSTANCE_CHAT` (battlegrounds). Any other channel is
+  dropped (`wrong_channel`).
+- **Sender.** It is the sender the client reports, never anything from the text. Your own messages are dropped. A
+  sender who is not in your guild roster has no role and is dropped (`unknown_sender`), which covers a battleground
+  group mate outside the guild.
+- **Rate.** At most 30 messages per sender in a 60 second window, a rate limit only and never a seen cache.
+- **Sending.** One message per 2 seconds at most, sent with `ChatThrottleLib` at `BULK` priority so it never delays
+  real traffic. An enemy is sent at most once per 30 seconds, sooner when it starts stealth. The queue holds 5 sightings.
+  Nothing is sent in arenas, dungeons and raids, or during an encounter lockdown.
+- **Receiving.** A sighting is kept in memory for 120 seconds, for at most 200 enemies, and is never saved.
+
 ## Guild blacklist
 
 A list of players the guild wants to be warned about, each with a short reason. Two messages, both on the guild
@@ -263,6 +291,37 @@ sender of the snapshot is an admin, like a PvP reset. The blacklist part is capp
 recently updated entries and the 200 newest removals, and shrinks together with the events and the PvP records
 (halved until the snapshot fits in 32 KB). The blacklist is not part of the text export, and an imported blacklist
 item is skipped.
+
+## Guild Kill On Sight list
+
+A list of enemy players the guild wants to watch for, each with a category and an optional reason. It works like the
+blacklist: two messages on the guild channel, with the protocol minor version raised to 10 for them. Older clients
+drop the unknown types with `unknown_type`.
+
+| Action | Roles | Message |
+|---|---|---|
+| add a player, or change an entry | every member to add; for an entry that already exists, its author, gm or cogm | `KOS_UPSERT` |
+| remove | its author, gm or cogm; gm or cogm for an entry the receiver does not hold | `KOS_DELETE` |
+
+- **The author is the sender.** `addedBy` (set once, when the entry is created) and `updatedBy` (every write) are never
+  payload fields. The receiver reads the role of the sender from its own guild roster, and an unknown sender gets
+  nothing (`unknown_sender`).
+- `key` is the name key (`IntelModel.Key`: the name in lowercase without any whitespace or realm suffix). The receiver
+  works it out again from `name` and drops the message (`bad_key`) when they differ. `name`, `category` and `reason`
+  must pass the same check as a personal entry; a text with `|`, `:` or a control character is refused.
+- Entries are stored in `db.global.guildKos`, at most 500. A message that would add a 501st player is refused with
+  `limit`; one that changes a listed player is still accepted.
+- Conflicts follow the other shared data: the higher `rev` wins, then the later `updatedAt`, then the larger sender. An
+  identical message does nothing.
+- **Removal.** `KOS_DELETE` removes the entry and leaves the tombstone `K:<key>` in the shared tombstones with the
+  revision of the removal. An upsert whose `rev` does not exceed the tombstone's is dropped (`tombstoned`). Adding the
+  player again needs a revision above the tombstone's.
+- **Snapshot.** A late joiner gets up to 200 entries and as many removals inside `SYNC_DATA`, the newest first. A
+  `KOS_UPSERT` item of a snapshot may carry `addedBy` and `addedAt`, so the original author and date are kept when a
+  leader relays the entry. Only a snapshot from a raid leader or admin is read this way, the same exception as the
+  blacklist (see *Guild blacklist*).
+- Sending goes through the outbound queue under the key `KOS:<key>`, so a newer change to the same player replaces a
+  queued older one. During an encounter lockdown the message waits in the queue.
 
 ## Readiness rules per roster
 
