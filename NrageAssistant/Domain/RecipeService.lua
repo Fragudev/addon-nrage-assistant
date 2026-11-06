@@ -103,9 +103,10 @@ end
 
 -- The recipes of everyone as an index: recipes[id] = { professionId, crafters = { names } } and professions[id] =
 -- name. `own`
--- = { key, recipes } is this character, `received` is global.recipes, `known(name)` says whether a member still
--- counts (is in
--- the guild roster; nil counts everybody). A member that left is left out.
+-- = { key, alias, recipes } is this character (`alias`: the other key it can have been stored under while its full
+-- name was not known), `received` is global.recipes, `known(name)` says whether a member still counts (is in
+-- the guild roster; nil counts everybody). A member that left is left out. A crafter is listed once per recipe, even
+-- when the same recipe is in two of their professions.
 function RecipeService.Index(own, received, known)
   local index = { recipes = {}, professions = {}, members = 0 }
   local function add(name, professionId, record)
@@ -113,10 +114,13 @@ function RecipeService.Index(own, received, known)
     for _, id in ipairs(record.ids or {}) do
       local entry = index.recipes[id]
       if not entry then
-        entry = { professionId = professionId, crafters = {} }
+        entry = { professionId = professionId, crafters = {}, seen = {} }
         index.recipes[id] = entry
       end
-      entry.crafters[#entry.crafters + 1] = name
+      if not entry.seen[name] then
+        entry.seen[name] = true
+        entry.crafters[#entry.crafters + 1] = name
+      end
     end
   end
   local names = {}
@@ -124,7 +128,8 @@ function RecipeService.Index(own, received, known)
     names[own.key] = own.recipes
   end
   for member, byProfession in pairs(received or {}) do
-    if member ~= (own and own.key) and (not known or known(member)) then
+    local isOwn = own and (member == own.key or member == own.alias)
+    if not isOwn and (not known or known(member)) then
       names[member] = byProfession
     end
   end
