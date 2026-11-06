@@ -1005,6 +1005,114 @@ describe("LfgService.IsBusy", function()
   end)
 end)
 
+describe("LfgService asking before acting", function()
+  local world, lead, ann, pid
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+    lead.service:Post(fields())
+    pid = lead.board:Get("Lead").pid
+  end)
+
+  it("says whether a group can be posted, with the reason", function()
+    assert.is_true(ann.service:CanPost())
+    ann.locked = true
+    assert.are.same({ false, "locked" }, { ann.service:CanPost() })
+    ann.locked = false
+    ann.size, ann.leader = 3, false
+    assert.are.same({ false, "not_leader" }, { ann.service:CanPost() })
+    ann.size, ann.leader = 1, true
+    ann.service:Apply(pid, "tank")
+    assert.are.same({ false, "busy" }, { ann.service:CanPost() })
+  end)
+
+  it("says whether a post can be applied to, with the reason Apply gives", function()
+    assert.is_true(ann.service:CanApply(pid))
+    assert.is_true(ann.service:CanApply(pid, "tank"))
+    assert.are.same({ false, "role" }, { ann.service:CanApply(pid, "nonsense") })
+    assert.are.same({ false, "no_post" }, { ann.service:CanApply("nope") })
+    assert.are.same({ false, "own_post" }, { lead.service:CanApply(pid) })
+    ann.level = 5
+    lead.service:Update({ minLevel = 50 })
+    assert.are.same({ false, "level" }, { ann.service:CanApply(pid) })
+    ann.level = 60
+    ann.size = 2
+    assert.are.same({ false, "in_group" }, { ann.service:CanApply(pid) })
+    ann.size = 1
+    ann.service:Apply(pid, "tank")
+    assert.are.same({ false, "busy" }, { ann.service:CanApply(pid) })
+    assert.is_true(ann.service:IsBusy())
+  end)
+
+  it("sends nothing when it only asks", function()
+    local sent = #world.sent
+    ann.service:CanApply(pid)
+    ann.service:CanPost()
+    assert.are.equal(sent, #world.sent)
+  end)
+end)
+
+describe("LfgService what stays after it ended", function()
+  local world, lead, ann, pid
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+    lead.service:Post(fields({ needs = { tank = 1, heal = 0, dps = 0 } }))
+    pid = lead.board:Get("Lead").pid
+    ann.service:Apply(pid, "tank")
+  end)
+
+  it("remembers an own post that closed by itself, and why", function()
+    lead.service:Invite("Ann")
+    join(ann, lead)
+    local closed = lead.service:Status().closed
+    assert.are.same({ title = "Deadmines", outcome = "full" }, closed)
+    assert.is_nil(lead.service:Status().post)
+  end)
+
+  it("does not remember a post the leader closed", function()
+    lead.service:Close()
+    assert.is_nil(lead.service:Status().closed)
+  end)
+
+  it("forgets it with Dismiss and with a new post", function()
+    lead.size, lead.raid = 4, true
+    lead.service:OnGroupChanged()
+    assert.are.equal("cancelled", lead.service:Status().closed.outcome)
+    assert.is_true(lead.service:Dismiss())
+    assert.is_nil(lead.service:Status().closed)
+    lead.service:OnGroupChanged()
+    lead.size, lead.raid = 1, false
+    lead.service:Post(fields())
+    lead.size, lead.raid = 4, true
+    lead.service:OnGroupChanged()
+    assert.is_truthy(lead.service:Status().closed)
+    lead.size, lead.raid = 1, false
+    lead.service:Post(fields())
+    assert.is_nil(lead.service:Status().closed)
+  end)
+
+  it("clears a finished application but never an active one", function()
+    local changes = ann.changes
+    ann.service:Dismiss()
+    assert.are.equal("applied", ann.service:Status().application.state)
+    assert.is_true(ann.changes > changes)
+    ann.service:Withdraw()
+    assert.are.equal("withdrawn", ann.service:Status().application.state)
+    ann.service:Dismiss()
+    assert.is_nil(ann.service:Status().application)
+  end)
+
+  it("keeps an open post on Dismiss", function()
+    lead.service:Dismiss()
+    assert.is_truthy(lead.service:Status().post)
+  end)
+end)
+
 describe("LfgService sweeping stale applicants", function()
   local world, lead, ann, bob
 
@@ -1031,6 +1139,17 @@ describe("LfgService sweeping stale applicants", function()
     lead.service:Sweep()
     assert.are.equal(1, #lead.service:Status().post.applicants)
     assert.are.equal(before, lead.changes)
+  end)
+
+  it("tells the screen when the board lost a post", function()
+    local watcher = new_client(world, "Watcher")
+    watcher.board:Apply("Lead", world.sent[1].payload)
+    local before = watcher.changes
+    watcher.service:Sweep()
+    assert.are.equal(before, watcher.changes)
+    world.advance(Constants.LFG_POST_TTL + 1)
+    watcher.service:Sweep()
+    assert.is_true(watcher.changes > before)
   end)
 
   it("keeps invited and retry rows", function()

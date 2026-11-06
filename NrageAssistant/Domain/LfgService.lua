@@ -116,7 +116,8 @@ local function publish(self, post, strict)
 end
 
 -- Ends the own post. `strict` (a click) keeps the post when the close message cannot be sent; an automatic close
--- ends it locally anyway and the time to live clears the board of the others.
+-- ends it locally anyway and the time to live clears the board of the others, and is remembered in `closed` so the
+-- leader can see that it ended and why (until Dismiss or a new post).
 local function closePost(self, outcome, strict)
   local post = self.post
   local payload = ns.LfgModel.ClosedPayload(post.pid, post.rev + 1, outcome)
@@ -125,6 +126,9 @@ local function closePost(self, outcome, strict)
     return false, why or "error"
   end
   self.post = nil
+  if not strict then
+    self.closed = { title = post.fields.title, outcome = outcome }
+  end
   self.deps.board:Apply(ownName(self), payload)
   changed(self)
   return true
@@ -163,11 +167,9 @@ function LfgService:IsBusy()
   return self.post ~= nil or (self.application ~= nil and ACTIVE[self.application.state] == true)
 end
 
--- Leader: posts a group. fields = { kind, title, needs = { tank, heal, dps }, minLevel (optional), note (optional) };
--- the members are the party the leader is in now. A new post replaces the old one. Returns true, or false plus a
--- reason: "locked" | "busy" | a reason of the eligibility | the reason of LfgModel.NewPost ("full", "no_needs"...) |
--- the reason the send was refused.
-function LfgService:Post(fields)
+-- Can this client post a group now? Returns true, or false plus "locked" | "busy" | a reason of the eligibility. The
+-- tab asks it to enable its button; Post asks it again.
+function LfgService:CanPost()
   if locked(self) then
     return false, "locked"
   end
@@ -177,6 +179,18 @@ function LfgService:Post(fields)
   end
   if self.application and ACTIVE[self.application.state] then
     return false, "busy"
+  end
+  return true
+end
+
+-- Leader: posts a group. fields = { kind, title, needs = { tank, heal, dps }, minLevel (optional), note (optional) };
+-- the members are the party the leader is in now. A new post replaces the old one. Returns true, or false plus a
+-- reason: "locked" | "busy" | a reason of the eligibility | the reason of LfgModel.NewPost ("full", "no_needs"...) |
+-- the reason the send was refused.
+function LfgService:Post(fields)
+  local ok, reason = self:CanPost()
+  if not ok then
+    return false, reason
   end
   local merged = merge(nil, type(fields) == "table" and fields or {})
   merged.members = members(self)
@@ -193,6 +207,7 @@ function LfgService:Post(fields)
     return false, why2 or "error"
   end
   self.post = post
+  self.closed = nil
   after(self, ns.Constants.LFG_POST_MAX_AGE, function()
     if self.post == post then
       closePost(self, "expired", false)
@@ -266,6 +281,28 @@ local function countRows(post)
   return count
 end
 
+-- Can the leader invite now? Returns true, or false plus "locked" | a reason of the eligibility | "full". The tab asks
+-- it to enable its buttons; Invite asks it again.
+function LfgService:CanInvite()
+  if locked(self) then
+    return false, "locked"
+  end
+  local ok, reason = eligible(self.deps.eligibility.invite)
+  if not ok then
+    return false, reason
+  end
+  local size = groupSize(self)
+  if size and size >= ns.Constants.LFG_PARTY_SIZE then
+    return false, "full"
+  end
+  return true
+end
+
+-- Is the encounter lockdown on? Nothing is sent while it is.
+function LfgService:IsLocked()
+  return locked(self)
+end
+
 -- Leader: invites an applicant through the game (a button, never automatic). Asks the game first: a refused invite
 -- leaves the row as it was and tells the applicant nothing. Only after the game accepted does the row become
 -- "invited" and `accept` go out; if that send fails the invite still stands, and the applicant, who saw the game
@@ -279,18 +316,11 @@ function LfgService:Invite(applicant)
   if not row then
     return false, "unknown_applicant"
   end
-  if locked(self) then
-    return false, "locked"
+  local allowed, why = self:CanInvite()
+  if not allowed then
+    return false, why
   end
-  local ok, reason = eligible(self.deps.eligibility.invite)
-  if not ok then
-    return false, reason
-  end
-  local size = groupSize(self)
-  if size and size >= ns.Constants.LFG_PARTY_SIZE then
-    return false, "full"
-  end
-  ok, reason = eligible(self.deps.invite, row.name)
+  local ok, reason = eligible(self.deps.invite, row.name)
   if not ok then
     return false, reason or "error"
   end
@@ -386,38 +416,59 @@ local function armTimeout(self, app, state, seconds)
   end)
 end
 
+-- What Apply checks before it sends: returns the board entry and the wire role, or nil plus the reason. Without a
+-- `role` the role is not checked, which is how the board asks whether a post can be applied to at all.
+local function applyCheck(self, pid, role)
+  local constants = ns.Constants
+  if locked(self) then
+    return nil, "locked"
+  end
+  local ok, reason = eligible(self.deps.eligibility.apply)
+  if not ok then
+    return nil, reason
+  end
+  if self.post then
+    return nil, "own_post"
+  end
+  local entry = type(pid) == "string" and self.deps.board:ByPid(pid) or nil
+  if not (entry and entry.state == "open") then
+    return nil, "no_post"
+  end
+  if sameName(entry.owner, ownName(self)) then
+    return nil, "own_post"
+  end
+  local wire
+  if role ~= nil then
+    wire = type(role) == "string" and (constants.LFG_ROLES[role] and role or ns.LfgModel.WireRole(role)) or nil
+    if not (wire and (entry.needs[wire] or 0) > 0) then
+      return nil, "role"
+    end
+  end
+  local okLevel, level = pcall(self.deps.ownLevel)
+  if okLevel and type(level) == "number" and entry.minLevel and level < entry.minLevel then
+    return nil, "level"
+  end
+  if self.application and ACTIVE[self.application.state] then
+    return nil, "busy"
+  end
+  return entry, wire
+end
+
+-- Can this client apply to the post `pid` now (with `role`, optional)? Returns true, or false plus the reason Apply
+-- would give.
+function LfgService:CanApply(pid, role)
+  local entry, reason = applyCheck(self, pid, role)
+  return entry ~= nil, reason
+end
+
 -- Applicant: applies to the post `pid` of the board with a role (`tank`, `heal`, `dps`, or a declared role) and an
 -- optional note. Returns true, or false plus "locked" | a reason of the eligibility | "own_post" | "no_post" | "role" |
 -- "level" | "busy" | "bad_note" | the reason the send was refused.
 function LfgService:Apply(pid, role, note)
   local constants = ns.Constants
-  if locked(self) then
-    return false, "locked"
-  end
-  local ok, reason = eligible(self.deps.eligibility.apply)
-  if not ok then
-    return false, reason
-  end
-  if self.post then
-    return false, "own_post"
-  end
-  local entry = type(pid) == "string" and self.deps.board:ByPid(pid) or nil
-  if not (entry and entry.state == "open") then
-    return false, "no_post"
-  end
-  if sameName(entry.owner, ownName(self)) then
-    return false, "own_post"
-  end
-  local wire = type(role) == "string" and (constants.LFG_ROLES[role] and role or ns.LfgModel.WireRole(role)) or nil
-  if not (wire and (entry.needs[wire] or 0) > 0) then
-    return false, "role"
-  end
-  local okLevel, level = pcall(self.deps.ownLevel)
-  if okLevel and type(level) == "number" and entry.minLevel and level < entry.minLevel then
-    return false, "level"
-  end
-  if self.application and ACTIVE[self.application.state] then
-    return false, "busy"
+  local entry, wire = applyCheck(self, pid, role or false)
+  if not entry then
+    return false, wire
   end
   if note ~= nil and note ~= "" then
     note = note:match("^%s*(.-)%s*$")
@@ -437,6 +488,18 @@ function LfgService:Apply(pid, role, note)
     { pid = entry.pid, leader = entry.owner, title = entry.title, role = wire, note = note, state = "applied" }
   self.application = app
   armTimeout(self, app, "applied", constants.LFG_APPLY_TIMEOUT)
+  changed(self)
+  return true
+end
+
+-- Both sides: clears what stays on screen after it ended: a finished application (joined, declined, withdrawn or
+-- expired) and the note of an own post that closed by itself. Never touches an active application or an open post.
+function LfgService:Dismiss()
+  local app = self.application
+  if app and not ACTIVE[app.state] then
+    self.application = nil
+  end
+  self.closed = nil
   changed(self)
   return true
 end
@@ -614,12 +677,12 @@ end
 
 -- Both sides: drops what nobody repeated for too long, ends the application whose post is gone and drops the pending
 -- applicants nobody refreshed within LFG_APPLY_TIMEOUT (their own timeout ran out, or they logged out). Invited and
--- retry rows stay: the leader is still acting on them. Meant for a timer that runs while the addon is active.
+-- retry rows stay: the leader is still acting on them. Calls onChange when something was dropped (the sidebar counts
+-- the board). Meant for a timer that runs while the addon is active.
 function LfgService:Sweep()
-  self.deps.board:Prune()
+  local dropped = self.deps.board:Prune() > 0
   local post = self.post
   if post then
-    local dropped = false
     local cutoff = self.deps.now() - ns.Constants.LFG_APPLY_TIMEOUT
     for key, row in pairs(post.applicants) do
       if row.state == "pending" and row.at < cutoff then
@@ -627,9 +690,9 @@ function LfgService:Sweep()
         dropped = true
       end
     end
-    if dropped then
-      changed(self)
-    end
+  end
+  if dropped then
+    changed(self)
   end
   local app = self.application
   if app and ACTIVE[app.state] then
@@ -648,7 +711,8 @@ local function left(self, deadline)
   return deadline and math.max(0, deadline - self.deps.now()) or nil
 end
 
--- { post, application }. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, minLevel, note,
+-- { post, application, closed }. `closed` is { title, outcome } of an own post that closed by itself, until Dismiss or
+-- a new post. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, minLevel, note,
 -- remaining, age, left (seconds to LFG_POST_MAX_AGE), applicants = { { name, role, note, state (pending | invited |
 -- retry), left, at } oldest first } }. `application` is the own application, or nil: { pid, leader, title, role,
 -- note, state (applied | invited | joined | declined | withdrawn | expired), reason, left }. A finished
@@ -690,6 +754,9 @@ function LfgService:Status()
       left = math.max(0, ns.Constants.LFG_POST_MAX_AGE - (now - post.createdAt)),
       applicants = rows,
     }
+  end
+  if self.closed then
+    status.closed = { title = self.closed.title, outcome = self.closed.outcome }
   end
   local app = self.application
   if app then
