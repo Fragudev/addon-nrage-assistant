@@ -24,14 +24,20 @@ function IntelDetector.New(deps)
   for _, unit in ipairs({ "target", "focus", "mouseover" }) do
     units[#units + 1] = unit
   end
-  return setmetatable({
+  local detector = setmetatable({
     deps = deps,
     units = units,
+    unitSet = {},
     targeting = {},
     drops = {},
+    lossSources = { recap = 0, targeting = 0, target = 0, unknown = 0 },
     contacts = 0,
     reads = 0,
   }, IntelDetector)
+  for _, unit in ipairs(units) do
+    detector.unitSet[unit] = true
+  end
+  return detector
 end
 
 function IntelDetector:Drop(reason)
@@ -56,8 +62,8 @@ local function allowedNow(self)
 end
 
 -- Reads one unit already known to be allowed. `quiet` leaves the "unreadable" drop uncounted: a scan asks about
--- units that do not exist, which is the normal case.
-function IntelDetector:Read(unit, quiet)
+-- units that do not exist, which is the normal case. `stealth` marks the enemy as having just cast a stealth ability.
+function IntelDetector:Read(unit, quiet, stealth)
   local deps = self.deps
   local reader = deps.reader
   local read, details = pcall(reader.GetEnemyDetails, unit)
@@ -71,6 +77,9 @@ function IntelDetector:Read(unit, quiet)
     return self:Drop("unreadable")
   end
   details = copy(details)
+  if stealth then
+    details.stealth = true
+  end
 
   -- The reader rejects the own faction already; a second look keeps a duel or a reader that forgot from getting in.
   local own = reader.GetPlayerFaction and select(2, pcall(reader.GetPlayerFaction)) or nil
@@ -119,6 +128,55 @@ function IntelDetector:OnUnit(unit)
     return self:Drop(why)
   end
   return self:Read(unit, false)
+end
+
+-- A spell was cast by `unit` (UNIT_SPELLCAST_SUCCEEDED). Only a stealth ability cast by a unit the detector watches (a
+-- nameplate, the target, the focus or the mouseover) counts: that enemy is read again, marked as stealthed. Anything
+-- else is ignored without being counted, since most casts are not stealth. Returns what OnUnit returns, or nil plus
+-- "not_stealth".
+function IntelDetector:OnCast(unit, spellId)
+  if not (self.unitSet[unit] and ns.Constants.INTEL_STEALTH_SPELLS[spellId]) then
+    return nil, "not_stealth"
+  end
+  local ok, why = allowedNow(self)
+  if not ok then
+    return self:Drop(why)
+  end
+  return self:Read(unit, false, true)
+end
+
+-- Who killed the player, as `name, source`: the killer of the death recap when it is a known enemy ("recap"), else the
+-- newest enemy that was targeting the player within Constants.INTEL_LOSS_FALLBACK_SECONDS ("targeting"), else the
+-- current target when it is an enemy player ("target"). Nil plus "unknown" when none applies.
+function IntelDetector:ResolveKiller(recapKiller)
+  local deps = self.deps
+  if recapKiller and deps.service:Player(recapKiller) then
+    return recapKiller, "recap"
+  end
+  local list = self:RecentTargeters(ns.Constants.INTEL_LOSS_FALLBACK_SECONDS)
+  if list[1] then
+    return list[1].name, "targeting"
+  end
+  local read, details = pcall(deps.reader.GetEnemyDetails, "target")
+  if read and type(details) == "table" and type(details.name) == "string" then
+    return details.name, "target"
+  end
+  return nil, "unknown"
+end
+
+-- The player died: stores the loss against the killer (see ResolveKiller) and counts which source named it. Returns
+-- the result of IntelService:OnLoss plus the source, or nil plus "unknown".
+function IntelDetector:OnDeath(recapKiller)
+  local name, source = self:ResolveKiller(recapKiller)
+  self.lossSources[source] = (self.lossSources[source] or 0) + 1
+  if not name then
+    return nil, source
+  end
+  local record = self.deps.service:OnLoss(name)
+  if not record then
+    return nil, "unknown"
+  end
+  return record, source
 end
 
 -- Reads every unit the client can show an enemy on, asking `allowed` once. Returns how many enemies were read.

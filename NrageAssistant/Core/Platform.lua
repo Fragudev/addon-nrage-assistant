@@ -1235,4 +1235,143 @@ function Platform.GetLootWindowItems()
   return items
 end
 
+-- Intel alerts and results (docs/PVP_INTEL_PLAN.md section 3.3). Not measured on Forever yet (M7, M8, M9): every reader
+-- is guarded and gives nil (or false) for a missing API, an error or a secret value.
+
+-- Shows `text` in the red error area at the top of the screen. False when the client has no such frame.
+function Platform.ShowErrorText(text)
+  if type(text) ~= "string" or not (UIErrorsFrame and UIErrorsFrame.AddMessage) then
+    return false
+  end
+  return (pcall(UIErrorsFrame.AddMessage, UIErrorsFrame, text, 1, 0.1, 0.1, 1))
+end
+
+-- The name of a map ("Stranglethorn Vale"), or nil when the client does not say.
+function Platform.GetMapName(mapId)
+  if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then
+    return nil
+  end
+  local ok, name = pcall(function()
+    local info = C_Map.GetMapInfo(mapId)
+    if type(info) == "table" and type(info.name) == "string" and #info.name > 0 then
+      return info.name .. ""
+    end
+    return nil
+  end)
+  return ok and name or nil
+end
+
+-- The sound of each kind of Intel alert: the SOUNDKIT name and the legacy sound name used when the client has none.
+local INTEL_SOUNDS = {
+  kos = { "RAID_WARNING", "RaidWarning" },
+  kosGuild = { "ALARM_CLOCK_WARNING_3", "AlarmClockWarning3" },
+  stealth = { "ALARM_CLOCK_WARNING_2", "AlarmClockWarning2" },
+  race = { "IG_QUEST_LIST_OPEN", "igQuestListOpen" },
+  new = { "IG_MAINMENU_OPEN", "igMainMenuOpen" },
+}
+
+-- Plays the sound of an alert kind. False when the kind is unknown or the client has no sound or refuses it.
+function Platform.PlayIntelSound(kind)
+  local sound = INTEL_SOUNDS[kind]
+  if not (sound and PlaySound) then
+    return false
+  end
+  return (pcall(PlaySound, SOUNDKIT and SOUNDKIT[sound[1]] or sound[2]))
+end
+
+-- The unit and the spell id of an UNIT_SPELLCAST_SUCCEEDED event as `unit, spellId`, or nil when either is missing or
+-- not plain (during an encounter the arguments can be secret values, which raise when they are used).
+function Platform.ReadSpellEvent(unit, _, spellId)
+  local ok, readUnit, readSpell = pcall(function()
+    if type(unit) ~= "string" or type(spellId) ~= "number" then
+      return nil
+    end
+    local plain = unit .. ""
+    local id = spellId + 0
+    if #plain == 0 or id % 1 ~= 0 or id < 1 then
+      return nil
+    end
+    return plain, id
+  end)
+  if ok and readUnit then
+    return readUnit, readSpell
+  end
+  return nil
+end
+
+local LOCAL_DEFENSE_NAMES = { "localdefense", "defensalocal" }
+
+-- The id of the Local Defense channel the player has joined, or nil. The channel name is localised, so it is matched
+-- by the names of the known clients. Not measured yet.
+local function localDefenseId()
+  if not GetChannelList then
+    return nil
+  end
+  local list = { GetChannelList() }
+  for index = 1, #list - 1, 3 do
+    local id, name = list[index], list[index + 1]
+    if type(id) == "number" and type(name) == "string" then
+      local lowered = name:lower():gsub("[%s_]", "")
+      for _, known in ipairs(LOCAL_DEFENSE_NAMES) do
+        if lowered:find(known, 1, true) then
+          return id
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local CHAT_CHANNELS = { SAY = true, PARTY = true, RAID = true, GUILD = true, INSTANCE_CHAT = true }
+
+-- Sends one chat line. `channel` is SAY, PARTY, RAID, GUILD, INSTANCE_CHAT or LOCALDEFENSE (which needs a hardware
+-- event: call it from a click or a typed command). Nothing is sent during the encounter lockdown. False when it was
+-- not sent.
+function Platform.SendChatLine(channel, text)
+  if type(text) ~= "string" or text == "" or not SendChatMessage or Platform.IsChatMessagingLockedDown() then
+    return false
+  end
+  local ok = pcall(function()
+    if channel == "LOCALDEFENSE" then
+      local id = localDefenseId()
+      if not id then
+        error("no channel")
+      end
+      SendChatMessage(text, "CHANNEL", nil, id)
+    elseif CHAT_CHANNELS[channel] then
+      SendChatMessage(text, channel)
+    else
+      error("bad channel")
+    end
+  end)
+  return ok
+end
+
+-- The name of the player the death recap blames for the death of the player, or nil when the recap is missing, empty
+-- or unreadable (including a secret value). Not measured yet (M8): the functions of the retail recap are tried in turn.
+function Platform.GetDeathKiller()
+  local ok, killer = pcall(function()
+    local events
+    if DeathRecap_GetEvents then
+      events = DeathRecap_GetEvents()
+    elseif C_DeathRecap and C_DeathRecap.GetRecapEvents then
+      events = C_DeathRecap.GetRecapEvents()
+    end
+    if type(events) ~= "table" then
+      return nil
+    end
+    local best
+    for _, event in ipairs(events) do
+      if type(event) == "table" and type(event.sourceName) == "string" and #event.sourceName > 0 then
+        local at = type(event.timestamp) == "number" and event.timestamp or 0
+        if not best or at >= best.at then
+          best = { at = at, name = event.sourceName .. "" }
+        end
+      end
+    end
+    return best and best.name or nil
+  end)
+  return ok and killer or nil
+end
+
 ns.Platform = Platform

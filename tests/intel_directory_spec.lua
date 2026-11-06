@@ -157,3 +157,23 @@ describe("IntelDirectory", function()
     assert.are.equal("Bob", env.directory:List()[1].name)
   end)
 end)
+
+describe("IntelDirectory onSighting", function()
+  it("tells the alerts about a stored sighting, and survives a hook that raises", function()
+    local seen = {}
+    local directory = ns.IntelDirectory.New({
+      now = function()
+        return 100
+      end,
+      onSighting = function(entry)
+        seen[#seen + 1] = entry
+        error("boom")
+      end,
+    })
+    assert.is_true(directory:Apply("Ann", sighting()))
+    assert.are.equal("bob", seen[1].key)
+    assert.are.equal("Ann", seen[1].source)
+    assert.is_false(directory:Apply("", sighting()))
+    assert.are.equal(1, #seen)
+  end)
+end)

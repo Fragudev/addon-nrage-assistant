@@ -38,6 +38,16 @@ function IntelModel.CleanName(name)
   return clean
 end
 
+-- Text from the client (a guild name) made safe to show: "|" and control characters removed, cut to `max` bytes
+-- (default INTEL_NAME_MAX). Nil when nothing is left.
+function IntelModel.Plain(text, max)
+  if type(text) ~= "string" then
+    return nil
+  end
+  local plain = text:gsub("[|%c]", ""):sub(1, max or ns.Constants.INTEL_NAME_MAX)
+  return plain ~= "" and plain or nil
+end
+
 local function indexIn(list, value)
   for index, entry in ipairs(list) do
     if entry == value then

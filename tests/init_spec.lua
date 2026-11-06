@@ -387,6 +387,97 @@ describe("Init", function()
       assert.is_false(env.ns.intelEvents.UPDATE_MOUSEOVER_UNIT)
       assert.is_true(env.ns.intelEvents.PLAYER_TARGET_CHANGED)
     end)
+
+    it("registers the cast and death events and builds the alerts", function()
+      local intelFrame = start()
+      assert.are.same({}, env.ns.startupErrors)
+      assert.is_true(intelFrame.events.UNIT_SPELLCAST_SUCCEEDED)
+      assert.is_true(intelFrame.events.PLAYER_DEAD)
+      assert.is_true(env.ns.intelEvents.PLAYER_DEAD)
+      assert.is_table(env.ns.intelAlerts)
+    end)
+
+    it("alerts for a Kill On Sight enemy in the error area while the window does not exist", function()
+      local intelFrame = start()
+      local shown, sounds = {}, {}
+      env.ns.Platform.ShowErrorText = function(text)
+        shown[#shown + 1] = text
+      end
+      env.ns.Platform.PlayIntelSound = function(kind)
+        sounds[#sounds + 1] = kind
+      end
+      env.ns.intel:AddKos({ name = "Eve" })
+      env.units.nameplate1 = { name = "Eve", faction = "Horde", level = 60 }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+      assert.are.same({ "Kill on Sight: Eve (level 60)" }, shown)
+      assert.are.same({ "kos" }, sounds)
+
+      -- With the window there, the warning goes to it.
+      local warned = {}
+      env.ns.IntelWindow = {
+        Warn = function(text, kind)
+          warned[#warned + 1] = kind .. ":" .. text
+        end,
+      }
+      env.ns.intel:AddKos({ name = "Tom" })
+      env.units.nameplate2 = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate2")
+      env.ns.IntelWindow = nil
+      assert.are.same({ "kos:Kill on Sight: Tom" }, warned)
+      assert.are.equal(1, #shown)
+    end)
+
+    it("alerts when a guildmate reports a Kill On Sight enemy on the same map", function()
+      start()
+      local shown = {}
+      env.ns.Platform.ShowErrorText = function(text)
+        shown[#shown + 1] = text
+      end
+      env.ns.intel:AddKos({ name = "Eve" })
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1, level = 60 })
+      assert.are.same({ "Ann reports Kill on Sight: Eve (level 60)" }, shown)
+    end)
+
+    it("marks an enemy that casts a stealth ability, and ignores other spells", function()
+      local intelFrame = start()
+      env.units.nameplate4 = { name = "Rogue", faction = "Horde", level = 60 }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate4")
+      assert.is_false(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "nameplate4", "guid", 133)
+      assert.is_false(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "nameplate4", "guid", 1784)
+      assert.is_true(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "party1", "guid", 1784)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED")
+    end)
+
+    it("stores a loss against the killer of the death recap on PLAYER_DEAD", function()
+      local intelFrame = start()
+      env.units.target = { name = "Bob", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      env.ns.Platform.GetDeathKiller = function()
+        return "Bob"
+      end
+      intelFrame.OnEvent(intelFrame, "PLAYER_DEAD")
+      assert.are.equal(1, env.ns.db.global.intel.players.bob.losses)
+      assert.are.equal(1, env.ns.intelDetector.lossSources.recap)
+    end)
+
+    it("counts a win when the honour message names a victim", function()
+      start()
+      local pvpFrame
+      for _, frame in ipairs(env.frames) do
+        if frame.events.CHAT_MSG_COMBAT_HONOR_GAIN then
+          pvpFrame = frame
+        end
+      end
+      env.ns.Platform.ParseHonorVictim = function()
+        return "Bob"
+      end
+      pvpFrame.OnEvent(pvpFrame, "CHAT_MSG_COMBAT_HONOR_GAIN", "Bob dies, honorable kill")
+      assert.are.equal(1, env.ns.db.global.intel.players.bob.wins)
+      assert.are.equal(1, env.ns.intel.session.wins)
+    end)
   end)
 
   describe("database", function()

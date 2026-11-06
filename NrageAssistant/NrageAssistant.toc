@@ -66,6 +66,8 @@ Domain\IntelDetector.lua
 Domain\GuildKosService.lua
 Domain\IntelDirectory.lua
 Domain\IntelPublisher.lua
+Domain\IntelAlerts.lua
+Domain\IntelReport.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

@@ -8,8 +8,10 @@ local _, ns = ...
 --   * An entry older than Constants.INTEL_DIRECTORY_TTL is removed by Prune() and is not listed.
 --   * The position of a sighting is the position of the reporter, not the enemy's.
 --   * onChange() fires after anything was added, replaced or removed, so the views can be redrawn.
+--   * onSighting(entry) fires after Apply stored a sighting, so the alerts can look at it.
 --
--- deps = { now = function() -> seconds (monotonic), onChange = function() (optional) }
+-- deps = { now = function() -> seconds (monotonic), onChange = function() (optional),
+--          onSighting = function(entry) (optional) }
 local IntelDirectory = {}
 IntelDirectory.__index = IntelDirectory
 
@@ -62,7 +64,7 @@ function IntelDirectory:Apply(sender, decoded)
     end
     self.count = self.count + 1
   end
-  self.entries[key] = {
+  local entry = {
     key = key,
     name = decoded.name,
     class = decoded.class,
@@ -76,7 +78,11 @@ function IntelDirectory:Apply(sender, decoded)
     at = self.deps.now(),
     source = sender,
   }
+  self.entries[key] = entry
   changed(self)
+  if self.deps.onSighting then
+    pcall(self.deps.onSighting, entry)
+  end
   return true
 end
 

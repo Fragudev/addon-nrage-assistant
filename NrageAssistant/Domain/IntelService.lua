@@ -53,7 +53,15 @@ function IntelService.New(deps)
     guildKos = deps.guildKos or {},
     nearby = {},
     playerCount = countKeys(intel.players),
+    session = IntelService.NewSession(),
   }, IntelService)
+end
+
+-- The counters of this session, kept in memory only (IntelReport.Session reads them): contacts, wins, losses and
+-- Kill On Sight entries added, how often each enemy was met (`seen`), killed the player (`lostTo`), and in which map
+-- contacts happened (`zones`); `names` gives the name behind a key.
+function IntelService.NewSession()
+  return { contacts = 0, wins = 0, losses = 0, newKos = 0, seen = {}, lostTo = {}, zones = {}, names = {} }
 end
 
 -- The seconds an entry stays in Nearby, or 0 for "never leaves".
@@ -172,8 +180,13 @@ function IntelService:OnSeen(details, where)
 
   if isNew then
     record.seen = record.seen + 1
+    local session = self.session
+    session.contacts = session.contacts + 1
+    session.seen[key] = (session.seen[key] or 0) + 1
+    session.names[key] = name
     if where.map then
       self:CountZone(where.map)
+      session.zones[where.map] = (session.zones[where.map] or 0) + 1
     end
     entry = { key = key, firstSeen = now }
     self.nearby[key] = entry
@@ -188,6 +201,66 @@ function IntelService:OnSeen(details, where)
   entry.stealth = details.stealth == true
   entry.map, entry.x, entry.y = where.map or entry.map, where.x or entry.x, where.y or entry.y
   return { isNew = isNew, record = record, key = key, kos = kos }
+end
+
+-- The saved record of a player met, or nil.
+function IntelService:Player(name)
+  local key = Model.Key(name)
+  local record = key and self.intel.players[key]
+  if usable(record) then
+    return record, key
+  end
+  return nil
+end
+
+-- The record of `name`, made when the player was never met (a kill or a death can name one the nameplates never
+-- showed). Returns the record plus its key, or nil plus "bad_name".
+function IntelService:Touch(name)
+  local clean = Model.CleanName(name)
+  if not clean then
+    return nil, "bad_name"
+  end
+  local key = Model.Key(clean)
+  local record = self.intel.players[key]
+  if not usable(record) then
+    if not record then
+      self:MakePlayerRoom()
+      self.playerCount = self.playerCount + 1
+    end
+    local wall = self.deps.wall()
+    record = { firstSeen = wall, lastSeen = wall, seen = 0, wins = 0, losses = 0 }
+    self.intel.players[key] = record
+  end
+  record.name = clean
+  return record, key
+end
+
+-- The player was the victim of an honour kill credited to the own character. Returns the record plus its key, or nil
+-- plus "bad_name".
+function IntelService:OnWin(victim)
+  local record, key = self:Touch(victim)
+  if not record then
+    return nil, key
+  end
+  record.wins = record.wins + 1
+  record.lastSeen = self.deps.wall()
+  self.session.wins = self.session.wins + 1
+  self.session.names[key] = record.name
+  return record, key
+end
+
+-- The player killed the own character. Returns the record plus its key, or nil plus "bad_name".
+function IntelService:OnLoss(killer)
+  local record, key = self:Touch(killer)
+  if not record then
+    return nil, key
+  end
+  record.losses = record.losses + 1
+  record.lastSeen = self.deps.wall()
+  self.session.losses = self.session.losses + 1
+  self.session.lostTo[key] = (self.session.lostTo[key] or 0) + 1
+  self.session.names[key] = record.name
+  return record, key
 end
 
 -- Marks the enemy of `name` that is in Nearby as having cast a stealth ability. Returns true when it is there.
@@ -248,6 +321,21 @@ function IntelService:Nearby(now, remote)
   end
   table.sort(list, byKosThenRecent)
   return list
+end
+
+-- The guilds of the Kill On Sight players (personal and guild list) as a set of lower-case names, from the records of
+-- the players met. A player never met, or met without a guild, adds nothing.
+function IntelService:KosGuilds()
+  local set = {}
+  for _, source in ipairs({ self.intel.kos, self.guildKos }) do
+    for key in pairs(source) do
+      local record = self.intel.players[key]
+      if type(record) == "table" and type(record.guild) == "string" and record.guild ~= "" then
+        set[record.guild:lower()] = true
+      end
+    end
+  end
+  return set
 end
 
 -- A copy of a record with its key and its Kill On Sight scope.
@@ -402,6 +490,7 @@ function IntelService:AddKos(fields)
     end
     entry = { addedAt = self.deps.wall() }
     kos[clean.key] = entry
+    self.session.newKos = self.session.newKos + 1
   end
   entry.name, entry.category, entry.reason = clean.name, clean.category, clean.reason
   self.intel.ignore[clean.key] = nil
@@ -471,6 +560,7 @@ function IntelService:Reset()
   self.intel.zones = {}
   self.playerCount = 0
   self.nearby = {}
+  self.session = IntelService.NewSession()
 end
 
 -- Removes the player records not seen for Constants.INTEL_RETENTION_DAYS (wall-clock `now`). Returns how many.

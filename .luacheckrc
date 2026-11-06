@@ -13,6 +13,11 @@ globals = {
 
 -- WoW client API used by the addon. Extend as new APIs are adopted.
 read_globals = {
+  "C_DeathRecap",
+  "DeathRecap_GetEvents",
+  "GetChannelList",
+  "SendChatMessage",
+  "UIErrorsFrame",
   "C_AddOns",
   "C_Map",
   "CLASS_ICON_TCOORDS",

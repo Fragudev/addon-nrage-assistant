@@ -248,3 +248,85 @@ describe("IntelDetector:RecentTargeters", function()
     assert.are.same({}, env.detector:RecentTargeters(10))
   end)
 end)
+
+describe("IntelDetector:OnCast", function()
+  local env
+
+  before_each(function()
+    env = build()
+  end)
+
+  it("reads the caster again as stealthed when a stealth spell comes from a watched unit", function()
+    env.units.nameplate3 = enemy("Bob")
+    local result, details = env.detector:OnCast("nameplate3", 1784)
+    assert.is_truthy(result)
+    assert.is_true(details.stealth)
+    assert.is_true(env.contacts[1].details.stealth)
+  end)
+
+  it("ignores another spell, another unit and an addon that is not allowed without counting a drop", function()
+    env.units.nameplate3 = enemy("Bob")
+    env.units.party1 = enemy("Ann")
+    assert.are.same({ nil, "not_stealth" }, { env.detector:OnCast("nameplate3", 133) })
+    assert.are.same({ nil, "not_stealth" }, { env.detector:OnCast("party1", 1784) })
+    assert.are.same({}, env.detector.drops)
+    env.allowed = false
+    assert.are.same({ nil, "sanctuary" }, { env.detector:OnCast("nameplate3", 1784) })
+    assert.are.equal(1, env.detector.drops.sanctuary)
+  end)
+end)
+
+describe("IntelDetector:OnDeath", function()
+  local env
+
+  before_each(function()
+    env = build()
+  end)
+
+  it("takes the killer of the death recap when it is a known enemy", function()
+    env.units.target = enemy("Bob")
+    env.detector:OnUnit("target")
+    local record, source = env.detector:OnDeath("Bob-Realm")
+    assert.are.equal("recap", source)
+    assert.are.equal(1, record.losses)
+    assert.are.equal(1, env.detector.lossSources.recap)
+  end)
+
+  it("falls back to the newest enemy that targeted the player", function()
+    env.targeting.nameplate1 = true
+    env.units.nameplate1 = enemy("Old")
+    env.detector:OnUnit("nameplate1")
+    env.clock = env.clock + 3
+    env.targeting.nameplate1, env.targeting.nameplate2 = nil, true
+    env.units.nameplate2 = enemy("New")
+    env.detector:OnUnit("nameplate2")
+    env.clock = env.clock + 1
+    local record, source = env.detector:OnDeath("a creature")
+    assert.are.equal("targeting", source)
+    assert.are.equal("New", record.name)
+    assert.are.equal(1, env.detector.lossSources.targeting)
+  end)
+
+  it("falls back to the enemy target, and says when nobody can be named", function()
+    env.units.target = enemy("Tom")
+    local record, source = env.detector:OnDeath(nil)
+    assert.are.equal("target", source)
+    assert.are.equal("Tom", record.name)
+    env.units.target = nil
+    assert.are.same({ nil, "unknown" }, { env.detector:OnDeath(nil) })
+    assert.are.equal(1, env.detector.lossSources.unknown)
+  end)
+
+  it("does not use an enemy that targeted the player a long time ago", function()
+    env.targeting.nameplate1 = true
+    env.units.nameplate1 = enemy("Old")
+    env.detector:OnUnit("nameplate1")
+    env.clock = env.clock + Constants.INTEL_LOSS_FALLBACK_SECONDS + 1
+    assert.are.same({ nil, "unknown" }, { env.detector:OnDeath(nil) })
+  end)
+
+  it("gives up when the target cannot be read", function()
+    env.units.target = "raise"
+    assert.are.same({ nil, "unknown" }, { env.detector:OnDeath(nil) })
+  end)
+end)

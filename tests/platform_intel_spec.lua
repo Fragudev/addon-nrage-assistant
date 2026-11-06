@@ -451,3 +451,213 @@ describe("Platform.GroupDistribution", function()
     end)
   end)
 end)
+
+describe("Platform alert and result readers", function()
+  it("shows error text in the error area, or says there is none", function()
+    local shown
+    with_globals({
+      UIErrorsFrame = {
+        AddMessage = function(_, text)
+          shown = text
+        end,
+      },
+    }, function()
+      assert.is_true(load_platform().ShowErrorText("Beware"))
+      assert.are.equal("Beware", shown)
+      assert.is_false(load_platform().ShowErrorText(nil))
+    end)
+    with_globals({ UIErrorsFrame = false }, function()
+      assert.is_false(load_platform().ShowErrorText("Beware"))
+    end)
+    with_globals({
+      UIErrorsFrame = {
+        AddMessage = function()
+          error("restricted")
+        end,
+      },
+    }, function()
+      assert.is_false(load_platform().ShowErrorText("Beware"))
+    end)
+  end)
+
+  it("plays the sound of an alert kind, with the legacy name when the client has no SOUNDKIT", function()
+    local played = {}
+    with_globals({
+      SOUNDKIT = { RAID_WARNING = 8959 },
+      PlaySound = function(id)
+        played[#played + 1] = id
+      end,
+    }, function()
+      assert.is_true(load_platform().PlayIntelSound("kos"))
+      assert.is_true(load_platform().PlayIntelSound("stealth"))
+      assert.is_false(load_platform().PlayIntelSound("nothing"))
+    end)
+    with_globals({
+      SOUNDKIT = false,
+      PlaySound = function(id)
+        played[#played + 1] = id
+      end,
+    }, function()
+      assert.is_true(load_platform().PlayIntelSound("kosGuild"))
+    end)
+    assert.are.same({ 8959, "AlarmClockWarning2", "AlarmClockWarning3" }, played)
+    with_globals({ PlaySound = false }, function()
+      assert.is_false(load_platform().PlayIntelSound("kos"))
+    end)
+    with_globals({
+      PlaySound = function()
+        error("no")
+      end,
+    }, function()
+      assert.is_false(load_platform().PlayIntelSound("kos"))
+    end)
+  end)
+
+  it("reads the unit and the spell id of a cast, and drops what is missing, wrong or secret", function()
+    local platform = load_platform()
+    assert.are.same({ "nameplate3", 1784 }, { platform.ReadSpellEvent("nameplate3", "guid", 1784) })
+    assert.is_nil(platform.ReadSpellEvent(nil, "guid", 1784))
+    assert.is_nil(platform.ReadSpellEvent("target", "guid", "1784"))
+    assert.is_nil(platform.ReadSpellEvent("", "guid", 1784))
+    assert.is_nil(platform.ReadSpellEvent("target", "guid", 1.5))
+    assert.is_nil(platform.ReadSpellEvent("target", "guid", 0))
+    local hidden = setmetatable({}, {
+      __add = function()
+        error("secret")
+      end,
+    })
+    assert.is_nil(platform.ReadSpellEvent("target", "guid", hidden))
+  end)
+
+  it("sends a chat line and sends nothing during the lockdown", function()
+    local sent = {}
+    local function send(text, kind, language, target)
+      sent[#sent + 1] = { text = text, kind = kind, language = language, target = target }
+    end
+    with_globals({ SendChatMessage = send, C_ChatInfo = false }, function()
+      local platform = load_platform()
+      assert.is_true(platform.SendChatLine("GUILD", "hi"))
+      assert.is_true(platform.SendChatLine("INSTANCE_CHAT", "hi"))
+      assert.is_false(platform.SendChatLine("YELL", "hi"))
+      assert.is_false(platform.SendChatLine("GUILD", ""))
+      assert.is_false(platform.SendChatLine("GUILD", nil))
+    end)
+    assert.are.same({ { text = "hi", kind = "GUILD" }, { text = "hi", kind = "INSTANCE_CHAT" } }, sent)
+    with_globals({
+      SendChatMessage = send,
+      C_ChatInfo = {
+        InChatMessagingLockdown = function()
+          return true
+        end,
+      },
+    }, function()
+      assert.is_false(load_platform().SendChatLine("GUILD", "hi"))
+    end)
+    assert.are.equal(2, #sent)
+    with_globals({ SendChatMessage = false }, function()
+      assert.is_false(load_platform().SendChatLine("GUILD", "hi"))
+    end)
+  end)
+
+  it("finds the Local Defense channel by its name, in English or Spanish", function()
+    local sent = {}
+    local function send(text, kind, language, target)
+      sent[#sent + 1] = { text = text, kind = kind, language = language, target = target }
+    end
+    with_globals({
+      SendChatMessage = send,
+      GetChannelList = function()
+        return 1, "General - Elwynn", false, 4, "DefensaLocal - Elwynn", false
+      end,
+    }, function()
+      assert.is_true(load_platform().SendChatLine("LOCALDEFENSE", "hi"))
+    end)
+    with_globals({
+      SendChatMessage = send,
+      GetChannelList = function()
+        return 2, "LocalDefense - Elwynn", false
+      end,
+    }, function()
+      assert.is_true(load_platform().SendChatLine("LOCALDEFENSE", "hi"))
+    end)
+    assert.are.same({ text = "hi", kind = "CHANNEL", target = 4 }, sent[1])
+    assert.are.equal(2, sent[2].target)
+    with_globals({
+      SendChatMessage = send,
+      GetChannelList = function()
+        return 1, "General - Elwynn", false, "x", 5, true
+      end,
+    }, function()
+      assert.is_false(load_platform().SendChatLine("LOCALDEFENSE", "hi"))
+    end)
+    with_globals({ SendChatMessage = send, GetChannelList = false }, function()
+      assert.is_false(load_platform().SendChatLine("LOCALDEFENSE", "hi"))
+    end)
+    assert.are.equal(2, #sent)
+  end)
+
+  it("names the killer of the death recap, the newest event first", function()
+    with_globals({
+      DeathRecap_GetEvents = function()
+        return {
+          { sourceName = "Old-Realm", timestamp = 1 },
+          { sourceName = "Newest", timestamp = 9 },
+          { sourceName = 5, timestamp = 10 },
+          { sourceName = "", timestamp = 11 },
+          "junk",
+        }
+      end,
+    }, function()
+      assert.are.equal("Newest", load_platform().GetDeathKiller())
+    end)
+    with_globals({
+      DeathRecap_GetEvents = false,
+      C_DeathRecap = {
+        GetRecapEvents = function()
+          return { { sourceName = "First" }, { sourceName = "Second" } }
+        end,
+      },
+    }, function()
+      assert.are.equal("Second", load_platform().GetDeathKiller())
+    end)
+  end)
+
+  it("gives no killer when the recap is missing, empty, wrong or raises", function()
+    with_globals({ DeathRecap_GetEvents = false, C_DeathRecap = false }, function()
+      assert.is_nil(load_platform().GetDeathKiller())
+    end)
+    for _, value in ipairs({ "no table", {}, { { sourceName = secret() } } }) do
+      with_globals({
+        DeathRecap_GetEvents = function()
+          return value
+        end,
+      }, function()
+        assert.is_nil(load_platform().GetDeathKiller())
+      end)
+    end
+    with_globals({
+      DeathRecap_GetEvents = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_nil(load_platform().GetDeathKiller())
+    end)
+  end)
+
+  it("reads the name of a map", function()
+    with_globals({
+      C_Map = {
+        GetMapInfo = function(id)
+          return id == 1411 and { name = "Durotar" } or { name = 5 }
+        end,
+      },
+    }, function()
+      assert.are.equal("Durotar", load_platform().GetMapName(1411))
+      assert.is_nil(load_platform().GetMapName(1))
+      assert.is_nil(load_platform().GetMapName("x"))
+    end)
+    with_globals({ C_Map = false }, function()
+      assert.is_nil(load_platform().GetMapName(1411))
+    end)
+  end)
+end)

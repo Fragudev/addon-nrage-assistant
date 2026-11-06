@@ -239,6 +239,10 @@ local function StartPvP()
         local victim = ns.Platform.ParseHonorVictim(text)
         if victim then
           feed:OnHonorKill(victim, tracker:Where())
+          -- The same honour kill is a win against that enemy in Intel.
+          if ns.intel then
+            pcall(ns.intel.OnWin, ns.intel, victim)
+          end
         end
       end
     end
@@ -613,6 +617,8 @@ local INTEL_UNIT_EVENTS = {
   { event = "UPDATE_MOUSEOVER_UNIT", unit = "mouseover" },
 }
 
+local INTEL_OTHER_EVENTS = { "UNIT_SPELLCAST_SUCCEEDED", "PLAYER_DEAD" }
+
 local intelStarted = false
 
 -- Runs once, like StartPosition: access can be lost and regained.
@@ -704,10 +710,46 @@ local function StartIntel()
     directory = directory,
     now = platform.Now,
   })
+
+  -- Alerts and announcements. The warning goes to the movable window once ns.IntelWindow exists (the interface),
+  -- else to the error area at the top of the screen.
+  local function settings()
+    return ns.Settings.Intel(ns.db)
+  end
+  local alerts = ns.IntelAlerts.New({
+    settings = settings,
+    service = service,
+    now = platform.Now,
+    mapId = platform.GetPlayerMapId,
+    window = function(text, alert)
+      if ns.IntelWindow and ns.IntelWindow.Warn then
+        return ns.IntelWindow.Warn(text, alert.kind) ~= false
+      end
+      return false
+    end,
+    errorText = function(text)
+      return platform.ShowErrorText(text)
+    end,
+    playSound = function(kind)
+      return platform.PlayIntelSound(kind)
+    end,
+    say = function(text)
+      print(("%s %s"):format(PREFIX, text))
+    end,
+    send = function(channel, text)
+      return platform.SendChatLine(channel, text)
+    end,
+    groupChannel = platform.GroupDistribution,
+  })
+  ns.intelAlerts = alerts
+  directory.deps.onSighting = function(entry)
+    alerts:OnReport(entry)
+  end
   detector.deps.onContact = function(result, details, spot)
     if not result.ignored then
-      publisher:Offer(details, spot, result.kos ~= nil)
+      pcall(publisher.Offer, publisher, details, spot, result.kos ~= nil)
     end
+    alerts:OnContact(result, details)
   end
 
   ns.intelEvents = {}
@@ -715,19 +757,32 @@ local function StartIntel()
   for _, spec in ipairs(INTEL_UNIT_EVENTS) do
     ns.intelEvents[spec.event] = platform.TryRegisterEvent(intelFrame, spec.event)
   end
-  intelFrame:SetScript("OnEvent", function(_, event, unit)
+  for _, event in ipairs(INTEL_OTHER_EVENTS) do
+    ns.intelEvents[event] = platform.TryRegisterEvent(intelFrame, event)
+  end
+  intelFrame:SetScript("OnEvent", function(_, event, ...)
     if not ns.active then
       return
     end
     -- During an encounter the arguments can be secret values: any error means "drop it silently".
-    pcall(function()
+    pcall(function(...)
+      if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit, spell = platform.ReadSpellEvent(...)
+        if unit then
+          detector:OnCast(unit, spell)
+        end
+        return
+      elseif event == "PLAYER_DEAD" then
+        detector:OnDeath(platform.GetDeathKiller())
+        return
+      end
       for _, spec in ipairs(INTEL_UNIT_EVENTS) do
         if spec.event == event then
-          detector:OnUnit(spec.unit or unit)
+          detector:OnUnit(spec.unit or (...))
           return
         end
       end
-    end)
+    end, ...)
   end)
 
   C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
