@@ -8,7 +8,7 @@ Kill On Sight list, live sightings, bounties tied to the PvP seasons, and sessio
 This document is written for the implementing agents and must be executable without the conversation that produced
 it. **Decided** items were agreed with the owner. **Default** items are proposals to implement as written.
 
-**Status:** planned 2026-11-06, branch `feat/pvp-intel`, target release `v1.1.0`.
+**Status:** implemented on branch `feat/pvp-intel` (planned 2026-11-06), target release `v1.1.0`.
 
 **Inspiration, not source.** Spy, Spy (Forever) and True Spy are All Rights Reserved. Their code was not read and no
 code, text, sound or image may be copied from them. Only the behaviour listed on their public pages is used.
