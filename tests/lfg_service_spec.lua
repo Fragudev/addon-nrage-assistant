@@ -151,6 +151,9 @@ local function new_client(world, name)
     isLeader = function()
       return c.leader
     end,
+    isRaid = function()
+      return c.raid
+    end,
     board = c.board,
     onChange = function()
       c.changes = c.changes + 1
@@ -680,17 +683,21 @@ describe("LfgService inviting", function()
     assert.are.same({ false, "no_post" }, { lead.service:Invite("Ann") })
   end)
 
-  it("does not invite when the accept cannot be sent", function()
+  it("keeps the invite when the accept cannot be sent after the game took it", function()
     lead.sendFails = true
-    assert.are.same({ false, "error" }, { lead.service:Invite("Ann") })
-    assert.are.same({}, lead.invites)
-    assert.are.equal("pending", lead.service:Status().post.applicants[1].state)
+    assert.is_true(lead.service:Invite("Ann"))
+    assert.are.same({ "Ann" }, lead.invites)
+    assert.are.equal("invited", lead.service:Status().post.applicants[1].state)
+    assert.are.equal("applied", ann.service:Status().application.state)
   end)
 
-  it("keeps the row as it was when the game refuses the invite", function()
+  it("keeps the row as it was and sends nothing when the game refuses the invite", function()
+    local sent = #world.sent
     lead.inviteFails = true
     assert.are.same({ false, "invite_failed" }, { lead.service:Invite("Ann") })
     assert.are.equal("pending", lead.service:Status().post.applicants[1].state)
+    assert.are.equal(sent, #world.sent)
+    assert.are.equal("applied", ann.service:Status().application.state)
   end)
 
   it("refuses when a rule raises", function()
@@ -980,6 +987,49 @@ describe("LfgService joining", function()
   end)
 end)
 
+describe("LfgService sweeping stale applicants", function()
+  local world, lead, ann, bob
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+    bob = new_client(world, "Bob")
+    lead.service:Post(fields())
+    ann.service:Apply(lead.board:Get("Lead").pid, "tank")
+  end)
+
+  it("drops a pending row older than the apply timeout and says so", function()
+    world.advance(Constants.LFG_APPLY_TIMEOUT + 1)
+    local before = lead.changes
+    lead.service:Sweep()
+    assert.are.equal(0, #lead.service:Status().post.applicants)
+    assert.is_true(lead.changes > before)
+  end)
+
+  it("keeps a recent pending row and stays quiet", function()
+    world.advance(Constants.LFG_APPLY_TIMEOUT - 1)
+    local before = lead.changes
+    lead.service:Sweep()
+    assert.are.equal(1, #lead.service:Status().post.applicants)
+    assert.are.equal(before, lead.changes)
+  end)
+
+  it("keeps invited and retry rows", function()
+    bob.service:Apply(lead.board:Get("Lead").pid, "dps")
+    lead.service:Invite("Ann")
+    world.advance(Constants.LFG_APPLY_TIMEOUT - 20)
+    lead.service:Invite("Bob")
+    world.advance(21)
+    lead.service:Sweep()
+    local states = {}
+    for _, row in ipairs(lead.service:Status().post.applicants) do
+      states[row.name] = row.state
+    end
+    assert.are.same({ Ann = "retry", Bob = "invited" }, states)
+  end)
+end)
+
 describe("LfgService closing with the party", function()
   local world, lead, ann
 
@@ -1003,6 +1053,26 @@ describe("LfgService closing with the party", function()
     lead.service:OnGroupChanged()
     assert.is_nil(lead.service:Status().post)
     assert.are.equal("Lead:closed=cancelled", sentKinds(world)[#world.sent])
+  end)
+
+  it("closes as cancelled when a raid of five or fewer forms", function()
+    lead.size, lead.raid = 4, true
+    lead.service:OnGroupChanged()
+    assert.is_nil(lead.service:Status().post)
+    assert.are.equal("Lead:closed=cancelled", sentKinds(world)[#world.sent])
+  end)
+
+  it("keeps the post when the raid check raises or answers something else than true", function()
+    lead.size = 1
+    lead.service.deps.isRaid = function()
+      error("api")
+    end
+    lead.service:OnGroupChanged()
+    lead.service.deps.isRaid = function()
+      return 1
+    end
+    lead.service:OnGroupChanged()
+    assert.is_truthy(lead.service:Status().post)
   end)
 
   it("closes as cancelled when the party disbands after someone joined", function()

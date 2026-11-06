@@ -4,9 +4,9 @@ local _, ns = ...
 -- own post and the applicant of one application. Nothing here touches the client: the clock, the timers, the
 -- transport, the eligibility rules and the game actions (invite) are injected, so the rules are tested with fakes.
 --
---   Leader: Post() publishes an open post; applicants arrive as rows ("pending"); Invite() is a button click that sends
---     `accept` and asks the game to invite ("invited", then "retry" if the join never came); Decline() answers
---     `decline`.
+--   Leader: Post() publishes an open post; applicants arrive as rows ("pending"); Invite() is a button click that asks
+--     the game to invite and, only if the game accepts, sends `accept` ("invited", then "retry" if the join never
+--     came); Decline() answers `decline`.
 --     OnGroupChanged() turns a joined applicant into one seat less, and closes the post when it is full or when the
 --     party stops being the one that was posted (outcome `full` | `cancelled` | `expired`).
 --   Applicant: Apply() -> "applied" -> "invited" (the leader accepted) -> "joined". It ends as "declined", "withdrawn"
@@ -25,7 +25,7 @@ local _, ns = ...
 --          eligibility = { post = function() -> ok, reason, apply = function() -> ok, reason,
 --            invite = function() -> ok, reason }  (see LfgService.Eligibility),
 --          invite = function(name) -> ok, reason, isGroupMember = function(name) -> boolean,
---          groupSize = function() -> number (0 or 1 when alone, more than LFG_PARTY_SIZE in a raid),
+--          groupSize = function() -> number (0 or 1 when alone), isRaid = function() -> boolean (only `true` counts),
 --          isLeader = function() -> boolean, board = LfgBoard, onChange = function() (optional) }
 local LfgService = {}
 LfgService.__index = LfgService
@@ -260,8 +260,10 @@ local function countRows(post)
   return count
 end
 
--- Leader: invites an applicant through the game (a button, never automatic). Sends `accept` first and then asks
--- the game; if the game refuses, the row stays as it was and the applicant waits out their own timeout.
+-- Leader: invites an applicant through the game (a button, never automatic). Asks the game first: a refused invite
+-- leaves the row as it was and tells the applicant nothing. Only after the game accepted does the row become
+-- "invited" and `accept` go out; if that send fails the invite still stands, and the applicant, who saw the game
+-- prompt, waits out their own timeout.
 function LfgService:Invite(applicant)
   local post = self.post
   if not post then
@@ -282,14 +284,11 @@ function LfgService:Invite(applicant)
   if size and size >= ns.Constants.LFG_PARTY_SIZE then
     return false, "full"
   end
-  local sent, why = transmit(self, "apply", ns.LfgModel.AcceptPayload(post.pid, row.name))
-  if not sent then
-    return false, why or "error"
-  end
   ok, reason = eligible(self.deps.invite, row.name)
   if not ok then
     return false, reason or "error"
   end
+  transmit(self, "apply", ns.LfgModel.AcceptPayload(post.pid, row.name))
   self.tokens = self.tokens + 1
   local token = self.tokens
   row.state, row.token = "invited", token
@@ -537,8 +536,8 @@ local function syncPost(self)
   if not size then
     return
   end
-  -- A party of more than five is a raid.
-  if size > constants.LFG_PARTY_SIZE then
+  local okRaid, raid = pcall(self.deps.isRaid)
+  if (okRaid and raid == true) or size > constants.LFG_PARTY_SIZE then
     closePost(self, "cancelled", false)
     return
   end
@@ -607,10 +606,25 @@ function LfgService:OnGroupChanged()
   syncApplication(self)
 end
 
--- Both sides: drops what nobody repeated for too long and ends the application whose post is gone. Meant for a
--- timer that runs while the addon is active.
+-- Both sides: drops what nobody repeated for too long, ends the application whose post is gone and drops the pending
+-- applicants nobody refreshed within LFG_APPLY_TIMEOUT (their own timeout ran out, or they logged out). Invited and
+-- retry rows stay: the leader is still acting on them. Meant for a timer that runs while the addon is active.
 function LfgService:Sweep()
   self.deps.board:Prune()
+  local post = self.post
+  if post then
+    local dropped = false
+    local cutoff = self.deps.now() - ns.Constants.LFG_APPLY_TIMEOUT
+    for key, row in pairs(post.applicants) do
+      if row.state == "pending" and row.at < cutoff then
+        post.applicants[key] = nil
+        dropped = true
+      end
+    end
+    if dropped then
+      changed(self)
+    end
+  end
   local app = self.application
   if app and ACTIVE[app.state] then
     local entry = self.deps.board:Get(app.leader)
