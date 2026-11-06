@@ -1,0 +1,19 @@
+docs/LFG_PLAN.md
+  s_3dfa5a4152a3e7::t_94face1ca15802 1-396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "4758ed2eced313f050b0727425ed05858c748455",
+  "prompts": {},
+  "sessions": {
+    "s_3dfa5a4152a3e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4194495b-b937-4815-b37c-df57a62e9ec6",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
