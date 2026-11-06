@@ -10,8 +10,8 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 13", function()
-    assert.are.equal(15, ns.Constants.SCHEMA_VERSION)
+  it("is at schema version 16", function()
+    assert.are.equal(16, ns.Constants.SCHEMA_VERSION)
   end)
 
   it("keeps a position message inside its size limit and the directory inside the rate limit", function()

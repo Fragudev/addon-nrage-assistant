@@ -60,6 +60,9 @@ Domain\PositionModel.lua
 Domain\PositionPublisher.lua
 Domain\PositionDirectory.lua
 Domain\PositionPins.lua
+Domain\IntelModel.lua
+Domain\IntelService.lua
+Domain\IntelDetector.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua

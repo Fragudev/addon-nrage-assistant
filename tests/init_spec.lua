@@ -216,6 +216,116 @@ describe("Init", function()
     end)
   end)
 
+  describe("Intel", function()
+    local function start()
+      local tickers = {}
+      _G.C_Timer.NewTicker = function(seconds, fn)
+        tickers[#tickers + 1] = { seconds = seconds, fn = fn }
+      end
+      local platform = env.ns.Platform
+      platform.Now = function()
+        return 100
+      end
+      platform.GetInstanceKind = function()
+        return "none"
+      end
+      platform.GetZonePvPType = function()
+        return "contested"
+      end
+      platform.GetPlayerMapId = function()
+        return 1411
+      end
+      platform.PlayerMapPosition = function()
+        return { map = 1411, x = 0.5, y = 0.25 }
+      end
+      platform.GetPlayerFaction = function()
+        return "Alliance"
+      end
+      env.units = {}
+      platform.GetEnemyDetails = function(unit)
+        return env.units[unit]
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local intelFrame
+      for _, frame in ipairs(env.frames) do
+        if frame.events.PLAYER_FOCUS_CHANGED then
+          intelFrame = frame
+        end
+      end
+      return intelFrame, tickers
+    end
+
+    it("starts once, registers each event and rescans every second", function()
+      local intelFrame, tickers = start()
+      assert.are.same({}, env.ns.startupErrors)
+      assert.is_table(env.ns.intel)
+      assert.is_table(env.ns.intelDetector)
+      for _, event in ipairs({
+        "NAME_PLATE_UNIT_ADDED",
+        "PLAYER_TARGET_CHANGED",
+        "PLAYER_FOCUS_CHANGED",
+        "UPDATE_MOUSEOVER_UNIT",
+      }) do
+        assert.is_true(intelFrame.events[event], event)
+        assert.is_true(env.ns.intelEvents[event], event)
+      end
+      local found = {}
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          found[#found + 1] = ticker.fn
+        end
+      end
+      assert.is_true(#found >= 1)
+
+      env.units.nameplate2 = { name = "Bob", class = "ROGUE", faction = "Horde", level = 60 }
+      for _, fn in ipairs(found) do
+        pcall(fn)
+      end
+      assert.are.equal(1, env.ns.intel:Counts().players)
+      assert.are.equal(1411, env.ns.db.global.intel.players.bob.lastMap)
+      assert.are.equal(5000, env.ns.db.global.intel.players.bob.lastX)
+      assert.are.equal(2500, env.ns.db.global.intel.players.bob.lastY)
+    end)
+
+    it("reads the unit an event names, and ignores events while the addon is off", function()
+      local intelFrame = start()
+      env.units.nameplate7 = { name = "Eve", faction = "Horde" }
+      env.units.target = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate7")
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      assert.is_table(env.ns.db.global.intel.players.eve)
+      assert.is_table(env.ns.db.global.intel.players.tom)
+      env.ns.active = false
+      env.units.focus = { name = "Zed", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_FOCUS_CHANGED")
+      assert.is_nil(env.ns.db.global.intel.players.zed)
+    end)
+
+    it("reads nothing in a dungeon", function()
+      local intelFrame = start()
+      env.ns.Platform.GetInstanceKind = function()
+        return "party"
+      end
+      env.units.target = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      assert.is_nil(env.ns.db.global.intel.players.tom)
+    end)
+
+    it("keeps working when the client refuses an event", function()
+      local original = env.ns.Platform.TryRegisterEvent
+      env.ns.Platform.TryRegisterEvent = function(frame, event)
+        if event == "UPDATE_MOUSEOVER_UNIT" then
+          return false
+        end
+        return original(frame, event)
+      end
+      start()
+      assert.is_false(env.ns.intelEvents.UPDATE_MOUSEOVER_UNIT)
+      assert.is_true(env.ns.intelEvents.PLAYER_TARGET_CHANGED)
+    end)
+  end)
+
   describe("database", function()
     it("turns the addon off with a notice when a migration raises, and leaves the saved data alone", function()
       local raw = { global = { schemaVersion = 1 } }

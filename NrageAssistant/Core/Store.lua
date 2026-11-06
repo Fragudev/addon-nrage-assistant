@@ -3,7 +3,8 @@ local _, ns = ...
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, language,
 --                 blacklistSound, layer, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
---                 blacklist = {}, readinessRulesByRoster = { [rosterId] = { rev, updatedAt, updatedBy, rules } },
+--                 blacklist = {}, guildKos = {}, intel = { players, kos, ignore, zones } (see IntelService),
+--                 readinessRulesByRoster = { [rosterId] = { rev, updatedAt, updatedBy, rules } },
 --                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
 --                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
@@ -186,6 +187,21 @@ local MIGRATIONS = {
     end
     rekey(ensureTable(global, "blacklist"), "")
     rekey(ensureTable(ensureTable(global, "sync"), "tombstones"), "B:")
+  end,
+  -- v16: Intel (docs/PVP_INTEL_PLAN.md): the enemy player records with the personal Kill On Sight and Ignore lists
+  -- (intel) and the guild Kill On Sight list (guildKos, whose removals are tombstones "K:<key>"). The notice that
+  -- sharing sightings is on by default is left once, when the tables are created; nothing else is touched.
+  [16] = function(db)
+    local global = ensureTable(db, "global")
+    local settings = ensureTable(global, "settings")
+    if type(global.intel) ~= "table" then
+      settings.intelShareNotice = true
+    end
+    local intel = ensureTable(global, "intel")
+    for _, name in ipairs({ "players", "kos", "ignore", "zones" }) do
+      ensureTable(intel, name)
+    end
+    ensureTable(global, "guildKos")
   end,
 }
 

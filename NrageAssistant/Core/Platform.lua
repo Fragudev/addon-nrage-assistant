@@ -520,6 +520,188 @@ function Platform.GetEnemyPlayerInfo(unit)
   return ok and info or nil
 end
 
+-- Intel (docs/PVP_INTEL_PLAN.md). Not measured on Forever yet (M3, M4, M6, M7): every reader is guarded and gives nil
+-- (or false for a switch) when the API is missing, raises or returns a secret value.
+
+-- A plain string copy of text from the client, or nil when it is not a readable non-empty string. A secret value
+-- raises when it is measured or concatenated.
+local function readableText(value)
+  local ok, copy = pcall(function()
+    if type(value) == "string" and #value > 0 then
+      return value .. ""
+    end
+    return nil
+  end)
+  return ok and copy or nil
+end
+
+local function factionOf(unit)
+  if not UnitFactionGroup then
+    return nil
+  end
+  local ok, faction = pcall(function()
+    local value = UnitFactionGroup(unit)
+    if value == "Alliance" or value == "Horde" then
+      return value
+    end
+    return nil
+  end)
+  return ok and faction or nil
+end
+
+-- What is known of the enemy player on `unit`: { name, class, race, level, skull, guild, faction }. `class` and `race`
+-- are upper-case file tokens, `level` is a whole number (nil when unreadable, and for a skull level, which sets
+-- `skull = true`), `guild` and `faction` are nil when unreadable. Nil when the unit is not an enemy player of the
+-- other faction (a duel opponent has the own one) or its name cannot be read. GetEnemyPlayerInfo, which the missions
+-- use, is left as it is.
+function Platform.GetEnemyDetails(unit)
+  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy) then
+    return nil
+  end
+  local ok, details = pcall(function()
+    if UnitIsPlayer(unit) ~= true or UnitIsEnemy("player", unit) ~= true then
+      return nil
+    end
+    local faction = factionOf(unit)
+    if faction and faction == factionOf("player") then
+      return nil
+    end
+    local name = readableName(GetUnitName and GetUnitName(unit, true) or UnitName(unit))
+    if not name then
+      return nil
+    end
+    local class = UnitClass and fileToken(select(2, UnitClass(unit))) or nil
+    local race = UnitRace and fileToken(select(2, UnitRace(unit))) or nil
+    local level, skull
+    if UnitLevel then
+      local value = UnitLevel(unit)
+      if type(value) == "number" and value % 1 == 0 then
+        if value == -1 then
+          skull = true
+        elseif value >= 1 then
+          level = value
+        end
+      end
+    end
+    local guild = GetGuildInfo and readableText((GetGuildInfo(unit))) or nil
+    return { name = name, class = class, race = race, level = level, skull = skull, guild = guild, faction = faction }
+  end)
+  return ok and details or nil
+end
+
+-- true when the enemy on `unit` has the player as its target, false when not, nil when the client does not say.
+function Platform.IsEnemyTargetingPlayer(unit)
+  if type(unit) ~= "string" or not UnitIsUnit then
+    return nil
+  end
+  local ok, result = pcall(function()
+    local value = UnitIsUnit(unit .. "target", "player")
+    if value == true or value == 1 then
+      return true
+    elseif value == false or value == nil then
+      return false
+    end
+    return nil
+  end)
+  if ok then
+    return result
+  end
+  return nil
+end
+
+-- The PvP type of the zone ("sanctuary", "friendly", "hostile", "contested", "combat", "arena"), or nil.
+function Platform.GetZonePvPType()
+  if not GetZonePVPInfo then
+    return nil
+  end
+  local ok, kind = pcall(function()
+    local value = GetZonePVPInfo()
+    if type(value) == "string" and value:find("^%a+$") then
+      return value
+    end
+    return nil
+  end)
+  return ok and kind or nil
+end
+
+local INSTANCE_KINDS = { none = true, pvp = true, arena = true, party = true, raid = true }
+
+-- "none", "pvp" (battleground), "arena", "party" (dungeon) or "raid"; nil when the client does not say. Any other kind
+-- (a scenario) counts as a dungeon.
+function Platform.GetInstanceKind()
+  if not IsInInstance then
+    return nil
+  end
+  local ok, kind = pcall(function()
+    local _, instanceType = IsInInstance()
+    if type(instanceType) ~= "string" then
+      return nil
+    end
+    return INSTANCE_KINDS[instanceType] and instanceType or "party"
+  end)
+  return ok and kind or nil
+end
+
+-- Are the enemy nameplates on? nil when the client does not say.
+function Platform.EnemyNameplatesEnabled()
+  local reader = C_CVar and C_CVar.GetCVar or GetCVar
+  if not reader then
+    return nil
+  end
+  local ok, value = pcall(reader, "nameplateShowEnemies")
+  if not ok then
+    return nil
+  end
+  if value == "1" or value == 1 or value == true then
+    return true
+  elseif value == "0" or value == 0 or value == false then
+    return false
+  end
+  return nil
+end
+
+-- Turns the enemy nameplates on. Refused in combat (the setting is protected there). Returns true when it was set.
+function Platform.EnableEnemyNameplates()
+  if Platform.IsInCombat() then
+    return false
+  end
+  local writer = C_CVar and C_CVar.SetCVar or SetCVar
+  if not writer then
+    return false
+  end
+  return (pcall(writer, "nameplateShowEnemies", "1"))
+end
+
+local CONTINENT_MAP_TYPE = 2
+local MAP_PARENT_STEPS = 10
+
+-- The uiMapId of the continent that holds `mapId`, found through the parents of the map, or nil.
+function Platform.GetContinentMapId(mapId)
+  if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then
+    return nil
+  end
+  local ok, continent = pcall(function()
+    local current = mapId
+    for _ = 1, MAP_PARENT_STEPS do
+      local info = C_Map.GetMapInfo(current)
+      if type(info) ~= "table" then
+        return nil
+      end
+      local continentType = Enum and Enum.UIMapType and Enum.UIMapType.Continent or CONTINENT_MAP_TYPE
+      if info.mapType == continentType then
+        return current
+      end
+      local parent = info.parentMapID
+      if type(parent) ~= "number" or parent <= 0 then
+        return nil
+      end
+      current = parent
+    end
+    return nil
+  end)
+  return ok and continent or nil
+end
+
 -- Can this client say who won a battleground?
 function Platform.HasBattlegroundWinner()
   return type(GetBattlefieldWinner) == "function"

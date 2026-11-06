@@ -602,6 +602,89 @@ local function StartPosition()
   end)
 end
 
+-- Intel (docs/PVP_INTEL_PLAN.md). The enemy players in range are read from the nameplates, the target, the focus and
+-- the mouseover. Each event is registered on its own, so a client that refuses one keeps the others (the result of
+-- each is kept for /nrage intel debug), and a ticker reads everything again every INTEL_RESCAN_SECONDS. The mission
+-- unit cache keeps its own listeners.
+local INTEL_UNIT_EVENTS = {
+  { event = "NAME_PLATE_UNIT_ADDED" },
+  { event = "PLAYER_TARGET_CHANGED", unit = "target" },
+  { event = "PLAYER_FOCUS_CHANGED", unit = "focus" },
+  { event = "UPDATE_MOUSEOVER_UNIT", unit = "mouseover" },
+}
+
+local intelStarted = false
+
+-- Runs once, like StartPosition: access can be lost and regained.
+local function StartIntel()
+  if intelStarted then
+    return
+  end
+  intelStarted = true
+  local platform = ns.Platform
+  local service = ns.IntelService.New({
+    intel = ns.db.global.intel,
+    guildKos = ns.db.global.guildKos,
+    settings = function()
+      return ns.Settings.Intel(ns.db)
+    end,
+    now = platform.Now,
+    wall = platform.ServerTime,
+  })
+  service:Prune(platform.ServerTime())
+
+  local function allowed()
+    return ns.IntelModel.DetectionAllowed({
+      instance = platform.GetInstanceKind(),
+      pvpType = platform.GetZonePvPType(),
+      mapId = platform.GetPlayerMapId(),
+    }, ns.Settings.Intel(ns.db))
+  end
+  -- The position of the reporter: the client gives no enemy coordinates.
+  local function where()
+    local position = platform.PlayerMapPosition()
+    if position then
+      local x, y = ns.PositionModel.FromZone(position.x, position.y)
+      return { map = position.map, x = x, y = y }
+    end
+    return { map = platform.GetPlayerMapId() }
+  end
+  local detector = ns.IntelDetector.New({
+    reader = platform,
+    service = service,
+    now = platform.Now,
+    allowed = allowed,
+    where = where,
+  })
+  ns.intel, ns.intelDetector = service, detector
+
+  ns.intelEvents = {}
+  local intelFrame = CreateFrame("Frame")
+  for _, spec in ipairs(INTEL_UNIT_EVENTS) do
+    ns.intelEvents[spec.event] = platform.TryRegisterEvent(intelFrame, spec.event)
+  end
+  intelFrame:SetScript("OnEvent", function(_, event, unit)
+    if not ns.active then
+      return
+    end
+    -- During an encounter the arguments can be secret values: any error means "drop it silently".
+    pcall(function()
+      for _, spec in ipairs(INTEL_UNIT_EVENTS) do
+        if spec.event == event then
+          detector:OnUnit(spec.unit or unit)
+          return
+        end
+      end
+    end)
+  end)
+
+  C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
+    if ns.active then
+      pcall(detector.Rescan, detector)
+    end
+  end)
+end
+
 -- The events that change what is shared in the profile: gear, level and professions.
 local PROFILE_EVENTS = {
   "PLAYER_EQUIPMENT_CHANGED",
@@ -910,6 +993,7 @@ local ACTIVATION_STEPS = {
   { name = "blacklist", run = StartBlacklist },
   { name = "layer", run = StartLayer },
   { name = "position", run = StartPosition },
+  { name = "intel", run = StartIntel },
   { name = "bossLoot", run = StartBossLoot },
   { name = "recipes", run = StartRecipes },
   { name = "autoPublish", run = StartAutoPublish },
