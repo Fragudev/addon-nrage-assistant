@@ -1,0 +1,45 @@
+.luacheckrc
+  s_0e68a66d17ed7f::t_e492bcc785dbcf 16-18
+NrageAssistant/Core/Constants.lua
+  s_0e68a66d17ed7f::t_63244781784e2a 389-390
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_defde4508bdcc2 891-915
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_8ce21eed3f96c8 1413-1435
+NrageAssistant/Domain/IntelMinimapTooltip.lua
+  s_0e68a66d17ed7f::t_62eac3d169aa71 1-99
+NrageAssistant/Locales/esES.lua
+  s_0e68a66d17ed7f::t_3eebb770a58c7c 1032,1104,1114,1138
+NrageAssistant/NrageAssistant.toc
+  s_0e68a66d17ed7f::t_cb5b3bee188a93 73,135
+NrageAssistant/UI/IntelTargetButton.lua
+  s_0e68a66d17ed7f::t_57dcc61d440eba 1-161
+NrageAssistant/UI/MinimapButton.lua
+  s_0e68a66d17ed7f::t_d37d8951d14993 105-110,199-269
+tests/init_spec.lua
+  s_0e68a66d17ed7f::t_842b1aa35599c2 384-400,414-454
+tests/intel_minimap_tooltip_spec.lua
+  s_0e68a66d17ed7f::t_88494b672d0220 1-139
+tests/intel_target_button_spec.lua
+  s_0e68a66d17ed7f::t_314429053e53c9 1-244
+tests/minimap_button_spec.lua
+  s_0e68a66d17ed7f::t_c33ddd136ba883 155-391
+tests/platform_intel_spec.lua
+  s_0e68a66d17ed7f::t_f5dc0e7b1bae15 755-806
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "ad80fce6e7e5ca2186953dce65f9b9ede29c1b8b",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
