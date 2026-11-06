@@ -15,4 +15,17 @@ UI.Register("home", function(page)
   UI.IdentityCard(page, character.profile)
   UI.SpecsCard(page, character.profile.fields or {})
   UI.DrawLayers(page)
+  -- The open groups of the guild, with a way to the board.
+  if ns.lfgBoard then
+    local card = Kit.Card(page, { title = L("Groups"), gap = 8 })
+    local row = Kit.Row(card, { gap = 12, align = "center" })
+    Kit.Label(row, { text = ns.ViewModel.GroupsSummary(ns.lfgBoard:OpenCount()), layout = { weight = 1 } })
+    Kit.Button(row, {
+      text = L("Open Groups"),
+      layout = { width = "auto" },
+      onClick = function()
+        UI.OpenTab("groups")
+      end,
+    })
+  end
 end)

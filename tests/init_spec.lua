@@ -72,6 +72,7 @@ local function build()
   spy(ns.LootPopup, "Start", "lootPopup")
   spy(ns.VotingFrame, "Start", "votingFrame")
   spy(ns.LayerPopup, "Start", "layerPopup")
+  spy(ns.LfgPopup, "Start", "lfgPopup")
   ns.GuildRoster.New = function()
     calls[#calls + 1] = "roster"
     return {
@@ -146,7 +147,7 @@ describe("Init", function()
       env.fire("PLAYER_LOGIN")
       assert.is_true(env.ns.active)
       assert.are.same({}, env.ns.startupErrors)
-      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup" }, env.calls)
+      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup", "lfgPopup" }, env.calls)
       assert.are.equal(1, env.loadedMessages())
     end)
 
@@ -213,6 +214,194 @@ describe("Init", function()
       assert.are.equal(1, starts.votingFrame)
       assert.are.equal(1, starts.roster)
       assert.are.equal(1, starts.rosterReset)
+    end)
+  end)
+
+  describe("Groups", function()
+    local tickers, sent
+
+    local function start()
+      tickers = {}
+      _G.C_Timer.NewTicker = function(seconds, fn)
+        tickers[#tickers + 1] = { seconds = seconds, fn = fn }
+      end
+      sent = { posts = {}, applies = {} }
+      env.ns.Platform.Now = function()
+        return 100
+      end
+      -- Taken by reference when the feature starts, as the real one is.
+      env.ns.Platform.GetIdentityKey = function()
+        return "Mary Ann-Realm"
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.ns.Comm.Start = function()
+        env.ns.comm = {
+          NextId = function()
+            return "pid-1"
+          end,
+          SendLfgPost = function(_, payload)
+            sent.posts[#sent.posts + 1] = payload
+            return true
+          end,
+          SendLfgApply = function(_, payload)
+            sent.applies[#sent.applies + 1] = payload
+            return true
+          end,
+        }
+        env.ns.lockdown = {
+          CanSend = function()
+            return true
+          end,
+        }
+        return env.ns.comm
+      end
+      env.fire("PLAYER_LOGIN")
+      env.ns.guildRoster.IsReady = function()
+        return false
+      end
+    end
+
+    -- The last frame that listens to exactly these two events: the blacklist frame listens to the same ones.
+    local function lfgFrame()
+      local found
+      for _, frame in ipairs(env.frames) do
+        local count = 0
+        for _ in pairs(frame.events) do
+          count = count + 1
+        end
+        if count == 2 and frame.events.GROUP_ROSTER_UPDATE and frame.events.PLAYER_ENTERING_WORLD then
+          found = frame
+        end
+      end
+      return found
+    end
+
+    it("starts once, with its own frame and its own tickers, and hands the service to Comm", function()
+      start()
+      assert.are.same({}, env.ns.startupErrors)
+      assert.is_table(env.ns.lfgService)
+      assert.is_table(env.ns.lfgBoard)
+      assert.are.equal(env.ns.lfgService, env.ns.comm.lfgService)
+      assert.is_truthy(lfgFrame())
+      local seconds = {}
+      for _, ticker in ipairs(tickers) do
+        seconds[ticker.seconds] = true
+      end
+      assert.is_true(seconds[env.ns.Constants.LFG_REPUBLISH_SECONDS])
+      assert.is_true(seconds[env.ns.Constants.LFG_SWEEP_SECONDS])
+      local service = env.ns.lfgService
+      env.fire("PLAYER_GUILD_UPDATE")
+      assert.are.equal(service, env.ns.lfgService)
+    end)
+
+    it("follows the group only while the addon is active", function()
+      start()
+      local calls = 0
+      env.ns.lfgService.OnGroupChanged = function()
+        calls = calls + 1
+      end
+      lfgFrame().OnEvent(lfgFrame(), "GROUP_ROSTER_UPDATE")
+      assert.are.equal(1, calls)
+      env.ns.active = false
+      lfgFrame().OnEvent(lfgFrame(), "GROUP_ROSTER_UPDATE")
+      assert.are.equal(1, calls)
+    end)
+
+    it("republishes and sweeps only while the addon is active", function()
+      start()
+      local republish, sweep = 0, 0
+      env.ns.lfgService.Republish = function()
+        republish = republish + 1
+      end
+      env.ns.lfgService.Sweep = function()
+        sweep = sweep + 1
+      end
+      local function run(seconds)
+        for _, ticker in ipairs(tickers) do
+          if ticker.seconds == seconds then
+            ticker.fn()
+          end
+        end
+      end
+      run(env.ns.Constants.LFG_REPUBLISH_SECONDS)
+      run(env.ns.Constants.LFG_SWEEP_SECONDS)
+      assert.are.equal(1, republish)
+      assert.are.equal(1, sweep)
+      env.ns.active = false
+      run(env.ns.Constants.LFG_REPUBLISH_SECONDS)
+      run(env.ns.Constants.LFG_SWEEP_SECONDS)
+      assert.are.equal(1, republish)
+      assert.are.equal(1, sweep)
+    end)
+
+    it("posts through Comm with the identity key and the guarded level", function()
+      start()
+      assert.is_true(env.ns.lfgService:Post({ kind = "quest", title = "Q", needs = { dps = 2 } }))
+      assert.are.equal(1, #sent.posts)
+      assert.are.equal("pid-1", sent.posts[1].pid)
+      assert.are.equal("Mary Ann-Realm", env.ns.lfgBoard:Get("Mary Ann-Realm").owner)
+    end)
+
+    it("reads the own level only when it is a plain number", function()
+      start()
+      local board = env.ns.lfgBoard
+      board:Apply("Lead", {
+        pid = "p-1",
+        rev = 1,
+        s = "open",
+        kind = "quest",
+        title = "Q",
+        needs = { tank = 0, heal = 0, dps = 1 },
+        members = 1,
+        minLevel = 60,
+      })
+      local platform = env.ns.Platform
+      platform.GetLevel = function()
+        return 10
+      end
+      assert.are.same({ false, "level" }, { env.ns.lfgService:Apply("p-1", "dps") })
+      platform.GetLevel = function()
+        error("secret")
+      end
+      assert.is_true(env.ns.lfgService:Apply("p-1", "dps"))
+    end)
+
+    it("keeps a layer swap out while it is busy, and the other way round", function()
+      start()
+      local rules = env.ns.layerSwap.deps.eligibility
+      assert.is_true(rules.requester())
+      env.ns.lfgService.application = { state = "applied" }
+      assert.are.same({ false, "lfg" }, { rules.requester() })
+      assert.are.same({ false, "unknown_layer" }, { rules.helper(1, 1) })
+      env.ns.lfgService.application = { state = "joined" }
+      assert.is_true(rules.requester())
+      env.ns.lfgService.application = nil
+      local swapActive = false
+      env.ns.layerSwap.IsActive = function()
+        return swapActive
+      end
+      assert.is_true(env.ns.lfgService.deps.eligibility.apply())
+      swapActive = true
+      assert.are.same({ false, "swap" }, { env.ns.lfgService.deps.eligibility.apply() })
+    end)
+
+    it("asks the game to invite through the platform and leaves a trace in the probe log", function()
+      start()
+      local invited = {}
+      env.ns.Platform.InviteByName = function(name)
+        invited[#invited + 1] = name
+        return true
+      end
+      local noted
+      env.ns.LayerProbe.Note = function(kind, text)
+        noted = { kind, text }
+      end
+      env.ns.lfgService:Post({ kind = "quest", title = "Q", needs = { dps = 2 } })
+      env.ns.lfgService:OnApply("Ann-Realm", { pid = "pid-1", s = "apply", role = "dps" })
+      assert.is_true(env.ns.lfgService:Invite("Ann-Realm"))
+      assert.are.same({ "Ann-Realm" }, invited)
+      assert.are.equal("invite", noted[1])
+      assert.is_truthy(noted[2]:find("Ann-Realm", 1, true))
     end)
   end)
 
@@ -416,7 +605,13 @@ describe("Init", function()
       _G.C_Timer.After = function(seconds, fn)
         timers[#timers + 1] = { seconds = seconds, fn = fn }
       end
+      -- The login delays are random and can equal the delay looked for below, so they are pinned to their minimum.
+      local realRandom = math.random
+      rawset(math, "random", function(low)
+        return low
+      end)
       start()
+      rawset(math, "random", realRandom)
       local reminder
       for _, timer in ipairs(timers) do
         if timer.seconds == env.ns.Constants.INTEL_REMINDER_DELAY_SECONDS then

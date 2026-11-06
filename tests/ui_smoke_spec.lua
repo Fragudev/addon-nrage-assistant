@@ -5,7 +5,8 @@ local FakeFrames = dofile("tests/support/fake_frames.lua")
 local FakeKit = dofile("tests/support/fake_kit.lua")
 local Roles = dofile("tests/support/roles.lua")
 
-local ALL_TABS = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster", "pvpadmin" }
+local ALL_TABS =
+  { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster", "pvpadmin" }
 -- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
 -- anyway.
 local HIDDEN_TABS = { profile = true, layers = true, blacklist = true, broken = true }
@@ -41,6 +42,9 @@ local function load_window(locale)
     "Domain/PublishService",
     "Domain/BlacklistService",
     "Domain/LayerModel",
+    "Domain/LfgModel",
+    "Domain/LfgBoard",
+    "Domain/LfgService",
     "Domain/PositionModel",
     "Domain/ReportService",
     "Domain/IntelModel",
@@ -62,6 +66,7 @@ local function load_window(locale)
     "UI/ViewModelProfessions",
     "UI/ViewModelLayers",
     "UI/ViewModelIntel",
+    "UI/ViewModelGroups",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
@@ -85,6 +90,7 @@ local function load_window(locale)
     "UI/Tabs/Rules",
     "UI/Tabs/Professions",
     "UI/Tabs/Layers",
+    "UI/Tabs/Groups",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -572,16 +578,17 @@ describe("Window smoke test", function()
   end
 
   it("builds the sidebar from the rank and the roster: Guild for everyone, Admin from rl and officer up", function()
-    local all = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster", "pvpadmin" }
+    local all =
+      { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster", "pvpadmin" }
     local expected = {
       GM = all,
       CoGM = all,
-      Council = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster" },
-      RL = { "home", "professions", "events", "ready", "loot", "pvp", "raid", "rules", "roster" },
-      Roster = { "home", "professions", "events", "ready", "loot", "pvp" },
-      Member = { "home", "professions", "pvp" },
-      Alter = { "home", "professions", "pvp" },
-      Norost = { "home", "professions", "pvp" },
+      Council = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster" },
+      RL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster" },
+      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups" },
+      Member = { "home", "professions", "pvp", "groups" },
+      Alter = { "home", "professions", "pvp", "groups" },
+      Norost = { "home", "professions", "pvp", "groups" },
     }
     for rank, values in pairs(expected) do
       env = build(rank)
@@ -3259,6 +3266,510 @@ describe("Window smoke test: Layers", function()
     env.open("home")
     local count = #env.ns.Kit.fake.nodes
     env.ns.UI.LayersChanged()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+  end)
+end)
+
+describe("Window smoke test: Groups", function()
+  local env, world
+
+  -- The real board and service over fakes: a clock that does not move, the messages they would send, and a client that
+  -- lets the game invite.
+  local function install(options)
+    options = options or {}
+    local ns = env.ns
+    world = { sent = {}, invites = {}, locked = false, clock = 1000, group = {} }
+    local function send(kind)
+      return function(payload)
+        if world.locked then
+          return false, "locked"
+        end
+        world.sent[#world.sent + 1] = { kind = kind, payload = payload }
+        return true
+      end
+    end
+    local platform = {
+      IsInGroup = function()
+        return false
+      end,
+      IsInRaid = function()
+        return false
+      end,
+      IsInCombat = function()
+        return false
+      end,
+      IsGroupLeader = function()
+        return true
+      end,
+      GetGroupSize = function()
+        return 0
+      end,
+    }
+    local function isLocked()
+      return world.locked
+    end
+    ns.lfgBoard = ns.LfgBoard.New({
+      now = function()
+        return world.clock
+      end,
+    })
+    ns.lfgService = ns.LfgService.New({
+      now = function()
+        return world.clock
+      end,
+      schedule = function() end,
+      send = { post = send("post"), apply = send("apply") },
+      isLocked = isLocked,
+      ownName = ns.Platform.GetIdentityKey,
+      newId = function()
+        return "mine-1"
+      end,
+      ownLevel = function()
+        return 60
+      end,
+      eligibility = ns.LfgService.Eligibility(platform, isLocked, function()
+        return false
+      end),
+      invite = function(name)
+        world.invites[#world.invites + 1] = name
+        return true
+      end,
+      isGroupMember = function(name)
+        return world.group[name] == true
+      end,
+      groupSize = function()
+        return 0
+      end,
+      isRaid = function()
+        return false
+      end,
+      isLeader = function()
+        return true
+      end,
+      board = ns.lfgBoard,
+      onChange = function() end,
+    })
+    ns.Platform.GetGroupSize = function()
+      return 0
+    end
+    if options.post ~= false then
+      ns.lfgBoard:Apply("Kaelis", {
+        pid = "k-1",
+        rev = 1,
+        s = "open",
+        kind = "dungeon",
+        title = options.title or "Scarlet Monastery",
+        needs = { tank = 1, heal = 1, dps = 0 },
+        members = 3,
+        minLevel = 34,
+        note = "Bring potions",
+      })
+    end
+  end
+
+  local function sidebarNode()
+    local found
+    for _, node in ipairs(env.ns.Kit.fake.nodes) do
+      if node.kind == "Sidebar" then
+        found = node
+      end
+    end
+    return found
+  end
+
+  local function modalButton(text)
+    return FakeKit.find(env.ns.Kit.fake.modal.stack, "Button", text)
+  end
+
+  before_each(function()
+    env = build("RL")
+    install()
+  end)
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("says the feature is not available before it starts", function()
+    env.ns.lfgBoard, env.ns.lfgService = nil, nil
+    env.open("groups")
+    assert.is_truthy(env.text():find("Groups are not available yet.", 1, true))
+  end)
+
+  it("is in the sidebar of every rank", function()
+    for _, rank in ipairs({ "GM", "CoGM", "Council", "RL", "Roster", "Member", "Alter" }) do
+      local other = build(rank)
+      other.ns.ViewModel.TabVisible = other.realTabVisible
+      assert.is_true(
+        other.ns.ViewModel.TabVisible("groups", other.ns.PermissionService.OwnRole(other.ns.Platform), "r1"),
+        rank
+      )
+      pcall(other.close)
+    end
+  end)
+
+  it("lists the board with the leader, the level, the age, the roles and the members", function()
+    env.open("groups")
+    local text = env.text()
+    assert.is_truthy(text:find("Scarlet Monastery", 1, true))
+    assert.is_truthy(text:find("Leader: Kaelis", 1, true))
+    assert.is_truthy(text:find("Level 34+", 1, true))
+    assert.is_truthy(text:find("1 Tank", 1, true))
+    assert.is_truthy(text:find("Only members who use the addon appear.", 1, true))
+    local pips = FakeKit.find(env.page(), "Pips")
+    assert.are.equal(3, pips.opts.filled)
+    assert.are.equal("3 of 5 members", pips.opts.tooltip)
+    assert.is_false(env.find(env.page(), "Button", "Apply").opts.disabled)
+  end)
+
+  it("shows a hostile title and leader as text, never as a client escape", function()
+    install({ title = "|cffff0000Free|r gold" })
+    env.ns.lfgBoard:Apply("Ev|il", {
+      pid = "e-1",
+      rev = 1,
+      s = "open",
+      kind = "other",
+      title = "x",
+      needs = { tank = 0, heal = 0, dps = 1 },
+      members = 1,
+    })
+    env.open("groups")
+    local text = env.text()
+    assert.is_truthy(text:find("||cffff0000Free||r gold", 1, true))
+    assert.is_truthy(text:find("Leader: Ev||il", 1, true))
+    assert.is_nil(text:find("[^|]|c"))
+  end)
+
+  it("explains an empty board and filters by kind and role", function()
+    env.open("groups")
+    local filters = FakeKit.find_all(env.page(), "Segmented")
+    assert.are.equal(2, #filters)
+    filters[1].opts.onChange("quest")
+    assert.is_truthy(env.text():find("No groups with these filters. Create yours.", 1, true))
+    filters = FakeKit.find_all(env.page(), "Segmented")
+    filters[1].opts.onChange("all")
+    filters = FakeKit.find_all(env.page(), "Segmented")
+    filters[2].opts.onChange("dps")
+    assert.is_truthy(env.text():find("No groups with these filters.", 1, true))
+    filters = FakeKit.find_all(env.page(), "Segmented")
+    filters[2].opts.onChange("all")
+    assert.is_truthy(env.text():find("Scarlet Monastery", 1, true))
+  end)
+
+  it("applies with the role and the note from the dialog, and shows the application", function()
+    env.open("groups")
+    env.press("Apply")
+    assert.is_truthy(env.ns.Kit.fake.modal)
+    local roles = FakeKit.find(env.ns.Kit.fake.modal.stack, "Segmented")
+    roles.opts.onChange("heal")
+    FakeKit.find(env.ns.Kit.fake.modal.stack, "EditBox").opts.onChange("  bring water ")
+    FakeKit.press(modalButton("Send"))
+    assert.are.same({ pid = "k-1", s = "apply", role = "heal", note = "bring water" }, world.sent[1].payload)
+    assert.is_nil(env.ns.Kit.fake.modal)
+    local text = env.text()
+    assert.is_truthy(text:find("Application sent to Kaelis", 1, true))
+    assert.is_truthy(text:find("expires in 2:00", 1, true))
+    assert.are.equal("Applied", env.find(env.page(), "Button", "Applied").opts.text)
+    assert.is_true(env.find(env.page(), "Button", "Applied").opts.disabled)
+  end)
+
+  it("starts the dialog on the declared role when the post needs it", function()
+    env.ns.character.profile.fields.role = { value = "Heal" }
+    env.open("groups")
+    env.press("Apply")
+    assert.are.equal("heal", FakeKit.find(env.ns.Kit.fake.modal.stack, "Segmented").opts.value)
+  end)
+
+  it("tells what was refused, and why a button is off", function()
+    env.ns.lfgService.deps.eligibility.apply = function()
+      return false, "in_group"
+    end
+    env.open("groups")
+    local apply = env.find(env.page(), "Button", "Apply")
+    assert.is_true(apply.opts.disabled)
+    assert.is_truthy(env.text():find("You are already in a group", 1, true))
+    env.ns.lfgService.deps.eligibility.apply = function()
+      return true
+    end
+    env.ns.UI.Redraw()
+    env.press("Apply")
+    env.ns.lfgBoard:Remove("Kaelis")
+    FakeKit.press(modalButton("Send"))
+    assert.are.equal("warning", env.banner().opts.kind)
+    assert.are.equal("That group is gone", env.banner().opts.text)
+  end)
+
+  it("takes the application back and clears it", function()
+    env.ns.lfgService:Apply("k-1", "tank")
+    env.open("groups")
+    env.press("Withdraw")
+    assert.are.equal("withdraw", world.sent[#world.sent].payload.s)
+    assert.is_nil(env.ns.lfgService:Status().application)
+    assert.is_nil(env.text():find("Application sent", 1, true))
+  end)
+
+  it("shows how a finished application ended and closes it with Close", function()
+    env.ns.lfgService:Apply("k-1", "tank")
+    env.ns.lfgService:OnApply("Kaelis", { pid = "k-1", s = "decline", to = "Leader-Realm" })
+    env.open("groups")
+    assert.is_truthy(env.text():find("Kaelis declined your application", 1, true))
+    env.press("Close")
+    assert.is_nil(env.ns.lfgService:Status().application)
+  end)
+
+  describe("as a leader", function()
+    local function post()
+      env.open("groups")
+      env.press("New group")
+      local title = env.box("Deadmines")
+      title.opts.onChange("Deadmines run")
+      env.press("Post")
+    end
+
+    it("posts a group from the form and shows it, with a waiting note", function()
+      env.open("groups")
+      env.press("New group")
+      assert.is_truthy(env.text():find("Say what you are going to do", 1, true))
+      assert.is_true(env.find(env.page(), "Button", "Post").opts.disabled)
+      env.box("Deadmines").opts.onChange("Deadmines run")
+      assert.is_false(env.find(env.page(), "Button", "Post").opts.disabled)
+      FakeKit.find(env.page(), "Segmented").opts.onChange("quest")
+      env.press("Post")
+      local status = env.ns.lfgService:Status()
+      assert.are.equal("Deadmines run", status.post.title)
+      assert.are.equal("quest", status.post.kind)
+      assert.are.same({ tank = 1, heal = 1, dps = 1 }, status.post.needs)
+      local text = env.text()
+      assert.is_truthy(text:find("Your group", 1, true))
+      assert.is_truthy(text:find("Posted. Applications will show up here.", 1, true))
+      assert.is_true(env.find(env.page(), "Button", "New group").opts.disabled)
+      assert.is_nil(text:find("Leader: Leader", 1, true))
+    end)
+
+    it("changes the roles with the steppers and never past the party", function()
+      local function steps(sign)
+        return FakeKit.find_all(env.page(), "Button", function(node)
+          return node.opts.text == sign
+        end)
+      end
+      env.open("groups")
+      env.press("New group")
+      -- The leader alone has four seats: one of each role is three of them.
+      for _, node in ipairs(steps("+")) do
+        assert.is_false(node.opts.disabled)
+      end
+      steps("+")[3].opts.onClick()
+      for _, node in ipairs(steps("+")) do
+        assert.is_true(node.opts.disabled)
+      end
+      steps("-")[1].opts.onClick()
+      steps("-")[2].opts.onClick()
+      steps("-")[3].opts.onClick()
+      steps("-")[3].opts.onClick()
+      for _, node in ipairs(steps("-")) do
+        assert.is_true(node.opts.disabled)
+      end
+      assert.is_true(env.find(env.page(), "Button", "Post").opts.disabled)
+    end)
+
+    it("refuses an invalid level without sending anything and says why", function()
+      env.open("groups")
+      env.press("New group")
+      env.box("Deadmines").opts.onChange("Deadmines run")
+      local level = FakeKit.find_all(env.page(), "EditBox", function(node)
+        return node.opts.numeric
+      end)[1]
+      level.opts.onChange("abc")
+      assert.is_true(env.find(env.page(), "Button", "Post").opts.disabled)
+      env.press("Post")
+      assert.are.equal(0, #world.sent)
+      assert.is_truthy(env.banner().opts.text:find("minimum level", 1, true))
+      level.opts.onCommit()
+      assert.is_truthy(env.text():find("The minimum level must be a number from 1 to 100", 1, true))
+    end)
+
+    it("cancels the form without posting", function()
+      env.open("groups")
+      env.press("New group")
+      env.press("Cancel")
+      assert.is_nil(env.ns.lfgService:Status().post)
+      assert.is_truthy(env.text():find("Scarlet Monastery", 1, true))
+    end)
+
+    it("says why it cannot post, and sends nothing during a lockdown", function()
+      world.locked = true
+      env.open("groups")
+      assert.is_truthy(env.text():find("Encounter in progress: nothing is sent until it ends.", 1, true))
+      local new = env.find(env.page(), "Button", "New group")
+      assert.is_true(new.opts.disabled)
+      assert.are.equal("An encounter is in progress", new.opts.tooltip)
+      assert.are.equal(0, #world.sent)
+    end)
+
+    it("lists an applicant, invites with the click and shows the invitation", function()
+      post()
+      env.ns.lfgService:OnApply("Ann-Realm", { pid = "mine-1", s = "apply", role = "tank", note = "|cffx" })
+      env.ns.UI.Redraw()
+      local text = env.text()
+      assert.is_truthy(text:find("Ann-Realm", 1, true))
+      assert.is_truthy(text:find("||cffx", 1, true))
+      env.press("Invite")
+      assert.are.same({ "Ann-Realm" }, world.invites)
+      assert.is_truthy(env.text():find("Invitation sent...", 1, true))
+      assert.are.equal("accept", world.sent[#world.sent].payload.s)
+    end)
+
+    it("declines an applicant", function()
+      post()
+      env.ns.lfgService:OnApply("Ann-Realm", { pid = "mine-1", s = "apply", role = "heal" })
+      env.ns.UI.Redraw()
+      env.press("Decline")
+      assert.are.equal("decline", world.sent[#world.sent].payload.s)
+      assert.are.equal(0, #env.ns.lfgService:Status().post.applicants)
+    end)
+
+    it("says why Invite is off", function()
+      post()
+      env.ns.lfgService:OnApply("Ann-Realm", { pid = "mine-1", s = "apply", role = "heal" })
+      env.ns.lfgService.deps.eligibility.invite = function()
+        return false, "combat"
+      end
+      env.ns.UI.Redraw()
+      local invite = env.find(env.page(), "Button", "Invite")
+      assert.is_true(invite.opts.disabled)
+      assert.are.equal("You are in combat", invite.opts.tooltip)
+    end)
+
+    it("edits the own post and closes it", function()
+      post()
+      env.press("Edit")
+      assert.is_truthy(env.text():find("Edit group", 1, true))
+      assert.are.equal("Deadmines run", env.box("Deadmines").opts.text)
+      env.box("Deadmines").opts.onChange("Renamed")
+      env.press("Save")
+      assert.are.equal("Renamed", env.ns.lfgService:Status().post.title)
+      assert.are.equal(2, env.ns.lfgService:Status().post.rev)
+      env.press("Close group")
+      assert.is_nil(env.ns.lfgService:Status().post)
+      assert.is_truthy(env.text():find("Scarlet Monastery", 1, true))
+    end)
+
+    it("shows a group that closed by itself and removes the note with a click", function()
+      post()
+      env.ns.lfgService.deps.isRaid = function()
+        return true
+      end
+      env.ns.lfgService.deps.groupSize = function()
+        return 2
+      end
+      env.ns.lfgService:OnGroupChanged()
+      env.ns.UI.Redraw()
+      assert.is_truthy(env.text():find("Group closed", 1, true))
+      env.press("Remove")
+      assert.is_nil(env.text():find("Group closed", 1, true))
+    end)
+  end)
+
+  describe("the sidebar count", function()
+    local function badges()
+      local found = {}
+      for _, group in ipairs(sidebarNode().opts.groups) do
+        for _, item in ipairs(group.items) do
+          if item.badge then
+            found[item.value] = item.badge
+          end
+        end
+      end
+      return found
+    end
+
+    it("counts the open groups when the sidebar is built, and no other item has a count", function()
+      env.open("home")
+      assert.are.same({ groups = "1" }, badges())
+    end)
+
+    it("shows nothing at zero", function()
+      env.ns.lfgBoard:Remove("Kaelis")
+      env.open("home")
+      assert.are.same({}, badges())
+    end)
+
+    it("follows the board on every tab, without building the sidebar again", function()
+      env.open("professions")
+      local sidebar = sidebarNode()
+      local updates = {}
+      rawset(sidebar, "SetItemBadge", function(_, value, text)
+        updates[#updates + 1] = { value, text }
+      end)
+      env.ns.lfgBoard:Apply("Belisa", {
+        pid = "b-1",
+        rev = 1,
+        s = "open",
+        kind = "quest",
+        title = "Elites",
+        needs = { tank = 0, heal = 0, dps = 2 },
+        members = 1,
+      })
+      env.ns.UI.LfgChanged()
+      assert.are.same({ { "groups", "2" } }, updates)
+      assert.are.equal(sidebar, sidebarNode())
+      env.ns.lfgBoard:Remove("Kaelis")
+      env.ns.lfgBoard:Remove("Belisa")
+      env.ns.UI.LfgChanged()
+      assert.are.same({ "groups", nil }, updates[2])
+    end)
+
+    it("does nothing while the window is closed", function()
+      env.open("home")
+      local sidebar = sidebarNode()
+      local count = 0
+      rawset(sidebar, "SetItemBadge", function()
+        count = count + 1
+      end)
+      env.ns.UI.Toggle()
+      env.ns.UI.LfgChanged()
+      assert.are.equal(0, count)
+    end)
+
+    it("counts the own post too", function()
+      env.open("home")
+      env.ns.lfgService:Post({ kind = "quest", title = "Mine", needs = { dps = 2 } })
+      env.ns.UI.SelectTab("pvp")
+      assert.are.same({ groups = "2" }, badges())
+    end)
+  end)
+
+  it("redraws when the groups change, at most once per interval, and only on the tabs that show them", function()
+    env.open("groups")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LfgChanged()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+    count = #env.ns.Kit.fake.nodes
+    env.timers = {}
+    env.ns.UI.LfgChanged()
+    env.ns.UI.LfgChanged()
+    assert.are.equal(count, #env.ns.Kit.fake.nodes)
+    assert.are.equal(1, #env.timers)
+    env.ns.UI.SelectTab("professions")
+    count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LfgChanged()
+    assert.are.equal(count, #env.ns.Kit.fake.nodes)
+  end)
+
+  it("shows the open groups on Home with a link to the tab, and nothing before the feature starts", function()
+    env.open("home")
+    assert.is_truthy(env.text():find("1 open group", 1, true))
+    env.press("Open Groups")
+    assert.are.equal("groups", env.ns.UI.CurrentTab())
+    env.ns.lfgBoard = nil
+    env.open("home")
+    assert.is_nil(env.text():find("open group", 1, true))
+  end)
+
+  it("redraws Home when the groups change, since Home shows them", function()
+    env.open("home")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.LfgChanged()
     assert.is_true(#env.ns.Kit.fake.nodes > count)
   end)
 end)

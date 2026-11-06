@@ -61,6 +61,18 @@ describe("Kit widgets", function()
       assert.are.same({ "TOPLEFT", root.frame, "TOPLEFT", 0, -40 }, second)
     end)
 
+    it("asks for the sum of the widths of a row of children with a width, so the row can be auto", function()
+      local row = Kit.Row(root, { gap = 6, layout = { width = "auto" } })
+      Kit.Button(row, { text = "A", layout = { width = 30 } })
+      Kit.Button(row, { text = "B", layout = { width = "auto" } })
+      Kit.Label(row, { text = "free" })
+      local hidden = Kit.Button(row, { text = "hidden", layout = { width = 500 } })
+      hidden:SetShown(false)
+      local natural = row:NaturalWidth()
+      assert.are.equal(30 + (row.items[2].obj:NaturalWidth()) + 80 + 2 * 6, natural)
+      assert.are.equal(0, Kit.Row(root, {}):NaturalWidth())
+    end)
+
     it("skips hidden children and honours a gap, a width and an alignment of the child", function()
       local first = Kit.Button(root, { text = "A", layout = { gap = 99 } })
       local hidden = Kit.Button(root, { text = "hidden" })
@@ -1118,6 +1130,107 @@ describe("Kit widgets", function()
       assert.are.equal(1, #find_all(sidebar, "UserCard"))
       local bare = Kit.Sidebar(_G.UIParent, { groups = {}, value = "x" })
       assert.are.equal(300, bare:Layout(200, 300))
+    end)
+
+    describe("sidebar badge", function()
+      local function sidebar(badge)
+        return Kit.Sidebar(_G.UIParent, {
+          groups = {
+            {
+              items = {
+                { value = "home", text = "Home", icon = "home" },
+                { value = "groups", text = "Groups", icon = "users", badge = badge },
+              },
+            },
+          },
+          value = "home",
+          onSelect = function() end,
+        })
+      end
+
+      it("shows the badge of an item and leaves the others alone", function()
+        local bar = sidebar("3")
+        bar:Layout(200, 400)
+        local rows = find_all(bar, "NavRow")
+        assert.is_false(rows[1].badge:IsShown())
+        assert.are.equal("", rows[1].badge:GetText())
+        assert.is_true(rows[2].badge:IsShown())
+        assert.are.equal("3", rows[2].badge:GetText())
+      end)
+
+      it("keeps the label of a row without badge as wide as it always was", function()
+        local bar = sidebar("3")
+        local rows = find_all(bar, "NavRow")
+        local function rightOffset(row)
+          local last
+          for _, point in ipairs(row.label.points) do
+            if point[1] == "RIGHT" then
+              last = point
+            end
+          end
+          return last[2]
+        end
+        assert.are.equal(-8, rightOffset(rows[1]))
+        assert.is_true(rightOffset(rows[2]) < -8)
+      end)
+
+      it("changes the badge without building the sidebar again, and clears it", function()
+        local bar = sidebar(nil)
+        local row = find_all(bar, "NavRow")[2]
+        assert.is_false(row.badge:IsShown())
+        bar:SetItemBadge("groups", "7")
+        assert.are.equal("7", row.badge:GetText())
+        assert.is_true(row.badge:IsShown())
+        assert.are.equal("7", row.opts.badge)
+        bar:SetItemBadge("groups", nil)
+        assert.is_false(row.badge:IsShown())
+        bar:SetItemBadge("nowhere", "1")
+        bar:SetItemBadge("groups", "")
+        assert.is_false(row.badge:IsShown())
+      end)
+
+      it("does not touch a row that was released with the sidebar", function()
+        local bar = sidebar("2")
+        bar:Release()
+        assert.has_no.errors(function()
+          bar:SetItemBadge("groups", "9")
+        end)
+      end)
+
+      it("draws a row of the voting frame as before, with no badge", function()
+        local row = Kit.NavRow(root, { text = "A", icon = "home", selected = true })
+        assert.is_false(row.badge:IsShown())
+        assert.is_nil(row.opts.badge)
+      end)
+    end)
+
+    describe("pips", function()
+      it("fills the first diamonds and says the same in the tooltip", function()
+        local pips = Kit.Pips(root, { total = 5, filled = 3, tooltip = "3 of 5 members" })
+        assert.are.equal(12, pips:Layout(200))
+        assert.are.equal(5 * 12 + 4 * 4, pips:NaturalWidth())
+        local shown = 0
+        for _, dot in ipairs(pips.dots) do
+          if dot:IsShown() then
+            shown = shown + 1
+          end
+        end
+        assert.are.equal(5, shown)
+        assert.are_not.same(pips.dots[3].vertex, pips.dots[4].vertex)
+        assert.are.same(pips.dots[1].vertex, pips.dots[3].vertex)
+        assert.has_no.errors(function()
+          pips.frame.scripts.OnEnter()
+          pips.frame.scripts.OnLeave()
+        end)
+      end)
+
+      it("hides what is beyond the total and takes another size when it is reused", function()
+        local pips = Kit.Pips(root, { total = 3, filled = 9, size = 8 })
+        pips:Layout(100)
+        assert.is_true(pips.dots[3]:IsShown())
+        assert.is_false(pips.dots[4]:IsShown())
+        assert.are.equal(3 * 8 + 2 * 4, pips:NaturalWidth())
+      end)
     end)
 
     describe("date field", function()

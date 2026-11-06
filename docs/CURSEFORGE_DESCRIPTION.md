@@ -1,7 +1,7 @@
 # Nrage Assistant
 
 Guild coordination and raid readiness for **Nrage** (Alliance, PvP ruleset) on **World of Warcraft: Forever**. Raid
-events, raid checks, loot council, PvP seasons, layers and a guild map, in one window.
+events, raid checks, loot council, PvP seasons, layers, a guild map and groups, in one window.
 
 > **Nrage only.** The addon disables itself for any character outside Nrage, so it does nothing on other guilds or
 > realms.
@@ -69,6 +69,12 @@ the name, level, layer and how fresh the position is; members on another layer s
 position is **shared with the guild by default**, and you can turn it off in the settings. Nothing is sent from
 instances, battlegrounds or during an encounter.
 
+### Groups
+
+Post a party for a dungeon, a quest or anything else, with the roles you need. Guildmates running the addon see the
+board and apply with a role, and you invite them with one click. Nothing is saved, and a post closes by itself when
+the party is full.
+
 ## Admin
 
 | Section | Who | What |
@@ -82,6 +88,6 @@ instances, battlegrounds or during an encounter.
 
 - **Language:** Spanish on `esES` and `esMX` clients, English otherwise.
 - **Encounters:** changes made while the game blocks addon messages wait in a queue and go out when the fight ends.
-- **Privacy:** your character data goes only to guildmates running the addon. Your position and your enemy sightings
+- **Privacy:** your character data and your group posts and applications go only to guildmates running the addon. Your position and your enemy sightings
   are shared by default; you can turn either off in the settings. Guildmates forget your position after 60 seconds.
 - **Problems:** report them on GitHub with the output of `/nrage debug info`.

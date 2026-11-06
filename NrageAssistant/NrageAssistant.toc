@@ -71,6 +71,9 @@ Domain\IntelReport.lua
 Domain\IntelImport.lua
 Domain\IntelPins.lua
 Domain\IntelMinimapTooltip.lua
+Domain\LfgModel.lua
+Domain\LfgBoard.lua
+Domain\LfgService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -88,6 +91,7 @@ Sync\RecipeSync.lua
 Sync\LayerSync.lua
 Sync\PositionSync.lua
 Sync\IntelSync.lua
+Sync\LfgSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -109,6 +113,7 @@ UI\ViewModelPvP.lua
 UI\ViewModelProfessions.lua
 UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
+UI\ViewModelGroups.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -125,9 +130,11 @@ UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
+UI\Tabs\Groups.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua
+UI\LfgPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua

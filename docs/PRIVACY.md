@@ -163,6 +163,23 @@ kept.
 Nothing is sent from an instance or a battleground. Receiving and drawing do not need sharing: **Show guildmates on
 the minimap** and **Show guildmates on the world map** (both on by default) only control what you see.
 
+## Groups
+
+Group posts and applications travel on the **guild channel**, so **every member running the addon can read them**.
+Only a post you make and an application you send are shared, and only when you click:
+
+- A post carries your character name as the leader, the type, the title, the roles still needed, the party size, and
+  the minimum level and note if you set them.
+- An application carries your character name, the role you go as and your note.
+- Your level is never sent. A minimum level is checked by the applicant's own client, and the leader sees only who
+  applied.
+
+Anything you write in a title or a note is readable by every addon user in the guild, so write only what you would
+say in guild chat. Like every addon message, these are **not encrypted**.
+
+Nothing is saved. Posts and applications are kept in memory only. When the leader closes a post, the others drop it at
+once. When the leader logs out or reloads, the others forget the post six minutes after its last message.
+
 ## Taking data back
 
 - A sheet that was already published **cannot be recalled** from the clients that received it.

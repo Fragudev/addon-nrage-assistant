@@ -2,7 +2,7 @@
 
 <p align="center">
   Guild coordination and raid readiness for <b>Nrage</b> (Alliance, PvP ruleset) on <b>World of Warcraft: Forever</b>:
-  raid events, loot council, PvP seasons, layers and the guild map, in one window.
+  raid events, loot council, PvP seasons, layers, the guild map and groups, in one window.
 </p>
 
 <p align="center">
@@ -126,6 +126,7 @@ The addon is published on CurseForge, but it only works for Nrage:
 - **Blacklist:** a guild-wide list of players to be warned about.
 - **Layers:** your current layer, the layers guildmates have shared, and layer swap requests.
 - **Guild map:** guildmates who share their position, on the minimap and the world map.
+- **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. The leader invites with a click. Only members with the addon see the board.
 
 ### Sync
 

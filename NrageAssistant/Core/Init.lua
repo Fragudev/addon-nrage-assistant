@@ -330,6 +330,21 @@ function ns.SetLayerShare(share)
   ns.UI.LayersChanged()
 end
 
+-- A swap and a Groups post or application exclude each other (docs/LFG_PLAN.md 2.4): the swap rules refuse with "lfg"
+-- while the Groups service is busy. The service starts after this and is looked up when asked.
+local function ExcludeLfg(rules)
+  local function guarded(rule)
+    return function(...)
+      local ok, reason = rule(...)
+      if ok and ns.lfgService and ns.lfgService:IsBusy() then
+        return false, "lfg"
+      end
+      return ok, reason
+    end
+  end
+  return { requester = guarded(rules.requester), helper = guarded(rules.helper) }
+end
+
 -- Own frame. Runs once: access can be lost and regained. Everything the client has to say is guarded, so a wrong
 -- assumption about layers (docs/API_NOTES.md) leaves the feature quietly unavailable instead of raising.
 local function StartLayer()
@@ -385,7 +400,7 @@ local function StartLayer()
       return ns.comm:NextId()
     end,
     ownLayer = ownLayer,
-    eligibility = ns.LayerSwap.Eligibility(platform, ownLayer, isLocked),
+    eligibility = ExcludeLfg(ns.LayerSwap.Eligibility(platform, ownLayer, isLocked)),
     invite = function(name)
       local ok, reason = platform.InviteByName(name)
       ns.LayerProbe.Note(
@@ -448,6 +463,110 @@ local function StartLayer()
   C_Timer.NewTicker(Constants.LAYER_REPUBLISH_SECONDS, function()
     if ns.active then
       publisher:Tick()
+    end
+  end)
+end
+
+local lfgStarted = false
+
+-- The own level when the client gives a plain whole number; a secret value (which raises when compared) or anything
+-- else is unknown.
+local function OwnLevel()
+  local ok, level = pcall(ns.Platform.GetLevel)
+  if not ok or type(level) ~= "number" then
+    return nil
+  end
+  local readable, valid = pcall(function()
+    return level >= 1 and level % 1 == 0
+  end)
+  return readable and valid and level or nil
+end
+
+-- Groups (docs/LFG_PLAN.md). Own frame. Runs once: access can be lost and regained. The board and the service live in
+-- memory; the timers and the events do nothing while the addon is inactive.
+local function StartLfg()
+  if lfgStarted then
+    return
+  end
+  lfgStarted = true
+  local platform = ns.Platform
+  local function isLocked()
+    return not ns.lockdown:CanSend()
+  end
+  local function swapActive()
+    return ns.layerSwap ~= nil and ns.layerSwap:IsActive()
+  end
+
+  local board = ns.LfgBoard.New({
+    now = platform.Now,
+    isMember = function(name)
+      local roster = ns.guildRoster
+      return roster == nil or not roster:IsReady() or roster:Lookup(name) ~= nil
+    end,
+  })
+  local service = ns.LfgService.New({
+    now = platform.Now,
+    schedule = C_Timer.After,
+    send = {
+      post = function(payload)
+        return ns.comm:SendLfgPost(payload)
+      end,
+      apply = function(payload)
+        return ns.comm:SendLfgApply(payload)
+      end,
+    },
+    isLocked = isLocked,
+    ownName = platform.GetIdentityKey,
+    newId = function()
+      return ns.comm:NextId()
+    end,
+    ownLevel = OwnLevel,
+    eligibility = ns.LfgService.Eligibility(platform, isLocked, swapActive),
+    invite = function(name)
+      local ok, reason = platform.InviteByName(name)
+      ns.LayerProbe.Note(
+        "invite",
+        ("InviteByName('%s') -> %s %s"):format(tostring(name), tostring(ok), tostring(reason))
+      )
+      return ok, reason
+    end,
+    isGroupMember = platform.IsGroupMember,
+    groupSize = platform.GetGroupSize,
+    isLeader = platform.IsGroupLeader,
+    isRaid = platform.IsInRaid,
+    board = board,
+    onChange = function()
+      ns.UI.LfgChanged()
+      ns.LfgPopup.Refresh()
+    end,
+  })
+  ns.lfgBoard, ns.lfgService = board, service
+  ns.comm.lfgService = service
+  -- A received post or step changes the board (the count of the sidebar) and may bring an applicant to the popup.
+  ns.comm.onLfgChange = function()
+    ns.UI.LfgChanged()
+    ns.LfgPopup.Refresh()
+  end
+  ns.LfgPopup.Start()
+
+  local lfgFrame = CreateFrame("Frame")
+  platform.TryRegisterEvent(lfgFrame, "GROUP_ROSTER_UPDATE")
+  platform.TryRegisterEvent(lfgFrame, "PLAYER_ENTERING_WORLD")
+  lfgFrame:SetScript("OnEvent", function()
+    if ns.active then
+      service:OnGroupChanged()
+    end
+  end)
+
+  -- An open post is sent again now and then, so a member who logs in later sees it.
+  C_Timer.NewTicker(Constants.LFG_REPUBLISH_SECONDS, function()
+    if ns.active then
+      service:Republish()
+    end
+  end)
+  C_Timer.NewTicker(Constants.LFG_SWEEP_SECONDS, function()
+    if ns.active then
+      service:Sweep()
     end
   end)
 end
@@ -1245,6 +1364,7 @@ local ACTIVATION_STEPS = {
   { name = "layer", run = StartLayer },
   { name = "position", run = StartPosition },
   { name = "intel", run = StartIntel },
+  { name = "lfg", run = StartLfg },
   { name = "bossLoot", run = StartBossLoot },
   { name = "recipes", run = StartRecipes },
   { name = "autoPublish", run = StartAutoPublish },
