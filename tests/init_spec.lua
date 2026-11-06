@@ -381,6 +381,23 @@ describe("Init", function()
       assert.are.equal(env.ns.Platform.ShowWorldMap, controller.deps.follow)
     end)
 
+    it("starts the button by the target frame and the tooltip of the minimap, which feeds Nearby", function()
+      local starts, hook = {}, nil
+      env.ns.IntelTargetButton.Start = function()
+        starts[#starts + 1] = "button"
+      end
+      env.ns.MinimapButton.HookTooltip = function(deps)
+        hook = deps
+        starts[#starts + 1] = "tooltip"
+      end
+      start()
+      assert.are.same({ "button", "tooltip" }, starts)
+      hook.feed({ name = "Fay", class = "MAGE" })
+      assert.are.equal("Fay", env.ns.IntelNearby()[1].name)
+      assert.are.equal(1411, env.ns.IntelNearby()[1].map)
+      assert.is_true(hook.settings().minimapTooltip)
+    end)
+
     it("tells the player once that sharing the sightings is on, and only when Intel is running", function()
       start()
       local notices = 0
@@ -392,6 +409,47 @@ describe("Init", function()
       assert.are.equal(1, notices)
       assert.is_nil(env.ns.db.global.settings.intelShareNotice)
       env.printed = {}
+    end)
+
+    it("reminds the player once that the enemy nameplates are off", function()
+      local timers = {}
+      _G.C_Timer.After = function(seconds, fn)
+        timers[#timers + 1] = { seconds = seconds, fn = fn }
+      end
+      start()
+      local reminder
+      for _, timer in ipairs(timers) do
+        if timer.seconds == env.ns.Constants.INTEL_REMINDER_DELAY_SECONDS then
+          reminder = timer.fn
+        end
+      end
+      assert.is_function(reminder)
+      local function reminders()
+        local count = 0
+        for _, line in ipairs(env.printed) do
+          if line:find("Enemy nameplates are off", 1, true) then
+            count = count + 1
+          end
+        end
+        return count
+      end
+      env.ns.Platform.EnemyNameplatesEnabled = function()
+        return true
+      end
+      env.ns.Platform.IsInCombat = function()
+        return false
+      end
+      reminder()
+      assert.are.equal(0, reminders())
+      env.ns.Platform.EnemyNameplatesEnabled = function()
+        return false
+      end
+      env.ns.active = false
+      reminder()
+      assert.are.equal(0, reminders())
+      env.ns.active = true
+      reminder()
+      assert.are.equal(1, reminders())
     end)
 
     it("redraws the Intel views when a guild Kill On Sight entry arrives", function()

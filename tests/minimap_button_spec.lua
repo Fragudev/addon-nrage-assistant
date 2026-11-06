@@ -152,3 +152,240 @@ describe("MinimapButton.SetHidden and ResetPosition", function()
     assert.is_false(MinimapButton.Settings(db).hide)
   end)
 end)
+
+describe("MinimapButton tooltip and Intel", function()
+  local FakeFrames = dofile("tests/support/fake_frames.lua")
+  local NAMES = { "GameTooltip", "Minimap", "MinimapCluster" }
+  local saved = {}
+  local ns, tooltip
+
+  local function new_tooltip()
+    local tip = { lines = {}, scripts = {}, owner = nil, shown = 0 }
+    function tip:SetOwner(owner)
+      self.owner = owner
+    end
+    function tip:GetOwner()
+      return self.owner
+    end
+    function tip:AddLine(text, r, g, b)
+      self.lines[#self.lines + 1] = { text = text, r = r, g = g, b = b }
+      _G["GameTooltipTextLeft" .. #self.lines] = {
+        GetText = function()
+          return text
+        end,
+        GetTextColor = function()
+          return r, g, b
+        end,
+      }
+    end
+    function tip:NumLines()
+      return #self.lines
+    end
+    function tip:Show()
+      self.shown = self.shown + 1
+      if self.scripts.OnShow then
+        self.scripts.OnShow()
+      end
+    end
+    tip.Hide = function() end
+    function tip:HookScript(name, fn)
+      self.scripts[name] = fn
+    end
+    return tip
+  end
+
+  before_each(function()
+    FakeFrames.install()
+    for _, name in ipairs(NAMES) do
+      saved[name] = _G[name]
+    end
+    ns = {}
+    for _, path in ipairs({
+      "Core/Constants",
+      "Core/Locale",
+      "Locales/esES",
+      "Core/Validate",
+      "Domain/IntelModel",
+      "Domain/IntelService",
+      "Domain/IntelMinimapTooltip",
+      "UI/MinimapButton",
+    }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
+    end
+    tooltip = new_tooltip()
+    _G.GameTooltip = tooltip
+    _G.Minimap = CreateFrame("Frame", "Minimap")
+    _G.MinimapCluster = CreateFrame("Frame", "MinimapCluster")
+    ns.GetVersion = function()
+      return "test"
+    end
+    ns.db = { global = {} }
+    ns.active = true
+  end)
+
+  after_each(function()
+    FakeFrames.uninstall()
+    for _, name in ipairs(NAMES) do
+      _G[name] = saved[name]
+    end
+    for index = 1, 20 do
+      _G["GameTooltipTextLeft" .. index] = nil
+    end
+  end)
+
+  it("adds the enemies nearby to the tooltip of the button", function()
+    ns.intel = {}
+    ns.IntelNearby = function()
+      return { { kos = "personal" }, {} }
+    end
+    ns.ViewModel = {
+      IntelMinimapLines = function(nearby)
+        return { #nearby .. " nearby" }
+      end,
+    }
+    ns.MinimapButton.Create()
+    local created = _G.NrageAssistantMinimapButton
+    created.scripts.OnEnter(created)
+    local texts = {}
+    for _, line in ipairs(tooltip.lines) do
+      texts[#texts + 1] = line.text
+    end
+    assert.are.same({ "Nrage Assistant test", "2 nearby", "Left click: open the window" }, {
+      texts[1],
+      texts[2],
+      texts[3],
+    })
+  end)
+
+  it("adds nothing about Intel while it is not running", function()
+    ns.ViewModel = {}
+    ns.MinimapButton.Create()
+    local created = _G.NrageAssistantMinimapButton
+    created.scripts.OnEnter(created)
+    assert.are.equal("Left click: open the window", tooltip.lines[2].text)
+  end)
+
+  describe("HookTooltip", function()
+    local service, fed, settings
+
+    before_each(function()
+      service = ns.IntelService.New({
+        intel = { players = {}, kos = {}, ignore = {}, zones = {} },
+        guildKos = {},
+        settings = function()
+          return { removeMinutes = 5 }
+        end,
+        now = function()
+          return 100
+        end,
+        wall = function()
+          return 1000
+        end,
+      })
+      service:OnSeen({ name = "Ann", class = "MAGE", level = 60 }, {})
+      fed = {}
+      settings = { minimapTooltip = true, minimapFeed = true }
+      assert.is_true(ns.MinimapButton.HookTooltip({
+        service = service,
+        settings = function()
+          return settings
+        end,
+        feed = function(details)
+          fed[#fed + 1] = details.name
+        end,
+      }))
+    end)
+
+    local function hover(owner, ...)
+      tooltip.lines = {}
+      tooltip.owner = owner
+      for _, spec in ipairs({ ... }) do
+        tooltip:AddLine(spec[1], spec[2], spec[3], spec[4])
+      end
+      tooltip.shown = 0
+      tooltip.scripts.OnShow()
+    end
+
+    it("hooks the tooltip once", function()
+      assert.is_false(ns.MinimapButton.HookTooltip({}))
+    end)
+
+    it("adds the level and class of a known enemy under the minimap, and feeds Nearby", function()
+      hover(Minimap, { "Ann", 1, 0, 0 }, { "Bob", 1, 0.1, 0.1 }, { "Cid", 0, 1, 0 })
+      assert.are.equal("Ann: Level 60 Mage", tooltip.lines[4].text)
+      assert.are.equal(4, #tooltip.lines)
+      assert.are.equal(1, tooltip.shown)
+      assert.are.same({ "Ann", "Bob" }, fed)
+    end)
+
+    it("works under the minimap cluster too", function()
+      hover(MinimapCluster, { "Ann", 1, 0, 0 })
+      assert.are.equal("Ann: Level 60 Mage", tooltip.lines[2].text)
+    end)
+
+    it("leaves every other tooltip alone", function()
+      hover(UIParent, { "Ann", 1, 0, 0 })
+      assert.are.equal(1, #tooltip.lines)
+      hover(nil, { "Ann", 1, 0, 0 })
+      assert.are.equal(1, #tooltip.lines)
+      assert.are.same({}, fed)
+    end)
+
+    it("does nothing while the addon is off or the settings are off", function()
+      ns.active = false
+      hover(Minimap, { "Ann", 1, 0, 0 })
+      assert.are.equal(1, #tooltip.lines)
+      ns.active = true
+      settings = { minimapTooltip = false, minimapFeed = false }
+      hover(Minimap, { "Ann", 1, 0, 0 })
+      assert.are.equal(1, #tooltip.lines)
+    end)
+
+    it("does nothing for a line it cannot read, and never raises", function()
+      tooltip.lines = { { text = "x" } }
+      tooltip.owner = Minimap
+      _G.GameTooltipTextLeft1 = {
+        GetText = function()
+          return setmetatable({}, {
+            __concat = function()
+              error("secret")
+            end,
+          })
+        end,
+        GetTextColor = function() end,
+      }
+      assert.has_no.errors(function()
+        tooltip.scripts.OnShow()
+      end)
+      _G.GameTooltipTextLeft1 = {
+        GetText = function()
+          return "Ann"
+        end,
+        GetTextColor = function()
+          return setmetatable({}, {
+            __le = function()
+              error("secret")
+            end,
+            __lt = function()
+              error("secret")
+            end,
+          })
+        end,
+      }
+      assert.has_no.errors(function()
+        tooltip.scripts.OnShow()
+      end)
+      -- A line the game did not make is skipped.
+      tooltip.lines = { { text = "x" } }
+      _G.GameTooltipTextLeft1 = nil
+      assert.has_no.errors(function()
+        tooltip.scripts.OnShow()
+      end)
+    end)
+  end)
+
+  it("does not hook a client without tooltips", function()
+    _G.GameTooltip = nil
+    assert.is_false(ns.MinimapButton.HookTooltip({}))
+  end)
+end)

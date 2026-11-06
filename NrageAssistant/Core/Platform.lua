@@ -1410,4 +1410,27 @@ function Platform.ShowWorldMap(mapId)
   )
 end
 
+-- Adds an entry to the menu of enemy players (the right-click menu of a unit), when the client has the menu API.
+-- `label(name)` gives the text and `onPick(name)` runs on a click; `name` is the plain name the menu is about, and an
+-- entry is only added when it can be read. Returns true when the hook was installed. Not measured yet (M12).
+function Platform.AddEnemyPlayerMenuEntry(label, onPick)
+  if not (Menu and Menu.ModifyMenu) then
+    return false
+  end
+  return (
+    pcall(Menu.ModifyMenu, "MENU_UNIT_ENEMY_PLAYER", function(_, root, context)
+      pcall(function()
+        local name = type(context) == "table" and readableText(context.name) or nil
+        if not name then
+          return
+        end
+        root:CreateDivider()
+        root:CreateButton(label(name), function()
+          onPick(name)
+        end)
+      end)
+    end)
+  )
+end
+
 ns.Platform = Platform

@@ -70,6 +70,7 @@ Domain\IntelAlerts.lua
 Domain\IntelReport.lua
 Domain\IntelImport.lua
 Domain\IntelPins.lua
+Domain\IntelMinimapTooltip.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -131,6 +132,7 @@ UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua
 UI\IntelWindow.lua
+UI\IntelTargetButton.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\TemplateCommands.lua

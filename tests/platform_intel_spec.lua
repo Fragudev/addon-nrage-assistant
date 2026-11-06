@@ -752,3 +752,55 @@ describe("Platform world map", function()
     end)
   end)
 end)
+
+describe("Platform enemy player menu", function()
+  it("adds an entry to the menu of enemy players when the client has the menu API", function()
+    local platform = load_platform()
+    local hooks, buttons, picked = {}, {}, {}
+    local root = {
+      CreateDivider = function()
+        buttons[#buttons + 1] = "divider"
+      end,
+      CreateButton = function(_, text, fn)
+        buttons[#buttons + 1] = text
+        fn()
+      end,
+    }
+    with_globals({
+      Menu = {
+        ModifyMenu = function(tag, fn)
+          hooks[#hooks + 1] = { tag = tag, fn = fn }
+        end,
+      },
+    }, function()
+      local label = function(name)
+        return "KOS " .. name
+      end
+      assert.is_true(platform.AddEnemyPlayerMenuEntry(label, function(name)
+        picked[#picked + 1] = name
+      end))
+      assert.are.equal("MENU_UNIT_ENEMY_PLAYER", hooks[1].tag)
+      hooks[1].fn(nil, root, { name = "Bob" })
+      assert.are.same({ "divider", "KOS Bob" }, buttons)
+      assert.are.same({ "Bob" }, picked)
+      -- A name that cannot be read adds nothing, and nothing raises.
+      hooks[1].fn(nil, root, { name = secret() })
+      hooks[1].fn(nil, root, { name = 5 })
+      hooks[1].fn(nil, root, nil)
+      hooks[1].fn(nil, {}, { name = "Bob" })
+      assert.are.equal(2, #buttons)
+    end)
+    with_globals({
+      Menu = {
+        ModifyMenu = function()
+          error("taint")
+        end,
+      },
+    }, function()
+      assert.is_false(platform.AddEnemyPlayerMenuEntry(function() end, function() end))
+    end)
+    with_globals({ Menu = false }, function()
+      assert.is_false(platform.AddEnemyPlayerMenuEntry(function() end, function() end))
+    end)
+  end)
+end)

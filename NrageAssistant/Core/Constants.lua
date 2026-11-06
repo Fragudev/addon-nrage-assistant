@@ -386,6 +386,8 @@ ns.Constants = {
   INTEL_INBOX_MAX_PER_WINDOW = 30,
   -- The Intel views redraw because of a received sighting at most once per this many seconds.
   INTEL_REDRAW_SECONDS = 1,
+  -- The enemy nameplates are checked this long after login, and the player is told once if they are off.
+  INTEL_REMINDER_DELAY_SECONDS = 20,
   -- A death without a named killer looks at who was targeting the player in the last INTEL_LOSS_FALLBACK_SECONDS.
   INTEL_LOSS_FALLBACK_SECONDS = 10,
   -- A skull level (-1) is shown as the own level plus this, marked as estimated.

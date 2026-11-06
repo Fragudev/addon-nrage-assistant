@@ -888,6 +888,31 @@ local function StartIntel()
     end,
     follow = platform.ShowWorldMap,
   })
+
+  -- The button by the target frame, and the level and class of the enemies on the tooltip of the minimap.
+  pcall(ns.IntelTargetButton.Start)
+  pcall(ns.MinimapButton.HookTooltip, {
+    service = service,
+    settings = settings,
+    feed = function(details)
+      service:OnSeen(details, where())
+    end,
+  })
+
+  -- Enemy nameplates are what Intel reads: the player is told once per session when they are off.
+  C_Timer.After(Constants.INTEL_REMINDER_DELAY_SECONDS, function()
+    if not ns.active then
+      return
+    end
+    local notice = ns.ViewModel.IntelNameplateNotice({
+      enabled = settings().enabled,
+      nameplates = platform.EnemyNameplatesEnabled(),
+      inCombat = platform.IsInCombat(),
+    })
+    if notice then
+      print(("%s %s %s"):format(PREFIX, notice.text, L("The Intel settings in the PvP tab have a button for it.")))
+    end
+  end)
 end
 
 -- Who is nearby now: the enemies read here plus the sightings of the guild on the same map.
