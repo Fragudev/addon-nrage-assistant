@@ -1,0 +1,73 @@
+.luacheckrc
+  s_0e68a66d17ed7f::t_6884568658f957 45
+NrageAssistant/Core/Constants.lua
+  s_0e68a66d17ed7f::t_bf7a51348b838c 24
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_44241485fe54e7 661-712,738-760
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_72c9f0b658906c 675-692
+NrageAssistant/Domain/IntelDirectory.lua
+  s_0e68a66d17ed7f::t_315246f89c6b83 1-116
+NrageAssistant/Domain/IntelPublisher.lua
+  s_0e68a66d17ed7f::t_5137da5d495c1a 1-197
+NrageAssistant/Domain/PermissionService.lua
+  s_0e68a66d17ed7f::t_c0f19cf1802c27 65-71
+NrageAssistant/NrageAssistant.toc
+  s_0e68a66d17ed7f::t_97acb9b9b1c9ef 66-68,78,85
+NrageAssistant/Sync/BlacklistSync.lua
+  s_0e68a66d17ed7f::t_199373ad31265f 30
+NrageAssistant/Sync/Comm.lua
+  s_0e68a66d17ed7f::t_70b72b841c855c 14-15,44-45,313-315,441-442,445,460-462,591,606-608,669-679,1103-1116,1346-1352,1403-1416
+NrageAssistant/Sync/GuildKosSync.lua
+  s_0e68a66d17ed7f::t_cc5789c6300445 1-213
+NrageAssistant/Sync/IntelSync.lua
+  s_0e68a66d17ed7f::t_2c02513e023eb0 1-69
+NrageAssistant/Sync/Protocol.lua
+  s_0e68a66d17ed7f::t_1961707cd4ffe2 370-403,620-621
+NrageAssistant/Sync/SyncRules.lua
+  s_0e68a66d17ed7f::t_72ef850baf41e5 64-81
+NrageAssistant/Sync/Transfer.lua
+  s_0e68a66d17ed7f::t_c4725eb3a72817 132-134,146-148,191-195,251-264,301-304,307-308,334-346
+tests/comm_spec.lua
+  s_0e68a66d17ed7f::t_e82dff0044cb2a 22-23,34,68-69,141-144,1677-1849,2917
+tests/guild_kos_service_spec.lua
+  s_0e68a66d17ed7f::t_5cc4ca193bdebd 1-167
+tests/guild_kos_sync_spec.lua
+  s_0e68a66d17ed7f::t_0b505a06045aa7 1-337
+tests/init_spec.lua
+  s_0e68a66d17ed7f::t_7c7cd81e103b22 291-353
+tests/intel_directory_spec.lua
+  s_0e68a66d17ed7f::t_722d438e0e5334 1-159
+tests/intel_publisher_spec.lua
+  s_0e68a66d17ed7f::t_b737ebaab1cbb7 1-289
+tests/intel_sync_spec.lua
+  s_0e68a66d17ed7f::t_ae9dd615f16836 1-133
+tests/permission_service_spec.lua
+  s_0e68a66d17ed7f::t_fd2bbbb7e26f2d 175-176,181-182
+tests/platform_intel_spec.lua
+  s_0e68a66d17ed7f::t_ccd8653ec447fd 412-453
+tests/protocol_spec.lua
+  s_0e68a66d17ed7f::t_17f86d15a8a5a0 661-662
+tests/roster_sync_spec.lua
+  s_0e68a66d17ed7f::t_03022e10743c6d 22-23,34,80,82
+tests/transfer_spec.lua
+  s_0e68a66d17ed7f::t_df946f2e388160 20-21,29,966-1072
+NrageAssistant/Domain/GuildKosService.lua
+  s_0e68a66d17ed7f::t_f175047c8b549b 1-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "5ee0600995b3a619fe18dab8521c0fc17bd9f3f6",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
