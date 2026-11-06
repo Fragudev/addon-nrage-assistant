@@ -61,4 +61,22 @@ function SyncRules.BlockedByTombstone(ctx, key, rev)
   return tombstone ~= nil and rev <= tombstone.rev
 end
 
+local MAX_TIMESTAMP = 4102444800 -- 2100-01-01, as in Protocol
+
+-- The original author and date an item of a snapshot may carry (`origin` = { addedBy, addedAt }), or nil when it
+-- carries none. Returns false when one of them is there but unusable. Shared by the blacklist and the guild Kill On
+-- Sight list, whose snapshot items name the member who added the entry.
+function SyncRules.ReadOrigin(origin)
+  if origin == nil then
+    return nil
+  end
+  if type(origin) ~= "table" or not ns.EventModel.IsCharacterKey(origin.addedBy) then
+    return false
+  end
+  if not ns.Validate.Int(origin.addedAt, 0, MAX_TIMESTAMP) then
+    return false
+  end
+  return { addedBy = origin.addedBy, addedAt = origin.addedAt }
+end
+
 ns.SyncRules = SyncRules

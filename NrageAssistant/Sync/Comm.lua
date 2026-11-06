@@ -11,7 +11,8 @@ Comm.__index = Comm
 
 -- deps: platform, codec, inbox, queue, roster (table), events (table), tombstones (table),
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
---       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional),
+--       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional), guildKos (the guild Kill On
+--       Sight table) and onGuildKosChange(messageType) (optional),
 --       layerDirectory, layerSwap and onLayerChange(messageType) (all optional),
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
 --       onRosterChange(messageType) (optional), pvpSeason (the season ledger table, see PvPSeasonSync),
@@ -40,6 +41,8 @@ function Comm.New(deps)
     onPvPKill = deps.onPvPKill,
     blacklist = deps.blacklist or {},
     onBlacklistChange = deps.onBlacklistChange,
+    guildKos = deps.guildKos or {},
+    onGuildKosChange = deps.onGuildKosChange,
     readinessRules = deps.readinessRules or {},
     onRulesChange = deps.onRulesChange,
     -- The layer directory and swap flow are in memory and created after Comm (Init.StartLayer sets them).
@@ -307,6 +310,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.BlacklistSync.IsBlacklistMessage(message.t) then
     return self:HandleBlacklist(sender, message)
   end
+  if ns.GuildKosSync.IsGuildKosMessage(message.t) then
+    return self:HandleGuildKos(sender, message)
+  end
   if ns.LayerSync.IsLayerMessage(message.t) then
     return self:HandleLayer(sender, message)
   end
@@ -432,10 +438,11 @@ function Comm:SendSnapshot(target)
   local constants = ns.Constants
   local count = constants.SYNC_MAX_EVENTS
   while count >= 1 do
-    -- The PvP and blacklist parts shrink along with the events, so a snapshot that is too big gets smaller as a
-    -- whole.
+    -- The PvP, blacklist and Kill On Sight parts shrink along with the events, so a snapshot that is too big gets
+    -- smaller as a whole.
     local pvpMax = math.floor(constants.PVP_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
     local blacklistMax = math.floor(constants.BLACKLIST_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
+    local guildKosMax = math.floor(constants.INTEL_KOS_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS)
     local items = ns.Transfer.BuildSnapshot(
       self.events,
       self.tombstones,
@@ -450,7 +457,9 @@ function Comm:SendSnapshot(target)
       -- The same goes for the rosters and the assignments of members; an rl only carries those of its own roster.
       self:SnapshotRosterContext(),
       math.floor(constants.MEMBER_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS),
-      math.floor(constants.ROSTERS_MAX * count / constants.SYNC_MAX_EVENTS)
+      math.floor(constants.ROSTERS_MAX * count / constants.SYNC_MAX_EVENTS),
+      self.guildKos,
+      guildKosMax
     )
     if #items == 0 then
       return false, "empty"
@@ -579,6 +588,7 @@ function Comm:HandleWhisper(text, sender)
   local ctx = self:PvPContext()
   ctx.events, ctx.tombstones = self.events, self.tombstones
   ctx.blacklist = self.blacklist
+  ctx.guildKos = self.guildKos
   ctx.readinessRules = self.readinessRules
   ctx.rosters, ctx.members = self.rosters, self.members
   ctx.roleOf = self.roleOf
@@ -592,6 +602,9 @@ function Comm:HandleWhisper(text, sender)
   end
   if summary.blacklist > 0 and self.onBlacklistChange then
     self.onBlacklistChange("SYNC_DATA")
+  end
+  if summary.guildKos > 0 and self.onGuildKosChange then
+    self.onGuildKosChange("SYNC_DATA")
   end
   if summary.rules > 0 and self.onRulesChange then
     self.onRulesChange("SYNC_DATA")
@@ -649,6 +662,17 @@ function Comm:HandleBlacklist(sender, message)
   local ok, reason = ns.BlacklistSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onBlacklistChange then
     self.onBlacklistChange(message.t)
+  end
+  return ok, reason
+end
+
+-- KOS_UPSERT and KOS_DELETE: the sender's role is read from the local guild roster, and the author is the sender, never
+-- a payload field.
+function Comm:HandleGuildKos(sender, message)
+  local ctx = { guildKos = self.guildKos, tombstones = self.tombstones, now = self.platform.ServerTime }
+  local ok, reason = ns.GuildKosSync.Apply(ctx, message, sender, self.roleOf(sender))
+  if ok and self.onGuildKosChange then
+    self.onGuildKosChange(message.t)
   end
   return ok, reason
 end
@@ -1076,6 +1100,20 @@ function Comm:SendBlacklistDelete(key)
   return self:Send("BLACKLIST_DELETE", payload, "BL:" .. key)
 end
 
+-- A guild Kill On Sight entry added or changed here, or the removal of one (its tombstone is already in place). Keyed
+-- by player, so a newer edit replaces one still waiting in the queue.
+function Comm:SendGuildKosUpsert(key, entry)
+  return self:Send("KOS_UPSERT", ns.GuildKosSync.UpsertPayload(key, entry), "KOS:" .. key)
+end
+
+function Comm:SendGuildKosDelete(key)
+  local payload = ns.GuildKosSync.DeletePayload(self.tombstones, key)
+  if not payload then
+    return false, "no_tombstone"
+  end
+  return self:Send("KOS_DELETE", payload, "KOS:" .. key)
+end
+
 -- Tells the guild the stored set of readiness rules of a roster (one message, replacing one still waiting in the
 -- queue).
 function Comm:SendReadinessRules(rosterId)
@@ -1305,6 +1343,13 @@ function Comm.Start()
         ns.BlacklistChanged()
       end
     end,
+    guildKos = ns.db.global.guildKos,
+    -- An entry that arrives may be about someone nearby now: Init redraws the Intel views.
+    onGuildKosChange = function()
+      if ns.GuildKosChanged then
+        ns.GuildKosChanged()
+      end
+    end,
     readinessRules = ns.db.global.readinessRulesByRoster,
     onRulesChange = function()
       if ns.UI and ns.UI.RulesChanged then
@@ -1353,6 +1398,20 @@ function Comm.Start()
     if not ok then
       pcall(comm.RecordError, comm, "handler", err)
     end
+  end)
+
+  -- Sightings of enemy players travel on their own prefix, outside the envelope (docs/PROTOCOL.md). The receiver is
+  -- looked up when a message arrives: Init creates it right after Comm starts.
+  platform.RegisterPrefix(constants.INTEL_PREFIX)
+  local intelReceiver = {}
+  AceComm:Embed(intelReceiver)
+  intelReceiver:RegisterComm(constants.INTEL_PREFIX, function(_, message, distribution, sender)
+    -- During an encounter the arguments can be secret values: any error means "drop it silently".
+    pcall(function()
+      if ns.active and ns.intelSync then
+        ns.intelSync:Handle(message, distribution, sender)
+      end
+    end)
   end)
 
   C_Timer.NewTicker(constants.QUEUE_FLUSH_SECONDS, function()

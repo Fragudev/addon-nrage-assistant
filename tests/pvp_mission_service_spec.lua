@@ -8,6 +8,7 @@ local function load_addon()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/PvPSeasonModel",
+    "Domain/IntelModel",
     "Domain/PvPSeasonService",
     "Domain/PvPUnitCache",
     "Domain/PvPMissionTracker",
@@ -73,6 +74,7 @@ local function new_client(world, name, withMissions)
       enemy = {},
     }
     client.active = true
+    client.kosList = {}
     client.missions = ns.PvPMissionService.New({
       season = client.season,
       log = function()
@@ -113,6 +115,9 @@ local function new_client(world, name, withMissions)
       end,
       isActive = function()
         return client.active
+      end,
+      isGuildKos = function(victim)
+        return client.kosList[victim] == true
       end,
       onChange = function()
         client.changes = client.changes + 1
@@ -167,6 +172,33 @@ local function setup(missionGoal, mission)
   relay(admin, member)
   return world, admin, member
 end
+
+describe("PvPMissionService bounties", function()
+  it("saves the guild KOS flag with the kill and keeps it when the list changes", function()
+    local _, admin, member = setup({ kind = "kos", count = 1, target = "Zed" })
+    member.kosList.Zed = true
+    assert.is_true(kill(member, "Zed"))
+    assert.is_true(kill(member, "Amy"))
+    member.kosList.Zed = nil
+    assert.is_true(member.char.kills[1].kos)
+    assert.is_nil(member.char.kills[2].kos)
+    local claim = assert(member.missions:Claim("m1"))
+    assert.is_true(claim.evidence[1].kos)
+    relay(member, admin)
+    assert.are.equal(1, #admin.season:Queue())
+  end)
+
+  it("does not complete a bounty for a victim that was not listed", function()
+    local _, _, member = setup({ kind = "kos", count = 1, target = "Zed" })
+    kill(member, "Zed")
+    assert.is_false(member.missions:Progress("m1").complete)
+  end)
+
+  it("syncs the target to a member", function()
+    local _, _, member = setup({ kind = "kos", count = 1, target = "Zed" })
+    assert.are.equal("Zed", member.season:Mission("m1").goal.target)
+  end)
+end)
 
 describe("PvPMissionService kill log", function()
   it("logs an honour kill with the map id, the place and the class and race the cache knows", function()

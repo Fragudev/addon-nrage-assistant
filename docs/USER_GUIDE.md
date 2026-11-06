@@ -233,7 +233,7 @@ sessions.
 
 ## PvP
 
-The **PvP** tab has five sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills** and **History**. The admin
+The **PvP** tab has six sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills**, **History** and **Intel** (see *Intel*). The admin
 views are the **PvP** tab of the Admin group (guild master and co-guild master only). The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
 stats* and *Kill ranking*, which are described here. *My stats* counts your kills automatically, split into **open world** and **battleground**, with
 a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
@@ -432,7 +432,7 @@ sessions.
 
 ## PvP
 
-The **PvP** tab has five sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills** and **History**. The admin
+The **PvP** tab has six sub-tabs: **Season**, **Missions**, **Stats**, **Recent kills**, **History** and **Intel** (see *Intel*). The admin
 views are the **PvP** tab of the Admin group (guild master and co-guild master only). The seasons are described under *PvP seasons* below. **Stats** holds two views, *My
 stats* and *Kill ranking*, which are described here. *My stats* counts your kills automatically, split into **open world** and **battleground**, with
 a total and today's count for each. Days follow the server's date in UTC, so they may not start at your midnight.
@@ -633,6 +633,139 @@ member is on another layer than you. Members of your own party or raid are not d
 - Whether the pins are placed correctly on the Forever client has not been checked in game yet (see
   `docs/API_NOTES.md`).
 
+## Intel
+
+**Intel** finds the enemy players around you, keeps a record of each one you meet, and shares what you see with the
+guild. It covers the detection, alerts and lists of Spy (Forever), and adds a guild Kill on Sight list, live sightings
+and bounties. It is the **Intel** sub-tab of the PvP tab, a compact window, the minimap button and the chat warnings.
+Intel is not yet tested in the live game: keep Spy installed until the officers confirm that Intel works (see *Limits to know*
+below).
+
+### Before you start
+
+- **Enemy nameplates must be on.** Intel reads the enemies whose nameplate you can see. When they are off, the Intel
+  tab says so and offers a button to turn them on (outside combat). The addon also reminds you once per session.
+- Intel runs in battlegrounds, arenas and world PvP. It never runs in dungeons and raids. Sanctuaries are skipped
+  unless you turn them on, and any zone can be skipped in the settings.
+
+### What it can and cannot see
+
+- It reads the enemy players whose nameplate is in range, and also your target, focus and mouseover. The list is
+  refreshed every second.
+- **A stealthed enemy is not detected**, and neither is one that never shows a nameplate.
+- The distance is about the nameplate range, not the whole zone.
+- The client can hide unit information, mostly in instanced PvP. Those units are skipped.
+- A skull enemy has no readable level. It is shown as your level plus 10, marked as estimated.
+- **A sighting shows your position, not the enemy's.** The client does not give the enemy's coordinates, so the map
+  pin is where you were when you saw them.
+
+### The compact window
+
+`/nrage intel show` opens it and `/nrage intel hide` closes it. It lists who is nearby (or the last hour, the Ignore
+list, or a Kill on Sight list). An entry fades at half the *Nearby delay* and leaves after it (1 to 15 minutes, or
+never; 5 minutes by default).
+
+- **Left click** targets the player.
+- **Shift-click** adds or removes your personal Kill on Sight mark.
+- **Ctrl-click** adds or removes the player from your Ignore list.
+- **Right-click** opens a menu with the Kill on Sight and Ignore actions, the guild list, and the announce options
+  (only me, party, raid, guild or Local Defense).
+- In combat the rows keep their places. A player who leaves stays greyed out, and a newcomer can be targeted only
+  after combat.
+
+### Kill on Sight
+
+There are two lists:
+
+- **Your list** is personal. It is kept on this character and is **never sent** to anyone. Up to 500 players.
+- **The guild list** is shared with every member running the addon. Any member can add a player. Only the member who
+  added the player, the GM or the CoGM can change the entry, and only that member, the GM or the CoGM can remove it.
+  Removing an entry tells the guild.
+
+Each entry has a category (gank, camp, corpse, objective, insult or other) and an optional reason of up to 100
+characters. The reason is free text about another player, so write only what you would say in guild chat.
+
+### Ignore
+
+A player on your Ignore list is never alerted, never listed as nearby and never shared. The list is personal and is
+never sent.
+
+### Sightings
+
+When Intel sees an enemy, it can tell the guild. **Sharing sightings is on by default.** The addon tells you so in
+chat once, at login. To turn it off, run `/nrage intel config`, open *Sharing*, and clear
+**Share sightings with the guild**.
+
+- A sighting holds the enemy's name, class, race, level and whether they are stealthed, and **your position**. A
+  guildmate who receives it sees where you were when you saw the enemy.
+- In the open world the sighting goes to the guild. In a battleground it goes to your group. Nothing is sent from
+  arenas, dungeons or raids, or during an encounter.
+- Each enemy is sent at most once every 30 seconds, sooner when it starts stealth.
+- Sightings you receive stay in memory for two minutes, and are shown in *Nearby* and on the maps. They are never
+  saved, and they disappear when you log out.
+
+### Wins and losses
+
+- A **win** is an honourable kill credited to you on an enemy player you met.
+- A **loss** is the player who killed you, read from the death recap. When the recap does not name a killer, the addon
+  takes the enemy who was targeting you in the last 10 seconds.
+
+Wins and losses are kept per player and shown in the statistics.
+
+### Statistics
+
+- `/nrage intel stats` shows this session: the enemies you met, your wins and losses, the most seen enemy, your
+  nemesis (the player who killed you most) and the hottest zone.
+- `/nrage intel stats season` shows the same for the running PvP season. It says so when no season is running.
+- The **Statistics** view of the Intel sub-tab lists every enemy you met, with search, sortable columns and filters.
+  Your lifetime honourable kills are shown when the client gives them.
+
+### Bounties
+
+A bounty is a PvP mission that rewards kills of players on the guild Kill on Sight list. Only the **GM and the CoGM**
+can create one.
+
+1. On the Intel sub-tab, open a player of the guild list and click **Create bounty** (the sword icon).
+2. The Missions form of the PvP Admin tab opens with the title `Bounty: <name>` and the goal **Kill on Sight kills**.
+   Set the count and the points, then save.
+3. A kill counts toward the bounty when the victim was on the guild Kill on Sight list at the moment of the kill. Later
+   changes to the list do not change that.
+4. If the bounty names a player, only kills of that player count. Otherwise any player on the guild list counts.
+
+Kills for a bounty go through the normal claims: the GM or the CoGM approves them, as for every mission. Players with an
+open bounty are marked with `!` in the Intel window, and their tooltip says so.
+
+### Importing lists
+
+- `/nrage intel import spy` copies the Kill on Sight and Ignore lists of Spy into yours. Spy has to be loaded for this.
+  Its data may use other names, so check the result.
+- `/nrage intel import kos <names>` and `/nrage intel import ignore <names>` add names to your lists. Separate them
+  with commas or put one on each line. The import skips names already on the list and names that are not valid.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `/nrage intel show`, `hide`, `config` | the compact window, and the Intel settings |
+| `/nrage intel stats [season]` | the session report, or the season report |
+| `/nrage intel kos [guild] <name> [category] [reason]` | add a player to your list, or to the guild list with `guild` |
+| `/nrage intel kos [guild] remove <name>`, `kos list` | remove a player, or list the entries |
+| `/nrage intel ignore <name>`, `ignore remove <name>`, `ignore list` | the Ignore list |
+| `/nrage intel clear` | forget who is nearby (the sightings you received too) |
+| `/nrage intel reset confirm` | forget every enemy you met, with their wins and losses; your lists stay |
+| `/nrage intel import spy`, `import [kos\|ignore] <names>` | bring in names |
+| `/nrage intel test`, `minimap`, `debug` | an alert test (nothing is shared), the minimap button, and diagnostics |
+
+`/nrage spy` is the same command, for players coming from Spy.
+
+### Limits to know
+
+- Enemy nameplates must be on, and detection stays within nameplate range.
+- A stealthed enemy is not detected.
+- A sighting reveals your position to the guild.
+- Addon messages are not encrypted. See the privacy notes.
+- Intel is not yet tested in the live game. The guild keeps Spy installed until the officers confirm that Intel works.
+
 ## Sync
 
 The **Home** tab shows the sync state. While an encounter is in progress the game blocks addon messages, so
@@ -663,4 +796,5 @@ once; they are not needed in normal use.
 | `/nrage` | opens the window, where everything else is done |
 | `/nrage help` | this short list |
 | `/nrage pvp ...` | commands for the PvP seasons (see *PvP seasons*); the PvP tab does the same with screens |
+| `/nrage intel ...` | the Intel commands (see *Intel*); `/nrage spy` is the same command |
 | `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp`, `layer` |

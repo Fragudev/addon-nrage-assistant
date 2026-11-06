@@ -216,6 +216,395 @@ describe("Init", function()
     end)
   end)
 
+  describe("Intel", function()
+    local function start()
+      local tickers = {}
+      _G.C_Timer.NewTicker = function(seconds, fn)
+        tickers[#tickers + 1] = { seconds = seconds, fn = fn }
+      end
+      local platform = env.ns.Platform
+      platform.Now = function()
+        return 100
+      end
+      platform.GetInstanceKind = function()
+        return "none"
+      end
+      platform.GetZonePvPType = function()
+        return "contested"
+      end
+      platform.GetPlayerMapId = function()
+        return 1411
+      end
+      platform.PlayerMapPosition = function()
+        return { map = 1411, x = 0.5, y = 0.25 }
+      end
+      platform.GetPlayerFaction = function()
+        return "Alliance"
+      end
+      env.units = {}
+      platform.GetEnemyDetails = function(unit)
+        return env.units[unit]
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local intelFrame
+      for _, frame in ipairs(env.frames) do
+        if frame.events.PLAYER_FOCUS_CHANGED then
+          intelFrame = frame
+        end
+      end
+      return intelFrame, tickers
+    end
+
+    it("starts once, registers each event and rescans every second", function()
+      local intelFrame, tickers = start()
+      assert.are.same({}, env.ns.startupErrors)
+      assert.is_table(env.ns.intel)
+      assert.is_table(env.ns.intelDetector)
+      for _, event in ipairs({
+        "NAME_PLATE_UNIT_ADDED",
+        "PLAYER_TARGET_CHANGED",
+        "PLAYER_FOCUS_CHANGED",
+        "UPDATE_MOUSEOVER_UNIT",
+      }) do
+        assert.is_true(intelFrame.events[event], event)
+        assert.is_true(env.ns.intelEvents[event], event)
+      end
+      local found = {}
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          found[#found + 1] = ticker.fn
+        end
+      end
+      assert.is_true(#found >= 1)
+
+      env.units.nameplate2 = { name = "Bob", class = "ROGUE", faction = "Horde", level = 60 }
+      for _, fn in ipairs(found) do
+        pcall(fn)
+      end
+      assert.are.equal(1, env.ns.intel:Counts().players)
+      assert.are.equal(1411, env.ns.db.global.intel.players.bob.lastMap)
+      assert.are.equal(5000, env.ns.db.global.intel.players.bob.lastX)
+      assert.are.equal(2500, env.ns.db.global.intel.players.bob.lastY)
+    end)
+
+    it("shares what it reads and shows the sightings of the guild as nearby", function()
+      local sent = {}
+      _G.ChatThrottleLib = {
+        SendAddonMessage = function(_, priority, prefix, text, channel)
+          sent[#sent + 1] = { priority = priority, prefix = prefix, text = text, channel = channel }
+        end,
+      }
+      local _, tickers = start()
+      env.ns.lockdown = {
+        CanSend = function()
+          return true
+        end,
+      }
+      env.units.nameplate1 = { name = "Bob", class = "ROGUE", race = "ORC", faction = "Horde", level = 60 }
+      env.ns.intelDetector:Rescan()
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_SHARE_TICK_SECONDS then
+          pcall(ticker.fn)
+        end
+      end
+      _G.ChatThrottleLib = nil
+      assert.are.equal(1, #sent)
+      assert.are.equal("BULK", sent[1].priority)
+      assert.are.equal(env.ns.Constants.INTEL_PREFIX, sent[1].prefix)
+      assert.are.equal("GUILD", sent[1].channel)
+      assert.are.equal("I1:1411:5000:2500:4:6:60:0:Bob", sent[1].text)
+
+      env.ns.guildRoster = {
+        Lookup = function()
+          return { rankName = "Miembro", rankIndex = 5 }
+        end,
+      }
+      assert.is_true(env.ns.intelSync:Handle("I1:1411:1:2:0:0:0:0:Eve", "GUILD", "Ann"))
+      local names = {}
+      for _, item in ipairs(env.ns.IntelNearby()) do
+        names[#names + 1] = item.name .. "/" .. tostring(item.source)
+      end
+      table.sort(names)
+      assert.are.same({ "Bob/nil", "Eve/Ann" }, names)
+    end)
+
+    it("redraws the interface after every read, while the addon is on", function()
+      local _, tickers = start()
+      local changed, periodic = 0, nil
+      env.ns.UI.IntelChanged = function(flag)
+        changed = changed + 1
+        periodic = flag
+      end
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          ticker.fn()
+        end
+      end
+      assert.are.equal(1, changed)
+      assert.is_true(periodic)
+      env.ns.active = false
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          ticker.fn()
+        end
+      end
+      assert.are.equal(1, changed)
+      env.ns.UI.IntelChanged = nil
+    end)
+
+    it("starts the compact window", function()
+      local started = 0
+      env.ns.IntelWindow.Start = function()
+        started = started + 1
+      end
+      start()
+      assert.are.equal(1, started)
+    end)
+
+    it("builds the pins of the enemies from the ones seen here and the sightings of the guild", function()
+      start()
+      env.ns.intel:OnSeen({ name = "Fay", class = "MAGE" }, { map = 1411, x = 5000, y = 2500 })
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 100, y = 200 })
+      local controller = env.ns.intelMapPins
+      local names = {}
+      for _, pin in ipairs(controller.deps.pins()) do
+        names[#names + 1] = pin.name
+      end
+      table.sort(names)
+      assert.are.same({ "Eve", "Fay" }, names)
+      env.ns.db.global.settings.intel.mapMode = "none"
+      assert.are.same({}, controller.deps.pins())
+      local settings = controller.deps.settings()
+      assert.is_true(settings.minimap and settings.worldmap)
+      assert.is_false(settings.follow)
+      assert.are.equal(env.ns.Platform.ShowWorldMap, controller.deps.follow)
+    end)
+
+    it("starts the button by the target frame and the tooltip of the minimap, which feeds Nearby", function()
+      local starts, hook = {}, nil
+      env.ns.IntelTargetButton.Start = function()
+        starts[#starts + 1] = "button"
+      end
+      env.ns.MinimapButton.HookTooltip = function(deps)
+        hook = deps
+        starts[#starts + 1] = "tooltip"
+      end
+      start()
+      assert.are.same({ "button", "tooltip" }, starts)
+      hook.feed({ name = "Fay", class = "MAGE" })
+      assert.are.equal("Fay", env.ns.IntelNearby()[1].name)
+      assert.are.equal(1411, env.ns.IntelNearby()[1].map)
+      assert.is_true(hook.settings().minimapTooltip)
+    end)
+
+    it("tells the player once that sharing the sightings is on, and only when Intel is running", function()
+      start()
+      local notices = 0
+      for _, line in ipairs(env.printed) do
+        if line:find("enemy players you meet are now shared", 1, true) then
+          notices = notices + 1
+        end
+      end
+      assert.are.equal(1, notices)
+      assert.is_nil(env.ns.db.global.settings.intelShareNotice)
+      env.printed = {}
+    end)
+
+    it("reminds the player once that the enemy nameplates are off", function()
+      local timers = {}
+      _G.C_Timer.After = function(seconds, fn)
+        timers[#timers + 1] = { seconds = seconds, fn = fn }
+      end
+      start()
+      local reminder
+      for _, timer in ipairs(timers) do
+        if timer.seconds == env.ns.Constants.INTEL_REMINDER_DELAY_SECONDS then
+          reminder = timer.fn
+        end
+      end
+      assert.is_function(reminder)
+      local function reminders()
+        local count = 0
+        for _, line in ipairs(env.printed) do
+          if line:find("Enemy nameplates are off", 1, true) then
+            count = count + 1
+          end
+        end
+        return count
+      end
+      env.ns.Platform.EnemyNameplatesEnabled = function()
+        return true
+      end
+      env.ns.Platform.IsInCombat = function()
+        return false
+      end
+      reminder()
+      assert.are.equal(0, reminders())
+      env.ns.Platform.EnemyNameplatesEnabled = function()
+        return false
+      end
+      env.ns.active = false
+      reminder()
+      assert.are.equal(0, reminders())
+      env.ns.active = true
+      reminder()
+      assert.are.equal(1, reminders())
+    end)
+
+    it("redraws the Intel views when a guild Kill On Sight entry arrives", function()
+      start()
+      local redraws = 0
+      env.ns.UI.IntelChanged = function()
+        redraws = redraws + 1
+      end
+      env.ns.GuildKosChanged()
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1 })
+      assert.are.equal(2, redraws)
+      env.ns.UI.IntelChanged = nil
+      env.ns.GuildKosChanged()
+    end)
+
+    it("shows no remote sightings when the own map is unknown", function()
+      start()
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1 })
+      env.ns.Platform.GetPlayerMapId = function()
+        return nil
+      end
+      assert.are.same({}, env.ns.IntelNearby())
+    end)
+
+    it("reads the unit an event names, and ignores events while the addon is off", function()
+      local intelFrame = start()
+      env.units.nameplate7 = { name = "Eve", faction = "Horde" }
+      env.units.target = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate7")
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      assert.is_table(env.ns.db.global.intel.players.eve)
+      assert.is_table(env.ns.db.global.intel.players.tom)
+      env.ns.active = false
+      env.units.focus = { name = "Zed", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_FOCUS_CHANGED")
+      assert.is_nil(env.ns.db.global.intel.players.zed)
+    end)
+
+    it("reads nothing in a dungeon", function()
+      local intelFrame = start()
+      env.ns.Platform.GetInstanceKind = function()
+        return "party"
+      end
+      env.units.target = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      assert.is_nil(env.ns.db.global.intel.players.tom)
+    end)
+
+    it("keeps working when the client refuses an event", function()
+      local original = env.ns.Platform.TryRegisterEvent
+      env.ns.Platform.TryRegisterEvent = function(frame, event)
+        if event == "UPDATE_MOUSEOVER_UNIT" then
+          return false
+        end
+        return original(frame, event)
+      end
+      start()
+      assert.is_false(env.ns.intelEvents.UPDATE_MOUSEOVER_UNIT)
+      assert.is_true(env.ns.intelEvents.PLAYER_TARGET_CHANGED)
+    end)
+
+    it("registers the cast and death events and builds the alerts and the commands", function()
+      local intelFrame = start()
+      assert.are.same({}, env.ns.startupErrors)
+      assert.is_true(intelFrame.events.UNIT_SPELLCAST_SUCCEEDED)
+      assert.is_true(intelFrame.events.PLAYER_DEAD)
+      assert.is_true(env.ns.intelEvents.PLAYER_DEAD)
+      assert.is_table(env.ns.intelAlerts)
+      assert.are.equal("function", type(env.ns.intelCommands.Run))
+      assert.is_truthy(env.ns.intelCommands:Run("debug")[1])
+    end)
+
+    it("alerts for a Kill On Sight enemy in the error area while the window does not exist", function()
+      local intelFrame = start()
+      local shown, sounds = {}, {}
+      env.ns.Platform.ShowErrorText = function(text)
+        shown[#shown + 1] = text
+      end
+      env.ns.Platform.PlayIntelSound = function(kind)
+        sounds[#sounds + 1] = kind
+      end
+      env.ns.intel:AddKos({ name = "Eve" })
+      env.units.nameplate1 = { name = "Eve", faction = "Horde", level = 60 }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+      assert.are.same({ "Kill on Sight: Eve (level 60)" }, shown)
+      assert.are.same({ "kos" }, sounds)
+
+      -- With the window there, the warning goes to it.
+      local warned = {}
+      env.ns.IntelWindow = {
+        Warn = function(text, kind)
+          warned[#warned + 1] = kind .. ":" .. text
+        end,
+      }
+      env.ns.intel:AddKos({ name = "Tom" })
+      env.units.nameplate2 = { name = "Tom", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate2")
+      env.ns.IntelWindow = nil
+      assert.are.same({ "kos:Kill on Sight: Tom" }, warned)
+      assert.are.equal(1, #shown)
+    end)
+
+    it("alerts when a guildmate reports a Kill On Sight enemy on the same map", function()
+      start()
+      local shown = {}
+      env.ns.Platform.ShowErrorText = function(text)
+        shown[#shown + 1] = text
+      end
+      env.ns.intel:AddKos({ name = "Eve" })
+      env.ns.intelDirectory:Apply("Ann", { name = "Eve", map = 1411, x = 1, y = 1, level = 60 })
+      assert.are.same({ "Ann reports Kill on Sight: Eve (level 60)" }, shown)
+    end)
+
+    it("marks an enemy that casts a stealth ability, and ignores other spells", function()
+      local intelFrame = start()
+      env.units.nameplate4 = { name = "Rogue", faction = "Horde", level = 60 }
+      intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate4")
+      assert.is_false(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "nameplate4", "guid", 133)
+      assert.is_false(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "nameplate4", "guid", 1784)
+      assert.is_true(env.ns.IntelNearby()[1].stealth)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED", "party1", "guid", 1784)
+      intelFrame.OnEvent(intelFrame, "UNIT_SPELLCAST_SUCCEEDED")
+    end)
+
+    it("stores a loss against the killer of the death recap on PLAYER_DEAD", function()
+      local intelFrame = start()
+      env.units.target = { name = "Bob", faction = "Horde" }
+      intelFrame.OnEvent(intelFrame, "PLAYER_TARGET_CHANGED")
+      env.ns.Platform.GetDeathKiller = function()
+        return "Bob"
+      end
+      intelFrame.OnEvent(intelFrame, "PLAYER_DEAD")
+      assert.are.equal(1, env.ns.db.global.intel.players.bob.losses)
+      assert.are.equal(1, env.ns.intelDetector.lossSources.recap)
+    end)
+
+    it("counts a win when the honour message names a victim", function()
+      start()
+      local pvpFrame
+      for _, frame in ipairs(env.frames) do
+        if frame.events.CHAT_MSG_COMBAT_HONOR_GAIN then
+          pvpFrame = frame
+        end
+      end
+      env.ns.Platform.ParseHonorVictim = function()
+        return "Bob"
+      end
+      pvpFrame.OnEvent(pvpFrame, "CHAT_MSG_COMBAT_HONOR_GAIN", "Bob dies, honorable kill")
+      assert.are.equal(1, env.ns.db.global.intel.players.bob.wins)
+      assert.are.equal(1, env.ns.intel.session.wins)
+    end)
+  end)
+
   describe("database", function()
     it("turns the addon off with a notice when a migration raises, and leaves the saved data alone", function()
       local raw = { global = { schemaVersion = 1 } }

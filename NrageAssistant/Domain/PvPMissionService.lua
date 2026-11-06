@@ -17,7 +17,8 @@ local _, ns = ...
 --          now = function() -> server time, platform = { GetPlayerMapId, GetEnemyPlayerInfo, GetBattlegroundWinner,
 --          GetPlayerFaction, IsInBattleground, HasBattlegroundWinner }, killsAvailable = function() -> boolean,
 --          schedule = function(delay, fn), random = function(min, max), isActive = function() -> boolean,
---          onChange = function() (optional) }
+--          onChange = function() (optional), isGuildKos = function(name) -> boolean (optional: is the victim on the
+--          guild Kill On Sight list right now) }
 -- The wiring sets `unitSource` and `winSource` to true when the events behind them could be registered.
 local PvPMissionService = {}
 PvPMissionService.__index = PvPMissionService
@@ -90,7 +91,11 @@ function PvPMissionService:OnHonorKill(entry)
     return false
   end
   local class, race = self.deps.cache:Lookup(entry.victim)
+  -- A bounty counts a kill by what the guild KOS said at this moment: the flag is saved with the kill and later list
+  -- changes do not touch it.
+  local isKos = self.deps.isGuildKos
   append(log, {
+    kos = isKos and isKos(entry.victim) == true or nil,
     at = entry.time,
     victim = entry.victim,
     mapId = self.deps.platform.GetPlayerMapId(),

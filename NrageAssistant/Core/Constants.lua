@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 15,
+  SCHEMA_VERSION = 16,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 9,
+  PROTOCOL_MINOR = 10,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -350,6 +350,79 @@ ns.Constants = {
   POSITION_SCALE = 10000,
   -- The map pins are redrawn at most once per this many seconds.
   POSITION_REDRAW_SECONDS = 1,
+
+  -- Intel (docs/PVP_INTEL_PLAN.md section 2): enemy player detection, the personal and guild Kill On Sight lists and
+  -- live sightings. Sightings travel on their own addon prefix (not through the NRAGE envelope): "I1:<map>:<x>:<y>:
+  -- <class>:<race>:<level>:<flags>:<name>" of at most INTEL_MAX_BYTES bytes (see IntelModel).
+  INTEL_PREFIX = "NRAGEINT",
+  INTEL_MAX_BYTES = 96,
+  -- Saved records: at most INTEL_PLAYERS_MAX players (the oldest lastSeen goes first), pruned at login after
+  -- INTEL_RETENTION_DAYS; contacts are counted for at most INTEL_ZONES_MAX maps; the personal lists and the guild
+  -- list are bounded too. A guild snapshot carries at most INTEL_KOS_SNAPSHOT_MAX entries and as many removals.
+  INTEL_PLAYERS_MAX = 5000,
+  INTEL_RETENTION_DAYS = 180,
+  INTEL_ZONES_MAX = 200,
+  INTEL_KOS_MAX = 500,
+  INTEL_IGNORE_MAX = 500,
+  INTEL_REASON_MAX = 100,
+  INTEL_NAME_MAX = 40,
+  INTEL_KOS_SNAPSHOT_MAX = 200,
+  -- Detection: the visible enemies are read again every INTEL_RESCAN_SECONDS, through nameplate1 to
+  -- nameplate<INTEL_NAMEPLATE_UNITS>, the target, the focus and the mouseover.
+  INTEL_RESCAN_SECONDS = 1,
+  INTEL_NAMEPLATE_UNITS = 40,
+  INTEL_LAST_HOUR_SECONDS = 3600,
+  -- The same enemy and kind of alert fire again only after this long.
+  INTEL_REALERT_SECONDS = 300,
+  -- Sharing: an enemy is sent at most once per INTEL_SHARE_ENEMY_SECONDS (sooner when it starts stealth), one message
+  -- goes out per INTEL_SHARE_TICK_SECONDS and at most INTEL_SHARE_QUEUE_MAX wait their turn.
+  INTEL_SHARE_ENEMY_SECONDS = 30,
+  INTEL_SHARE_TICK_SECONDS = 2,
+  INTEL_SHARE_QUEUE_MAX = 5,
+  -- Received sightings live in memory for INTEL_DIRECTORY_TTL seconds, at most INTEL_DIRECTORY_MAX enemies;
+  -- INTEL_INBOX_MAX_PER_WINDOW messages per sender are read per INBOX_WINDOW_SECONDS.
+  INTEL_DIRECTORY_TTL = 120,
+  INTEL_DIRECTORY_MAX = 200,
+  INTEL_INBOX_MAX_PER_WINDOW = 30,
+  -- The Intel views redraw because of a received sighting at most once per this many seconds.
+  INTEL_REDRAW_SECONDS = 1,
+  -- The enemy nameplates are checked this long after login, and the player is told once if they are off.
+  INTEL_REMINDER_DELAY_SECONDS = 20,
+  -- A death without a named killer looks at who was targeting the player in the last INTEL_LOSS_FALLBACK_SECONDS.
+  INTEL_LOSS_FALLBACK_SECONDS = 10,
+  -- A skull level (-1) is shown as the own level plus this, marked as estimated.
+  INTEL_SKULL_LEVEL_BONUS = 10,
+  INTEL_ANNOUNCE_SECONDS = 300,
+  -- Spell ids of the stealth abilities. Classic values, to confirm on Forever (plan measurement M9).
+  INTEL_STEALTH_SPELLS = {
+    [1784] = true,
+    [1785] = true,
+    [1786] = true,
+    [1787] = true,
+    [1856] = true,
+    [1857] = true,
+    [5215] = true,
+    [6783] = true,
+    [9913] = true,
+    [20580] = true,
+  },
+  -- Kill On Sight categories; the labels are ours (see IntelModel).
+  INTEL_KOS_CATEGORIES = { "gank", "camp", "corpse", "objective", "insult", "other" },
+  -- Class and race file tokens in a fixed order: the wire carries the position in the list (0 is unknown), so a token
+  -- can only be added at the end.
+  INTEL_CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" },
+  INTEL_RACES = {
+    "HUMAN",
+    "DWARF",
+    "NIGHTELF",
+    "GNOME",
+    "DRAENEI",
+    "ORC",
+    "SCOURGE",
+    "TAUREN",
+    "TROLL",
+    "BLOODELF",
+  },
 
   -- Received data kept in memory or SavedVariables.
   -- Sized to the guild limit (GUILD_ROSTER_MAX); a full table drops the received profile that arrived longest ago.

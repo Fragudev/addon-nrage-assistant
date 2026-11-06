@@ -367,6 +367,40 @@ local function validateBlacklistDelete(payload)
   return { key = payload.key, rev = payload.rev }
 end
 
+-- Guild Kill On Sight list. Like the blacklist, the author is the sender, so the payload has no field for it, and the
+-- key is only bounded here: the receiver works it out again from the name (GuildKosSync). The name, category and
+-- reason have to be what IntelModel.ValidateKos would keep; the reason is optional.
+local function validateKosKey(key)
+  return isText(key, ns.Constants.INTEL_NAME_MAX) and not key:find(":", 1, true)
+end
+
+local function validateKosUpsert(payload)
+  if not (validateKosKey(payload.key) and validateRevision(payload)) then
+    return nil
+  end
+  local clean = ns.IntelModel.ValidateKos({ name = payload.name, category = payload.category, reason = payload.reason })
+  if
+    not (clean and clean.name == payload.name and payload.category == clean.category and clean.reason == payload.reason)
+  then
+    return nil
+  end
+  return {
+    key = payload.key,
+    name = clean.name,
+    category = clean.category,
+    reason = clean.reason,
+    rev = payload.rev,
+    updatedAt = payload.updatedAt,
+  }
+end
+
+local function validateKosDelete(payload)
+  if not (validateKosKey(payload.key) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  return { key = payload.key, rev = payload.rev }
+end
+
 local function validatePvPReset(payload)
   if not (ns.EventModel.IsCharacterKey(payload.target) and isInt(payload.rev, 1, MAX_REV)) then
     return nil
@@ -583,6 +617,8 @@ local VALIDATORS = {
   PVP_KILL = validatePvPKill,
   BLACKLIST_UPSERT = validateBlacklistUpsert,
   BLACKLIST_DELETE = validateBlacklistDelete,
+  KOS_UPSERT = validateKosUpsert,
+  KOS_DELETE = validateKosDelete,
   ROSTER_RULES = validateRosterRules,
   LAYER_STATE = validateLayerState,
   LAYER_SWAP = validateLayerSwap,

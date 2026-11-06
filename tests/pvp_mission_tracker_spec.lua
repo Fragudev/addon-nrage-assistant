@@ -143,6 +143,38 @@ describe("PvPMissionTracker count", function()
   end)
 end)
 
+describe("PvPMissionTracker bounties", function()
+  it("counts only the kills flagged as guild KOS, with or without a target", function()
+    local log = {
+      kill(NOW - 4, "Zed", { kos = true }),
+      kill(NOW - 3, "Amy", { kos = true }),
+      kill(NOW - 2, "Bob"),
+      kill(NOW - 1, "Cal", { kos = true }),
+    }
+    local any = progress(mission({ kind = "kos", count = 3 }), log)
+    assert.are.same({ { label = "Kills", done = 3, total = 3 } }, any.bars)
+    assert.is_true(any.complete)
+    assert.is_true(any.evidence[1].kos)
+    local named = progress(mission({ kind = "kos", count = 1, target = "zed" }), log)
+    assert.is_true(named.complete)
+    assert.are.equal(1, #named.evidence)
+    assert.are.equal("Zed", named.evidence[1].victim)
+  end)
+
+  it("does not count a target kill that was not on the KOS at that moment", function()
+    local result = progress(mission({ kind = "kos", count = 1, target = "Bob" }), { kill(NOW - 1, "Bob") })
+    assert.is_false(result.complete)
+    assert.is_false(result.claimable)
+  end)
+
+  it("applies place and zones as for kills, and plain kills ignore the flag", function()
+    local log = { kill(NOW - 1, "Zed", { kos = true, place = "bg", mapId = 1 }) }
+    assert.is_false(progress(mission({ kind = "kos", count = 1, place = "world" }), log).complete)
+    assert.is_false(progress(mission({ kind = "kos", count = 1, zones = { 1411 } }), log).complete)
+    assert.is_true(progress(mission({ kind = "kills", count = 1 }), log).complete)
+  end)
+end)
+
 describe("PvPMissionTracker victim cap", function()
   it("counts one victim at most three times per server day, in time order", function()
     local log = {}

@@ -107,6 +107,10 @@ local function StartPvPMissions(feed)
     isActive = function()
       return ns.active == true
     end,
+    isGuildKos = function(name)
+      local guildKos = ns.db and ns.db.global and ns.db.global.guildKos
+      return guildKos ~= nil and ns.GuildKosService.Find(guildKos, name) ~= nil
+    end,
     onChange = function()
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()
@@ -239,6 +243,10 @@ local function StartPvP()
         local victim = ns.Platform.ParseHonorVictim(text)
         if victim then
           feed:OnHonorKill(victim, tracker:Where())
+          -- The same honour kill is a win against that enemy in Intel.
+          if ns.intel then
+            pcall(ns.intel.OnWin, ns.intel, victim)
+          end
         end
       end
     end
@@ -602,6 +610,332 @@ local function StartPosition()
   end)
 end
 
+-- Intel (docs/PVP_INTEL_PLAN.md). The enemy players in range are read from the nameplates, the target, the focus and
+-- the mouseover. Each event is registered on its own, so a client that refuses one keeps the others (the result of
+-- each is kept for /nrage intel debug), and a ticker reads everything again every INTEL_RESCAN_SECONDS. The mission
+-- unit cache keeps its own listeners.
+local INTEL_UNIT_EVENTS = {
+  { event = "NAME_PLATE_UNIT_ADDED" },
+  { event = "PLAYER_TARGET_CHANGED", unit = "target" },
+  { event = "PLAYER_FOCUS_CHANGED", unit = "focus" },
+  { event = "UPDATE_MOUSEOVER_UNIT", unit = "mouseover" },
+}
+
+local INTEL_OTHER_EVENTS = { "UNIT_SPELLCAST_SUCCEEDED", "PLAYER_DEAD" }
+
+local intelStarted = false
+
+-- Runs once, like StartPosition: access can be lost and regained.
+local function StartIntel()
+  if intelStarted then
+    return
+  end
+  intelStarted = true
+  local platform = ns.Platform
+  local service = ns.IntelService.New({
+    intel = ns.db.global.intel,
+    guildKos = ns.db.global.guildKos,
+    settings = function()
+      return ns.Settings.Intel(ns.db)
+    end,
+    now = platform.Now,
+    wall = platform.ServerTime,
+  })
+  service:Prune(platform.ServerTime())
+
+  local function allowed()
+    return ns.IntelModel.DetectionAllowed({
+      instance = platform.GetInstanceKind(),
+      pvpType = platform.GetZonePvPType(),
+      mapId = platform.GetPlayerMapId(),
+    }, ns.Settings.Intel(ns.db))
+  end
+  -- The position of the reporter: the client gives no enemy coordinates.
+  local function where()
+    local position = platform.PlayerMapPosition()
+    if position then
+      local x, y = ns.PositionModel.FromZone(position.x, position.y)
+      return { map = position.map, x = x, y = y }
+    end
+    return { map = platform.GetPlayerMapId() }
+  end
+  local detector = ns.IntelDetector.New({
+    reader = platform,
+    service = service,
+    now = platform.Now,
+    allowed = allowed,
+    where = where,
+  })
+  ns.intel, ns.intelDetector = service, detector
+
+  -- Sightings: shared with the guild (or the battleground group) on their own prefix, and the ones received kept in
+  -- memory (docs/PROTOCOL.md). The receiving side is registered in Comm.Start, which looks ns.intelSync up.
+  platform.RegisterPrefix(Constants.INTEL_PREFIX)
+  local directory = ns.IntelDirectory.New({
+    now = platform.Now,
+    onChange = function()
+      if ns.UI and ns.UI.IntelChanged then
+        ns.UI.IntelChanged()
+      end
+    end,
+  })
+  local publisher = ns.IntelPublisher.New({
+    now = platform.Now,
+    settings = function()
+      return ns.Settings.Intel(ns.db)
+    end,
+    canSend = function()
+      return ns.lockdown:CanSend()
+    end,
+    instanceKind = platform.GetInstanceKind,
+    groupChannel = platform.GroupDistribution,
+    isIgnored = function(name)
+      return service:IsIgnored(name)
+    end,
+    send = function(text, channel)
+      if not ChatThrottleLib then
+        return false
+      end
+      ChatThrottleLib:SendAddonMessage("BULK", Constants.INTEL_PREFIX, text, channel)
+      return true
+    end,
+  })
+  ns.intelDirectory, ns.intelPublisher = directory, publisher
+  ns.intelSync = ns.IntelSync.New({
+    platform = platform,
+    inbox = ns.Inbox.New({ maxPerWindow = Constants.INTEL_INBOX_MAX_PER_WINDOW }),
+    -- Looked up lazily, like the roles of Comm: the guild roster may not be ready yet.
+    roleOf = function(sender)
+      if not ns.guildRoster then
+        return nil
+      end
+      return ns.PermissionService.RoleOf(ns.guildRoster, sender)
+    end,
+    directory = directory,
+    now = platform.Now,
+  })
+
+  -- Alerts and announcements. The warning goes to the movable window once ns.IntelWindow exists (the interface),
+  -- else to the error area at the top of the screen.
+  local function settings()
+    return ns.Settings.Intel(ns.db)
+  end
+  local alerts = ns.IntelAlerts.New({
+    settings = settings,
+    service = service,
+    now = platform.Now,
+    mapId = platform.GetPlayerMapId,
+    window = function(text, alert)
+      if ns.IntelWindow and ns.IntelWindow.Warn then
+        return ns.IntelWindow.Warn(text, alert.kind) ~= false
+      end
+      return false
+    end,
+    errorText = function(text)
+      return platform.ShowErrorText(text)
+    end,
+    playSound = function(kind)
+      return platform.PlayIntelSound(kind)
+    end,
+    say = function(text)
+      print(("%s %s"):format(PREFIX, text))
+    end,
+    send = function(channel, text)
+      return platform.SendChatLine(channel, text)
+    end,
+    groupChannel = platform.GroupDistribution,
+  })
+  ns.intelAlerts = alerts
+  directory.deps.onSighting = function(entry)
+    alerts:OnReport(entry)
+  end
+  detector.deps.onContact = function(result, details, spot)
+    if not result.ignored then
+      pcall(publisher.Offer, publisher, details, spot, result.kos ~= nil)
+    end
+    alerts:OnContact(result, details)
+  end
+
+  ns.intelCommands = ns.IntelCommands.New({
+    service = service,
+    detector = detector,
+    publisher = publisher,
+    sync = ns.intelSync,
+    alerts = alerts,
+    directory = directory,
+    platform = platform,
+    settings = settings,
+    guildKos = ns.db.global.guildKos,
+    tombstones = ns.db.global.sync.tombstones,
+    comm = function()
+      return ns.comm
+    end,
+    onChange = function()
+      if ns.UI and ns.UI.IntelChanged then
+        ns.UI.IntelChanged()
+      end
+    end,
+    ui = function()
+      return ns.UI
+    end,
+    events = function()
+      return ns.intelEvents
+    end,
+    zone = function()
+      local context = {
+        instance = platform.GetInstanceKind(),
+        pvpType = platform.GetZonePvPType(),
+        mapId = platform.GetPlayerMapId(),
+      }
+      return context, ns.IntelModel.DetectionAllowed(context, settings())
+    end,
+    season = function()
+      return ns.pvpSeason and ns.pvpSeason:ActiveSeason() or nil
+    end,
+    zoneName = platform.GetMapName,
+    globals = function()
+      return _G
+    end,
+    toggleMinimap = function()
+      local hidden = not ns.MinimapButton.Settings(ns.db).hide
+      ns.MinimapButton.SetHidden(ns.db, hidden)
+      ns.MinimapButton.Refresh()
+      return hidden
+    end,
+  })
+
+  ns.intelEvents = {}
+  local intelFrame = CreateFrame("Frame")
+  for _, spec in ipairs(INTEL_UNIT_EVENTS) do
+    ns.intelEvents[spec.event] = platform.TryRegisterEvent(intelFrame, spec.event)
+  end
+  for _, event in ipairs(INTEL_OTHER_EVENTS) do
+    ns.intelEvents[event] = platform.TryRegisterEvent(intelFrame, event)
+  end
+  intelFrame:SetScript("OnEvent", function(_, event, ...)
+    if not ns.active then
+      return
+    end
+    -- During an encounter the arguments can be secret values: any error means "drop it silently".
+    pcall(function(...)
+      if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit, spell = platform.ReadSpellEvent(...)
+        if unit then
+          detector:OnCast(unit, spell)
+        end
+        return
+      elseif event == "PLAYER_DEAD" then
+        detector:OnDeath(platform.GetDeathKiller())
+        return
+      end
+      for _, spec in ipairs(INTEL_UNIT_EVENTS) do
+        if spec.event == event then
+          detector:OnUnit(spec.unit or (...))
+          return
+        end
+      end
+    end, ...)
+  end)
+
+  -- Every second, after the read: the window, the pins and the sub-tab follow (UI.IntelChanged waits its turn).
+  C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
+    if ns.active then
+      pcall(detector.Rescan, detector)
+      if ns.UI and ns.UI.IntelChanged then
+        pcall(ns.UI.IntelChanged, true)
+      end
+    end
+  end)
+  C_Timer.NewTicker(Constants.INTEL_SHARE_TICK_SECONDS, function()
+    if ns.active then
+      pcall(publisher.Tick, publisher)
+      directory:Prune()
+    end
+  end)
+
+  -- The compact window starts on its own (pcall), like each part of the interface: one that fails costs only itself.
+  pcall(ns.IntelWindow.Start)
+
+  -- The enemy pins on the maps: the ones seen here and the sightings of the guild, by the map mode of the player.
+  local function enemyPins()
+    local layers = {}
+    if ns.layerDirectory then
+      for _, entry in ipairs(ns.layerDirectory:Fresh()) do
+        layers[entry.name] = entry
+      end
+    end
+    return ns.IntelPins.Build({
+      own = service:Nearby(platform.Now()),
+      remote = directory:List(),
+      now = platform.Now,
+      mapMode = settings().mapMode,
+      ownMap = platform.GetPlayerMapId(),
+      continentOf = platform.GetContinentMapId,
+      ownLayer = ns.layerTracker and ns.layerTracker:Current() or nil,
+      layerOf = function(reporter)
+        return layers[reporter]
+      end,
+      kosOf = function(key)
+        return service:IsKos(key)
+      end,
+      isIgnored = function(key)
+        return service:IsIgnored(key)
+      end,
+    })
+  end
+  ns.intelMapPins = ns.MapPins.StartEnemies({
+    now = platform.Now,
+    after = C_Timer.After,
+    pins = enemyPins,
+    settings = function()
+      return { minimap = true, worldmap = true, follow = settings().mapFollow }
+    end,
+    follow = platform.ShowWorldMap,
+  })
+
+  -- The button by the target frame, and the level and class of the enemies on the tooltip of the minimap.
+  pcall(ns.IntelTargetButton.Start)
+  pcall(ns.MinimapButton.HookTooltip, {
+    service = service,
+    settings = settings,
+    feed = function(details)
+      service:OnSeen(details, where())
+    end,
+  })
+
+  -- Enemy nameplates are what Intel reads: the player is told once per session when they are off.
+  C_Timer.After(Constants.INTEL_REMINDER_DELAY_SECONDS, function()
+    if not ns.active then
+      return
+    end
+    local notice = ns.ViewModel.IntelNameplateNotice({
+      enabled = settings().enabled,
+      nameplates = platform.EnemyNameplatesEnabled(),
+      inCombat = platform.IsInCombat(),
+    })
+    if notice then
+      print(("%s %s %s"):format(PREFIX, notice.text, L("The Intel settings in the PvP tab have a button for it.")))
+    end
+  end)
+end
+
+-- Who is nearby now: the enemies read here plus the sightings of the guild on the same map.
+function ns.IntelNearby()
+  if not ns.intel then
+    return {}
+  end
+  local map = ns.Platform.GetPlayerMapId()
+  local remote = map and ns.intelDirectory and ns.intelDirectory:List(map) or {}
+  return ns.intel:Nearby(ns.Platform.Now(), remote)
+end
+
+-- A guild Kill On Sight entry arrived: the Intel views are drawn again.
+function ns.GuildKosChanged()
+  if ns.UI and ns.UI.IntelChanged then
+    ns.UI.IntelChanged()
+  end
+end
+
 -- The events that change what is shared in the profile: gear, level and professions.
 local PROFILE_EVENTS = {
   "PLAYER_EQUIPMENT_CHANGED",
@@ -910,6 +1244,7 @@ local ACTIVATION_STEPS = {
   { name = "blacklist", run = StartBlacklist },
   { name = "layer", run = StartLayer },
   { name = "position", run = StartPosition },
+  { name = "intel", run = StartIntel },
   { name = "bossLoot", run = StartBossLoot },
   { name = "recipes", run = StartRecipes },
   { name = "autoPublish", run = StartAutoPublish },
@@ -965,6 +1300,15 @@ local function Activate()
   if ns.PositionModel.TakeShareNotice(ns.db) then
     print(
       ("%s %s"):format(PREFIX, L("your position is now shared with the guild. You can turn it off in the settings."))
+    )
+  end
+  -- The notice waits when Intel did not start, so it never describes a feature that is not running.
+  if ns.intel and ns.IntelModel.TakeShareNotice(ns.db) then
+    print(
+      ("%s %s"):format(
+        PREFIX,
+        L("the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings.")
+      )
     )
   end
 end

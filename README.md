@@ -110,6 +110,16 @@ The addon is published on CurseForge, but it only works for Nrage:
 - **Kill counter** split into open world and battleground, a guild **kill ranking** and a **recent kills** feed.
 - **Seasons:** missions approved by the GM and CoGM, a points ranking and end-of-season rewards.
 
+### Intel (enemy players)
+
+- **Nearby enemies** seen through their nameplates in battlegrounds, arenas and world PvP, with level, class, race and
+  guild, in a compact window. Turn enemy nameplates on first: stealthed enemies are not seen.
+- **Kill on Sight** lists: your own, never shared, and a **guild list** with a category and reason for each player.
+- **Sightings** shared with the guild, on by default. A sighting shows where you were, so you can turn it off in the
+  Intel settings.
+- **Statistics** of the enemies you meet, wins and losses, and **bounties** the GM and CoGM open on guild-listed players.
+- Imports from Spy (Forever) and a session or season report.
+
 ### Guild tools
 
 - **Professions:** "who can craft this?" with online members first and a one-click whisper.
@@ -130,6 +140,7 @@ The full walkthrough, tab by tab and role by role, is the [user guide](docs/USER
 |---|---|
 | `/nrage` | open the window |
 | `/nrage help` | the list of commands |
+| `/nrage intel ...` (or `/nrage spy`) | Intel: the window, Kill on Sight, Ignore, statistics and imports |
 
 <details>
 <summary><b>Diagnostics for developers</b></summary>

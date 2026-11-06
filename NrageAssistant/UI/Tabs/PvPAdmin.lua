@@ -414,7 +414,19 @@ local function missionForm(page)
   if draft.kind ~= "manual" then
     zonesField(card, draft)
   end
-  if draft.kind == "kills" then
+  if draft.kind == "kos" then
+    fieldRow(card, L("Target (optional)"), function(field)
+      Kit.EditBox(field, {
+        text = draft.target,
+        placeholder = L("Any player on the guild Kill on Sight list"),
+        maxLetters = ns.Constants.INTEL_NAME_MAX,
+        onChange = function(text)
+          draft.target = text
+        end,
+      })
+    end, { weight = 1 })
+  end
+  if draft.kind == "kills" or draft.kind == "kos" then
     local where = Kit.Row(card, { gap = 16 })
     fieldRow(where, L("Place"), function(field)
       Kit.Dropdown(field, {
@@ -425,15 +437,17 @@ local function missionForm(page)
         end,
       })
     end)
-    fieldRow(where, L("Distinct by"), function(field)
-      Kit.Dropdown(field, {
-        items = ViewModel.PvPDistinctChoices(),
-        value = draft.distinct,
-        onChange = function(value)
-          draft.distinct = value
-        end,
-      })
-    end)
+    if draft.kind == "kills" then
+      fieldRow(where, L("Distinct by"), function(field)
+        Kit.Dropdown(field, {
+          items = ViewModel.PvPDistinctChoices(),
+          value = draft.distinct,
+          onChange = function(value)
+            draft.distinct = value
+          end,
+        })
+      end)
+    end
   end
 
   local when = Kit.Row(card, { gap = 16 })
@@ -500,6 +514,7 @@ local function cloneMissions(seasonId)
       zones = zones,
       place = mission.goal.place,
       distinct = mission.goal.distinct,
+      target = mission.goal.target,
     }
     local clone, reason = svc:UpsertMission({
       title = mission.title,
@@ -521,6 +536,19 @@ local function cloneMissions(seasonId)
     "success",
     L("Copied %d mission(s) into '%s'."):format(copied, ViewModel.Escape(season and season.name or "?"))
   )
+end
+
+-- Opens the admin Missions page on a new bounty for `name` (a player of the guild Kill on Sight list). Used by the
+-- Intel sub-tab.
+function UI.PvPNewBounty(name)
+  local draft = ViewModel.PvPMissionDraft(nil)
+  draft.kind = "kos"
+  draft.target = name or ""
+  draft.count = "1"
+  draft.title = name and L("Bounty: %s"):format(name):sub(1, ns.Constants.PVP_MISSION_TITLE_MAX) or ""
+  state.missionDraft = draft
+  state.admin = "missions"
+  UI.OpenTab("pvpadmin")
 end
 
 local function missionsAdmin(page)

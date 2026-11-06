@@ -43,6 +43,11 @@ local function load_window(locale)
     "Domain/LayerModel",
     "Domain/PositionModel",
     "Domain/ReportService",
+    "Domain/IntelModel",
+    "Domain/IntelService",
+    "Domain/IntelReport",
+    "Domain/IntelImport",
+    "Domain/GuildKosService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
     "UI/Kit/Shape",
@@ -56,12 +61,14 @@ local function load_window(locale)
     "UI/ViewModelPvP",
     "UI/ViewModelProfessions",
     "UI/ViewModelLayers",
+    "UI/ViewModelIntel",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
     "Commands/TemplateCommands",
     "Commands/BlacklistCommands",
     "Commands/RosterCommands",
+    "Commands/IntelCommands",
     "UI/Main",
     "UI/Cards",
     "UI/Tabs/Home",
@@ -73,6 +80,7 @@ local function load_window(locale)
     "UI/Tabs/Loot",
     "UI/Tabs/PvP",
     "UI/Tabs/PvPAdmin",
+    "UI/Tabs/PvPIntel",
     "UI/Tabs/Blacklist",
     "UI/Tabs/Rules",
     "UI/Tabs/Professions",
@@ -1635,7 +1643,7 @@ describe("Window smoke test: PvP", function()
     for _, tab in ipairs(FakeKit.find(pvp, "TabStrip").opts.tabs) do
       values[#values + 1] = tab.value
     end
-    assert.are.same({ "season", "missions", "stats", "feed", "history" }, values)
+    assert.are.same({ "season", "missions", "stats", "feed", "history", "intel" }, values)
     FakeKit.find(pvp, "TabStrip").opts.onSelect("stats")
     local grids = FakeKit.find_all(env.page(), "StatGrid")
     assert.are.equal(2, #grids)
@@ -1900,7 +1908,7 @@ describe("Window smoke test: PvP seasons", function()
         subs[#subs + 1] = tab.value
         strip(env).opts.onSelect(tab.value)
       end
-      assert.are.equal(5, #subs, who)
+      assert.are.equal(6, #subs, who)
       env.open("pvpadmin")
       if who == "GM" or who == "CoGM" then
         assert.are.equal("pvpadmin", env.ns.UI.CurrentTab(), who)
@@ -3465,5 +3473,623 @@ describe("Window smoke test: tab regressions", function()
       order[#order + 1] = "draw"
     end)
     assert.are.same({ "clear", "draw", "relayout" }, order)
+  end)
+end)
+
+describe("Window smoke test: Intel", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  -- The window for `rank` with the real Intel lists over a fake clock and a fake client.
+  local function intel_env(rank)
+    env = build(rank or "Member")
+    local ns = env.ns
+    env.clock = 1000
+    env.said = {}
+    env.nameplates = true
+    env.combat = false
+    env.map = 1429
+    local platform = ns.Platform
+    platform.EnemyNameplatesEnabled = function()
+      return env.nameplates
+    end
+    platform.EnableEnemyNameplates = function()
+      env.enabled = (env.enabled or 0) + 1
+      env.nameplates = true
+      return true
+    end
+    platform.IsInCombat = function()
+      return env.combat
+    end
+    platform.GetPlayerMapId = function()
+      return env.map
+    end
+    platform.GetMapName = function(map)
+      return map == 1429 and "Elwynn Forest" or nil
+    end
+    platform.GroupDistribution = function()
+      return nil
+    end
+    platform.IsInGuild = function()
+      return true
+    end
+    ns.db.global.intel = { players = {}, kos = {}, ignore = {}, zones = {} }
+    ns.db.global.guildKos = {}
+    ns.intel = ns.IntelService.New({
+      intel = ns.db.global.intel,
+      guildKos = ns.db.global.guildKos,
+      settings = function()
+        return ns.Settings.Intel(ns.db)
+      end,
+      now = function()
+        return env.clock
+      end,
+      wall = function()
+        return 1000
+      end,
+    })
+    ns.IntelNearby = function()
+      return ns.intel:Nearby(env.clock)
+    end
+    ns.intelDirectory = {
+      Remove = function() end,
+      List = function()
+        return {}
+      end,
+    }
+    ns.intelAlerts = {
+      AnnounceNow = function(_, name, channel)
+        env.announced = name .. ":" .. channel
+        if channel == "party" then
+          return false, "no_group"
+        end
+        return true
+      end,
+    }
+    ns.intelCommands = ns.IntelCommands.New({
+      service = ns.intel,
+      alerts = ns.intelAlerts,
+      directory = ns.intelDirectory,
+      platform = platform,
+      guildKos = ns.db.global.guildKos,
+      tombstones = ns.db.global.sync.tombstones,
+      comm = function()
+        return nil
+      end,
+      onChange = function() end,
+      settings = function()
+        return ns.Settings.Intel(ns.db)
+      end,
+      globals = function()
+        return env.globals or {}
+      end,
+    })
+    return ns
+  end
+
+  local function seen(ns, name, extra)
+    local details = { name = name, class = "MAGE", race = "HUMAN", level = 60, guild = "Wolves" }
+    for key, value in pairs(extra or {}) do
+      details[key] = value
+    end
+    return ns.intel:OnSeen(details, { map = 1429, x = 10, y = 20 })
+  end
+
+  local function view(name)
+    local page = env.page()
+    local segmented = FakeKit.find_all(page, "Segmented")[1]
+    segmented.opts.onChange(name)
+    return env.page()
+  end
+
+  local function table_rows(page, index)
+    return FakeKit.find_all(page, "Table")[index or 1].opts.rows
+  end
+
+  it("is an Intel sub-tab of PvP, and says so when Intel is not running", function()
+    env = build("Member")
+    env.ns.UI.OpenIntelTab(nil)
+    assert.are.equal("pvp", env.ns.UI.CurrentTab())
+    assert.is_truthy(env.text():find("Intel is not running", 1, true))
+    local strip = FakeKit.find(env.page(), "TabStrip")
+    assert.are.equal("intel", strip.opts.value)
+    assert.is_false(env.ns.UI.IntelShown() == false)
+  end)
+
+  it("lists who is nearby and opens the menu of a row", function()
+    local ns = intel_env()
+    seen(ns, "Ann")
+    seen(ns, "Bob", { guild = "Rats" })
+    ns.UI.OpenIntelTab("nearby")
+    local page = env.page()
+    local rows = table_rows(page)
+    assert.are.equal(2, #rows)
+    assert.are.equal("Ann", rows[1].cells.name.text)
+    assert.are.equal("<Wolves>", rows[1].cells.guild.text)
+    assert.is_truthy(env.text():find("2 nearby", 1, true))
+
+    rows[1].onClick({ frame = "row" })
+    local menu = ns.Kit.fake.menu
+    assert.are.equal("row", menu.anchor)
+    menu.onSelect("kos")
+    assert.are.equal("personal", ns.intel:IsKos("Ann"))
+    assert.is_truthy(env.banner().opts.text:find("added Ann", 1, true))
+    -- The menu runs from the tab too: announcing, and refusing when there is nobody to announce to.
+    table_rows(env.page())[1].onClick({ frame = "row" })
+    ns.Kit.fake.menu.onSelect("say:guild")
+    assert.are.equal("Ann:guild", env.announced)
+    table_rows(env.page())[1].onClick({ frame = "row" })
+    ns.Kit.fake.menu.onSelect("say:party")
+    assert.are.equal("danger", env.banner().opts.kind)
+    table_rows(env.page())[1].onClick({ frame = "row" })
+    ns.Kit.fake.menu.onSelect("remove")
+    assert.are.equal(1, #table_rows(env.page()))
+  end)
+
+  it("clears who is nearby from a button", function()
+    local ns = intel_env()
+    seen(ns, "Ann")
+    ns.UI.OpenIntelTab("nearby")
+    env.press("Clear the list")
+    assert.are.equal(0, #table_rows(env.page()))
+  end)
+
+  it("draws every view, for every rank, with and without data", function()
+    for _, rank in ipairs({ "GM", "CoGM", "Member", "Norost" }) do
+      local ns = intel_env(rank)
+      for round = 1, 2 do
+        ns.UI.OpenIntelTab("nearby")
+        for _, item in ipairs(ns.ViewModel.IntelViews()) do
+          view(item.value)
+          assert.is_truthy(env.page(), rank .. " " .. item.value)
+        end
+        seen(ns, "Ann")
+        ns.intel:AddKos({ name = "Ann" })
+        ns.db.global.guildKos.zed = { name = "Zed", category = "gank", addedBy = "Boss-Realm", rev = 1, addedAt = 5 }
+        ns.intel:AddIgnore("Una")
+        assert.is_truthy(round)
+      end
+      pcall(env.close)
+    end
+  end)
+
+  it("shows the players of the last hour", function()
+    local ns = intel_env()
+    seen(ns, "Ann")
+    ns.UI.OpenIntelTab("hour")
+    local rows = table_rows(env.page())
+    assert.are.equal("Ann", rows[1].cells.name.text)
+    assert.are.equal("0s", rows[1].cells.age.text)
+  end)
+
+  it("warns that the nameplates are off, with a button when it is allowed", function()
+    local ns = intel_env()
+    env.nameplates = false
+    ns.UI.OpenIntelTab("nearby")
+    assert.are.equal("warning", env.banner().opts.kind)
+    env.press("Turn on enemy nameplates")
+    assert.are.equal(1, env.enabled)
+    assert.is_nil(FakeKit.find(env.page(), "Button", "Turn on enemy nameplates"))
+
+    env.nameplates, env.combat = false, true
+    ns.UI.Redraw()
+    assert.are.equal("warning", env.banner().opts.kind)
+    assert.is_nil(FakeKit.find(env.page(), "Button", "Turn on enemy nameplates"))
+  end)
+
+  describe("the settings card", function()
+    local function find_switch(label)
+      return assert(FakeKit.find(env.page(), "Switch", label), label)
+    end
+
+    it("opens from the command and from its button", function()
+      local ns = intel_env()
+      ns.UI.IntelConfig()
+      assert.is_truthy(FakeKit.find(env.page(), "Card", "Detection"))
+      env.press("Hide settings")
+      assert.is_nil(FakeKit.find(env.page(), "Card", "Detection"))
+      env.press("Settings")
+      assert.is_truthy(FakeKit.find(env.page(), "Card", "Alerts"))
+    end)
+
+    it("changes the switches, the choices, the races and the zone", function()
+      local ns = intel_env()
+      ns.UI.IntelConfig()
+      local settings = ns.Settings.Intel(ns.db)
+      find_switch("Any new enemy").opts.onChange(true)
+      assert.is_true(settings.alertNew)
+      find_switch("Share sightings with the guild").opts.onChange(false)
+      assert.is_false(settings.share)
+      find_switch("Skip this zone").opts.onChange(true)
+      assert.is_true(settings.excludedZones[1429])
+      assert.are.equal("Elwynn Forest", FakeKit.find(env.page(), "Switch", "Skip this zone").opts.description)
+
+      local dropdowns = FakeKit.find_all(env.page(), "Dropdown")
+      local by_value = {}
+      for _, dropdown in ipairs(dropdowns) do
+        by_value[dropdown.opts.items[1].value] = dropdown
+      end
+      by_value[0].opts.onChange(10)
+      assert.are.equal(10, settings.removeMinutes)
+      by_value.window.opts.onChange("error")
+      assert.are.equal("error", settings.warnTarget)
+      local chip = FakeKit.find(env.page(), "Chip", "Orc")
+      chip.opts.onToggle(true)
+      assert.is_true(settings.alertRaces.ORC)
+      -- The skipped zone is listed by name and let go by switching its chip off.
+      FakeKit.find(env.page(), "Chip", "Elwynn Forest").opts.onToggle(false)
+      assert.is_nil(settings.excludedZones[1429])
+      assert.is_nil(FakeKit.find(env.page(), "Chip", "Elwynn Forest"))
+    end)
+
+    it("refreshes the window, the button and the pins after a change", function()
+      local ns = intel_env()
+      local calls = {}
+      ns.IntelWindow = {
+        Sync = function()
+          calls[#calls + 1] = "sync"
+        end,
+        Refresh = function()
+          calls[#calls + 1] = "refresh"
+        end,
+      }
+      ns.IntelTargetButton = {
+        Refresh = function()
+          calls[#calls + 1] = "button"
+        end,
+      }
+      ns.intelMapPins = {
+        Request = function()
+          calls[#calls + 1] = "pins"
+        end,
+      }
+      ns.UI.IntelConfig()
+      find_switch("Lock the Intel window").opts.onChange(true)
+      assert.are.same({ "sync", "refresh", "button", "pins" }, calls)
+    end)
+
+    it("refuses to change the rows of the window in combat", function()
+      local ns = intel_env()
+      ns.UI.IntelConfig()
+      env.combat = true
+      local rows
+      for _, dropdown in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+        if dropdown.opts.items[1].value == 4 then
+          rows = dropdown
+        end
+      end
+      rows.opts.onChange(12)
+      assert.are.equal("danger", env.banner().opts.kind)
+      assert.is_truthy(env.banner().opts.text:find("combat", 1, true))
+      assert.are.equal(8, ns.Settings.Intel(ns.db).window.rows)
+    end)
+  end)
+
+  describe("Kill on Sight", function()
+    it("adds to the personal list and to the guild list from the form", function()
+      local ns = intel_env()
+      ns.UI.OpenIntelTab("kos")
+      FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("Bob")
+      env.press("Add to my list")
+      assert.is_table(ns.db.global.intel.kos.bob)
+      assert.are.equal("success", env.banner().opts.kind)
+      -- The form is empty again after an add.
+      FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("Eve")
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("camp")
+      FakeKit.find_all(env.page(), "EditBox")[2].opts.onChange("camps")
+      env.press("Add to the guild list")
+      assert.are.equal("camp", ns.db.global.guildKos.eve.category)
+      assert.are.equal("camps", ns.db.global.guildKos.eve.reason)
+      -- A name that is not a name stays in the form and is reported.
+      FakeKit.find_all(env.page(), "EditBox")[1].opts.onChange("")
+      env.press("Add to my list")
+      assert.are.equal("danger", env.banner().opts.kind)
+    end)
+
+    it("edits, promotes and removes with two clicks", function()
+      local ns = intel_env()
+      ns.intel:AddKos({ name = "Bob", category = "gank", reason = "ganked me" })
+      ns.UI.OpenIntelTab("kos")
+      local row = table_rows(env.page())[1]
+      assert.are.equal("Bob", row.cells.name.text)
+      assert.are.equal("Gank", row.cells.category)
+
+      row.cells.edit.opts.onClick()
+      row = table_rows(env.page())[1]
+      assert.are.equal("dropdown", row.cells.category.widget)
+      row.cells.category.opts.onChange("corpse")
+      row.cells.reason.opts.onChange("camps my corpse")
+      row.cells.edit.opts.onClick()
+      assert.are.equal("corpse", ns.db.global.intel.kos.bob.category)
+      assert.are.equal("camps my corpse", ns.db.global.intel.kos.bob.reason)
+
+      -- Cancel leaves the entry as it is.
+      row = table_rows(env.page())[1]
+      row.cells.edit.opts.onClick()
+      table_rows(env.page())[1].cells.remove.opts.onClick()
+      assert.are.equal("corpse", ns.db.global.intel.kos.bob.category)
+
+      -- Share it with the guild.
+      table_rows(env.page())[1].cells.promote.opts.onClick()
+      assert.are.equal("corpse", ns.db.global.guildKos.bob.category)
+
+      -- Remove: the first click arms, the second removes.
+      local before = table_rows(env.page())
+      assert.are.equal(2, #before)
+      before[1].cells.remove.opts.onClick()
+      table_rows(env.page())[1].cells.remove.opts.onClick()
+      assert.is_nil(ns.db.global.intel.kos.bob)
+      -- The guild entry was added by this player: he can remove it too.
+      table_rows(env.page())[1].cells.remove.opts.onClick()
+      table_rows(env.page())[1].cells.remove.opts.onClick()
+      assert.is_nil(ns.db.global.guildKos.bob)
+      assert.are.equal(0, #table_rows(env.page()))
+    end)
+
+    it("edits an entry of the guild list as the officer", function()
+      local ns = intel_env("GM")
+      ns.db.global.guildKos.zed = { name = "Zed", category = "gank", addedBy = "Other-Realm", addedAt = 5, rev = 1 }
+      ns.UI.OpenIntelTab("kos")
+      table_rows(env.page())[1].cells.edit.opts.onClick()
+      local row = table_rows(env.page())[1]
+      row.cells.category.opts.onChange("insult")
+      row.cells.reason.opts.onEnter()
+      assert.are.equal("insult", ns.db.global.guildKos.zed.category)
+    end)
+
+    it("gives a member no buttons on the guild entry of somebody else", function()
+      local ns = intel_env("Member")
+      ns.db.global.guildKos.zed = { name = "Zed", category = "gank", addedBy = "Other-Realm", addedAt = 5, rev = 1 }
+      ns.UI.OpenIntelTab("kos")
+      local row = table_rows(env.page())[1]
+      assert.are.equal("", row.cells.edit)
+      assert.are.equal("", row.cells.remove)
+      assert.are.equal("", row.cells.promote)
+    end)
+
+    it("imports names from the box and the lists of Spy", function()
+      local ns = intel_env()
+      ns.UI.OpenIntelTab("kos")
+      FakeKit.find(env.page(), "TextArea").opts.onChange("Bob, Eve")
+      FakeKit.find_all(env.page(), "Dropdown")[2].opts.onChange("ignore")
+      env.press("Import")
+      assert.is_table(ns.db.global.intel.ignore.bob)
+      assert.is_truthy(env.banner().opts.text:find("imported 2", 1, true))
+      env.press("Import from Spy")
+      assert.is_truthy(env.banner().opts.text:find("were not found", 1, true))
+      env.globals = { SpyPerCharDB = { KOSData = { Cid = 1 } } }
+      env.press("Import from Spy")
+      assert.is_table(ns.db.global.intel.kos.cid)
+    end)
+  end)
+
+  it("lists and releases the ignored players", function()
+    local ns = intel_env()
+    ns.intel:AddIgnore("Una")
+    ns.UI.OpenIntelTab("ignored")
+    local row = table_rows(env.page())[1]
+    assert.are.equal("Una", row.cells.name.text)
+    row.cells.remove.opts.onClick()
+    assert.is_false(ns.intel:IsIgnored("Una"))
+  end)
+
+  describe("the statistics", function()
+    it("sorts, filters and searches", function()
+      local ns = intel_env()
+      seen(ns, "Ann", { level = 50 })
+      seen(ns, "Bob", { level = 60, guild = "Rats" })
+      ns.intel:OnWin("Bob")
+      ns.intel:OnLoss("Ann")
+      ns.intel:AddKos({ name = "Ann", category = "gank" })
+      ns.UI.OpenIntelTab("stats")
+      local page = env.page()
+      assert.are.equal("Honourable kills", FakeKit.find(page, "StatGrid").opts.stats[4].caption)
+      local rows = table_rows(page)
+      assert.are.equal(2, #rows)
+
+      local tbl = FakeKit.find_all(page, "Table")[1]
+      tbl.opts.onSort("level")
+      assert.are.equal("level", FakeKit.find_all(env.page(), "Table")[1].opts.sort.key)
+      assert.are.equal("Bob", table_rows(env.page())[1].cells.name.text)
+      FakeKit.find_all(env.page(), "Table")[1].opts.onSort("level")
+      assert.are.equal("Ann", table_rows(env.page())[1].cells.name.text)
+
+      FakeKit.find(env.page(), "Chip", "Kill on Sight").opts.onToggle(true)
+      assert.are.equal(1, #table_rows(env.page()))
+      FakeKit.find(env.page(), "Chip", "Kill on Sight").opts.onToggle(false)
+      FakeKit.find(env.page(), "Chip", "With wins").opts.onToggle(true)
+      assert.are.equal("Bob", table_rows(env.page())[1].cells.name.text)
+      FakeKit.find(env.page(), "Chip", "With wins").opts.onToggle(false)
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("gank")
+      assert.are.equal("Ann", table_rows(env.page())[1].cells.name.text)
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange("any")
+
+      -- A row opens the menu, and a search redraws the table in place.
+      table_rows(env.page())[1].onClick({ frame = "row" })
+      assert.are.equal("row", ns.Kit.fake.menu.anchor)
+      env.box("Search by name or guild").opts.onChange("rat", true)
+      env.box("Search by name or guild").opts.onChange("ignored while it is not typed", false)
+    end)
+
+    it("takes the honourable kills from the tracker, and shows a dash without them", function()
+      local ns = intel_env()
+      ns.pvpTracker = nil
+      ns.UI.OpenIntelTab("stats")
+      local grid = FakeKit.find(env.page(), "StatGrid")
+      assert.are.equal("-", grid.opts.stats[4].value)
+    end)
+
+    it("cuts the table when there are too many players", function()
+      local ns = intel_env()
+      for index = 1, ns.ViewModel.INTEL_STATS_LIMIT + 3 do
+        ns.db.global.intel.players["p" .. index] = {
+          name = "P" .. index,
+          lastSeen = 900,
+          wins = 0,
+          losses = 0,
+          seen = 1,
+        }
+      end
+      ns.UI.OpenIntelTab("stats")
+      assert.is_truthy(env.text():find("Showing the first 200 of 203 players.", 1, true))
+    end)
+  end)
+
+  it("draws the report of the session and of the season", function()
+    local ns = intel_env()
+    seen(ns, "Ann")
+    ns.intel:OnWin("Ann")
+    ns.UI.OpenIntelTab("report")
+    assert.is_truthy(env.text():find("Intel report of this session", 1, true))
+    assert.is_truthy(env.text():find("no PvP season is running.", 1, true))
+    ns.pvpSeason = {
+      ActiveSeason = function()
+        return { name = "S1", startsAt = 0, endsAt = 10 ^ 9 }
+      end,
+    }
+    ns.UI.Redraw()
+    assert.is_truthy(env.text():find("Intel report of the season 'S1'", 1, true))
+  end)
+
+  describe("what changes the lists", function()
+    it("redraws the sub-tab, the window, the button and the pins, at most once per interval", function()
+      local ns = intel_env()
+      local calls = {}
+      ns.IntelWindow = {
+        Sync = function() end,
+        Refresh = function()
+          calls[#calls + 1] = "window"
+        end,
+      }
+      ns.IntelTargetButton = {
+        Refresh = function()
+          calls[#calls + 1] = "button"
+        end,
+      }
+      ns.intelMapPins = {
+        Request = function()
+          calls[#calls + 1] = "pins"
+        end,
+      }
+      ns.UI.OpenIntelTab("nearby")
+      local before = #ns.Kit.fake.nodes
+      ns.UI.IntelChanged()
+      assert.are.same({ "window", "button", "pins" }, calls)
+      assert.is_true(#ns.Kit.fake.nodes > before)
+
+      -- A second call inside the interval waits for its turn.
+      ns.UI.IntelChanged()
+      ns.UI.IntelChanged()
+      assert.are.same({ "window", "button", "pins" }, calls)
+      assert.are.equal(1, #env.timers)
+    end)
+
+    it("draws the views that show ages as time passes, and the others only when something changed", function()
+      local ns = intel_env()
+      ns.UI.OpenIntelTab("stats")
+      local before = #ns.Kit.fake.nodes
+      ns.UI.IntelChanged(true)
+      assert.are.equal(before, #ns.Kit.fake.nodes)
+      env.clock = env.clock + 5
+      ns.UI.OpenIntelTab("nearby")
+      before = #ns.Kit.fake.nodes
+      ns.Platform.Now = function()
+        return 100
+      end
+      ns.UI.IntelChanged(true)
+      assert.is_true(#ns.Kit.fake.nodes > before)
+      ns.UI.OpenIntelTab("stats")
+      ns.Platform.Now = function()
+        return 200
+      end
+      before = #ns.Kit.fake.nodes
+      ns.UI.IntelChanged()
+      assert.is_true(#ns.Kit.fake.nodes > before)
+    end)
+
+    it("does not take an open menu away, and draws the sub-tab when the menu is closed", function()
+      local ns = intel_env()
+      seen(ns, "Ann")
+      ns.UI.OpenIntelTab("nearby")
+      local popup = ns.Kit.Popup.Get(2)
+      popup.open = true
+      ns.Platform.Now = function()
+        return 100
+      end
+      local before = #ns.Kit.fake.nodes
+      ns.UI.IntelChanged()
+      assert.are.equal(before, #ns.Kit.fake.nodes)
+      popup.open = false
+      ns.Platform.Now = function()
+        return 200
+      end
+      ns.UI.IntelChanged(true)
+      assert.is_true(#ns.Kit.fake.nodes > before)
+    end)
+
+    it("does not draw the sub-tab when another tab is on screen", function()
+      local ns = intel_env()
+      ns.UI.OpenTab("home")
+      local before = #ns.Kit.fake.nodes
+      ns.UI.IntelChanged()
+      assert.are.equal(before, #ns.Kit.fake.nodes)
+      ns.Platform.Now = function()
+        return 500
+      end
+      ns.UI.IntelChanged(true)
+      assert.are.equal(before, #ns.Kit.fake.nodes)
+    end)
+
+    it("keeps working with the main window closed and with parts that raise", function()
+      local ns = intel_env()
+      ns.IntelWindow = {
+        Sync = function()
+          error("window")
+        end,
+        Refresh = function()
+          error("window")
+        end,
+      }
+      ns.IntelTargetButton = {
+        Refresh = function()
+          error("button")
+        end,
+      }
+      ns.intelMapPins = {
+        Request = function()
+          error("pins")
+        end,
+      }
+      assert.is_false(ns.UI.IsOpen())
+      assert.has_no.errors(function()
+        ns.UI.IntelChanged()
+      end)
+    end)
+
+    it("hands the window commands to the window", function()
+      local ns = intel_env()
+      local calls = {}
+      ns.IntelWindow = {
+        Show = function()
+          calls[#calls + 1] = "show"
+        end,
+        Hide = function()
+          calls[#calls + 1] = "hide"
+        end,
+      }
+      ns.UI.IntelShow()
+      ns.UI.IntelHide()
+      ns.UI.IntelStats()
+      assert.are.same({ "show", "hide" }, calls)
+      assert.are.equal("stats", FakeKit.find_all(env.page(), "Segmented")[1].opts.value)
+      ns.IntelWindow = nil
+      assert.has_no.errors(function()
+        ns.UI.IntelShow()
+        ns.UI.IntelHide()
+      end)
+    end)
   end)
 end)

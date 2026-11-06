@@ -5,7 +5,8 @@ which fields are shared are still open (see the issues labelled `decision`).
 
 ## The short version
 
-- Nothing about you leaves your client until you say so, one kind of data at a time.
+- Nothing about you leaves your client until you say so, one kind of data at a time, except two things that are on
+  by default and can be switched off: sharing your map position, and sharing enemy sightings (see *Enemy players*).
 - **Addon messages are not encrypted or confidential.** Anything shared is readable by every guild member running
   the addon, and possibly by others. Do not share what you would not put in guild chat.
 - The addon is meant for the Nrage guild only and disables itself elsewhere.
@@ -26,11 +27,16 @@ secret store.
 | Your layer, and the layers other members share, in memory only | read from the creatures you target, and the guild channel |
 | Your map position, if you chose to share it, and the positions other members share, in memory only | read from the game map, and the guild channel (prefix `NRAGEPOS`) |
 | The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
+| Enemy players you met: name, class, race, level, guild, faction, when first and last seen, how often, your wins and losses against them, and the map and position you stood at when you last met them | read from the game, and your own honourable kills and deaths; shared only as a sighting |
+| Your personal Kill on Sight list and Ignore list | you; never shared |
+| The guild Kill on Sight list: name, category, reason, who added each entry and when, and who changed it last | you, or received over the guild channel |
+| Enemy sightings you receive, in memory only, for two minutes | the guild channel, or your group in a battleground (prefix `NRAGEINT`) |
+| Tombstones of removed guild Kill on Sight entries | local removals and received ones |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates (each keeps the roster of the event it was saved from) | you; never shared |
 | Raid rosters and the role and roster the guild master assigned to each member | the guild master, received over the guild channel |
-| Your PvP mission log, for the active season only: each honour kill (time, victim name, zone id, open world or battleground, and the victim's class and race when you had seen them), each battleground win, and your claims | your own kills and what you see in the game; never shared except inside a claim |
+| Your PvP mission log, for the active season only: each honour kill (time, victim name, zone id, open world or battleground, the victim's class and race when you had seen them, and whether the victim was on the guild Kill on Sight list), each battleground win, and your claims | your own kills and what you see in the game; never shared except inside a claim |
 | PvP seasons: the season, its missions and prizes, the PvP officers, who earned how many points for which mission (the grants), and the final standings of past seasons | the guild master and PvP officers, received over the guild channel and from a catch-up whisper |
 
 Every stored value keeps where it came from (`observed`, `declared` or `received`), when, and who authored it.
@@ -110,6 +116,32 @@ check it. The claim is repeated about every 10 minutes while it is waiting, so a
 it, and only admins and PvP officers keep it. When the season closes, the log, your claims and the pending claims of
 everyone are deleted.
 
+## Enemy players (Intel)
+
+Intel records the enemy players you meet and can tell the guild about them. Everything here is about people who have
+not agreed to it, so read the switches before you play with them.
+
+- **Sharing sightings is on by default.** The addon told you once in chat when it was turned on. A sighting carries
+  the enemy's name, class, race, level and whether they are stealthed, and **your position**: the map and the
+  coordinates where you were when you saw them. Every guild member running the addon receives it, so the guild learns
+  where you were, not where the enemy was. Sightings go to the guild in the open world and to your group in
+  battlegrounds. Nothing is sent from arenas, dungeons or raids, or during an encounter.
+- **To switch sharing off**, run `/nrage intel config`, open *Sharing* and clear **Share sightings with the guild**.
+  Your own records and lists stay on your machine as they are.
+- **Received sightings stay in memory only.** They are kept for two minutes, for at most 200 enemies, and are gone
+  when you log out.
+- **Your records are saved.** Each enemy you meet is kept in your `SavedVariables` with the fields of the table above.
+  The guild Kill on Sight list is not part of this: it is shared, as described below.
+- **Your personal Kill on Sight and Ignore lists never leave your client.** An ignored player gives no alert and is
+  not shared.
+- **The guild Kill on Sight list is shared with the guild.** Every entry goes to every member running the addon, with
+  its name, category, reason, the member who added it and the member who last changed it. Removals are shared too.
+  Anyone can add an entry; the author, the GM or the CoGM can change it; the author, the GM or the CoGM can remove it.
+  The reason is about a third party, so write only what you would say in guild chat. Like every addon message these
+  are **not encrypted**, and a message already sent cannot be recalled.
+- **Bounties** count kills of players who are on the guild list at the moment of the kill, and that flag is saved in
+  your mission log of the season (see *PvP seasons*).
+
 ## Your layer
 
 The layer you are on is coarse location data. It is read from the creatures you target or mouse over, kept **in
@@ -121,11 +153,13 @@ want, not the one you are on. A guildmate who answers a request tells the reques
 ## Your map position
 
 Your position on the map is finer than your layer, so **Share my position** (settings, the gear of the window) is
-**off by default**. While it is on, the addon sends the map and your coordinates to the guild channel every few
+**on by default**. While it is on, the addon sends the map and your coordinates to the guild channel every few
 seconds while you move, on its own addon prefix (`NRAGEPOS`); the message carries only the map and two numbers, not
 your name, class or level (the others already know those from the guild roster). Guildmates see you as a pin on the
 minimap and the world map. Nothing is saved: positions are kept **in memory only** and forgotten by everyone after 60
-seconds without a new message. Switching sharing off tells the guild once to forget you and sends nothing more.
+seconds without a new message. Switching sharing off tells the guild once to forget you and sends nothing more. The update to schema v14 turned it
+on for every account where it was off, and the player was told once at login; a choice to switch it off afterwards is
+kept.
 Nothing is sent from an instance or a battleground. Receiving and drawing do not need sharing: **Show guildmates on
 the minimap** and **Show guildmates on the world map** (both on by default) only control what you see.
 
@@ -139,7 +173,8 @@ the minimap** and **Show guildmates on the world map** (both on by default) only
 ## Retention
 
 Events are purged from your client 90 days after their start, and tombstones after 30 days. These periods are
-placeholders until the guild decides them.
+placeholders until the guild decides them. Enemy players you have not met for 180 days are removed when you log in,
+and at most 5000 are kept, the least recently seen first to go.
 
 ## Where data comes from when it is not yours
 

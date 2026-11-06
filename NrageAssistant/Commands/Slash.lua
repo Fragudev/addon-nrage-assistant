@@ -86,9 +86,22 @@ local function PvPCommand(rest)
   end
 end
 
+-- The Intel commands (IntelCommands); `/nrage spy` is the same command, for players coming from Spy.
+local function IntelCommand(rest)
+  if not (ns.active and ns.intelCommands) then
+    say(L("version %s (addon disabled, see the notice shown at login)"):format(ns.GetVersion()))
+    return
+  end
+  for _, line in ipairs(ns.intelCommands:Run(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
   pvp = PvPCommand,
+  intel = IntelCommand,
+  spy = IntelCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     sub, action = sub:lower(), action:lower()

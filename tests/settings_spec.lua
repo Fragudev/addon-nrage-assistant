@@ -11,7 +11,91 @@ describe("Settings", function()
   local Settings
 
   before_each(function()
-    Settings = load({ "Core/Constants", "Domain/Settings" }).Settings
+    Settings = load({ "Core/Constants", "Core/Validate", "Domain/Settings" }).Settings
+  end)
+
+  describe("Intel", function()
+    it("fills every default on an empty database", function()
+      local intel = Settings.Intel({ global = {} })
+      assert.is_true(intel.enabled)
+      assert.is_true(intel.share)
+      assert.are.equal(5, intel.removeMinutes)
+      assert.is_true(intel.sound)
+      assert.is_false(intel.alertNew)
+      assert.is_true(intel.alertKos)
+      assert.is_true(intel.alertKosGuild)
+      assert.is_true(intel.alertStealth)
+      assert.is_true(intel.alertGuildReports)
+      assert.are.equal("window", intel.warnTarget)
+      assert.are.equal("none", intel.announce)
+      assert.is_false(intel.inSanctuary)
+      assert.is_true(intel.inBattleground)
+      assert.is_true(intel.inArena)
+      assert.are.equal("zone", intel.mapMode)
+      assert.is_false(intel.mapFollow)
+      assert.is_true(intel.minimapTooltip)
+      assert.is_false(intel.minimapFeed)
+      assert.is_true(intel.targetButton)
+      assert.are.same({}, intel.alertRaces)
+      assert.are.same({}, intel.excludedZones)
+      assert.are.same({ shown = true, locked = false, rows = 8 }, intel.window)
+    end)
+
+    it("keeps valid choices and returns the same table every time", function()
+      local db = { global = { settings = { intel = { share = false, removeMinutes = 0, announce = "guild" } } } }
+      local intel = Settings.Intel(db)
+      assert.is_false(intel.share)
+      assert.are.equal(0, intel.removeMinutes)
+      assert.are.equal("guild", intel.announce)
+      assert.are.equal(intel, Settings.Intel(db))
+      assert.are.equal(intel, db.global.settings.intel)
+    end)
+
+    it("repairs damaged values instead of raising", function()
+      local db = {
+        global = {
+          settings = {
+            intel = {
+              enabled = "yes",
+              removeMinutes = 99,
+              warnTarget = "popup",
+              announce = 4,
+              mapMode = {},
+              alertRaces = { ORC = true, ELF = true, TROLL = "x" },
+              excludedZones = { [1411] = true, [-5] = true, banana = true, [1412] = 1 },
+              window = { shown = "no", locked = 3, rows = 500 },
+            },
+          },
+        },
+      }
+      local intel = Settings.Intel(db)
+      assert.is_true(intel.enabled)
+      assert.are.equal(5, intel.removeMinutes)
+      assert.are.equal("window", intel.warnTarget)
+      assert.are.equal("none", intel.announce)
+      assert.are.equal("zone", intel.mapMode)
+      assert.are.same({ ORC = true }, intel.alertRaces)
+      assert.are.same({ [1411] = true }, intel.excludedZones)
+      assert.are.same({ shown = true, locked = false, rows = 8 }, intel.window)
+    end)
+
+    it("limits the Nearby delay to 0 or 1 to 15 minutes", function()
+      for _, minutes in ipairs({ 0, 1, 15 }) do
+        local db = { global = { settings = { intel = { removeMinutes = minutes } } } }
+        assert.are.equal(minutes, Settings.Intel(db).removeMinutes)
+      end
+      for _, minutes in ipairs({ -1, 16, 2.5, "5" }) do
+        local db = { global = { settings = { intel = { removeMinutes = minutes } } } }
+        assert.are.equal(5, Settings.Intel(db).removeMinutes)
+      end
+    end)
+
+    it("replaces settings or intel that are not tables", function()
+      local db = { global = { settings = { intel = "broken" } } }
+      assert.is_true(Settings.Intel(db).enabled)
+      db.global.settings = "broken"
+      assert.is_true(Settings.Intel(db).enabled)
+    end)
   end)
 
   it("defaults to the game language and the alert sound on", function()

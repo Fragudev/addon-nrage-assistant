@@ -19,6 +19,8 @@ local function load_addon()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/IntelModel",
+    "Domain/GuildKosService",
     "Domain/ReadinessRules",
     "Sync/Codec",
     "Sync/Protocol",
@@ -29,6 +31,7 @@ local function load_addon()
     "Sync/LootSync",
     "Sync/PvPSync",
     "Sync/BlacklistSync",
+    "Sync/GuildKosSync",
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/PvPSeasonSync",
@@ -74,9 +77,9 @@ local function deliver(receiver, messageType, payload, sender, role)
 end
 
 describe("Protocol roster messages", function()
-  it("is at protocol 1.9", function()
+  it("is at protocol 1.10", function()
     assert.are.equal(1, Constants.PROTOCOL_MAJOR)
-    assert.are.equal(9, Constants.PROTOCOL_MINOR)
+    assert.are.equal(10, Constants.PROTOCOL_MINOR)
   end)
 
   it("accepts a clean roster upsert and delete, and drops unknown fields", function()

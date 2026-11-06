@@ -6,7 +6,9 @@ local function load_pins()
     "Core/Constants",
     "Core/Locale",
     "Locales/esES",
+    "Core/Validate",
     "Domain/LayerModel",
+    "Domain/IntelModel",
     "UI/MapPins",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -211,6 +213,179 @@ describe("MapPins.TooltipLines", function()
     assert.are.equal("Nivel 60", lines[1].text)
     assert.are.equal("Capa #0007", lines[2].text)
     assert.are.equal("hace 12 s", lines[3].text)
+  end)
+end)
+
+describe("MapPins.EnemyTooltipLines", function()
+  it("tells the level, the class, the marks, who saw him and how long ago", function()
+    local lines = MapPins.EnemyTooltipLines(pin("Ann", {
+      class = "ROGUE",
+      levelEstimated = true,
+      kos = "guild",
+      stealth = true,
+      reporter = "Bob-Realm",
+      layer = 9,
+      sameLayer = true,
+    }))
+    assert.are.same({
+      { text = "Level 60? Rogue" },
+      { text = "Kill on Sight", red = true },
+      { text = "Used a stealth ability" },
+      { text = "Reported by Bob" },
+      { text = "Layer #0009", green = true },
+      { text = "12 s ago" },
+    }, lines)
+  end)
+
+  it("says the enemy was seen by the player, and leaves out what is unknown", function()
+    local lines = MapPins.EnemyTooltipLines(pin("Ann", { class = false, level = false, age = false }))
+    assert.are.same({ { text = "Seen by you" }, { text = "0 s ago" } }, lines)
+    assert.are.equal("Mage", MapPins.EnemyTooltipLines(pin("Ann", { level = false }))[1].text)
+    assert.are.equal("Level 60", MapPins.EnemyTooltipLines(pin("Ann", { class = false }))[1].text)
+  end)
+end)
+
+describe("MapPins.Controller:Follow", function()
+  it("goes to the map of the first pin once for each new enemy and map", function()
+    local gone = {}
+    local env = build({
+      follow = function(map)
+        gone[#gone + 1] = map
+      end,
+    })
+    local first = pin("Ann", { map = 1411 })
+    env.controller:Follow({ first })
+    env.controller:Follow({ first })
+    assert.are.same({ 1411 }, gone)
+    env.controller:Follow({ pin("Ann", { map = 1412 }) })
+    assert.are.same({ 1411, 1412 }, gone)
+    -- Nobody left, and the same enemy comes back: the map follows again.
+    env.controller:Follow({})
+    env.controller:Follow({ pin("Ann", { map = 1412 }) })
+    assert.are.same({ 1411, 1412, 1412 }, gone)
+  end)
+
+  it("works without a way to move the map", function()
+    local env = build()
+    assert.has_no.errors(function()
+      env.controller:Follow({ pin("Ann") })
+    end)
+  end)
+
+  it("follows after a redraw only when the setting says so", function()
+    local gone = {}
+    local env = build({
+      follow = function(map)
+        gone[#gone + 1] = map
+      end,
+    })
+    env.controller:Request()
+    env.timers[1].fn()
+    assert.are.same({}, gone)
+    env.clock = env.clock + 10
+    env.settings = { minimap = true, worldmap = true, follow = true }
+    env.controller:Request()
+    env.timers[2].fn()
+    assert.are.same({ 1411 }, gone)
+  end)
+
+  it("uses the maximum of its own when it has one", function()
+    local env = build({ max = 2 })
+    local pins = { pin("A"), pin("B"), pin("C") }
+    assert.are.equal(2, env.controller:Redraw(pins, env.settings))
+  end)
+end)
+
+describe("MapPins enemy frames", function()
+  local NAMES =
+    { "RAID_CLASS_COLORS", "CLASS_ICON_TCOORDS", "GameTooltip", "LibStub", "HBD_PINS_WORLDMAP_SHOW_CONTINENT" }
+  local saved = {}
+
+  before_each(function()
+    FakeFrames.install()
+    for _, name in ipairs(NAMES) do
+      saved[name] = _G[name]
+    end
+    _G.RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
+    _G.CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.5, 0, 0.25 } }
+    _G.HBD_PINS_WORLDMAP_SHOW_CONTINENT = "CONTINENT"
+    local tooltip = { lines = {} }
+    function tooltip:SetOwner(owner)
+      self.owner = owner
+    end
+    function tooltip:AddLine(text, r, g, b)
+      self.lines[#self.lines + 1] = { text, r, g, b }
+    end
+    tooltip.Show = function() end
+    _G.GameTooltip = tooltip
+    -- The kit's text helpers, as far as the pin needs them.
+    ns.Kit = ns.Kit or {}
+    ns.Kit.Theme = ns.Kit.Theme or {
+      StyleFont = function()
+        return "font"
+      end,
+    }
+    ns.Kit.SetTextColor = ns.Kit.SetTextColor or function() end
+  end)
+
+  after_each(function()
+    FakeFrames.uninstall()
+    for _, name in ipairs(NAMES) do
+      _G[name] = saved[name]
+    end
+  end)
+
+  it("builds a pin with a mark and dresses it in red", function()
+    local frame = MapPins.BuildEnemyPin("worldmap")
+    assert.are.same({ 14, 14 }, { frame.width, frame.height })
+    assert.is_truthy(frame.mark)
+    MapPins.DressEnemyPin(frame, pin("Ann", { kos = "personal" }))
+    assert.are.same({ 1, 0.35, 0.35, 1 }, frame.border.color)
+    assert.are.equal("!", frame.mark.text)
+    assert.is_true(frame.enemy)
+    MapPins.DressEnemyPin(frame, pin("Ann"))
+    assert.are.equal("", frame.mark.text)
+    -- A frame without a mark (an old pool entry) is still dressed.
+    frame.mark = nil
+    assert.has_no.errors(function()
+      MapPins.DressEnemyPin(frame, pin("Ann"))
+    end)
+  end)
+
+  it("shows the enemy tooltip with the red line for a Kill on Sight player", function()
+    local frame = MapPins.BuildEnemyPin("minimap")
+    MapPins.DressEnemyPin(frame, pin("Ann", { kos = "guild", reporter = "Bob-Realm" }))
+    frame.scripts.OnEnter(frame)
+    local lines = _G.GameTooltip.lines
+    assert.are.equal("Kill on Sight", lines[3][1])
+    assert.are.same({ 1, 0.35, 0.35 }, { lines[3][2], lines[3][3], lines[3][4] })
+    assert.are.equal("Reported by Bob", lines[4][1])
+  end)
+
+  it("starts the controller of the enemy pins with its own key, pool size and follow function", function()
+    local library = fake_hbd()
+    local follow = function() end
+    local controller = MapPins.StartEnemies({
+      hbd = library,
+      now = function() end,
+      after = function() end,
+      pins = function() end,
+      settings = function() end,
+      follow = follow,
+    })
+    assert.are.equal(library, controller.deps.hbd)
+    assert.are.equal(MapPins.EnemyPins, controller.deps.ref)
+    assert.are.equal(Constants.INTEL_DIRECTORY_MAX, controller.deps.max)
+    assert.are.equal(MapPins.BuildEnemyPin, controller.deps.newPin)
+    assert.are.equal(MapPins.DressEnemyPin, controller.deps.dress)
+    assert.are.equal("CONTINENT", controller.deps.worldFlag)
+    assert.are.equal(follow, controller.deps.follow)
+    _G.LibStub = function()
+      return library
+    end
+    assert.are.equal(library, MapPins.StartEnemies({}).deps.hbd)
+    _G.LibStub = nil
+    assert.is_nil(MapPins.StartEnemies({}).deps.hbd)
   end)
 end)
 

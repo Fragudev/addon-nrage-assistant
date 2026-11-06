@@ -92,11 +92,34 @@ local function inZones(zones, row)
   return false
 end
 
+-- Is `row` a kill that counts for a bounty ("kos" goal)? The victim was on the guild KOS when the kill was logged, and
+-- is the named target when the goal has one.
+local function kosOk(goal, row)
+  if goal.kind ~= "kos" then
+    return true
+  end
+  if row.kos ~= true then
+    return false
+  end
+  if goal.target == nil then
+    return true
+  end
+  return ns.Validate.NameKey(row.victim) == ns.Validate.NameKey(goal.target)
+end
+
 local function evidenceRow(row)
   if row.bgWin then
     return { at = row.at, bgWin = true, mapId = row.mapId }
   end
-  return { at = row.at, victim = row.victim, mapId = row.mapId, place = row.place, class = row.class, race = row.race }
+  return {
+    at = row.at,
+    victim = row.victim,
+    mapId = row.mapId,
+    place = row.place,
+    class = row.class,
+    race = row.race,
+    kos = row.kos,
+  }
 end
 
 -- The first PVP_CLAIM_EVIDENCE_MAX rows of `rows` (already in time order) as evidence.
@@ -207,6 +230,7 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season)
         and seasonOk
         and ns.PvPSeasonModel.PeriodKey(mission.repeatKind, row.at) == periodKey
         and inZones(goal.zones, row)
+        and kosOk(goal, row)
       then
         rows[#rows + 1] = row
       end

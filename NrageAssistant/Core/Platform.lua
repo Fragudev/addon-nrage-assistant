@@ -520,6 +520,206 @@ function Platform.GetEnemyPlayerInfo(unit)
   return ok and info or nil
 end
 
+-- Intel (docs/PVP_INTEL_PLAN.md). Not measured on Forever yet (M3, M4, M6, M7): every reader is guarded and gives nil
+-- (or false for a switch) when the API is missing, raises or returns a secret value.
+
+-- A plain string copy of text from the client, or nil when it is not a readable non-empty string. A secret value
+-- raises when it is measured or concatenated.
+local function readableText(value)
+  local ok, copy = pcall(function()
+    if type(value) == "string" and #value > 0 then
+      return value .. ""
+    end
+    return nil
+  end)
+  return ok and copy or nil
+end
+
+local function factionOf(unit)
+  if not UnitFactionGroup then
+    return nil
+  end
+  local ok, faction = pcall(function()
+    local value = UnitFactionGroup(unit)
+    if value == "Alliance" or value == "Horde" then
+      return value
+    end
+    return nil
+  end)
+  return ok and faction or nil
+end
+
+-- What is known of the enemy player on `unit`: { name, class, race, level, skull, guild, faction }. `class` and `race`
+-- are upper-case file tokens, `level` is a whole number (nil when unreadable, and for a skull level, which sets
+-- `skull = true`), `guild` and `faction` are nil when unreadable. Nil when the unit is not an enemy player of the
+-- other faction (a duel opponent has the own one) or its name cannot be read. GetEnemyPlayerInfo, which the missions
+-- use, is left as it is.
+function Platform.GetEnemyDetails(unit)
+  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy) then
+    return nil
+  end
+  local ok, details = pcall(function()
+    if UnitIsPlayer(unit) ~= true or UnitIsEnemy("player", unit) ~= true then
+      return nil
+    end
+    local faction = factionOf(unit)
+    if faction and faction == factionOf("player") then
+      return nil
+    end
+    local name = readableName(GetUnitName and GetUnitName(unit, true) or UnitName(unit))
+    if not name then
+      return nil
+    end
+    local class = UnitClass and fileToken(select(2, UnitClass(unit))) or nil
+    local race = UnitRace and fileToken(select(2, UnitRace(unit))) or nil
+    local level, skull
+    if UnitLevel then
+      local value = UnitLevel(unit)
+      if type(value) == "number" and value % 1 == 0 then
+        if value == -1 then
+          skull = true
+        elseif value >= 1 then
+          level = value
+        end
+      end
+    end
+    local guild = GetGuildInfo and readableText((GetGuildInfo(unit))) or nil
+    return { name = name, class = class, race = race, level = level, skull = skull, guild = guild, faction = faction }
+  end)
+  return ok and details or nil
+end
+
+-- true when the enemy on `unit` has the player as its target, false when not, nil when the client does not say.
+function Platform.IsEnemyTargetingPlayer(unit)
+  if type(unit) ~= "string" or not UnitIsUnit then
+    return nil
+  end
+  local ok, result = pcall(function()
+    local value = UnitIsUnit(unit .. "target", "player")
+    if value == true or value == 1 then
+      return true
+    elseif value == false or value == nil then
+      return false
+    end
+    return nil
+  end)
+  if ok then
+    return result
+  end
+  return nil
+end
+
+-- The PvP type of the zone ("sanctuary", "friendly", "hostile", "contested", "combat", "arena"), or nil.
+function Platform.GetZonePvPType()
+  if not GetZonePVPInfo then
+    return nil
+  end
+  local ok, kind = pcall(function()
+    local value = GetZonePVPInfo()
+    if type(value) == "string" and value:find("^%a+$") then
+      return value
+    end
+    return nil
+  end)
+  return ok and kind or nil
+end
+
+local INSTANCE_KINDS = { none = true, pvp = true, arena = true, party = true, raid = true }
+
+-- "none", "pvp" (battleground), "arena", "party" (dungeon) or "raid"; nil when the client does not say. Any other kind
+-- (a scenario) counts as a dungeon.
+function Platform.GetInstanceKind()
+  if not IsInInstance then
+    return nil
+  end
+  local ok, kind = pcall(function()
+    local _, instanceType = IsInInstance()
+    if type(instanceType) ~= "string" then
+      return nil
+    end
+    return INSTANCE_KINDS[instanceType] and instanceType or "party"
+  end)
+  return ok and kind or nil
+end
+
+-- Are the enemy nameplates on? nil when the client does not say.
+function Platform.EnemyNameplatesEnabled()
+  local reader = C_CVar and C_CVar.GetCVar or GetCVar
+  if not reader then
+    return nil
+  end
+  local ok, value = pcall(reader, "nameplateShowEnemies")
+  if not ok then
+    return nil
+  end
+  if value == "1" or value == 1 or value == true then
+    return true
+  elseif value == "0" or value == 0 or value == false then
+    return false
+  end
+  return nil
+end
+
+-- Turns the enemy nameplates on. Refused in combat (the setting is protected there). Returns true when it was set.
+function Platform.EnableEnemyNameplates()
+  if Platform.IsInCombat() then
+    return false
+  end
+  local writer = C_CVar and C_CVar.SetCVar or SetCVar
+  if not writer then
+    return false
+  end
+  return (pcall(writer, "nameplateShowEnemies", "1"))
+end
+
+-- The addon channel a message to the group goes to: "INSTANCE_CHAT" in an instance group (a battleground), "RAID" in a
+-- raid, "PARTY" in a party, nil when the player is alone or the client does not say.
+function Platform.GroupDistribution()
+  local ok, channel = pcall(function()
+    if IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+      return "INSTANCE_CHAT"
+    end
+    if IsInRaid and IsInRaid() then
+      return "RAID"
+    end
+    if IsInGroup and IsInGroup() then
+      return "PARTY"
+    end
+    return nil
+  end)
+  return ok and channel or nil
+end
+
+local CONTINENT_MAP_TYPE = 2
+local MAP_PARENT_STEPS = 10
+
+-- The uiMapId of the continent that holds `mapId`, found through the parents of the map, or nil.
+function Platform.GetContinentMapId(mapId)
+  if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then
+    return nil
+  end
+  local ok, continent = pcall(function()
+    local current = mapId
+    for _ = 1, MAP_PARENT_STEPS do
+      local info = C_Map.GetMapInfo(current)
+      if type(info) ~= "table" then
+        return nil
+      end
+      local continentType = Enum and Enum.UIMapType and Enum.UIMapType.Continent or CONTINENT_MAP_TYPE
+      if info.mapType == continentType then
+        return current
+      end
+      local parent = info.parentMapID
+      if type(parent) ~= "number" or parent <= 0 then
+        return nil
+      end
+      current = parent
+    end
+    return nil
+  end)
+  return ok and continent or nil
+end
+
 -- Can this client say who won a battleground?
 function Platform.HasBattlegroundWinner()
   return type(GetBattlefieldWinner) == "function"
@@ -1033,6 +1233,206 @@ function Platform.GetLootWindowItems()
     return nil
   end
   return items
+end
+
+-- Intel alerts and results (docs/PVP_INTEL_PLAN.md section 3.3). Not measured on Forever yet (M7, M8, M9): every reader
+-- is guarded and gives nil (or false) for a missing API, an error or a secret value.
+
+-- Shows `text` in the red error area at the top of the screen. False when the client has no such frame.
+function Platform.ShowErrorText(text)
+  if type(text) ~= "string" or not (UIErrorsFrame and UIErrorsFrame.AddMessage) then
+    return false
+  end
+  return (pcall(UIErrorsFrame.AddMessage, UIErrorsFrame, text, 1, 0.1, 0.1, 1))
+end
+
+-- The name of a map ("Stranglethorn Vale"), or nil when the client does not say.
+function Platform.GetMapName(mapId)
+  if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then
+    return nil
+  end
+  local ok, name = pcall(function()
+    local info = C_Map.GetMapInfo(mapId)
+    if type(info) == "table" and type(info.name) == "string" and #info.name > 0 then
+      return info.name .. ""
+    end
+    return nil
+  end)
+  return ok and name or nil
+end
+
+-- The sound of each kind of Intel alert: the SOUNDKIT name and the legacy sound name used when the client has none.
+local INTEL_SOUNDS = {
+  kos = { "RAID_WARNING", "RaidWarning" },
+  kosGuild = { "ALARM_CLOCK_WARNING_3", "AlarmClockWarning3" },
+  stealth = { "ALARM_CLOCK_WARNING_2", "AlarmClockWarning2" },
+  race = { "IG_QUEST_LIST_OPEN", "igQuestListOpen" },
+  new = { "IG_MAINMENU_OPEN", "igMainMenuOpen" },
+}
+
+-- Plays the sound of an alert kind. False when the kind is unknown or the client has no sound or refuses it.
+function Platform.PlayIntelSound(kind)
+  local sound = INTEL_SOUNDS[kind]
+  if not (sound and PlaySound) then
+    return false
+  end
+  return (pcall(PlaySound, SOUNDKIT and SOUNDKIT[sound[1]] or sound[2]))
+end
+
+-- The unit and the spell id of an UNIT_SPELLCAST_SUCCEEDED event as `unit, spellId`, or nil when either is missing or
+-- not plain (during an encounter the arguments can be secret values, which raise when they are used).
+function Platform.ReadSpellEvent(unit, _, spellId)
+  local ok, readUnit, readSpell = pcall(function()
+    if type(unit) ~= "string" or type(spellId) ~= "number" then
+      return nil
+    end
+    local plain = unit .. ""
+    local id = spellId + 0
+    if #plain == 0 or id % 1 ~= 0 or id < 1 then
+      return nil
+    end
+    return plain, id
+  end)
+  if ok and readUnit then
+    return readUnit, readSpell
+  end
+  return nil
+end
+
+local LOCAL_DEFENSE_NAMES = { "localdefense", "defensalocal" }
+
+-- The id of the Local Defense channel the player has joined, or nil. The channel name is localised, so it is matched
+-- by the names of the known clients. Not measured yet.
+local function localDefenseId()
+  if not GetChannelList then
+    return nil
+  end
+  local list = { GetChannelList() }
+  for index = 1, #list - 1, 3 do
+    local id, name = list[index], list[index + 1]
+    if type(id) == "number" and type(name) == "string" then
+      local lowered = name:lower():gsub("[%s_]", "")
+      for _, known in ipairs(LOCAL_DEFENSE_NAMES) do
+        if lowered:find(known, 1, true) then
+          return id
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local CHAT_CHANNELS = { SAY = true, PARTY = true, RAID = true, GUILD = true, INSTANCE_CHAT = true }
+
+-- Sends one chat line. `channel` is SAY, PARTY, RAID, GUILD, INSTANCE_CHAT or LOCALDEFENSE (which needs a hardware
+-- event: call it from a click or a typed command). Nothing is sent during the encounter lockdown. False when it was
+-- not sent.
+function Platform.SendChatLine(channel, text)
+  -- Clients with the Midnight API moved the function under C_ChatInfo.
+  local sendChat = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage)
+  if type(text) ~= "string" or text == "" or not sendChat or Platform.IsChatMessagingLockedDown() then
+    return false
+  end
+  local ok = pcall(function()
+    if channel == "LOCALDEFENSE" then
+      local id = localDefenseId()
+      if not id then
+        error("no channel")
+      end
+      sendChat(text, "CHANNEL", nil, id)
+    elseif CHAT_CHANNELS[channel] then
+      sendChat(text, channel)
+    else
+      error("bad channel")
+    end
+  end)
+  return ok
+end
+
+-- The name of the player the death recap blames for the death of the player, or nil when the recap is missing, empty
+-- or unreadable (including a secret value). Not measured yet (M8): the functions of the retail recap are tried in turn.
+function Platform.GetDeathKiller()
+  local ok, killer = pcall(function()
+    local events
+    if DeathRecap_GetEvents then
+      events = DeathRecap_GetEvents()
+    elseif C_DeathRecap and C_DeathRecap.GetRecapEvents then
+      events = C_DeathRecap.GetRecapEvents()
+    end
+    if type(events) ~= "table" then
+      return nil
+    end
+    local best
+    for _, event in ipairs(events) do
+      if type(event) == "table" and type(event.sourceName) == "string" and #event.sourceName > 0 then
+        local at = type(event.timestamp) == "number" and event.timestamp or 0
+        if not best or at >= best.at then
+          best = { at = at, name = event.sourceName .. "" }
+        end
+      end
+    end
+    return best and best.name or nil
+  end)
+  return ok and killer or nil
+end
+
+-- Which modifier keys are held now, as `shift, ctrl, alt` (booleans; false when the client does not say).
+function Platform.ModifierKeys()
+  local function down(read)
+    if not read then
+      return false
+    end
+    local ok, value = pcall(read)
+    return ok and value == true
+  end
+  return down(IsShiftKeyDown), down(IsControlKeyDown), down(IsAltKeyDown)
+end
+
+-- Is the world map open now? False when it is closed or the client has none.
+function Platform.WorldMapOpen()
+  local ok, open = pcall(function()
+    return WorldMapFrame ~= nil and WorldMapFrame:IsShown() == true
+  end)
+  return ok and open == true
+end
+
+-- Makes an open world map show `mapId`. Does nothing, and gives false, when the map is closed, the id is not a map or
+-- the client refuses (the map can be busy). Not measured yet.
+function Platform.ShowWorldMap(mapId)
+  if type(mapId) ~= "number" or not Platform.WorldMapOpen() then
+    return false
+  end
+  return (
+    pcall(function()
+      if WorldMapFrame.GetMapID and WorldMapFrame:GetMapID() == mapId then
+        return
+      end
+      WorldMapFrame:SetMapID(mapId)
+    end)
+  )
+end
+
+-- Adds an entry to the menu of enemy players (the right-click menu of a unit), when the client has the menu API.
+-- `label(name)` gives the text and `onPick(name)` runs on a click; `name` is the plain name the menu is about, and an
+-- entry is only added when it can be read. Returns true when the hook was installed. Not measured yet (M12).
+function Platform.AddEnemyPlayerMenuEntry(label, onPick)
+  if not (Menu and Menu.ModifyMenu) then
+    return false
+  end
+  return (
+    pcall(Menu.ModifyMenu, "MENU_UNIT_ENEMY_PLAYER", function(_, root, context)
+      pcall(function()
+        local name = type(context) == "table" and readableText(context.name) or nil
+        if not name then
+          return
+        end
+        root:CreateDivider()
+        root:CreateButton(label(name), function()
+          onPick(name)
+        end)
+      end)
+    end)
+  )
 end
 
 ns.Platform = Platform
