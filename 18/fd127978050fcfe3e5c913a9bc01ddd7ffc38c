@@ -1,0 +1,27 @@
+NrageAssistant/Domain/LayerSwap.lua
+  s_3dfa5a4152a3e7::t_9135567737f1da 149-154
+NrageAssistant/Domain/LfgService.lua
+  s_3dfa5a4152a3e7::t_26a89a047c4cd3 1-748
+NrageAssistant/NrageAssistant.toc
+  s_3dfa5a4152a3e7::t_7e9e70bdd5e79d 76
+tests/layer_swap_spec.lua
+  s_3dfa5a4152a3e7::t_8f6e07010811cc 764-779
+tests/lfg_service_spec.lua
+  s_3dfa5a4152a3e7::t_90447f5cb467be 1-1109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "18fd127978050fcfe3e5c913a9bc01ddd7ffc38c",
+  "prompts": {},
+  "sessions": {
+    "s_3dfa5a4152a3e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4194495b-b937-4815-b37c-df57a62e9ec6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
