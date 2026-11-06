@@ -1,0 +1,31 @@
+README.md
+  s_3d92b7ca73434f::t_8caca2b115fc47 5,129
+docs/API_NOTES.md
+  s_3d92b7ca73434f::t_863b253215d6ab 74-91
+docs/CURSEFORGE_DESCRIPTION.md
+  s_3d92b7ca73434f::t_3db348d47309a4 4,72-77,91
+docs/LFG_PLAN.md
+  s_3d92b7ca73434f::t_384e99f10fe8fe 10,372-373
+docs/PRIVACY.md
+  s_3d92b7ca73434f::t_efdb48f806f46c 166-182
+docs/PROTOCOL.md
+  s_3d92b7ca73434f::t_32d68acfd8c6c4 34,39-40,68-69,189-217
+docs/USER_GUIDE.md
+  s_3d92b7ca73434f::t_e398bdaa8fdd1d 619-657
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9430f800400ee52b125b16eddef59984c98fa737",
+  "prompts": {},
+  "sessions": {
+    "s_3d92b7ca73434f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adeb38ba6e8473151",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
