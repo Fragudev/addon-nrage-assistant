@@ -1,0 +1,39 @@
+.luacheckrc
+  s_0e68a66d17ed7f::t_e36dc08649a7f6 19
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_cd26013ce8ef01 854-890
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_66baf67e30ccf3 1389-1412
+NrageAssistant/Domain/IntelPins.lua
+  s_0e68a66d17ed7f::t_6c2f2209d70d32 1-130
+NrageAssistant/Locales/esES.lua
+  s_0e68a66d17ed7f::t_4c0d617f5fbf8f 1121,1143
+NrageAssistant/NrageAssistant.toc
+  s_0e68a66d17ed7f::t_68c87baf8526b6 72
+NrageAssistant/UI/MapPins.lua
+  s_0e68a66d17ed7f::t_c2a272a60bd2c8 3-6,18,36-71,100-110,119-121,147-156,159-160,162,197,215-232,246-250,274-298
+tests/init_spec.lua
+  s_0e68a66d17ed7f::t_f7fbf57b7f8024 365-383
+tests/intel_pins_spec.lua
+  s_0e68a66d17ed7f::t_fdb7cdfd407f6d 1-193
+tests/map_pins_spec.lua
+  s_0e68a66d17ed7f::t_4791e83ce6d34f 9,11,219-391
+tests/platform_intel_spec.lua
+  s_0e68a66d17ed7f::t_86ee4cb74ca80b 685-754
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e7553752e6e4afc596e8fee5ddeb980842f41b1a",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
