@@ -246,6 +246,7 @@ describe("IntelWindow on fake frames", function()
         assert.is_false(env.combat, "a secure overlay was created in combat")
         frame.template = template
         frame.attributes = {}
+        frame.anchors = {}
         for _, method in ipairs(SECURE_METHODS) do
           local original = frame[method]
           frame[method] = function(self, ...)
@@ -257,6 +258,9 @@ describe("IntelWindow on fake frames", function()
               local key, value = ...
               self.attributes[key] = value
               return
+            end
+            if method == "SetPoint" then
+              self.anchors[#self.anchors + 1] = select(2, ...)
             end
             return original(self, ...)
           end
@@ -657,6 +661,54 @@ describe("IntelWindow on fake frames", function()
       assert.are.equal(IntelWindow.ROWS_MAX, #env.overlays)
       assert.are.equal("/targetexact Ann", overlay_attr(1, "macrotext1"))
       assert.are.equal(1, IntelWindow.Rows()[1].alpha)
+    end)
+
+    it("opens and closes only when combat ends, once the overlays exist", function()
+      IntelWindow.Show()
+      local window = IntelWindow.Frame()
+      local showCalls, hideCalls = 0, 0
+      local show, hide = window.Show, window.Hide
+      window.Show = function(self)
+        showCalls = showCalls + 1
+        return show(self)
+      end
+      window.Hide = function(self)
+        hideCalls = hideCalls + 1
+        return hide(self)
+      end
+
+      env.combat = true
+      IntelWindow.Hide()
+      assert.are.equal(0, hideCalls)
+      assert.is_true(IntelWindow.IsShown())
+      assert.is_false(ns.Settings.Intel(ns.db).window.shown)
+      IntelWindow.Sync()
+      assert.are.equal(0, hideCalls)
+
+      env.combat = false
+      IntelWindow.OnRegen()
+      assert.are.equal(1, hideCalls)
+      assert.is_false(IntelWindow.IsShown())
+
+      env.combat = true
+      assert.is_false(IntelWindow.Show())
+      assert.are.equal(0, showCalls)
+      assert.is_true(ns.Settings.Intel(ns.db).window.shown)
+
+      env.combat = false
+      IntelWindow.OnRegen()
+      assert.are.equal(1, showCalls)
+      assert.is_true(IntelWindow.IsShown())
+    end)
+
+    it("anchors each overlay to the window and never to a row", function()
+      IntelWindow.Show()
+      for _, overlay in ipairs(env.overlays) do
+        assert.is_true(#overlay.anchors > 0)
+        for _, anchor in ipairs(overlay.anchors) do
+          assert.are.equal(IntelWindow.Frame(), anchor)
+        end
+      end
     end)
 
     it("does not move or size the window by hand", function()

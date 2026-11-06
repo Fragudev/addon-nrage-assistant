@@ -492,7 +492,9 @@ local function kosTable(page)
     emptyText = L("The Kill on Sight lists are empty."),
   })
   Kit.Label(page, {
-    text = L("Everyone can add to the guild list. Only who added a player, or an officer, can change or remove him."),
+    text = L(
+      "Everyone can add to the guild list. Only who added a player, the GM or the CoGM can change or remove them."
+    ),
     style = "small",
     color = "muted",
     wrap = true,

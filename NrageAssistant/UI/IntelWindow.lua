@@ -416,8 +416,12 @@ local function buildOverlays()
     overlay:RegisterForClicks("AnyUp")
     overlay:SetFrameLevel(frame:GetFrameLevel() + 10)
     local row = rowFrames[index]
-    overlay:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-    overlay:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    -- Anchored to the window, at the fixed place of its row, and never to the row: a frame a protected frame depends
+    -- on cannot be moved in combat, and the rows are plain frames that are drawn again then.
+    local top = -(HEADER + TABS + (index - 1) * ROW_HEIGHT)
+    overlay:SetPoint("TOPLEFT", frame, "TOPLEFT", PAD, top)
+    overlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PAD, top)
+    overlay:SetHeight(ROW_HEIGHT)
     overlay:SetScript("PostClick", function(_, button)
       onClick(index, button)
     end)
@@ -690,6 +694,7 @@ function IntelWindow.OnRegen()
   if pendingLayout or overlaysBuilt then
     layout()
   end
+  IntelWindow.Sync()
   IntelWindow.Refresh()
 end
 
@@ -697,25 +702,41 @@ function IntelWindow.IsShown()
   return frame ~= nil and frame:IsShown() == true
 end
 
--- Shows the window and remembers that it is shown.
+-- The window is the parent of protected frames once the overlays exist, so showing or hiding it is a protected action
+-- too: in combat it waits, and OnRegen follows the setting when combat ends.
+local function visibilityLocked()
+  return overlaysBuilt and inCombat()
+end
+
+-- Shows the window and remembers that it is shown. False when it cannot open now; in combat it opens when combat ends.
 function IntelWindow.Show()
   if not (ns.active and ns.db and ns.intel) then
     return false
   end
   settings().window.shown = true
+  if visibilityLocked() then
+    print("Nrage Assistant: " .. L("The Intel window will change when combat ends."))
+    return false
+  end
   ensure()
   frame:Show()
   IntelWindow.Refresh()
   return true
 end
 
+-- Hides the window and remembers it; in combat it closes when combat ends.
 function IntelWindow.Hide()
   if ns.db then
     settings().window.shown = false
   end
-  if frame then
-    frame:Hide()
+  if not frame then
+    return
   end
+  if visibilityLocked() then
+    print("Nrage Assistant: " .. L("The Intel window will change when combat ends."))
+    return
+  end
+  frame:Hide()
 end
 
 -- Starts the window when the addon activates: shows it when the player left it shown, and listens for the end of
@@ -738,7 +759,7 @@ end
 
 -- Follows the setting "show the window": the window opens or closes to match it.
 function IntelWindow.Sync()
-  if not (ns.db and ns.intel) then
+  if not (ns.db and ns.intel) or visibilityLocked() then
     return
   end
   local shown = settings().window.shown

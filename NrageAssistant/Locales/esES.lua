@@ -972,7 +972,7 @@ ns.Locale.Register("es", {
   ["the category must be one of: gank, camp, corpse, objective, insult, other."] = "la categoría debe ser una de: gank, camp, corpse, objective, insult, other.",
   ["that list is full."] = "esa lista está llena.",
   ["that player is not on the list."] = "ese jugador no está en la lista.",
-  ["that player is on the guild list already; only who added them or an officer can change it."] = "ese jugador ya está en la lista de la guild; solo quien lo añadió o un oficial puede cambiarlo.",
+  ["that player is on the guild list already; only who added them, the GM or the CoGM can change it."] = "ese jugador ya está en la lista de la guild; solo quien lo añadió, el maestro de la guild o el co-maestro puede cambiarlo.",
   ["you are not in a group for that."] = "no estás en un grupo para eso.",
   ["the message could not be sent."] = "no se pudo enviar el mensaje.",
   ["unknown channel."] = "canal desconocido.",
@@ -1055,7 +1055,7 @@ ns.Locale.Register("es", {
   ["Enemies met"] = "Enemigos vistos",
   ["Enemy nameplates are off, so Intel cannot see enemy players. Turn them on to detect them."] = "Las placas de nombre enemigas están desactivadas, así que Intel no puede ver a los jugadores enemigos. Actívalas para detectarlos.",
   ["Every zone"] = "Todas las zonas",
-  ["Everyone can add to the guild list. Only who added a player, or an officer, can change or remove him."] = "Todos pueden añadir a la lista de la guild. Solo quien añadió a un jugador, o un oficial, puede cambiarlo o quitarlo.",
+  ["Everyone can add to the guild list. Only who added a player, the GM or the CoGM can change or remove them."] = "Todos pueden añadir a la lista de la guild. Solo quien añadió a un jugador, el maestro de la guild o el co-maestro puede cambiarlo o quitarlo.",
   ["Gank"] = "Gank",
   ["Guild Kill on Sight:"] = "Muerte a la vista de la guild:",
   ["Guild of a Kill on Sight player"] = "Guild de un jugador de Muerte a la vista",
@@ -1162,4 +1162,5 @@ ns.Locale.Register("es", {
   ["that cannot change during combat."] = "eso no se puede cambiar en combate.",
   ["that value is not valid."] = "ese valor no es válido.",
   ["the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings."] = "los jugadores enemigos que encuentras ahora se comparten con la guild. Puedes desactivarlo en los ajustes de Intel.",
+  ["The Intel window will change when combat ends."] = "La ventana de Intel cambiará al terminar el combate.",
 })

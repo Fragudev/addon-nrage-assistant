@@ -1328,7 +1328,9 @@ local CHAT_CHANNELS = { SAY = true, PARTY = true, RAID = true, GUILD = true, INS
 -- event: call it from a click or a typed command). Nothing is sent during the encounter lockdown. False when it was
 -- not sent.
 function Platform.SendChatLine(channel, text)
-  if type(text) ~= "string" or text == "" or not SendChatMessage or Platform.IsChatMessagingLockedDown() then
+  -- Clients with the Midnight API moved the function under C_ChatInfo.
+  local sendChat = SendChatMessage or (C_ChatInfo and C_ChatInfo.SendChatMessage)
+  if type(text) ~= "string" or text == "" or not sendChat or Platform.IsChatMessagingLockedDown() then
     return false
   end
   local ok = pcall(function()
@@ -1337,9 +1339,9 @@ function Platform.SendChatLine(channel, text)
       if not id then
         error("no channel")
       end
-      SendChatMessage(text, "CHANNEL", nil, id)
+      sendChat(text, "CHANNEL", nil, id)
     elseif CHAT_CHANNELS[channel] then
-      SendChatMessage(text, channel)
+      sendChat(text, channel)
     else
       error("bad channel")
     end

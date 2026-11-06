@@ -391,10 +391,9 @@ describe("/nrage intel", function()
       env.rank = { "Miembro", 5 }
       env.run("kos guild Bob")
       env.guildKos.bob.addedBy = "Someone"
-      assert.are.same(
-        { "that player is on the guild list already; only who added them or an officer can change it." },
-        env.run("kos guild Bob camp")
-      )
+      assert.are.same({
+        "that player is on the guild list already; only who added them, the GM or the CoGM can change it.",
+      }, env.run("kos guild Bob camp"))
       assert.are.same({ "you are not allowed to do that." }, env.run("kos guild remove Bob"))
       env.rank = { nil, nil }
       assert.are.same({ "you are not allowed to do that." }, env.run("kos guild Eve"))
