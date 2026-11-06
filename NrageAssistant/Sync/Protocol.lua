@@ -448,6 +448,104 @@ local function validateLayerSwap(payload)
   return clean
 end
 
+-- Groups (docs/LFG_PLAN.md). LFG_POST is the post of its sender (the owner is always the sender); LFG_APPLY is one step
+-- of an application, and the actor is always the sender. Only `to` of an accept or a decline names someone, as plain
+-- text like any character name. The needs plus the members of an open post never exceed a party.
+local LFG_APPLY_STEPS = { apply = true, withdraw = true, accept = true, decline = true }
+
+local function validateLfgNeeds(needs)
+  local constants = ns.Constants
+  if type(needs) ~= "table" then
+    return nil
+  end
+  local clean, total = {}, 0
+  for role in pairs(constants.LFG_ROLES) do
+    if not isInt(needs[role], 0, constants.LFG_NEED_MAX) then
+      return nil
+    end
+    clean[role] = needs[role]
+    total = total + needs[role]
+  end
+  return clean, total
+end
+
+local function validateLfgPost(payload)
+  local constants = ns.Constants
+  if not (isId(payload.pid) and isInt(payload.rev, 1, MAX_REV)) then
+    return nil
+  end
+  if payload.s == "closed" then
+    if not (type(payload.o) == "string" and constants.LFG_OUTCOMES[payload.o]) then
+      return nil
+    end
+    return { pid = payload.pid, rev = payload.rev, s = "closed", o = payload.o }
+  end
+  if payload.s ~= "open" then
+    return nil
+  end
+  if not (type(payload.kind) == "string" and constants.LFG_KINDS[payload.kind]) then
+    return nil
+  end
+  local needs, total = validateLfgNeeds(payload.needs)
+  if not (needs and total > 0 and isText(payload.title, constants.LFG_TITLE_MAX)) then
+    return nil
+  end
+  if
+    not isInt(payload.members, 1, constants.LFG_PARTY_SIZE - 1) or total + payload.members > constants.LFG_PARTY_SIZE
+  then
+    return nil
+  end
+  local clean = {
+    pid = payload.pid,
+    rev = payload.rev,
+    s = "open",
+    kind = payload.kind,
+    title = payload.title,
+    needs = needs,
+    members = payload.members,
+  }
+  if payload.minLevel ~= nil then
+    if not isInt(payload.minLevel, 1, constants.LFG_LEVEL_MAX) then
+      return nil
+    end
+    clean.minLevel = payload.minLevel
+  end
+  if payload.note ~= nil then
+    if not isText(payload.note, constants.LFG_NOTE_MAX) then
+      return nil
+    end
+    clean.note = payload.note
+  end
+  return clean
+end
+
+local function validateLfgApply(payload)
+  local constants = ns.Constants
+  local step = payload.s
+  if not (isId(payload.pid) and type(step) == "string" and LFG_APPLY_STEPS[step]) then
+    return nil
+  end
+  local clean = { pid = payload.pid, s = step }
+  if step == "apply" then
+    if not (type(payload.role) == "string" and constants.LFG_ROLES[payload.role]) then
+      return nil
+    end
+    clean.role = payload.role
+    if payload.note ~= nil then
+      if not isText(payload.note, constants.LFG_NOTE_MAX) then
+        return nil
+      end
+      clean.note = payload.note
+    end
+  elseif step ~= "withdraw" then
+    if not ns.EventModel.IsCharacterKey(payload.to) then
+      return nil
+    end
+    clean.to = payload.to
+  end
+  return clean
+end
+
 -- The readiness rules of one roster: the whole set, validated rule by rule (ReadinessRules.Validate).
 local function validateRosterRules(payload)
   if not (isId(payload.rosterId) and validateRevision(payload)) then
@@ -622,6 +720,8 @@ local VALIDATORS = {
   ROSTER_RULES = validateRosterRules,
   LAYER_STATE = validateLayerState,
   LAYER_SWAP = validateLayerSwap,
+  LFG_POST = validateLfgPost,
+  LFG_APPLY = validateLfgApply,
   RECIPES = validateRecipes,
   PVP_SEASON = seasonValidator("ValidateSeason"),
   PVP_MISSION = seasonValidator("ValidateMission"),

@@ -167,6 +167,7 @@ local MATRIX = {
   -- Open to every rank.
   edit_own_profile = { "all", "all", "all", "all", "all", "all", "all" },
   layer_share = { "all", "all", "all", "all", "all", "all", "all" },
+  lfg_use = { "all", "all", "all", "all", "all", "all", "all" },
   position_share = { "all", "all", "all", "all", "all", "all", "all" },
   pvp_publish = { "all", "all", "all", "all", "all", "all", "all" },
   pvp_claim = { "all", "all", "all", "all", "all", "all", "all" },

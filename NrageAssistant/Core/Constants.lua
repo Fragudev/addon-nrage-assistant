@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 10,
+  PROTOCOL_MINOR = 11,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -332,6 +332,28 @@ ns.Constants = {
   LAYER_REDRAW_SECONDS = 1,
   -- A party holds five players.
   LAYER_PARTY_SIZE = 5,
+
+  -- Groups (docs/LFG_PLAN.md). A post is kept by the receiver for LFG_POST_TTL after the last message and the leader
+  -- repeats it every LFG_REPUBLISH_SECONDS; a post closes itself after LFG_POST_MAX_AGE. LFG_LEVEL_MAX only bounds
+  -- the validation of `minLevel`. An application waits LFG_APPLY_TIMEOUT for the leader and an invite
+  -- LFG_INVITE_TIMEOUT for the join. LFG_NEED_MAX is a party of LFG_PARTY_SIZE minus the leader.
+  LFG_PARTY_SIZE = 5,
+  LFG_NEED_MAX = 4,
+  LFG_TITLE_MAX = 60,
+  LFG_NOTE_MAX = 100,
+  LFG_KINDS = { dungeon = true, quest = true, other = true },
+  LFG_ROLES = { tank = true, heal = true, dps = true },
+  LFG_OUTCOMES = { full = true, cancelled = true, expired = true },
+  LFG_REPUBLISH_SECONDS = 120,
+  LFG_POST_TTL = 360,
+  LFG_POST_MAX_AGE = 3600,
+  LFG_BOARD_MAX = 50,
+  LFG_APPLICANTS_MAX = 10,
+  LFG_APPLY_TIMEOUT = 120,
+  LFG_INVITE_TIMEOUT = 60,
+  LFG_LEVEL_MAX = 100,
+  -- A redraw of the Groups tab because of a received post waits at least this long after the previous one.
+  LFG_REDRAW_SECONDS = 1,
 
   -- Guild map. Positions travel on their own addon prefix (not through the NRAGE envelope): a message is
   -- "P1:<map>:<x>:<y>" of at most POSITION_MAX_BYTES bytes, x and y in 0..10000. The own position is checked every

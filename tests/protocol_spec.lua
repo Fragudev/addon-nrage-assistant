@@ -658,8 +658,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 10", function()
-    assert.are.equal(10, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 11", function()
+    assert.are.equal(11, Constants.PROTOCOL_MINOR)
   end)
 end)
 
@@ -833,6 +833,164 @@ describe("Protocol.Validate LAYER_SWAP", function()
       assert.are.equal("bad_payload", reason)
     end
     assert.are.equal("bad_payload", select(2, validate({ rid = "a1", s = "assign" })))
+  end)
+end)
+
+describe("Protocol.Validate LFG_POST", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("LFG_POST", payload, "lf-1"))
+  end
+
+  local function open(overrides)
+    local payload = {
+      pid = "p-1",
+      rev = 1,
+      s = "open",
+      kind = "dungeon",
+      title = "Deadmines",
+      needs = { tank = 1, heal = 1, dps = 2 },
+      members = 1,
+    }
+    for k, v in pairs(overrides or {}) do
+      payload[k] = v
+    end
+    return payload
+  end
+
+  it("accepts an open post and drops unknown fields", function()
+    local m = validate(open({ extra = 1, needs = { tank = 1, heal = 1, dps = 2, x = 9 } }))
+    assert.are.same(open(), m.p)
+  end)
+
+  it("accepts the optional minimum level and note", function()
+    local m = validate(open({ minLevel = 20, note = "bring water" }))
+    assert.are.equal(20, m.p.minLevel)
+    assert.are.equal("bring water", m.p.note)
+  end)
+
+  it("accepts a closed post with each outcome and keeps only its fields", function()
+    for _, outcome in ipairs({ "full", "cancelled", "expired" }) do
+      local m = validate({ pid = "p-1", rev = 4, s = "closed", o = outcome, title = "x", needs = {} })
+      assert.are.same({ pid = "p-1", rev = 4, s = "closed", o = outcome }, m.p)
+    end
+  end)
+
+  it("rejects a bad id, revision, state, kind or outcome", function()
+    for _, bad in ipairs({
+      open({ pid = "p:1" }),
+      open({ pid = "" }),
+      open({ rev = 0 }),
+      open({ rev = 1.5 }),
+      open({ rev = 2147483648 }),
+      open({ s = "other" }),
+      open({ kind = "raid" }),
+      { pid = "p-1", rev = 1, s = "closed" },
+      { pid = "p-1", rev = 1, s = "closed", o = "won" },
+    }) do
+      local _, reason = validate(bad)
+      assert.are.equal("bad_payload", reason)
+    end
+  end)
+
+  it("rejects a post that lacks its id, state or kind", function()
+    for _, key in ipairs({ "pid", "rev", "s", "kind", "title", "needs", "members" }) do
+      local payload = open()
+      payload[key] = nil
+      assert.are.equal("bad_payload", select(2, validate(payload)))
+    end
+  end)
+
+  it("rejects text that is empty, oversized, or carries escapes or control characters", function()
+    for _, bad in ipairs({ "", string.rep("a", 61), "|cffff0000Red|r", "line\nbreak", "tab\there", 5 }) do
+      assert.are.equal("bad_payload", select(2, validate(open({ title = bad }))))
+    end
+    for _, bad in ipairs({ "", string.rep("a", 101), "a|Hitem|h", "a\1b", 5 }) do
+      assert.are.equal("bad_payload", select(2, validate(open({ note = bad }))))
+    end
+    assert.is_truthy(validate(open({ title = string.rep("a", 60), note = string.rep("b", 100) })))
+  end)
+
+  it("rejects needs out of range, missing, or with no seat to fill", function()
+    for _, bad in ipairs({
+      { tank = 0, heal = 0, dps = 0 },
+      { tank = 5, heal = 0, dps = 0 },
+      { tank = -1, heal = 1, dps = 1 },
+      { tank = 1, heal = 1 },
+      { tank = "1", heal = 1, dps = 1 },
+      "needs",
+    }) do
+      assert.are.equal("bad_payload", select(2, validate(open({ needs = bad }))))
+    end
+    assert.are.equal("bad_payload", select(2, validate(open({ needs = false }))))
+  end)
+
+  it("rejects members out of range or a party that would exceed five", function()
+    for _, members in ipairs({ 0, 5, 1.5, "1" }) do
+      assert.are.equal("bad_payload", select(2, validate(open({ members = members }))))
+    end
+    assert.are.equal("bad_payload", select(2, validate(open({ members = 2, needs = { tank = 1, heal = 1, dps = 2 } }))))
+    assert.is_truthy(validate(open({ members = 2, needs = { tank = 1, heal = 1, dps = 1 } })))
+  end)
+
+  it("rejects a minimum level out of range", function()
+    for _, level in ipairs({ 0, 101, 1.5, "20" }) do
+      assert.are.equal("bad_payload", select(2, validate(open({ minLevel = level }))))
+    end
+  end)
+end)
+
+describe("Protocol.Validate LFG_APPLY", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("LFG_APPLY", payload, "la-1"))
+  end
+
+  it("accepts an apply with and without a note, and drops unknown fields", function()
+    assert.are.same(
+      { pid = "p-1", s = "apply", role = "tank", note = "hi" },
+      validate({ pid = "p-1", s = "apply", role = "tank", note = "hi", to = "X", extra = 1 }).p
+    )
+    assert.are.same({ pid = "p-1", s = "apply", role = "dps" }, validate({ pid = "p-1", s = "apply", role = "dps" }).p)
+  end)
+
+  it("accepts a withdraw without anything else", function()
+    assert.are.same(
+      { pid = "p-1", s = "withdraw" },
+      validate({ pid = "p-1", s = "withdraw", role = "tank", to = "X" }).p
+    )
+  end)
+
+  it("accepts an accept and a decline that name a character, including a multi-word name", function()
+    for _, step in ipairs({ "accept", "decline" }) do
+      assert.are.same(
+        { pid = "p-1", s = step, to = "Yonemon Gg" },
+        validate({ pid = "p-1", s = step, to = "Yonemon Gg", role = "tank" }).p
+      )
+    end
+  end)
+
+  it("rejects a bad id, step or role", function()
+    for _, bad in ipairs({
+      { pid = "p:1", s = "withdraw" },
+      { s = "withdraw" },
+      { pid = "p-1" },
+      { pid = "p-1", s = "invite" },
+      { pid = "p-1", s = 3 },
+      { pid = "p-1", s = "apply" },
+      { pid = "p-1", s = "apply", role = "healer" },
+      { pid = "p-1", s = "apply", role = 1 },
+    }) do
+      assert.are.equal("bad_payload", select(2, validate(bad)))
+    end
+  end)
+
+  it("rejects a note or a target that is not plain text", function()
+    for _, bad in ipairs({ "", string.rep("a", 101), "|cffff0000Red|r", "line\nbreak" }) do
+      assert.are.equal("bad_payload", select(2, validate({ pid = "p-1", s = "apply", role = "tank", note = bad })))
+    end
+    for _, bad in ipairs({ "", string.rep("a", 200), "|cffff0000Red|r", "line\nbreak" }) do
+      assert.are.equal("bad_payload", select(2, validate({ pid = "p-1", s = "accept", to = bad })))
+    end
+    assert.are.equal("bad_payload", select(2, validate({ pid = "p-1", s = "decline" })))
   end)
 end)
 

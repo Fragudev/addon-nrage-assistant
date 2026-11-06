@@ -49,6 +49,8 @@ local ACTIONS = {
   edit_own_profile = EVERYONE,
   -- Sharing the own layer and taking part in a layer swap.
   layer_share = EVERYONE,
+  -- Posting a group, applying to one and inviting an applicant (docs/LFG_PLAN.md).
+  lfg_use = EVERYONE,
   -- Sharing the own map position and showing the others.
   position_share = EVERYONE,
   pvp_publish = EVERYONE,
