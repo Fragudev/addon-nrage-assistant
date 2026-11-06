@@ -405,6 +405,17 @@ describe("IntelService lists", function()
     end)
   end)
 
+  describe("removing from Nearby", function()
+    it("takes one player out and says whether he was there", function()
+      env.service:OnSeen(bob(), { map = 1411 })
+      env.service:OnSeen(bob({ name = "Eve" }), { map = 1411 })
+      assert.is_true(env.service:RemoveNearby("bob"))
+      assert.is_false(env.service:RemoveNearby("bob"))
+      assert.is_false(env.service:RemoveNearby(nil))
+      assert.are.equal(1, env.service:Counts().nearby)
+    end)
+  end)
+
   describe("housekeeping", function()
     it("prunes the players not seen for the retention time", function()
       env.intel.players.old = { name = "Old", lastSeen = 1000 }

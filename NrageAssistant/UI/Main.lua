@@ -304,6 +304,80 @@ UI.BlacklistChanged = throttledRedraw(function()
   return currentTab == "blacklist"
 end, ns.Constants.BLACKLIST_REDRAW_SECONDS)
 
+-- ---------------------------------------------------------------------------------------------------------------
+-- Intel (docs/PVP_INTEL_PLAN.md section 3.4): the compact window, the button by the target frame, the pins and the
+-- Intel sub-tab follow what the lists hold.
+
+-- Draws again what is not the main window: the compact window, the target button and the enemy pins. Cheap when they
+-- are hidden. Each part is guarded, so one that fails does not stop the others.
+function UI.IntelRefreshAll()
+  if ns.IntelWindow then
+    pcall(ns.IntelWindow.Sync)
+    pcall(ns.IntelWindow.Refresh)
+  end
+  if ns.IntelTargetButton then
+    pcall(ns.IntelTargetButton.Refresh)
+  end
+  if ns.intelMapPins then
+    pcall(ns.intelMapPins.Request, ns.intelMapPins)
+  end
+end
+
+local intelThrottle
+local intelFull = false
+
+-- The Intel lists changed (a sighting, a list edit, a guild Kill on Sight entry): everything that shows them is drawn
+-- again, at most once per INTEL_REDRAW_SECONDS. `periodic` marks the call of the one second ticker, which only ages
+-- what is listed: then the Intel sub-tab is drawn again only for the views that show ages. The sub-tab waits for an
+-- edit box to lose the focus, and for a menu to close (drawing it again would take the menu away).
+function UI.IntelChanged(periodic)
+  if not periodic then
+    intelFull = true
+  end
+  intelThrottle = intelThrottle
+    or ns.Throttle.New({
+      run = function()
+        UI.IntelRefreshAll()
+        if not (UI.IsOpen() and UI.IntelShown and UI.IntelShown()) then
+          intelFull = false
+        elseif intelFull or UI.IntelLive() then
+          if Kit.Popup.Get(2):IsOpen() then
+            return
+          end
+          intelFull = false
+          syncRedraw()
+        end
+      end,
+      now = function()
+        return ns.Platform.Now()
+      end,
+      schedule = C_Timer.After,
+      interval = ns.Constants.INTEL_REDRAW_SECONDS,
+    })
+  intelThrottle:Call()
+end
+
+-- What /nrage intel show, hide, config and stats call.
+function UI.IntelShow()
+  if ns.IntelWindow then
+    ns.IntelWindow.Show()
+  end
+end
+
+function UI.IntelHide()
+  if ns.IntelWindow then
+    ns.IntelWindow.Hide()
+  end
+end
+
+function UI.IntelConfig()
+  UI.OpenIntelTab("settings")
+end
+
+function UI.IntelStats()
+  UI.OpenIntelTab("stats")
+end
+
 -- Recipes arrived from the guild, or a profession was scanned: the Professions tab and the Profile tab follow, once per
 -- interval (a guild logging in sends many lists).
 UI.RecipesChanged = throttledRedraw(function()

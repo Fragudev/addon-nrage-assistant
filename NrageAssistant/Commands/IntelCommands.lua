@@ -124,26 +124,12 @@ function IntelCommands:KosList(scope)
   return lines
 end
 
-function IntelCommands:Kos(args)
+-- Adds `name` to the personal Kill on Sight list, or changes the category and reason of the one that is there. Returns
+-- the lines to show.
+function IntelCommands:KosAdd(name, category, reason)
   local service = self.deps.service
-  local sub = args[1] and args[1]:lower()
-  if sub == "guild" then
-    return self:GuildKos(args)
-  end
-  if sub == nil or sub == "list" then
-    return self:KosList("personal")
-  end
-  if sub == "remove" or sub == "del" then
-    local key = ns.IntelModel.Key(args[2] or "")
-    if not key or not service:RemoveKos(key) then
-      return fail("not_found")
-    end
-    self:Changed()
-    return { L("removed %s from your Kill on Sight list."):format(ns.IntelModel.Plain(args[2])) }
-  end
-  local category, reason = categoryAndReason(args, 2)
-  local listed = service.intel.kos[ns.IntelModel.Key(args[1]) or ""]
-  local entry, key = service:AddKos({ name = args[1], category = category, reason = reason })
+  local listed = service.intel.kos[ns.IntelModel.Key(name) or ""]
+  local entry, key = service:AddKos({ name = name, category = category, reason = reason })
   if not entry then
     return fail(key)
   end
@@ -153,6 +139,31 @@ function IntelCommands:Kos(args)
       ns.IntelModel.Plain(entry.name)
     ),
   }
+end
+
+-- Takes `name` off the personal Kill on Sight list. Returns the lines to show.
+function IntelCommands:KosRemove(name)
+  local key = ns.IntelModel.Key(name or "")
+  if not key or not self.deps.service:RemoveKos(key) then
+    return fail("not_found")
+  end
+  self:Changed()
+  return { L("removed %s from your Kill on Sight list."):format(ns.IntelModel.Plain(name)) }
+end
+
+function IntelCommands:Kos(args)
+  local sub = args[1] and args[1]:lower()
+  if sub == "guild" then
+    return self:GuildKos(args)
+  end
+  if sub == nil or sub == "list" then
+    return self:KosList("personal")
+  end
+  if sub == "remove" or sub == "del" then
+    return self:KosRemove(args[2])
+  end
+  local category, reason = categoryAndReason(args, 2)
+  return self:KosAdd(args[1], category, reason)
 end
 
 function IntelCommands:GuildContext()
@@ -166,46 +177,45 @@ function IntelCommands:GuildContext()
   }
 end
 
--- `args` = { "guild", ... }. Without a category or reason, a player of the personal list goes up with the ones he has.
-function IntelCommands:GuildKos(args)
-  local sub = args[2] and args[2]:lower()
-  if sub == nil or sub == "list" then
-    return self:KosList("guild")
+-- Takes `name` off the guild Kill on Sight list and tells the guild. Returns the lines to show.
+function IntelCommands:GuildRemove(name)
+  local entry, key = ns.GuildKosService.Find(self.deps.guildKos, name or "")
+  if not entry then
+    return fail("not_found")
   end
-  local ctx = self:GuildContext()
+  local ok, reason = ns.GuildKosService.Remove(self:GuildContext(), key)
+  if not ok then
+    return fail(reason)
+  end
+  self:Changed()
   local comm = self.deps.comm and self.deps.comm()
-  if sub == "remove" or sub == "del" then
-    local entry, key = ns.GuildKosService.Find(self.deps.guildKos, args[3] or "")
-    if not entry then
-      return fail("not_found")
-    end
-    local ok, reason = ns.GuildKosService.Remove(ctx, key)
-    if not ok then
-      return fail(reason)
-    end
-    self:Changed()
-    local sent, why = false, "no connection"
-    if comm then
-      sent, why = comm:SendGuildKosDelete(key)
-    end
-    return {
-      L("removed %s from the guild Kill on Sight list."):format(ns.IntelModel.Plain(entry.name)),
-      sentNote(sent, why),
-    }
+  local sent, why = false, "no connection"
+  if comm then
+    sent, why = comm:SendGuildKosDelete(key)
   end
+  return {
+    L("removed %s from the guild Kill on Sight list."):format(ns.IntelModel.Plain(entry.name)),
+    sentNote(sent, why),
+  }
+end
 
-  local category, reason = categoryAndReason(args, 3)
+-- Adds `name` to the guild Kill on Sight list, or changes the category and reason of the one that is there. Without a
+-- category or reason, a player of the personal list goes up with the ones he has (the promotion of the interface and
+-- of `kos guild <name>`). Returns the lines to show.
+function IntelCommands:GuildAdd(name, category, reason)
   if not category and not reason then
-    local _, personal = self.deps.service:IsKos(args[2])
-    if personal and self.deps.service.intel.kos[ns.IntelModel.Key(args[2]) or ""] then
+    local _, personal = self.deps.service:IsKos(name)
+    if personal and self.deps.service.intel.kos[ns.IntelModel.Key(name) or ""] then
       category, reason = personal.category, personal.reason
     end
   end
-  local entry, key, updated = ns.GuildKosService.Add(ctx, { name = args[2], category = category, reason = reason })
+  local entry, key, updated =
+    ns.GuildKosService.Add(self:GuildContext(), { name = name, category = category, reason = reason })
   if not entry then
     return fail(key)
   end
   self:Changed()
+  local comm = self.deps.comm and self.deps.comm()
   local sent, why = false, "no connection"
   if comm then
     sent, why = comm:SendGuildKosUpsert(key, entry)
@@ -216,6 +226,39 @@ function IntelCommands:GuildKos(args)
     template:format(ns.IntelModel.Plain(entry.name)),
     sentNote(sent, why),
   }
+end
+
+-- `args` = { "guild", ... }.
+function IntelCommands:GuildKos(args)
+  local sub = args[2] and args[2]:lower()
+  if sub == nil or sub == "list" then
+    return self:KosList("guild")
+  end
+  if sub == "remove" or sub == "del" then
+    return self:GuildRemove(args[3])
+  end
+  local category, reason = categoryAndReason(args, 3)
+  return self:GuildAdd(args[2], category, reason)
+end
+
+-- Puts `name` on the Ignore list. Returns the lines to show.
+function IntelCommands:IgnoreAdd(name)
+  local entry, key = self.deps.service:AddIgnore(name)
+  if not entry then
+    return fail(key)
+  end
+  self:Changed()
+  return { L("ignoring %s: no alerts, not listed nearby, nothing shared."):format(ns.IntelModel.Plain(entry.name)) }
+end
+
+-- Takes `name` off the Ignore list. Returns the lines to show.
+function IntelCommands:IgnoreRemove(name)
+  local key = ns.IntelModel.Key(name or "")
+  if not key or not self.deps.service:RemoveIgnore(key) then
+    return fail("not_found")
+  end
+  self:Changed()
+  return { L("%s is not ignored any more."):format(ns.IntelModel.Plain(name)) }
 end
 
 function IntelCommands:Ignore(args)
@@ -233,19 +276,9 @@ function IntelCommands:Ignore(args)
     return { L("ignored (%d): %s"):format(#list, table.concat(names, ", ")) }
   end
   if sub == "remove" or sub == "del" then
-    local key = ns.IntelModel.Key(args[2] or "")
-    if not key or not service:RemoveIgnore(key) then
-      return fail("not_found")
-    end
-    self:Changed()
-    return { L("%s is not ignored any more."):format(ns.IntelModel.Plain(args[2])) }
+    return self:IgnoreRemove(args[2])
   end
-  local entry, key = service:AddIgnore(args[1])
-  if not entry then
-    return fail(key)
-  end
-  self:Changed()
-  return { L("ignoring %s: no alerts, not listed nearby, nothing shared."):format(ns.IntelModel.Plain(entry.name)) }
+  return self:IgnoreAdd(args[1])
 end
 
 function IntelCommands:Stats(args)
@@ -296,30 +329,39 @@ function IntelCommands:Clear()
   end
 end
 
-function IntelCommands:Import(args, rest)
-  local service = self.deps.service
-  local first = args[1] and args[1]:lower()
-  local report
-  if first == "spy" then
-    report = ns.IntelImport.FromSpy(service, self.deps.globals and self.deps.globals() or {})
-    if not report then
-      return { L("Spy's saved lists were not found. Spy has to be loaded for this, and its data may use other names.") }
-    end
-  elseif first == nil then
-    return { L("usage: /nrage intel import spy | import [kos|ignore] <names separated by commas>") }
-  else
-    local text = rest:match("^%S+%s*(.*)$")
-    if first == "kos" or first == "ignore" then
-      report = ns.IntelImport.FromText(service, text, first)
-    else
-      report = ns.IntelImport.FromText(service, rest, "kos")
-    end
-  end
+-- Reports an import: the lines to show.
+function IntelCommands:ImportReport(report)
   self:Changed()
-  local lines = {
+  return {
     L("imported %d, skipped %d (already listed, not valid, or over the limit)."):format(report.added, report.skipped),
   }
-  return lines
+end
+
+-- Brings in the names of `text` (one per line or separated by commas) to the personal list `target` ("kos" or
+-- "ignore"). Returns the lines to show.
+function IntelCommands:ImportText(text, target)
+  return self:ImportReport(ns.IntelImport.FromText(self.deps.service, text, target))
+end
+
+-- Brings in the lists of Spy when it is loaded. Returns the lines to show.
+function IntelCommands:ImportSpy()
+  local report = ns.IntelImport.FromSpy(self.deps.service, self.deps.globals and self.deps.globals() or {})
+  if not report then
+    return { L("Spy's saved lists were not found. Spy has to be loaded for this, and its data may use other names.") }
+  end
+  return self:ImportReport(report)
+end
+
+function IntelCommands:Import(args, rest)
+  local first = args[1] and args[1]:lower()
+  if first == "spy" then
+    return self:ImportSpy()
+  elseif first == nil then
+    return { L("usage: /nrage intel import spy | import [kos|ignore] <names separated by commas>") }
+  elseif first == "kos" or first == "ignore" then
+    return self:ImportText(rest:match("^%S+%s*(.*)$"), first)
+  end
+  return self:ImportText(rest, "kos")
 end
 
 local function countsText(map)

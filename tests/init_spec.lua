@@ -329,6 +329,43 @@ describe("Init", function()
       assert.are.same({ "Bob/nil", "Eve/Ann" }, names)
     end)
 
+    it("redraws the interface after every read, while the addon is on", function()
+      local _, tickers = start()
+      local changed, periodic = 0, nil
+      env.ns.UI.IntelChanged = function(flag)
+        changed = changed + 1
+        periodic = flag
+      end
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          ticker.fn()
+        end
+      end
+      assert.are.equal(1, changed)
+      assert.is_true(periodic)
+      env.ns.active = false
+      for _, ticker in ipairs(tickers) do
+        if ticker.seconds == env.ns.Constants.INTEL_RESCAN_SECONDS then
+          ticker.fn()
+        end
+      end
+      assert.are.equal(1, changed)
+      env.ns.UI.IntelChanged = nil
+    end)
+
+    it("tells the player once that sharing the sightings is on, and only when Intel is running", function()
+      start()
+      local notices = 0
+      for _, line in ipairs(env.printed) do
+        if line:find("enemy players you meet are now shared", 1, true) then
+          notices = notices + 1
+        end
+      end
+      assert.are.equal(1, notices)
+      assert.is_nil(env.ns.db.global.settings.intelShareNotice)
+      env.printed = {}
+    end)
+
     it("redraws the Intel views when a guild Kill On Sight entry arrives", function()
       start()
       local redraws = 0

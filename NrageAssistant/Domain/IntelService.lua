@@ -554,6 +554,15 @@ function IntelService:ClearNearby()
   self.nearby = {}
 end
 
+-- Takes one player out of Nearby (the menu of the window). Returns true when he was there.
+function IntelService:RemoveNearby(key)
+  if type(key) ~= "string" or not self.nearby[key] then
+    return false
+  end
+  self.nearby[key] = nil
+  return true
+end
+
 -- Forgets the players met and the contact counts, and Nearby. The personal lists are the player's own work and stay.
 function IntelService:Reset()
   self.intel.players = {}

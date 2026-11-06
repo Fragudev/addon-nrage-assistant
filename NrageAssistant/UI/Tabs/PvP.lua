@@ -1,7 +1,8 @@
 local _, ns = ...
 
 -- PvP (plan 3.6 and docs/PVP_MISSIONS_PLAN.md phases 4 and 5): sub-tabs Season, Missions, Stats (My stats and the
--- kill Ranking), Recent kills and History (the admin views are in UI/Tabs/PvPAdmin.lua). PvP is guild-wide: rosters do
+-- kill Ranking), Recent kills, History and Intel (UI/Tabs/PvPIntel.lua); the admin views are in UI/Tabs/PvPAdmin.lua.
+-- PvP is guild-wide: rosters do
 -- not apply. The season data comes from `ns.pvpSeason` (the ledger service) and the progress of the missions from
 -- `ns.pvpMissions` (the detection), which may be missing: then the missions show without progress and cannot be
 -- claimed.
@@ -650,6 +651,9 @@ end
 
 -- What the PvP admin tab (UI/Tabs/PvPAdmin.lua) shares with this one.
 UI.PvPShared = {
+  sub = function()
+    return state.sub
+  end,
   service = service,
   fail = fail,
   noSeason = noSeason,
@@ -664,6 +668,10 @@ UI.Register("pvp", function(page)
     description = L("Season missions with a points ranking and prizes, and the guild's honourable kills."),
   })
   local tabs = ViewModel.PvPSubTabs()
+  -- A link from another place (the Intel window, /nrage intel config) names the sub-tab to start on.
+  if UI.nav.pvpSub then
+    state.sub, UI.nav.pvpSub = UI.nav.pvpSub, nil
+  end
   state.sub = ViewModel.PvPPick(tabs, state.sub)
   Kit.TabStrip(page, {
     tabs = tabs,
@@ -681,6 +689,8 @@ UI.Register("pvp", function(page)
     feed(page)
   elseif state.sub == "history" then
     historyView(page)
+  elseif state.sub == "intel" then
+    UI.PvPIntel(page)
   else
     seasonView(page)
   end

@@ -833,9 +833,13 @@ local function StartIntel()
     end, ...)
   end)
 
+  -- Every second, after the read: the window, the pins and the sub-tab follow (UI.IntelChanged waits its turn).
   C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
     if ns.active then
       pcall(detector.Rescan, detector)
+      if ns.UI and ns.UI.IntelChanged then
+        pcall(ns.UI.IntelChanged, true)
+      end
     end
   end)
   C_Timer.NewTicker(Constants.INTEL_SHARE_TICK_SECONDS, function()
@@ -1227,6 +1231,15 @@ local function Activate()
   if ns.PositionModel.TakeShareNotice(ns.db) then
     print(
       ("%s %s"):format(PREFIX, L("your position is now shared with the guild. You can turn it off in the settings."))
+    )
+  end
+  -- The notice waits when Intel did not start, so it never describes a feature that is not running.
+  if ns.intel and ns.IntelModel.TakeShareNotice(ns.db) then
+    print(
+      ("%s %s"):format(
+        PREFIX,
+        L("the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings.")
+      )
     )
   end
 end

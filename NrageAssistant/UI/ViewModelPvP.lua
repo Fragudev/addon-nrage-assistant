@@ -26,6 +26,7 @@ function ViewModel.PvPSubTabs()
     { value = "stats", text = L("Stats") },
     { value = "feed", text = L("Recent kills") },
     { value = "history", text = L("History") },
+    { value = "intel", text = L("Intel") },
   }
   return tabs
 end

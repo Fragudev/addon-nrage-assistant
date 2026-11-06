@@ -48,6 +48,16 @@ function IntelModel.Plain(text, max)
   return plain ~= "" and plain or nil
 end
 
+-- True once after the migration turned sharing the sightings on for this account, so the player can be told.
+function IntelModel.TakeShareNotice(db)
+  local settings = db.global.settings
+  if type(settings) ~= "table" or settings.intelShareNotice ~= true then
+    return false
+  end
+  settings.intelShareNotice = nil
+  return true
+end
+
 local function indexIn(list, value)
   for index, entry in ipairs(list) do
     if entry == value then
@@ -210,6 +220,51 @@ function IntelModel.DecodeSighting(text)
     estimated = flags >= FLAG_ESTIMATED,
     name = name,
   }
+end
+
+-- The names of the classes and races, in the language of the player (the tables are made on first use, so a spec that
+-- never asks for a name needs no locale). The tokens are the ones the client gives.
+local classNames, raceNames
+
+-- The name of a class token ("WARRIOR"), or nil when it is not one.
+function IntelModel.ClassName(token)
+  classNames = classNames
+    or ns.Locale.Table(function()
+      local L = ns.L
+      return {
+        WARRIOR = L("Warrior"),
+        PALADIN = L("Paladin"),
+        HUNTER = L("Hunter"),
+        ROGUE = L("Rogue"),
+        PRIEST = L("Priest"),
+        SHAMAN = L("Shaman"),
+        MAGE = L("Mage"),
+        WARLOCK = L("Warlock"),
+        DRUID = L("Druid"),
+      }
+    end)
+  return type(token) == "string" and classNames[token] or nil
+end
+
+-- The name of a race token ("NIGHTELF"), or nil when it is not one.
+function IntelModel.RaceName(token)
+  raceNames = raceNames
+    or ns.Locale.Table(function()
+      local L = ns.L
+      return {
+        HUMAN = L("Human"),
+        DWARF = L("Dwarf"),
+        NIGHTELF = L("Night Elf"),
+        GNOME = L("Gnome"),
+        DRAENEI = L("Draenei"),
+        ORC = L("Orc"),
+        SCOURGE = L("Undead"),
+        TAUREN = L("Tauren"),
+        TROLL = L("Troll"),
+        BLOODELF = L("Blood Elf"),
+      }
+    end)
+  return type(token) == "string" and raceNames[token] or nil
 end
 
 ns.IntelModel = IntelModel

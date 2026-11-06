@@ -244,3 +244,37 @@ describe("IntelModel.Plain", function()
     assert.is_nil(ns.IntelModel.Plain(nil))
   end)
 end)
+
+describe("IntelModel share notice", function()
+  it("is given once", function()
+    local db = { global = { settings = { intelShareNotice = true } } }
+    assert.is_true(Model.TakeShareNotice(db))
+    assert.is_false(Model.TakeShareNotice(db))
+    assert.is_nil(db.global.settings.intelShareNotice)
+    assert.is_false(Model.TakeShareNotice({ global = {} }))
+    assert.is_false(Model.TakeShareNotice({ global = { settings = { intelShareNotice = 1 } } }))
+  end)
+end)
+
+describe("IntelModel class and race names", function()
+  it("names the tokens the client gives, in English and in Spanish", function()
+    local named = {}
+    for _, path in ipairs({ "Core/Constants", "Core/Locale", "Locales/esES", "Core/Validate", "Domain/IntelModel" }) do
+      assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", named)
+    end
+    for _, token in ipairs(named.Constants.INTEL_CLASSES) do
+      assert.is_truthy(named.IntelModel.ClassName(token), token)
+    end
+    for _, token in ipairs(named.Constants.INTEL_RACES) do
+      assert.is_truthy(named.IntelModel.RaceName(token), token)
+    end
+    assert.are.equal("Night Elf", named.IntelModel.RaceName("NIGHTELF"))
+    assert.are.equal("Undead", named.IntelModel.RaceName("SCOURGE"))
+    assert.is_nil(named.IntelModel.ClassName("DEATHKNIGHT"))
+    assert.is_nil(named.IntelModel.ClassName(5))
+    assert.is_nil(named.IntelModel.RaceName(nil))
+    named.Locale.Use("esES")
+    assert.are.equal("Guerrero", named.IntelModel.ClassName("WARRIOR"))
+    assert.are.equal("Elfo de la noche", named.IntelModel.RaceName("NIGHTELF"))
+  end)
+end)
