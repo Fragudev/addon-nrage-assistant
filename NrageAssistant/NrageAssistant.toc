@@ -68,6 +68,7 @@ Domain\IntelDirectory.lua
 Domain\IntelPublisher.lua
 Domain\IntelAlerts.lua
 Domain\IntelReport.lua
+Domain\IntelImport.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -132,5 +133,6 @@ Commands\TemplateCommands.lua
 Commands\BlacklistCommands.lua
 Commands\RosterCommands.lua
 Commands\PvPSeasonCommands.lua
+Commands\IntelCommands.lua
 Commands\Slash.lua
 Core\Init.lua

@@ -23,6 +23,12 @@ local function load_slash(seen)
         return { "pvp line" }
       end,
     },
+    intelCommands = {
+      Run = function(_, text)
+        seen[#seen + 1] = "intel:" .. text
+        return { "intel line" }
+      end,
+    },
     PvPProbe = probe("pvp"),
     LayerProbe = probe("layer"),
     Probe = probe("lockdown"),
@@ -61,6 +67,24 @@ describe("/nrage", function()
   it("answers help in any case", function()
     run("HELP")
     assert.is_truthy(table.concat(printed, "\n"):find("help line", 1, true))
+  end)
+
+  it("sends /nrage intel and its alias /nrage spy to the Intel commands, keeping the text", function()
+    run("Intel kos Bob gank Reason Here")
+    run("SPY show")
+    assert.are.same({ "intel:kos Bob gank Reason Here", "intel:show" }, seen)
+    assert.are.same({ "intel line", "intel line" }, printed)
+  end)
+
+  it("says the addon is off for the Intel commands when it has not started", function()
+    local ns = load_slash(seen)
+    ns.active = false
+    ns.GetVersion = function()
+      return "1.0"
+    end
+    run("intel show")
+    assert.are.same({}, seen)
+    assert.is_truthy(printed[1]:find("addon disabled", 1, true))
   end)
 
   it("takes the debug subcommand and action in any case, and passes the action lowercase", function()

@@ -752,6 +752,54 @@ local function StartIntel()
     alerts:OnContact(result, details)
   end
 
+  ns.intelCommands = ns.IntelCommands.New({
+    service = service,
+    detector = detector,
+    publisher = publisher,
+    sync = ns.intelSync,
+    alerts = alerts,
+    directory = directory,
+    platform = platform,
+    settings = settings,
+    guildKos = ns.db.global.guildKos,
+    tombstones = ns.db.global.sync.tombstones,
+    comm = function()
+      return ns.comm
+    end,
+    onChange = function()
+      if ns.UI and ns.UI.IntelChanged then
+        ns.UI.IntelChanged()
+      end
+    end,
+    ui = function()
+      return ns.UI
+    end,
+    events = function()
+      return ns.intelEvents
+    end,
+    zone = function()
+      local context = {
+        instance = platform.GetInstanceKind(),
+        pvpType = platform.GetZonePvPType(),
+        mapId = platform.GetPlayerMapId(),
+      }
+      return context, ns.IntelModel.DetectionAllowed(context, settings())
+    end,
+    season = function()
+      return ns.pvpSeason and ns.pvpSeason:ActiveSeason() or nil
+    end,
+    zoneName = platform.GetMapName,
+    globals = function()
+      return _G
+    end,
+    toggleMinimap = function()
+      local hidden = not ns.MinimapButton.Settings(ns.db).hide
+      ns.MinimapButton.SetHidden(ns.db, hidden)
+      ns.MinimapButton.Refresh()
+      return hidden
+    end,
+  })
+
   ns.intelEvents = {}
   local intelFrame = CreateFrame("Frame")
   for _, spec in ipairs(INTEL_UNIT_EVENTS) do
