@@ -157,6 +157,12 @@ local function merge(base, fields)
   return merged
 end
 
+-- Is this client running a Groups flow: an own post, or an application that has not ended? The layer swap reads it to
+-- stay out of the way (docs/LFG_PLAN.md 2.4).
+function LfgService:IsBusy()
+  return self.post ~= nil or (self.application ~= nil and ACTIVE[self.application.state] == true)
+end
+
 -- Leader: posts a group. fields = { kind, title, needs = { tank, heal, dps }, minLevel (optional), note (optional) };
 -- the members are the party the leader is in now. A new post replaces the old one. Returns true, or false plus a
 -- reason: "locked" | "busy" | a reason of the eligibility | the reason of LfgModel.NewPost ("full", "no_needs"...) |

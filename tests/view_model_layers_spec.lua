@@ -75,6 +75,12 @@ describe("ViewModel layers", function()
     assert.are.equal(0, view.rows[1].count)
   end)
 
+  it("has a text for every reason the swap rules and the Groups exclusion can give", function()
+    for _, reason in ipairs({ "busy", "locked", "unsupported", "lfg", "in_group", "in_instance", "in_combat" }) do
+      assert.is_truthy(ViewModel.LAYER_REASONS[reason], reason)
+    end
+  end)
+
   it("disables the buttons with the reason", function()
     for reason, text in pairs(ViewModel.LAYER_REASONS) do
       local view = ViewModel.LayersView({

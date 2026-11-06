@@ -91,6 +91,7 @@ Sync\RecipeSync.lua
 Sync\LayerSync.lua
 Sync\PositionSync.lua
 Sync\IntelSync.lua
+Sync\LfgSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua

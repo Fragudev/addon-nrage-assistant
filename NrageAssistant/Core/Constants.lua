@@ -354,6 +354,8 @@ ns.Constants = {
   LFG_LEVEL_MAX = 100,
   -- A redraw of the Groups tab because of a received post waits at least this long after the previous one.
   LFG_REDRAW_SECONDS = 1,
+  -- How often the board and the own applicants are swept of what nobody refreshed.
+  LFG_SWEEP_SECONDS = 15,
 
   -- Guild map. Positions travel on their own addon prefix (not through the NRAGE envelope): a message is
   -- "P1:<map>:<x>:<y>" of at most POSITION_MAX_BYTES bytes, x and y in 0..10000. The own position is checked every

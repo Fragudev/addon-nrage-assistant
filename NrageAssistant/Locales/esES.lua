@@ -661,6 +661,7 @@ ns.Locale.Register("es", {
   ["you are in a raid."] = "estás en una banda.",
   ["you are in a group you do not lead."] = "estás en un grupo que no diriges.",
   ["your group is full."] = "tu grupo está lleno.",
+  ["you are looking for a group or have posted one."] = "estás buscando grupo o has publicado uno.",
   ["this client cannot do that."] = "este cliente no puede hacer eso.",
   ["there is no swap to act on."] = "no hay ningún cambio sobre el que actuar.",
   ["that is not a valid layer."] = "esa no es una capa válida.",

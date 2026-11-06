@@ -37,6 +37,7 @@ local function load_addon()
     "Sync/PvPSeasonSync",
     "Sync/RecipeSync",
     "Sync/LayerSync",
+    "Sync/LfgSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -2159,6 +2160,125 @@ describe("Comm layers", function()
     local message = Protocol.Validate(decoded)
     assert.are.equal("LAYER_STATE", message.t)
     assert.are.same({ map = 1, layer = 50 }, message.p)
+  end)
+end)
+
+describe("Comm groups", function()
+  local env
+  local post = {
+    pid = "p-1",
+    rev = 1,
+    s = "open",
+    kind = "quest",
+    title = "Q",
+    needs = { tank = 0, heal = 0, dps = 1 },
+    members = 1,
+  }
+
+  before_each(function()
+    env = build_env()
+    env.roles["Ann-Realm"] = "member"
+    env.lfgPosts, env.lfgSteps, env.lfgChanges = {}, {}, {}
+    env.comm.lfgService = {
+      OnPost = function(_, sender, payload)
+        env.lfgPosts[#env.lfgPosts + 1] = { sender = sender, payload = payload }
+        return true
+      end,
+      OnApply = function(_, sender, payload)
+        env.lfgSteps[#env.lfgSteps + 1] = { sender = sender, payload = payload }
+        return true
+      end,
+    }
+    env.comm.onLfgChange = function(messageType)
+      env.lfgChanges[#env.lfgChanges + 1] = messageType
+    end
+  end)
+
+  it("hands a received post to the service with the sender as its owner", function()
+    assert.is_true(env.comm:HandleMessage(env.wire("LFG_POST", post, "g-1"), "Ann-Realm", "GUILD"))
+    assert.are.equal("Ann-Realm", env.lfgPosts[1].sender)
+    assert.are.equal("p-1", env.lfgPosts[1].payload.pid)
+    assert.are.same({ "LFG_POST" }, env.lfgChanges)
+  end)
+
+  it("hands an application step to the service", function()
+    assert.is_true(
+      env.comm:HandleMessage(
+        env.wire("LFG_APPLY", { pid = "p-1", s = "apply", role = "dps" }, "g-2"),
+        "Ann-Realm",
+        "GUILD"
+      )
+    )
+    assert.are.same({ { sender = "Ann-Realm", payload = { pid = "p-1", s = "apply", role = "dps" } } }, env.lfgSteps)
+    assert.are.same({ "LFG_APPLY" }, env.lfgChanges)
+  end)
+
+  it("needs a sender the guild roster knows", function()
+    local ok, reason = env.comm:HandleMessage(env.wire("LFG_POST", post, "g-3"), "Stranger-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unknown_sender", reason)
+    assert.are.same({}, env.lfgPosts)
+    assert.are.same({}, env.lfgChanges)
+  end)
+
+  it("does not tell the UI when the service refused", function()
+    env.comm.lfgService.OnPost = function()
+      return false, "not_member"
+    end
+    local ok, reason = env.comm:HandleMessage(env.wire("LFG_POST", post, "g-4"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("not_member", reason)
+    assert.are.same({}, env.lfgChanges)
+  end)
+
+  it("drops a bad payload", function()
+    local bad = {
+      pid = "p-1",
+      rev = 1,
+      s = "open",
+      kind = "quest",
+      title = "Q",
+      needs = { tank = 0, heal = 0, dps = 0 },
+      members = 1,
+    }
+    local ok, reason = env.comm:HandleMessage(env.wire("LFG_POST", bad, "g-5"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("bad_payload", reason)
+  end)
+
+  it("works without a service, and without a callback", function()
+    env.comm.lfgService, env.comm.onLfgChange = nil, nil
+    local ok, reason = env.comm:HandleMessage(env.wire("LFG_POST", post, "g-6"), "Ann-Realm", "GUILD")
+    assert.is_false(ok)
+    assert.are.equal("unsupported", reason)
+    env.comm.lfgService = {
+      OnPost = function()
+        return true
+      end,
+    }
+    assert.is_true(env.comm:HandleMessage(env.wire("LFG_POST", post, "g-7"), "Ann-Realm", "GUILD"))
+  end)
+
+  it("sends a post and a step at once, and refuses them instead of queueing during the lockdown", function()
+    assert.is_true(env.comm:SendLfgPost(post))
+    assert.is_true(env.comm:SendLfgApply({ pid = "p-1", s = "withdraw" }))
+    assert.are.equal(2, #env.sent)
+    env.locked = true
+    local ok, reason = env.comm:SendLfgPost(post)
+    assert.is_false(ok)
+    assert.are.equal("locked", reason)
+    ok, reason = env.comm:SendLfgApply({ pid = "p-1", s = "withdraw" })
+    assert.is_false(ok)
+    assert.are.equal("locked", reason)
+    assert.are.equal(0, env.queue:Pending())
+    assert.are.equal(2, #env.sent)
+  end)
+
+  it("sends what the receiver accepts", function()
+    env.comm:SendLfgPost(post)
+    local message = Protocol.Validate(env.codec:Decode(env.sent[1]))
+    assert.are.equal("LFG_POST", message.t)
+    assert.are.same(post, message.p)
   end)
 end)
 
