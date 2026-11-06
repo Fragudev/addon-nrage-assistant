@@ -7,7 +7,7 @@ This document is written for the implementing agents and must be executable with
 it. **Decided** items were agreed with the addon owner. **Default** items are proposals to implement as written, open
 to review.
 
-**Status:** in progress on branch `feat/lfg`, cut from `main` after `feat/pvp-intel` merged. Target release v1.2.0.
+**Status:** implemented on branch `feat/lfg`, cut from `main` after `feat/pvp-intel` merged, for v1.2.0. In-game checks pending (section 10).
 Section 12 corrects this plan against the code Intel left; where they differ, section 12 wins.
 
 ## Quick path
@@ -369,6 +369,8 @@ Three clients where possible, one with a multi-word name.
 | 2026-11-06 | Start after `feat/pvp-intel` merges. |
 | 2026-11-06 | The owner approved the look in the canvas (artboard "Grupos (LFG)", https://claude.ai/artifact/U4aUo3uAXjK3jL4zpTi2eR), including the sidebar counter and the members diamonds. |
 | 2026-11-06 | The owner asked to implement and release as v1.2.0. P0 was not run first: the invite stays unmeasured in `API_NOTES.md` and is the first item to check in game. |
+| 2026-11-06 | Implemented for v1.2.0; in-game checks pending, section 10 not ticked. The code differs from this plan in these ways: the Groups filters are kept in `UI/Tabs/Groups.lua` for the session, not in `UI.nav`; `LFG_SWEEP_SECONDS` (15) and `LFG_POPUP_RETRY_SECONDS` (5) were added; the service also exposes `CanPost`, `CanApply`, `CanInvite`, `IsLocked`, `IsBusy`, `Sweep` and `Dismiss`. |
+| 2026-11-06 | `Invite` calls the game first and sends `accept` only after the game accepted (section 3.3 gave the reverse order). A refused invite therefore tells the applicant nothing. |
 
 ---
 

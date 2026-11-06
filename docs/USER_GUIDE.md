@@ -616,6 +616,45 @@ or leading a party that is not full.
 The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
 on Forever is still being checked (see `docs/API_NOTES.md`).
 
+## Groups
+
+The **Groups** tab, in the Guild part of the window, is a board where you post a party for a dungeon, a quest or
+anything else. Others apply with a role, and you invite them with a click. A party holds five players; raids stay in
+Events. Every rank can use it. The Groups item of the sidebar shows how many groups are open, your own included.
+
+**Limits.** Read these before you rely on it:
+
+- Only members running the addon see the board.
+- A post disappears from the board up to six minutes after its leader logs out or reloads. A member who logs in sees
+  the open posts within two minutes at most.
+- A post closes by itself after an hour.
+- Nothing is saved. A `/reload` clears your own post and your own application.
+
+**Posting.** Click **New group**, pick the type (Dungeon, Quest or Other), write a title of up to 60 characters and
+say how many Tanks, Heals and DPS you need. You can also set a minimum level and a note of up to 100 characters. The
+post shows five diamonds: the filled ones are the members of your party now. You can post when you are alone or when
+you lead a party that is not full. You cannot post while you are in a raid or during an encounter, or while a layer
+swap runs. **Edit** changes the open post and **Close group** ends it. The post closes by itself when the party is
+full, when you stop leading it, when it disbands after someone joined, or when it becomes a raid.
+
+**Applying.** On the board, press **Apply** on a post, choose the role you go as (it must be one the post still needs)
+and add a note if you like. The button says why it is off when you cannot apply: you are in a group, you already have
+an application or an open post, your known level is below the minimum, or a layer swap runs. Your application waits
+two minutes for the leader. If there is no answer it expires, and you can apply again. **Withdraw** takes it back.
+
+**Inviting.** The leader sees each applicant in the tab and in a popup, with **Invite** and **Decline**. **Invite**
+asks the game to send the invitation. If the game refuses, nothing changes. When the applicant accepts the game's
+invitation, they join and the need goes down by one. If they do not join within a minute, the row says so and you can
+invite again. **Decline** tells the applicant. Invites are never automatic. You cannot invite during combat, or while
+you are in a group you do not lead.
+
+**Joining may move you.** Joining a party may move you to the leader's layer, as a layer swap does. The addon does
+nothing about it. Whether the game does this on Forever has not been checked yet (see `docs/API_NOTES.md`).
+
+**Groups and layer swaps exclude each other.** While you have an open post or an application that has not ended, you
+cannot request a layer swap or answer one, and the Layers tab says why. While a swap runs, Groups refuses to post or
+to apply.
+
 ## Guild map
 
 Guildmates who share their position appear as small pins on the minimap and on the world map, drawn with the class
