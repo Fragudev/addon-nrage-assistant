@@ -1,0 +1,61 @@
+.luacheckrc
+  s_0e68a66d17ed7f::t_0d10645928f77f 44-49
+NrageAssistant/Core/Constants.lua
+  s_0e68a66d17ed7f::t_e09e70c816919e 5,354-424
+NrageAssistant/Core/Init.lua
+  s_0e68a66d17ed7f::t_3a1930a5c88ea0 605-687,996
+NrageAssistant/Core/Platform.lua
+  s_0e68a66d17ed7f::t_9c7324194bb41d 523-704
+NrageAssistant/Core/Store.lua
+  s_0e68a66d17ed7f::t_5000f9e2269a0d 6-7,191-205
+NrageAssistant/Domain/IntelDetector.lua
+  s_0e68a66d17ed7f::t_5710cc34db0ca5 1-159
+NrageAssistant/Domain/IntelService.lua
+  s_0e68a66d17ed7f::t_b30049f2e697ae 1-502
+NrageAssistant/Domain/Settings.lua
+  s_0e68a66d17ed7f::t_8fd229d07bfea0 7,49-141
+NrageAssistant/NrageAssistant.toc
+  s_0e68a66d17ed7f::t_158ab80a6df393 63-65
+tests/constants_spec.lua
+  s_0e68a66d17ed7f::t_6f30d6a69ff06d 13-14
+tests/init_spec.lua
+  s_0e68a66d17ed7f::t_7ecfa0b472be1f 219-328
+tests/intel_detector_spec.lua
+  s_0e68a66d17ed7f::t_98f59ac2467d96 1-250
+tests/intel_model_spec.lua
+  s_0e68a66d17ed7f::t_9a85d369469b04 1-236
+tests/intel_service_spec.lua
+  s_0e68a66d17ed7f::t_7dc00022c90035 1-436
+tests/platform_intel_spec.lua
+  s_0e68a66d17ed7f::t_b205eace694cf9 1-411
+tests/settings_spec.lua
+  s_0e68a66d17ed7f::t_e8f1fc3857586a 14-98
+tests/store_spec.lua
+  s_0e68a66d17ed7f::t_5ae36e6cfa05b1 62-93,116,124,138,145,180,208-209,221,235,295,304,324,354,371,396,418,467
+NrageAssistant/Domain/IntelModel.lua
+  s_36bcbcc190c825::t_e124a9865b506d 1-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a1fbce1bf4decd3055f8e04fa0eaf0a0e69644a7",
+  "prompts": {},
+  "sessions": {
+    "s_0e68a66d17ed7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "557d337a-66ab-4294-9347-eb977987cae6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_36bcbcc190c825": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a15a6e5d761ea18ca",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
