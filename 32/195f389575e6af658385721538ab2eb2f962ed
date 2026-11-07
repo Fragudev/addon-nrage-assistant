@@ -1,0 +1,31 @@
+tests/view_model_spec.lua
+  s_c2135713a2524d::t_5eb830ee2d030b 357,360,364,370-372,375-376
+NrageAssistant/UI/MinimapButton.lua
+  s_85a61642ddc719::t_058300a88891cd 118,134-139
+NrageAssistant/UI/ViewModel.lua
+  s_85a61642ddc719::t_b7773789785e2c 384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "32195f389575e6af658385721538ab2eb2f962ed",
+  "prompts": {},
+  "sessions": {
+    "s_85a61642ddc719": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a5737ca07f0de6e9c",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_c2135713a2524d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8026b03d-44ba-42f4-985b-1f4918f2ce9a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
