@@ -11,7 +11,8 @@ local _, ns = ...
 -- but cannot be targeted until combat ends. A secure button never targets a name other than the one drawn over it.
 -- If the window is first opened in combat, its overlays are made when combat ends (PLAYER_REGEN_ENABLED).
 -- Nothing protected changes in combat: no attribute, size, position or creation of an overlay, and the row count and
--- the width of the window are refused then.
+-- the size (width and height) of the window are refused then. The height is owned by the row count: dragging the grip
+-- only suggests a height, and on release it is turned into rows (IntelWindow.RowsForHeight) and snapped to them.
 --
 -- The decisions (FreezeOrder, Attributes, Binder) are pure and tested; the frame code only draws what they say.
 local IntelWindow = {}
@@ -185,6 +186,16 @@ end
 
 local function windowHeight(rows)
   return HEADER + TABS + rows * ROW_HEIGHT + FOOTER + PAD
+end
+
+-- The rows that fit a window of `height`: the nearest whole row, kept between 1 and ROWS_MAX. A value that is not a
+-- number (or is NaN) gives 1, the smallest window.
+function IntelWindow.RowsForHeight(height)
+  if type(height) ~= "number" or height ~= height then
+    return 1
+  end
+  local rows = math.floor((height - windowHeight(0)) / ROW_HEIGHT + 0.5)
+  return math.min(IntelWindow.ROWS_MAX, math.max(1, rows))
 end
 
 -- Does an open bounty (an active mission of the season that names this player) exist? Read when a row is drawn.
@@ -541,6 +552,8 @@ local function placeBar()
   ns.Kit.Place(frame.bar, frame, PAD, HEADER)
 end
 
+local setRows -- defined below; the grip needs it
+
 local function buildFrame()
   local Kit = ns.Kit
   frame = CreateFrame("Frame", "NrageAssistantIntelWindow", UIParent)
@@ -552,7 +565,12 @@ local function buildFrame()
   frame:RegisterForDrag("LeftButton")
   frame:SetPoint("LEFT", UIParent, "LEFT", 40, 0)
   if frame.SetResizeBounds then
-    frame:SetResizeBounds(WIDTH_MIN, 40, WIDTH_MAX, 1000)
+    frame:SetResizeBounds(WIDTH_MIN, windowHeight(1), WIDTH_MAX, windowHeight(IntelWindow.ROWS_MAX))
+  elseif frame.SetMinResize then
+    frame:SetMinResize(WIDTH_MIN, windowHeight(1))
+    if frame.SetMaxResize then
+      frame:SetMaxResize(WIDTH_MAX, windowHeight(IntelWindow.ROWS_MAX))
+    end
   end
   frame.shape = Kit.Shape.New(frame, { cut = "md" })
   frame.shape:SetFill("bg")
@@ -595,15 +613,27 @@ local function buildFrame()
   grip.texture:SetAllPoints(grip)
   Kit.Icons.Apply(grip.texture, "chevron", "muted")
   grip.texture:SetRotation(-math.pi / 4)
+  -- The height follows the rows: on release the dragged height becomes a row count and the window snaps to it. Only
+  -- when the drag really started (not locked, not in combat); setRows is refused if combat began meanwhile.
+  local sizing = false
   grip:SetScript("OnMouseDown", function()
     if not (settings().window.locked or inCombat()) then
-      frame:StartSizing("RIGHT")
+      sizing = true
+      frame:StartSizing("BOTTOMRIGHT")
     end
   end)
   grip:SetScript("OnMouseUp", function()
     frame:StopMovingOrSizing()
+    if sizing then
+      sizing = false
+      local rows = IntelWindow.RowsForHeight(frame:GetHeight())
+      if setRows(rows) then
+        settings().window.rows = rows
+      end
+    end
     savePlace()
     placeBar()
+    IntelWindow.Refresh()
   end)
   frame.grip = grip
 
@@ -631,7 +661,7 @@ end
 
 -- Gives the window `count` rows. Refused (false) while the overlays exist and combat lasts. The overlays that do not
 -- exist yet hold no name, so their count can change at any time.
-local function setRows(count)
+function setRows(count)
   if overlaysBuilt and inCombat() then
     return false
   end
