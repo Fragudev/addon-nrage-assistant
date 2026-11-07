@@ -1,0 +1,21 @@
+docs/CURSEFORGE_DESCRIPTION.md
+  s_c2135713a2524d::t_88920b91d0888e 68
+docs/USER_GUIDE.md
+  s_c2135713a2524d::t_56178d7760de5e 71-72,661-664,704-706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e2e738b5d746c37b6c66016c637c625b053bf4f7",
+  "prompts": {},
+  "sessions": {
+    "s_c2135713a2524d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8026b03d-44ba-42f4-985b-1f4918f2ce9a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
