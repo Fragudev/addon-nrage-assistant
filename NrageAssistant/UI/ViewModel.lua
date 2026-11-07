@@ -381,6 +381,7 @@ function ViewModel.MinimapMenu(role, rosterId)
   for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
     entries[#entries + 1] = { text = tab.text, icon = tab.icon, action = "tab", value = tab.value }
   end
+  entries[#entries + 1] = { text = L("Intel"), icon = "search", action = "intel", value = "@intel" }
   entries[#entries + 1] = { text = L("Settings"), icon = "gear", action = "settings", value = "@settings" }
   return entries
 end

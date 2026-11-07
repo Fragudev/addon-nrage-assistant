@@ -115,7 +115,7 @@ local function showTooltip(self)
 end
 
 -- Right-click menu: the popover menu of the kit (dark, closes on a click outside or Escape) with the tabs the role can
--- open, like the sidebar, and the settings.
+-- open, like the sidebar, the Intel window toggle, and the settings.
 local function showMenu()
   if not (ns.active and ns.character) then
     return
@@ -131,6 +131,12 @@ local function showMenu()
     local entry = byValue[value]
     if entry and entry.action == "tab" then
       ns.UI.OpenTab(entry.value)
+    elseif entry and entry.action == "intel" then
+      if ns.IntelWindow and ns.IntelWindow.IsShown() then
+        ns.UI.IntelHide()
+      else
+        ns.UI.IntelShow()
+      end
     elseif entry and entry.action == "settings" then
       ns.UI.OpenSettings()
     end
