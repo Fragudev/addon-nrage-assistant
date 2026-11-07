@@ -68,7 +68,8 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
   queue. It reads only what the addon already holds, so it is safe during an encounter.
 - A small **warning mark** on the button means the silent self test, run a few seconds after login, found
   something missing or broken on this client; the tooltip says what. Nothing is printed to chat.
-- **Right click** opens a dark menu with the tabs you can open (the same list as the sidebar) and the settings.
+- **Right click** opens a dark menu with the tabs you can open (the same list as the sidebar), **Intel** (shows or
+  hides the Intel window) and the settings.
 - In the **settings** (the gear of the window) you can hide it or show it again, and put it back in its default
   place. The position and whether it is hidden are saved for your whole account.
 - The logo also appears as the addon's icon in the AddOns list and at the top of the window's Home tab.
@@ -657,10 +658,10 @@ to apply.
 
 ## Guild map
 
-Guildmates who share their position appear as small pins on the minimap and on the world map, drawn with the class
-icon and a border in the class colour (a grey dot when the class is not known). Hover a pin to see the name, the level,
-the layer (green when it is yours) and how many seconds ago the position arrived. A pin is half transparent when that
-member is on another layer than you. Members of your own party or raid are not drawn: the game already shows them.
+Guildmates who share their position appear as small pins on the minimap and on the world map, drawn as a round class
+icon inside a ring in the class colour (a grey dot when the class is not known). Hover a pin to see the name, the level,
+the layer (green when it is yours) and how many seconds ago the position arrived. The ring turns grey when that member
+is on another layer than you. Members of your own party or raid are not drawn: the game already shows them.
 
 - Turning on **Share my position** in the settings is your decision and is off by default. Only the map and your
   coordinates are sent, on the guild channel; nothing is saved, and the others forget you after 60 seconds without a
@@ -700,7 +701,9 @@ below).
 
 ### The compact window
 
-`/nrage intel show` opens it and `/nrage intel hide` closes it. It lists who is nearby (or the last hour, the Ignore
+`/nrage intel show` opens it and `/nrage intel hide` closes it; **Intel** in the minimap button's right-click menu
+toggles it. Drag the corner to resize it: the width is free and the height snaps to whole rows (1 to 20), outside
+combat and while the window is not locked. It lists who is nearby (or the last hour, the Ignore
 list, or a Kill on Sight list). An entry fades at half the *Nearby delay* and leaves after it (1 to 15 minutes, or
 never; 5 minutes by default).
 

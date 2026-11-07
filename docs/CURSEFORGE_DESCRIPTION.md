@@ -65,7 +65,7 @@ guild-listed players, which count the kills of them in the season.
 ### Guild map
 
 See your guildmates on the **minimap** and the **world map**, each one as a pin with their class icon. Hover a pin for
-the name, level, layer and how fresh the position is; members on another layer show half transparent. Your own
+the name, level, layer and how fresh the position is; members on another layer get a grey ring. Your own
 position is **shared with the guild by default**, and you can turn it off in the settings. Nothing is sent from
 instances, battlegrounds or during an encounter.
 
