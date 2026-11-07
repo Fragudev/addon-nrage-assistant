@@ -110,6 +110,12 @@ The addon is published on CurseForge, but it only works for Nrage:
 - **Kill counter** split into open world and battleground, a guild **kill ranking** and a **recent kills** feed.
 - **Seasons:** missions approved by the GM and CoGM, a points ranking and end-of-season rewards.
 
+### Installed check
+
+- The GM and CoGM see every guild member with whether they run the addon and which version (up to date, outdated,
+  not installed, never seen), with the last version seen for offline members, and filters by name, status, version
+  and online.
+
 ### Intel (enemy players)
 
 - **Nearby enemies** seen through their nameplates in battlegrounds, arenas and world PvP, with level, class, race and

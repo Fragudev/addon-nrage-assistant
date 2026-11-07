@@ -5,8 +5,20 @@ local FakeFrames = dofile("tests/support/fake_frames.lua")
 local FakeKit = dofile("tests/support/fake_kit.lua")
 local Roles = dofile("tests/support/roles.lua")
 
-local ALL_TABS =
-  { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster", "pvpadmin" }
+local ALL_TABS = {
+  "home",
+  "professions",
+  "events",
+  "ready",
+  "loot",
+  "pvp",
+  "groups",
+  "raid",
+  "rules",
+  "roster",
+  "pvpadmin",
+  "installs",
+}
 -- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
 -- anyway.
 local HIDDEN_TABS = { profile = true, layers = true, blacklist = true, broken = true }
@@ -52,6 +64,7 @@ local function load_window(locale)
     "Domain/IntelReport",
     "Domain/IntelImport",
     "Domain/GuildKosService",
+    "Domain/InstallDirectory",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
     "UI/Kit/Shape",
@@ -67,6 +80,7 @@ local function load_window(locale)
     "UI/ViewModelLayers",
     "UI/ViewModelIntel",
     "UI/ViewModelGroups",
+    "UI/ViewModelInstalls",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
@@ -91,6 +105,7 @@ local function load_window(locale)
     "UI/Tabs/Professions",
     "UI/Tabs/Layers",
     "UI/Tabs/Groups",
+    "UI/Tabs/Installs",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -228,6 +243,7 @@ local function build(rank, locale)
       rosters = {},
       members = {},
       recipes = {},
+      installs = {},
     },
   }
   -- The role is the guild rank: "GM" and "CoGM" have no roster, the other ranks put this character in roster r1 (a
@@ -269,6 +285,13 @@ local function build(rank, locale)
     end,
     Send = function(_, messageType)
       env.messages[#env.messages + 1] = messageType
+      return true
+    end,
+    AskVersions = function()
+      env.asked = (env.asked or 0) + 1
+      if env.askReason then
+        return false, env.askReason, 12
+      end
       return true
     end,
     ResetPvP = function(_, target)
@@ -578,8 +601,20 @@ describe("Window smoke test", function()
   end
 
   it("builds the sidebar from the rank and the roster: Guild for everyone, Admin from rl and officer up", function()
-    local all =
-      { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster", "pvpadmin" }
+    local all = {
+      "home",
+      "professions",
+      "events",
+      "ready",
+      "loot",
+      "pvp",
+      "groups",
+      "raid",
+      "rules",
+      "roster",
+      "pvpadmin",
+      "installs",
+    }
     local expected = {
       GM = all,
       CoGM = all,
@@ -984,6 +1019,96 @@ describe("Window smoke test", function()
       tbl.opts.onSort("level")
       tbl.opts.rows[1].onClick()
       assert.is_truthy(FakeKit.find_all(env.page(), "Table")[1].opts.rows[1].detail)
+    end)
+  end)
+
+  describe("Installed check", function()
+    local function statuses()
+      local list = {}
+      for _, row in ipairs(env.tableRows()) do
+        list[#list + 1] = row.cells.name.text .. "=" .. row.cells.status.opts.text
+      end
+      return list
+    end
+
+    before_each(function()
+      env = build("GM")
+      env.ns.db.global.installs["Ann-Realm"] = { version = "1.0.0", seenAt = 1 }
+      env.ns.guildRoster.entries["Yonemon Gg"].online = true
+      env.ns.guildRoster.entries["Bob-Realm"] = { rankName = "Raider", rankIndex = 5, class = "PRIEST" }
+    end)
+
+    it("lists every member with its status and version", function()
+      env.open("installs")
+      assert.are.same(
+        { "Ann-Realm=Up to date", "Bob-Realm=Never seen", "Leader-Realm=Installed", "Yonemon Gg=Not installed" },
+        statuses()
+      )
+      assert.are.equal("1.0.0", env.tableRows()[1].cells.version.text)
+      assert.is_truthy(env.text():find("Newest seen: 1.0.0", 1, true))
+    end)
+
+    it("filters by name, status chip, version and online only", function()
+      env.open("installs")
+      env.box("Search by name").opts.onChange("ann", true)
+      assert.are.same({ "Ann-Realm=Up to date" }, statuses())
+      env.box("Search by name").opts.onChange("", true)
+
+      local function chip(prefix)
+        for _, node in ipairs(FakeKit.find_all(env.page(), "Chip")) do
+          if node.opts.text:sub(1, #prefix) == prefix then
+            return node
+          end
+        end
+        error("no chip " .. prefix)
+      end
+      assert.are.equal("Not installed (1)", chip("Not installed").opts.text)
+      chip("Not installed").opts.onToggle(true)
+      assert.are.same({ "Yonemon Gg=Not installed" }, statuses())
+      chip("Not installed").opts.onToggle(false)
+      chip("With addon").opts.onToggle(true)
+      assert.are.same({ "Ann-Realm=Up to date", "Leader-Realm=Installed" }, statuses())
+      chip("With addon").opts.onToggle(false)
+
+      local dropdown = FakeKit.find_all(env.page(), "Dropdown")[1]
+      dropdown.opts.onChange("1.0.0")
+      assert.are.same({ "Ann-Realm=Up to date" }, statuses())
+      FakeKit.find_all(env.page(), "Dropdown")[1].opts.onChange(false)
+
+      chip("Online only").opts.onToggle(true)
+      assert.are.same({ "Leader-Realm=Installed", "Yonemon Gg=Not installed" }, statuses())
+      chip("Online only").opts.onToggle(false)
+    end)
+
+    it("sorts by a column", function()
+      env.open("installs")
+      FakeKit.find_all(env.page(), "Table")[1].opts.onSort("status")
+      assert.are.equal("Yonemon Gg=Not installed", statuses()[1])
+    end)
+
+    it("asks the members online for their version and says when it must wait", function()
+      env.open("installs")
+      env.press("Ask online members")
+      assert.are.equal(1, env.asked)
+      assert.are.equal("success", env.banner().opts.kind)
+      env.askReason = "cooldown"
+      env.press("Ask online members")
+      assert.are.equal("warning", env.banner().opts.kind)
+      assert.is_truthy(env.banner().opts.text:find("12", 1, true))
+    end)
+
+    it("redraws when a member is heard from", function()
+      env.open("installs")
+      env.ns.db.global.installs["Bob-Realm"] = { version = "0.9.0", seenAt = 2 }
+      env.ns.UI.InstallsChanged()
+      for _, fn in ipairs(env.timers) do
+        fn()
+      end
+      local found
+      for _, entry in ipairs(statuses()) do
+        found = found or entry == "Bob-Realm=Outdated"
+      end
+      assert.is_true(found)
     end)
   end)
 

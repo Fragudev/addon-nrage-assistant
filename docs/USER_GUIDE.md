@@ -38,6 +38,7 @@ The **Admin** group appears from the Officer and RL ranks up:
   otherwise.
 - **Roster rules** and **Members** (Officer and RL, GM and CoGM).
 - **PvP** holds the season admin: approvals, missions, season, prizes and deliveries (GM and CoGM only).
+- **Installed check** lists who runs the addon and which version (GM and CoGM only; see *Installed check* below).
 
 A tab you cannot see, or one that no longer exists in the sidebar (Profile, Layers and Blacklist are hidden for now),
 opens Home instead. A player without a roster only sees Home, Professions and PvP.
@@ -566,6 +567,26 @@ Recipes are shared automatically: open each of your professions once and the add
 and sends it to the guild. It sends again only when the recipes change. The **My professions** card shows when each
 profession was last read and tells you to open it again after your skill changes. If the client does not allow
 reading recipes, the tab says so and you can still search what others share.
+
+## Installed check
+
+The **Installed check** tab of the Admin group (GM and CoGM only) lists every guild member with whether they run the
+addon and which version:
+
+| Status | Meaning |
+|---|---|
+| Up to date | the newest version seen in the guild (or your own, if newer) |
+| Outdated | an older version |
+| Installed | the addon is there, but the version is not known yet |
+| Incompatible | a version too old (or too new) to sync with yours |
+| Not installed | online now and never heard from: a member with the addon announces itself when logging in |
+| Never seen | offline and never heard from |
+
+What is heard is saved, so an offline member keeps the last version seen and when (*Last seen*). The search box
+filters by name, the chips by status (each shows how many members it holds), the dropdown by version, and *Online
+only* keeps the members connected now. **Ask online members** makes everyone online with a recent version answer
+with their version again, at most once a minute; the answers arrive over a few seconds. The tab only knows about members
+heard from since you installed this version: *Never seen* may just mean "not logged in since".
 
 ## Blacklist
 

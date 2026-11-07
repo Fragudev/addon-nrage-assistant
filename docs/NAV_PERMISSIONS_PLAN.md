@@ -93,6 +93,7 @@ roster.
 | `rules_view`           | all     | all       | own       | no        | no     | no    |
 | `rules_edit`           | all     | no        | own       | no        | no     | no    |
 | `pvp_admin`            | yes     | no        | no        | no        | no     | no    |
+| `install_check`        | yes     | no        | no        | no        | no     | no    |
 | member-level actions   | yes     | yes       | yes       | yes       | yes    | yes   |
 
 Member-level actions (`edit_own_profile`, `layer_share`, `position_share`, `pvp_publish`, `pvp_claim`,
@@ -135,6 +136,7 @@ away.
 | `rules`    | Roster rules | `rules_view`     |
 | `roster`   | Members      | `members_view`   |
 | `pvpadmin` | PvP          | `pvp_admin`      |
+| `installs` | Installed check | `install_check` |
 
 - Tab ids `ready`, `raid`, `rules`, `roster` keep their ids (only the label or group changes) so redraw hooks in
   `UI/Main.lua:135-232` and deep links keep working. `pvpadmin` and `events` are new: add their redraw hooks next to
