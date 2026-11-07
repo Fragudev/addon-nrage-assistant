@@ -212,6 +212,33 @@ end)
 local SECURE_METHODS =
   { "SetAttribute", "SetPoint", "ClearAllPoints", "SetSize", "SetWidth", "SetHeight", "Show", "Hide", "SetShown" }
 
+describe("IntelWindow.RowsForHeight", function()
+  -- The chrome around the rows is 88 (header 30, tabs 30, footer 20, padding 8); a row is 22.
+  it("gives the rows of an exact height", function()
+    assert.are.equal(1, IntelWindow.RowsForHeight(88 + 22))
+    assert.are.equal(8, IntelWindow.RowsForHeight(88 + 8 * 22))
+    assert.are.equal(20, IntelWindow.RowsForHeight(88 + 20 * 22))
+  end)
+
+  it("rounds to the nearest row", function()
+    assert.are.equal(3, IntelWindow.RowsForHeight(88 + 3 * 22 + 10))
+    assert.are.equal(4, IntelWindow.RowsForHeight(88 + 3 * 22 + 11))
+    assert.are.equal(3, IntelWindow.RowsForHeight(88 + 3 * 22 - 10))
+  end)
+
+  it("keeps the rows between 1 and ROWS_MAX", function()
+    assert.are.equal(1, IntelWindow.RowsForHeight(0))
+    assert.are.equal(1, IntelWindow.RowsForHeight(-50))
+    assert.are.equal(IntelWindow.ROWS_MAX, IntelWindow.RowsForHeight(100000))
+  end)
+
+  it("gives the smallest window for what is not a number", function()
+    assert.are.equal(1, IntelWindow.RowsForHeight(nil))
+    assert.are.equal(1, IntelWindow.RowsForHeight("200"))
+    assert.are.equal(1, IntelWindow.RowsForHeight(0 / 0))
+  end)
+end)
+
 describe("IntelWindow on fake frames", function()
   local env
   local NAMES =
@@ -753,6 +780,34 @@ describe("IntelWindow on fake frames", function()
       frame.grip.scripts.OnMouseUp()
       assert.are.equal(400, env.status.intelWindow.width)
       frame.scripts.OnSizeChanged()
+    end)
+
+    it("sizes from the bottom right and turns the dragged height into rows on release", function()
+      IntelWindow.Show()
+      local frame = IntelWindow.Frame()
+      local anchor
+      frame.StartSizing = function(_, point)
+        anchor = point
+      end
+      frame.grip.scripts.OnMouseDown()
+      assert.are.equal("BOTTOMRIGHT", anchor)
+      frame:SetHeight(88 + 5 * 22 + 4)
+      frame.grip.scripts.OnMouseUp()
+      assert.are.equal(5, ns.db.global.settings.intel.window.rows)
+      assert.are.equal(88 + 5 * 22, frame.height)
+      assert.is_true(env.overlays[5].shown)
+      assert.is_false(env.overlays[6].shown)
+    end)
+
+    it("leaves the rows alone when the grip did not start sizing", function()
+      IntelWindow.Show()
+      local frame = IntelWindow.Frame()
+      local rows = ns.db.global.settings.intel.window.rows
+      ns.db.global.settings.intel.window.locked = true
+      frame.grip.scripts.OnMouseDown()
+      frame:SetHeight(88 + 2 * 22)
+      frame.grip.scripts.OnMouseUp()
+      assert.are.equal(rows, ns.db.global.settings.intel.window.rows)
     end)
 
     it("keeps the width between the limits", function()
