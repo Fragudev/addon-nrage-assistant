@@ -4,6 +4,8 @@ local _, ns = ...
 -- HereBeDragons: it places a pooled pin frame per pin through the library's icon calls, and does nothing when the
 -- library is missing. The enemy pins (docs/PVP_INTEL_PLAN.md section 3.4) have a pool and a library key of their own,
 -- so redrawing one set never removes the other.
+-- A pin is a round class icon inside a ring: the ring carries the signal (the class colour, red for an enemy, grey when
+-- the pin is on another layer) and the pin is always fully opaque, so it stays readable over any map.
 -- The decisions (pooling, which maps, coalescing) are apart from the frames so they can be tested with fakes; the
 -- frames themselves (BuildPin) are client-only.
 local MapPins = {}
@@ -13,6 +15,13 @@ local L = ns.L
 local MINIMAP_SIZE, WORLDMAP_SIZE = 12, 14
 local CLASS_TEXTURE = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 local DOT_TEXTURE = "Interface\\Buttons\\WHITE8X8"
+-- The ring is the addon's own anti-aliased disc (the kit's "disc" icon) tinted at runtime: a solid disc behind a
+-- smaller masked icon leaves a clean round ring, with no second mask to keep in step.
+local RING_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\disc"
+local MASK_TEXTURE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+-- How much of each side of a class cell is cut away, so the square frame baked into the atlas does not show.
+local CROP = 0.08
+local RING_WIDTH = 2
 local GREY = { 0.5, 0.5, 0.5 }
 local GREEN = { 0.3, 1, 0.3 }
 local RED = { 1, 0.35, 0.35 }
@@ -78,31 +87,37 @@ local function classColor(class)
   return GREY
 end
 
--- Dresses a pin frame for `pin`: the class icon with a thin border in the class colour, or a grey dot when the class
--- is unknown, and half transparent when the member is on another layer.
+local function setRing(frame, color)
+  frame.border:SetVertexColor(color[1], color[2], color[3], 1)
+end
+
+-- Dresses a pin frame for `pin`: the round class icon (or a round grey dot when the class is unknown) inside a ring in
+-- the class colour, and a grey ring when the member is on another layer. The pin is never transparent.
 function MapPins.DressPin(frame, pin)
   frame.pin = pin
   local coords = pin.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[pin.class]
-  local color = classColor(pin.class)
-  frame.border:SetColorTexture(color[1], color[2], color[3], 1)
+  frame.border:SetTexture(RING_TEXTURE)
+  setRing(frame, pin.sameLayer == false and GREY or classColor(pin.class))
   if coords then
+    local inset = (coords[2] - coords[1]) * CROP
+    local vinset = (coords[4] - coords[3]) * CROP
     frame.icon:SetTexture(CLASS_TEXTURE)
-    frame.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+    frame.icon:SetTexCoord(coords[1] + inset, coords[2] - inset, coords[3] + vinset, coords[4] - vinset)
     frame.icon:SetVertexColor(1, 1, 1, 1)
   else
     frame.icon:SetTexture(DOT_TEXTURE)
     frame.icon:SetTexCoord(0, 1, 0, 1)
     frame.icon:SetVertexColor(GREY[1], GREY[2], GREY[3], 1)
   end
-  frame:SetAlpha(pin.sameLayer == false and 0.5 or 1)
+  frame:SetAlpha(1)
 end
 
--- Dresses a pin frame for an enemy: the class icon in a red border, a mark when the enemy is on a Kill on Sight list,
--- and half transparent when the reporter is on another layer.
+-- Dresses a pin frame for an enemy: the class icon in a red ring (grey when the reporter is on another layer), and a
+-- mark when the enemy is on a Kill on Sight list.
 function MapPins.DressEnemyPin(frame, pin)
   MapPins.DressPin(frame, pin)
   frame.enemy = true
-  frame.border:SetColorTexture(RED[1], RED[2], RED[3], 1)
+  setRing(frame, pin.sameLayer == false and GREY or RED)
   if frame.mark then
     frame.mark:SetText(pin.kos and "!" or "")
   end
@@ -124,7 +139,7 @@ local function showTooltip(frame)
   GameTooltip:Show()
 end
 
--- A new pin frame of `kind` ("minimap" or "worldmap"): a border square with the icon inside. Client only.
+-- A new pin frame of `kind` ("minimap" or "worldmap"): a ring disc with the round icon inside. Client only.
 function MapPins.BuildPin(kind)
   local size = kind == "minimap" and MINIMAP_SIZE or WORLDMAP_SIZE
   local frame = CreateFrame("Frame", nil, UIParent)
@@ -133,8 +148,16 @@ function MapPins.BuildPin(kind)
   frame.border = frame:CreateTexture(nil, "BACKGROUND")
   frame.border:SetAllPoints(frame)
   frame.icon = frame:CreateTexture(nil, "ARTWORK")
-  frame.icon:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
-  frame.icon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+  frame.icon:SetPoint("TOPLEFT", frame, "TOPLEFT", RING_WIDTH, -RING_WIDTH)
+  frame.icon:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -RING_WIDTH, RING_WIDTH)
+  -- Clients and fakes without mask textures keep a square icon; the ring still shows.
+  local mask = frame.CreateMaskTexture and frame:CreateMaskTexture()
+  if mask then
+    mask:SetTexture(MASK_TEXTURE)
+    mask:SetAllPoints(frame.icon)
+    frame.icon:AddMaskTexture(mask)
+    frame.mask = mask
+  end
   frame:SetScript("OnEnter", showTooltip)
   frame:SetScript("OnLeave", function()
     if GameTooltip then
