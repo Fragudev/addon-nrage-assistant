@@ -8,7 +8,8 @@ local _, ns = ...
 --                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
 --                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
---                               deliveries } (see PvPSeasonSync) }
+--                               deliveries } (see PvPSeasonSync),
+--                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory) }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
 --                             pvpSync = { rev }, pvpMissions = { seasonId, kills = {}, claims = {} } }
 local Store = {}
@@ -202,6 +203,11 @@ local MIGRATIONS = {
       ensureTable(intel, name)
     end
     ensureTable(global, "guildKos")
+  end,
+  -- v17: who in the guild runs the addon and which version (installs, see InstallDirectory), for the Installed check
+  -- tab. Nothing else is touched.
+  [17] = function(db)
+    ensureTable(ensureTable(db, "global"), "installs")
   end,
 }
 

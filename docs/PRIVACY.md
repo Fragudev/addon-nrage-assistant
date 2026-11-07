@@ -32,6 +32,7 @@ secret store.
 | The guild Kill on Sight list: name, category, reason, who added each entry and when, and who changed it last | you, or received over the guild channel |
 | Enemy sightings you receive, in memory only, for two minutes | the guild channel, or your group in a battleground (prefix `NRAGEINT`) |
 | Tombstones of removed guild Kill on Sight entries | local removals and received ones |
+| Which members run the addon, their version and when each was last heard from | the guild channel |
 | Raid events, attendance, assignments, loot sessions and awards | you, or received |
 | Tombstones (records of deletions) | local deletions and received ones |
 | Assignment templates (each keeps the roster of the event it was saved from) | you; never shared |

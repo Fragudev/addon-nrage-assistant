@@ -74,6 +74,7 @@ Domain\IntelMinimapTooltip.lua
 Domain\LfgModel.lua
 Domain\LfgBoard.lua
 Domain\LfgService.lua
+Domain\InstallDirectory.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -114,6 +115,7 @@ UI\ViewModelProfessions.lua
 UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
 UI\ViewModelGroups.lua
+UI\ViewModelInstalls.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -131,6 +133,7 @@ UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
 UI\Tabs\Groups.lua
+UI\Tabs\Installs.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua

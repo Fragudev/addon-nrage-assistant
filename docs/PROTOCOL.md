@@ -48,7 +48,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 
 | Type | Channel | Payload (validated fields) | Who may send it |
 |---|---|---|---|
-| `HELLO` | guild | `version` | anyone |
+| `HELLO` | guild | `version`, optional `ask` = true (every member online answers with its own `HELLO`, even one that knew the sender already; older clients ignore it) | anyone |
 | `PROFILE` | guild | `rev`, `class`, `level`, optional `ilvl`, `professions[]` (`name`, `skill`, optional `max`, optional `secondary` = true for cooking, fishing and archaeology), `fields{role, main, notes}` | anyone, for themselves |
 | `EVENT_UPSERT` | guild | `eventId`, `rev`, `updatedAt`, `title`, optional `instance`, `startAt`, `status`, `rosterId` | rl of the roster of the event, admin |
 | `ATTENDANCE_UPSERT` | guild | `eventId`, `characterKey`, `state`, `rev`, `updatedAt` | rl, admin |
@@ -512,7 +512,8 @@ are bounded (500) and expire after 30 days.
 - Sent: everything goes through a queue of at most 100 messages, kept at most 120 seconds. While the encounter
   lockdown is active (`C_ChatInfo.InChatMessagingLockdown()`), nothing is sent; when it ends the queue drains with
   a random delay of up to 5 seconds. A newer message for the same record replaces a queued older one.
-- A new `HELLO` peer is answered at most once every 30 seconds, after a random delay.
+- A new `HELLO` peer, or a `HELLO` with `ask`, is answered at most once every 30 seconds, after a random delay. The
+  Installed check tab sends a `HELLO` with `ask` at most once a minute.
 
 ## Snapshot for late joiners
 

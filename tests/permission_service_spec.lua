@@ -164,6 +164,7 @@ local MATRIX = {
   rules_view = { "all", "all", "all", "own", "-", "-", "-" },
   rules_edit = { "all", "all", "-", "own", "-", "-", "-" },
   pvp_admin = { "all", "all", "-", "-", "-", "-", "-" },
+  install_check = { "all", "all", "-", "-", "-", "-", "-" },
   -- Open to every rank.
   edit_own_profile = { "all", "all", "all", "all", "all", "all", "all" },
   layer_share = { "all", "all", "all", "all", "all", "all", "all" },

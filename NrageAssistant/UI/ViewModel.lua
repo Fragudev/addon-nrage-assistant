@@ -671,6 +671,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "rules", text = L("Roster rules"), icon = "list", group = "admin" },
     { value = "roster", text = L("Members"), icon = "users", group = "admin" },
     { value = "pvpadmin", text = "PvP", icon = "swords", group = "admin" },
+    { value = "installs", text = L("Installed check"), icon = "check", group = "admin" },
   }
 end)
 
@@ -683,6 +684,7 @@ local TAB_ACTIONS = {
   rules = "rules_view",
   roster = "members_view",
   pvpadmin = "pvp_admin",
+  installs = "install_check",
 }
 
 -- Does a player with `role` and the roster `rosterId` (nil without one) see `tab` (an entry of TABS)?

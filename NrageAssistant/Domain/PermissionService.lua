@@ -45,6 +45,8 @@ local ACTIONS = {
   -- Setting the readiness rules the roster is measured against.
   rules_edit = { gm = ALL, cogm = ALL, rl = OWN },
   pvp_admin = GLOBAL_ONLY,
+  -- The Installed check tab: who runs the addon and which version.
+  install_check = GLOBAL_ONLY,
 
   edit_own_profile = EVERYONE,
   -- Sharing the own layer and taking part in a layer swap.
