@@ -10,13 +10,19 @@ end
 
 local function PrintIdentity()
   local P = ns.Platform
+  local clubId, expected = P.GetGuildClubId(), ns.Constants.GUILD_CLUB_ID
+  local allowed, reason = ns.AccessGuard.Evaluate(P, ns.Constants)
   say("identity (phase 0 measurement):")
+  print("  version: " .. tostring(ns.GetVersion()))
   print("  build: " .. tostring(select(4, GetBuildInfo())))
   print("  realm: " .. tostring(P.GetRealmName()))
   print("  guild: " .. tostring(P.GetGuildName()))
-  print("  clubId: " .. tostring(P.GetGuildClubId()))
+  -- The type is shown because a string and a number print alike here but never compare equal in the access check.
+  print(("  clubId: %s (%s)"):format(tostring(clubId), type(clubId)))
+  print(("  expected clubId: %s (%s)"):format(tostring(expected), type(expected)))
   print("  faction: " .. tostring(P.GetFaction()))
   print("  lockdown: " .. tostring(P.IsChatMessagingLockedDown()))
+  print("  access: " .. (allowed and "ok" or tostring(reason)))
 end
 
 local function PrintRoster()
