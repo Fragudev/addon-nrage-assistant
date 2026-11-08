@@ -48,6 +48,48 @@ describe("WorldMapToggles.State", function()
   end)
 end)
 
+describe("WorldMapToggles.Layout", function()
+  it("stacks Guild above Enemies, centred as a pair on the right edge", function()
+    local guild, enemies = Toggles.Layout("guild"), Toggles.Layout("enemies")
+    assert.are.equal("RIGHT", guild.point)
+    assert.are.equal("RIGHT", guild.relPoint)
+    assert.are.equal(guild.x, enemies.x)
+    assert.is_true(guild.x < 0) -- a little inward from the edge
+    assert.are.equal(0, guild.y + enemies.y) -- symmetric about the vertical centre
+    assert.is_true(guild.y > enemies.y)
+    local gap = (guild.y - enemies.y) - Toggles.SIZE
+    assert.is_true(gap > 0)
+  end)
+
+  it("makes the buttons clearly bigger than the old 22 px", function()
+    assert.is_true(Toggles.SIZE >= 30)
+  end)
+
+  it("has no place for an unknown button", function()
+    assert.is_nil(Toggles.Layout("minimap"))
+  end)
+end)
+
+describe("WorldMapToggles.Look", function()
+  it("lights the glyph and the ring when on", function()
+    local look = Toggles.Look(true)
+    assert.are.equal("accent", look.ring)
+    assert.are.equal("accent", look.glyph)
+  end)
+
+  it("dims the glyph and mutes the ring when off", function()
+    local look = Toggles.Look(false)
+    assert.are.equal("muted", look.ring)
+    assert.are.equal("muted", look.glyph)
+    assert.are_not.equal(Toggles.Look(true).ring, look.ring)
+  end)
+
+  it("always draws an opaque fill behind the glyph", function()
+    assert.are.equal(Toggles.Look(true).fill, Toggles.Look(false).fill)
+    assert.is_string(Toggles.Look(false).fill)
+  end)
+end)
+
 describe("WorldMapToggles.Toggle", function()
   local function env()
     local e = { position = { worldmap = true }, intel = { worldmapPins = true, mapMode = "zone" }, calls = {} }
