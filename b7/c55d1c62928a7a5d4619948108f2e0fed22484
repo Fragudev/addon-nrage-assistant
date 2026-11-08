@@ -1,0 +1,41 @@
+NrageAssistant/Locales/esES.lua
+  s_1a384e21fbd520::t_9f83c067a9d0cd 1275-1284
+NrageAssistant/Core/Init.lua
+  s_1a384e21fbd520::t_d540af497b4ee1 597-600,1014-1015,1022
+NrageAssistant/Domain/Settings.lua
+  s_1a384e21fbd520::t_53254865d0fc4f 81
+NrageAssistant/NrageAssistant.toc
+  s_1a384e21fbd520::t_0dd74059a03316 146
+NrageAssistant/UI/Main.lua
+  s_1a384e21fbd520::t_69c4568c90fd34 349-352
+NrageAssistant/UI/ViewModelIntel.lua
+  s_1a384e21fbd520::t_fd38ceed8b2ecc 638,683
+NrageAssistant/UI/WorldMapToggles.lua
+  s_1a384e21fbd520::t_77deaf0cb761f3 1-155
+docs/USER_GUIDE.md
+  s_1a384e21fbd520::t_b61c16ccb3a1f5 696-698,726-732
+tests/init_spec.lua
+  s_1a384e21fbd520::t_5f7a8cbe921bf6 570-575
+tests/settings_spec.lua
+  s_1a384e21fbd520::t_b4927e67aeeca8 36
+tests/view_model_intel_spec.lua
+  s_1a384e21fbd520::t_ee1676bc70647d 527,540
+tests/world_map_toggles_spec.lua
+  s_1a384e21fbd520::t_2a8d78d3eca2c7 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "b7c55d1c62928a7a5d4619948108f2e0fed22484",
+  "prompts": {},
+  "sessions": {
+    "s_1a384e21fbd520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78aaee4e-41e5-429c-b279-4fea77270bc0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
