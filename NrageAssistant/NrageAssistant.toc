@@ -143,6 +143,7 @@ UI\MinimapButton.lua
 UI\MapPins.lua
 UI\IntelWindow.lua
 UI\IntelTargetButton.lua
+UI\WorldMapToggles.lua
 Commands\RaidCommands.lua
 Commands\LootCommands.lua
 Commands\TemplateCommands.lua

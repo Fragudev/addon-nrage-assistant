@@ -524,6 +524,7 @@ describe("the settings", function()
       "zone",
       "mapMode",
       "mapFollow",
+      "worldmapPins",
       "minimapTooltip",
       "minimapFeed",
       "window.shown",
@@ -536,6 +537,7 @@ describe("the settings", function()
     assert.are.equal("Elwynn", keys.zone.description)
     assert.is_false(keys.zone.value)
     assert.is_true(keys.enabled.value)
+    assert.is_true(keys.worldmapPins.value)
     assert.are.equal(10, #keys.alertRaces.choices)
     assert.are.equal("Human", keys.alertRaces.choices[1].text)
   end)

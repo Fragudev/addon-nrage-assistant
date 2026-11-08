@@ -346,6 +346,10 @@ function UI.IntelRefreshAll()
   if ns.intelMapPins then
     pcall(ns.intelMapPins.Request, ns.intelMapPins)
   end
+  -- The Enemies button on the world map shows the "worldmapPins" setting.
+  if ns.WorldMapToggles then
+    pcall(ns.WorldMapToggles.Refresh)
+  end
 end
 
 local intelThrottle
