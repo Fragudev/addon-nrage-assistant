@@ -1,0 +1,25 @@
+NrageAssistant/Core/Constants.lua
+  s_1a384e21fbd520::t_de17c1ccbd00d3 422-424
+NrageAssistant/Domain/IntelAlerts.lua
+  s_1a384e21fbd520::t_829f62c282ab77 14-16,33-34,43,233-248,252-254
+docs/USER_GUIDE.md
+  s_1a384e21fbd520::t_0f8b90b790a52d 739-742
+tests/intel_alerts_spec.lua
+  s_1a384e21fbd520::t_d5c6732cbd18c7 376-405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "eb75ffc5992399e7c80358ea97980d4226a356ed",
+  "prompts": {},
+  "sessions": {
+    "s_1a384e21fbd520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78aaee4e-41e5-429c-b279-4fea77270bc0",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
