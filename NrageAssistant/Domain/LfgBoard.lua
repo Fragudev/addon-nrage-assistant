@@ -190,9 +190,15 @@ function LfgBoard:Query(filter)
   return list
 end
 
--- How many open posts there are, with the same rules as Query.
+-- How many open posts there are, with the same rules as Query (no copies, no sort: the sidebar asks it often).
 function LfgBoard:OpenCount()
-  return #self:Query()
+  local total = 0
+  for _, entry in pairs(self.entries) do
+    if entry.state == "open" and fresh(self, entry) then
+      total = total + 1
+    end
+  end
+  return total
 end
 
 ns.LfgBoard = LfgBoard

@@ -10,12 +10,12 @@ local Roles = {}
 -- The seven in-game rank names (docs/NAV_PERMISSIONS_PLAN.md 1.1), best first. The index in this list minus one is
 -- the rank index of the game.
 Roles.RANK_NAMES = {
-  gm = "GM",
-  cogm = "CoGM",
+  gm = "Emperador",
+  cogm = "Comandante",
   officer = "Oficial",
-  rl = "RL",
-  roster = "Roster",
-  member = "Miembro",
+  rl = "Raid Lider",
+  roster = "Raider",
+  member = "Soldado",
   alter = "Alter",
 }
 Roles.ORDER = { "gm", "cogm", "officer", "rl", "roster", "member", "alter" }

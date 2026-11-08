@@ -198,21 +198,23 @@ function IntelWindow.RowsForHeight(height)
   return math.min(IntelWindow.ROWS_MAX, math.max(1, rows))
 end
 
--- Does an open bounty (an active mission of the season that names this player) exist? Read when a row is drawn.
-local function hasBounty(key)
+-- The keys of the players an open bounty names (the active missions of the season), or an empty set.
+local function bountyKeys()
   local season = ns.pvpSeason
-  if not (key and season) then
-    return false
-  end
-  local active = season:ActiveSeason()
+  local active = season and season:ActiveSeason()
   if not active then
-    return false
+    return {}
   end
-  return ns.ViewModel.PvPBountyKeys(season:Missions(active.id))[key] == true
+  return ns.ViewModel.PvPBountyKeys(season:Missions(active.id))
+end
+
+-- Does an open bounty name this player? Read for a tooltip; a redraw builds the set once for every row.
+local function hasBounty(key)
+  return key ~= nil and bountyKeys()[key] == true
 end
 
 -- The text of a row (its name, level, guild and age), in the colours of the kit.
-local function drawRow(index, slot)
+local function drawRow(index, slot, bounties)
   local Kit = ns.Kit
   local row = rowFrames[index]
   if not row then
@@ -243,7 +245,7 @@ local function drawRow(index, slot)
   else
     row.bar:SetColorTexture(Kit.Theme.Color("border"))
   end
-  local bounty = hasBounty(data.key)
+  local bounty = data.key ~= nil and bounties[data.key] == true
   row.mark:SetText((data.kos or data.stealth or bounty) and "!" or "")
   Kit.SetTextColor(row.mark, data.kos and "danger" or "warning")
   local alpha = 1
@@ -699,7 +701,8 @@ function IntelWindow.Refresh()
   local platform = ns.Platform
   local view = ns.ViewModel.IntelWindowView(mode, {
     service = ns.intel,
-    nearby = ns.IntelNearby(),
+    -- Only the Nearby mode reads who is nearby; the other lists are built from the saved records.
+    nearby = mode == "nearby" and ns.IntelNearby() or {},
     now = platform.ServerTime(),
     limit = applied,
     role = ns.UI.Role(),
@@ -707,8 +710,9 @@ function IntelWindow.Refresh()
     formatDate = platform.FormatDate,
   })
   local slots = binder:Update(view.rows)
+  local bounties = bountyKeys()
   for index = 1, IntelWindow.ROWS_MAX do
-    drawRow(index, slots[index])
+    drawRow(index, slots[index], bounties)
   end
   frame.empty:SetText(view.total == 0 and view.empty or "")
   frame.more:SetText(view.more > 0 and L("and %d more"):format(view.more) or "")

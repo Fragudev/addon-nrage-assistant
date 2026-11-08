@@ -301,6 +301,7 @@ describe("IntelAlerts:OnContact", function()
     for index = 1, 600 do
       env.alerts.alerted["kos:x" .. index] = 1
     end
+    env.alerts.sizes.alerted = 600
     env.clock = 5000
     assert.is_truthy(contact(env))
     local count = 0
@@ -308,6 +309,7 @@ describe("IntelAlerts:OnContact", function()
       count = count + 1
     end
     assert.are.equal(1, count)
+    assert.are.equal(1, env.alerts.sizes.alerted)
   end)
 end)
 

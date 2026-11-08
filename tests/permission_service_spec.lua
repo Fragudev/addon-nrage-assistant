@@ -39,17 +39,20 @@ describe("PermissionService.RoleForRank", function()
 
   it("ignores case", function()
     assert.are.equal("officer", Service.RoleForRank("oFiCiAl"))
-    assert.are.equal("cogm", Service.RoleForRank("COGM"))
+    assert.are.equal("cogm", Service.RoleForRank("COMANDANTE"))
   end)
 
   it("trims the name", function()
-    assert.are.equal("rl", Service.RoleForRank("  RL "))
-    assert.are.equal("member", Service.RoleForRank("\tMiembro\n"))
+    assert.are.equal("rl", Service.RoleForRank("  Raid Lider "))
+    assert.are.equal("member", Service.RoleForRank("\tSoldado\n"))
   end)
 
   it("treats a rank nobody mapped as an alter", function()
     assert.are.equal("alter", Service.RoleForRank("Recruit"))
     assert.are.equal("alter", Service.RoleForRank("Officer"))
+    -- The ranks before the rename in 2026-11 are no longer known.
+    assert.are.equal("alter", Service.RoleForRank("GM"))
+    assert.are.equal("alter", Service.RoleForRank("Miembro"))
     assert.are.equal("alter", Service.RoleForRank("   "))
   end)
 
@@ -67,13 +70,13 @@ end)
 describe("PermissionService.RoleOf", function()
   local roster = roster_with({
     ["Boss-Realm"] = { rankName = "Maestro", rankIndex = 0 },
-    ["Co-Realm"] = { rankName = "CoGM", rankIndex = 1 },
+    ["Co-Realm"] = { rankName = "Comandante", rankIndex = 1 },
     ["Officer-Realm"] = { rankName = "Oficial", rankIndex = 2 },
-    ["Leader-Realm"] = { rankName = "RL", rankIndex = 3 },
-    ["Plain-Realm"] = { rankName = "Miembro", rankIndex = 5 },
+    ["Leader-Realm"] = { rankName = "Raid Líder", rankIndex = 3 },
+    ["Plain-Realm"] = { rankName = "Soldado", rankIndex = 5 },
     ["Odd-Realm"] = { rankName = "Newbie", rankIndex = 7 },
-    ["Fake-Realm"] = { rankName = "GM", rankIndex = 2 },
-    ["Yonemon Gg"] = { rankName = "Raider", rankIndex = 4 },
+    ["Fake-Realm"] = { rankName = "Emperador", rankIndex = 2 },
+    ["Yonemon Gg"] = { rankName = "Miembro", rankIndex = 4 },
   })
 
   it("reads the role from the rank in the local guild roster", function()
@@ -87,7 +90,7 @@ describe("PermissionService.RoleOf", function()
     assert.are.equal("gm", Service.RoleOf(roster, "Boss-Realm"))
   end)
 
-  it("gives an unknown rank the alter role, and a rank called GM at another index is just a GM rank", function()
+  it("gives an unknown rank the alter role, and a rank called Emperador at another index is just a gm rank", function()
     assert.are.equal("alter", Service.RoleOf(roster, "Odd-Realm"))
     assert.are.equal("alter", Service.RoleOf(roster, "Yonemon Gg"))
     assert.are.equal("gm", Service.RoleOf(roster, "Fake-Realm"))
@@ -105,7 +108,7 @@ describe("PermissionService.RoleOf", function()
   end)
 
   it("uses a custom mapping when given one", function()
-    assert.are.equal("rl", Service.RoleOf(roster, "Plain-Realm", { mapping = { miembro = "rl" } }))
+    assert.are.equal("rl", Service.RoleOf(roster, "Plain-Realm", { mapping = { soldado = "rl" } }))
   end)
 end)
 
@@ -114,12 +117,12 @@ describe("PermissionService.OwnRole", function()
     assert.are.equal("gm", Service.OwnRole(platform_of("Whatever", 0)))
     assert.are.equal("gm", Service.OwnRole(platform_of("Whatever", nil, true)))
     assert.are.equal("gm", Service.OwnRole(platform_of("Alter", 6, true)))
-    assert.are.equal("gm", Service.OwnRole(platform_of("GM", 2, false)))
+    assert.are.equal("gm", Service.OwnRole(platform_of("Emperador", 2, false)))
   end)
 
   it("is the role of the rank name for everybody else", function()
-    assert.are.equal("cogm", Service.OwnRole(platform_of("CoGM", 1)))
-    assert.are.equal("rl", Service.OwnRole(platform_of(" rl ", 3)))
+    assert.are.equal("cogm", Service.OwnRole(platform_of("Comandante", 1)))
+    assert.are.equal("rl", Service.OwnRole(platform_of(" raid lider ", 3)))
     assert.are.equal("alter", Service.OwnRole(platform_of("Recruit", 9)))
   end)
 

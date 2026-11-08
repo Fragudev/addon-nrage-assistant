@@ -79,18 +79,18 @@ The guild logo sits in a gold ring on the edge of the minimap, like most addons'
 ## What you can do, by role
 
 Your role is your **guild rank**. The addon matches the rank by its name, so the ranks in the game have to be called
-exactly `GM`, `CoGM`, `Oficial`, `RL`, `Roster`, `Miembro` and `Alter`. The guild master is always recognised by holding
+exactly `Emperador`, `Comandante`, `Oficial`, `Raid Lider` (or `Raid Líder`), `Raider`, `Soldado` and `Alter`. The guild master is always recognised by holding
 rank index 0 of the guild, never by the name of the character or of the rank. Nothing is assigned inside the addon:
 to change a role, change the rank in the game. The addon never trusts what a message says about its sender: every
 client checks the sender against its own copy of the guild roster.
 
 | Rank | Role | Can (so far) |
 |---|---|---|
-| GM, CoGM | gm, cogm | everything, for every roster: events, loot, rosters and members, the readiness rules, moderation, removing players from the blacklist and all of the PvP seasons |
+| Emperador, Comandante | gm, cogm | everything, for every roster: events, loot, rosters and members, the readiness rules, moderation, removing players from the blacklist and all of the PvP seasons |
 | Oficial | officer | events and loot of their own roster, plus everything a member can |
-| RL | rl | events and loot of their own roster, plus everything a member can |
-| Roster | roster | put yourself forward for loot (in your roster), plus everything a member can |
-| Miembro | member | see shared data, edit and publish your own sheet, add players to the blacklist |
+| Raid Lider | rl | events and loot of their own roster, plus everything a member can |
+| Raider | roster | put yourself forward for loot (in your roster), plus everything a member can |
+| Soldado | member | see shared data, edit and publish your own sheet, add players to the blacklist |
 | Alter | alter | the same as a member, except putting yourself forward for loot |
 
 A rank with any other name counts as **Alter**. **If you rename a rank in the game without updating the addon, everybody
