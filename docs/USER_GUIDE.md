@@ -654,7 +654,10 @@ Events. Every rank can use it. The Groups item of the sidebar shows how many gro
 
 **Posting.** Click **New group**, pick the type (Dungeon, Quest or Other), write a title of up to 60 characters and
 say how many Tanks, Heals and DPS you need. You can also set a minimum level and a note of up to 100 characters. The
-post shows five diamonds: the filled ones are the members of your party now. You can post when you are alone or when
+post shows five seats. A taken seat shows the class icon of a member of your party, with a small mark of the role
+(shield for Tank, cross for Heal, swords for DPS) when it is known: your own declared role, and the role each applicant
+joined as. A free seat shows the role you still need, dimmed. A member who was in your party before you posted has no
+role mark, and a post from an older version of the addon shows people instead of classes. You can post when you are alone or when
 you lead a party that is not full. You cannot post while you are in a raid or during an encounter, or while a layer
 swap runs. **Edit** changes the open post and **Close group** ends it. The post closes by itself when the party is
 full, when you stop leading it, when it disbands after someone joined, or when it becomes a raid.

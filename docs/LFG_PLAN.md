@@ -268,9 +268,10 @@ All received text goes through `ViewModel.Escape`.
 
 Add `UI.LfgChanged = throttledRedraw(...)` in `UI/Main.lua`, redrawing `groups` and `home`.
 
-**Members indicator:** each post and the own post show five diamonds, filled for the current members. Use the kit's
-`diamond` icon, `accent` for a member and a dim token for a free slot, with a text alternative in the tooltip
-("3 of 5 members").
+**Members indicator:** each post and the own post show five seats (`Kit.Seats`, replaced the diamonds on
+2026-11-08). A member is the class icon framed in the class color, with a role mark (`role-tank`, `role-heal`,
+`role-dps`) when the role is known; a free seat shows the dim mark of a role still needed. The post carries the
+optional `party` (protocol 1.12) for it. The tooltip says the same as text ("3 of 5 members", then a line per member).
 
 **Sidebar counter:** the Groups entry shows the number of open groups on its right, own post included, and nothing
 when it is 0. The sidebar has no badge today, so:

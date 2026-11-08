@@ -8,6 +8,7 @@ local function load_protocol()
   assert(loadfile("NrageAssistant/Domain/ReadinessRules.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/PvPSeasonModel.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/LfgModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
 end
@@ -658,8 +659,8 @@ describe("Protocol.Validate PVP_KILL", function()
     assert.are.equal("bad_payload", reason)
   end)
 
-  it("is at protocol minor version 11", function()
-    assert.are.equal(11, Constants.PROTOCOL_MINOR)
+  it("is at protocol minor version 12", function()
+    assert.are.equal(12, Constants.PROTOCOL_MINOR)
   end)
 end)
 
@@ -935,6 +936,39 @@ describe("Protocol.Validate LFG_POST", function()
   it("rejects a minimum level out of range", function()
     for _, level in ipairs({ 0, 101, 1.5, "20" }) do
       assert.are.equal("bad_payload", select(2, validate(open({ minLevel = level }))))
+    end
+  end)
+
+  it("keeps the optional party, one seat per member, and drops what a seat should not carry", function()
+    local m = validate(open({
+      members = 2,
+      needs = { tank = 1, heal = 1, dps = 1 },
+      party = { { c = "WARRIOR", r = "tank", x = 1 }, { c = "PRIEST" } },
+    }))
+    assert.are.same({ { c = "WARRIOR", r = "tank" }, { c = "PRIEST" } }, m.p.party)
+  end)
+
+  it("drops a party that does not fit and keeps the post", function()
+    local base = { members = 2, needs = { tank = 1, heal = 1, dps = 1 } }
+    for _, party in ipairs({
+      { { c = "WARRIOR" } },
+      { { c = "WARRIOR" }, { c = "PRIEST" }, { c = "MAGE" } },
+      { { c = "warrior" }, { c = "PRIEST" } },
+      { { c = "WARRIOR|r" }, { c = "PRIEST" } },
+      { { c = ("A"):rep(21) }, { c = "PRIEST" } },
+      { { c = "WARRIOR", r = "healer" }, { c = "PRIEST" } },
+      { { r = "tank" }, { c = "PRIEST" } },
+      { "WARRIOR", "PRIEST" },
+      "WARRIOR",
+    }) do
+      local fields = { party = party }
+      for k, v in pairs(base) do
+        fields[k] = v
+      end
+      local m = validate(open(fields))
+      assert.is_truthy(m)
+      assert.is_nil(m.p.party)
+      assert.are.equal(2, m.p.members)
     end
   end)
 end)

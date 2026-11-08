@@ -1204,32 +1204,74 @@ describe("Kit widgets", function()
       end)
     end)
 
-    describe("pips", function()
-      it("fills the first diamonds and says the same in the tooltip", function()
-        local pips = Kit.Pips(root, { total = 5, filled = 3, tooltip = "3 of 5 members" })
-        assert.are.equal(12, pips:Layout(200))
-        assert.are.equal(5 * 12 + 4 * 4, pips:NaturalWidth())
-        local shown = 0
-        for _, dot in ipairs(pips.dots) do
-          if dot:IsShown() then
-            shown = shown + 1
-          end
-        end
-        assert.are.equal(5, shown)
-        assert.are_not.same(pips.dots[3].vertex, pips.dots[4].vertex)
-        assert.are.same(pips.dots[1].vertex, pips.dots[3].vertex)
-        assert.has_no.errors(function()
-          pips.frame.scripts.OnEnter()
-          pips.frame.scripts.OnLeave()
-        end)
+    describe("seats", function()
+      local saved
+      before_each(function()
+        saved = _G.CLASS_ICON_TCOORDS
+        _G.CLASS_ICON_TCOORDS = { WARRIOR = { 0, 0.25, 0, 0.25 } }
+      end)
+      after_each(function()
+        _G.CLASS_ICON_TCOORDS = saved
       end)
 
-      it("hides what is beyond the total and takes another size when it is reused", function()
-        local pips = Kit.Pips(root, { total = 3, filled = 9, size = 8 })
-        pips:Layout(100)
-        assert.is_true(pips.dots[3]:IsShown())
-        assert.is_false(pips.dots[4]:IsShown())
-        assert.are.equal(3 * 8 + 2 * 4, pips:NaturalWidth())
+      local function seated(opts)
+        local widget = Kit.Seats(root, opts)
+        widget:Layout(300)
+        return widget
+      end
+
+      it("draws a member with the class icon framed in the class color and a mark of the known role", function()
+        local widget = seated({ seats = { { filled = true, class = "WARRIOR", role = "tank" } }, size = 20 })
+        local seat = widget.seats[1]
+        assert.is_true(seat.icon.texture:find("UI%-CHARACTERCREATE%-CLASSES") ~= nil)
+        assert.are.same({ 0.02, 0.23, 0.02, 0.23 }, {
+          math.floor(seat.icon.texcoord[1] * 100 + 0.5) / 100,
+          math.floor(seat.icon.texcoord[2] * 100 + 0.5) / 100,
+          math.floor(seat.icon.texcoord[3] * 100 + 0.5) / 100,
+          math.floor(seat.icon.texcoord[4] * 100 + 0.5) / 100,
+        })
+        local r, g, b = unpack(Kit.Theme.ClassColor("WARRIOR"))
+        assert.are.same({ r, g, b, 1 }, seat.edge.color)
+        assert.is_true(seat.badge:IsShown())
+        assert.is_true(seat.badge.texture:find("role%-tank$") ~= nil)
+        assert.is_true(seat.badgeBack:IsShown())
+      end)
+
+      it("draws a member without a known role or class with no mark, and as a person", function()
+        local widget = seated({ seats = { { filled = true, class = "WARRIOR" }, { filled = true } } })
+        assert.is_false(widget.seats[1].badge:IsShown())
+        assert.is_true(widget.seats[2].icon.texture:find("user$") ~= nil)
+        assert.is_false(widget.seats[2].badge:IsShown())
+      end)
+
+      it("hides the seats past the list", function()
+        local widget = seated({ seats = { { filled = true } } })
+        assert.is_true(widget.seats[1].edge:IsShown())
+        assert.is_false(widget.seats[2].edge:IsShown())
+        assert.is_false(widget.seats[2].icon:IsShown())
+        assert.is_false(widget.seats[2].badge:IsShown())
+      end)
+
+      it("draws a free seat with the dim mark of the role it needs, and an empty frame otherwise", function()
+        local widget = seated({ seats = { { filled = false, role = "heal" }, { filled = false } } })
+        assert.is_true(widget.seats[1].icon.texture:find("role%-heal$") ~= nil)
+        assert.is_false(widget.seats[1].badge:IsShown())
+        assert.is_false(widget.seats[2].icon:IsShown())
+        assert.is_true(widget.seats[2].edge:IsShown())
+      end)
+
+      it("measures the seats and shows the tooltip", function()
+        local five = {}
+        for index = 1, 5 do
+          five[index] = { filled = index <= 2 }
+        end
+        local widget = seated({ seats = five, size = 18, tooltip = "2 of 5 members" })
+        assert.are.equal(18 + 4, widget:Layout(300))
+        assert.are.equal(5 * 18 + 4 * 4 + 4, widget:NaturalWidth())
+        assert.has_no.errors(function()
+          widget.frame.scripts.OnEnter()
+          widget.frame.scripts.OnLeave()
+        end)
       end)
     end)
 

@@ -146,6 +146,32 @@ describe("LfgModel payloads", function()
     assert.are.same({ pid = "p1", rev = 4, s = "closed", o = "full" }, Model.ClosedPayload("p1", 4, "full"))
   end)
 
+  it("carries the party of the post, one seat per member, as a copy", function()
+    local party = { { c = "WARRIOR", r = "tank" }, { c = "PRIEST" } }
+    local post = assert(Model.NewPost(fields({ members = 2, needs = { tank = 0, heal = 1, dps = 2 }, party = party })))
+    local payload = Model.PostPayload("p1", 1, post)
+    assert.are.same(party, payload.party)
+    payload.party[1].c = "MAGE"
+    assert.are.equal("WARRIOR", post.party[1].c)
+  end)
+
+  it("leaves out a party that does not fit the members, and keeps the post", function()
+    local post = assert(Model.NewPost(fields({ party = { { c = "WARRIOR" }, { c = "PRIEST" } } })))
+    assert.is_nil(post.party)
+    assert.is_nil(Model.PostPayload("p1", 1, post).party)
+    assert.is_nil(Model.CleanParty({ { c = "WARRIOR", r = "healer" } }, 1))
+    assert.is_nil(Model.CleanParty({ { c = "Warrior" } }, 1))
+    assert.are.same({ { c = "WARRIOR" } }, Model.CleanParty({ { c = "WARRIOR", x = 1 } }, 1))
+  end)
+
+  it("tells when two parties show the same seats", function()
+    assert.is_true(Model.SameParty(nil, nil))
+    assert.is_false(Model.SameParty(nil, { { c = "MAGE" } }))
+    assert.is_true(Model.SameParty({ { c = "MAGE", r = "dps" } }, { { c = "MAGE", r = "dps" } }))
+    assert.is_false(Model.SameParty({ { c = "MAGE", r = "dps" } }, { { c = "MAGE" } }))
+    assert.is_false(Model.SameParty({ { c = "MAGE" } }, { { c = "MAGE" }, { c = "PRIEST" } }))
+  end)
+
   it("does not share the needs table with the post", function()
     local post = assert(Model.NewPost(fields()))
     local payload = Model.PostPayload("p1", 1, post)
