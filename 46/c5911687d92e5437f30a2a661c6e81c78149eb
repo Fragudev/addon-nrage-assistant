@@ -1,0 +1,71 @@
+.luacheckrc
+  s_142288e0c63285::t_9cc9ce59280da8 111
+NrageAssistant/Core/Constants.lua
+  s_142288e0c63285::t_0196eaebd6f0e0 24
+NrageAssistant/Core/Init.lua
+  s_142288e0c63285::t_c53953775a9cea 537-541
+NrageAssistant/Core/Platform.lua
+  s_142288e0c63285::t_1a279715dedb1a 805-836
+NrageAssistant/Domain/LfgBoard.lua
+  s_142288e0c63285::t_878ae84ee9a7f8 61,118
+NrageAssistant/Domain/LfgModel.lua
+  s_142288e0c63285::t_bec78f0d6e4590 6-9,24-78,126-127,171-172,188
+NrageAssistant/Domain/LfgService.lua
+  s_142288e0c63285::t_3a1480e34ef1fe 29-31,144-178,234,241-242,270,668,675,681,692,759,796
+NrageAssistant/Sync/Protocol.lua
+  s_142288e0c63285::t_f495fbcdbbdec3 521-522
+NrageAssistant/UI/Kit/Controls.lua
+  s_142288e0c63285::t_9b4c0a620d64ca 215-224,226-274,277-284,289-292,294-297,299-302,307-308,311-314
+NrageAssistant/UI/Kit/Icons.lua
+  s_142288e0c63285::t_88019230727080 37-39
+NrageAssistant/UI/Tabs/Groups.lua
+  s_142288e0c63285::t_cd34087e8ae557 287-288,296,390
+NrageAssistant/UI/ViewModelGroups.lua
+  s_142288e0c63285::t_8159280540157e 89-92,95-119,177,182,260,308,317
+docs/LFG_PLAN.md
+  s_142288e0c63285::t_f20da31ae6b620 271-274
+docs/PROTOCOL.md
+  s_142288e0c63285::t_387d820286a470 40-41,69,207-212
+docs/USER_GUIDE.md
+  s_142288e0c63285::t_b7470657419b25 657-660
+tests/comm_spec.lua
+  s_142288e0c63285::t_1db18360146be8 26
+tests/kit_widgets_spec.lua
+  s_142288e0c63285::t_b5eef66e4d0ea5 1207-1266,1268-1270,1272-1273
+tests/lfg_board_spec.lua
+  s_142288e0c63285::t_441cad38e05c5c 3,69-82
+tests/lfg_model_spec.lua
+  s_142288e0c63285::t_12ad167ee0814b 149-174
+tests/lfg_service_spec.lua
+  s_142288e0c63285::t_e80428ce1969a6 158-166,999-1080
+tests/lfg_sync_spec.lua
+  s_142288e0c63285::t_c202186ab4536f 8
+tests/platform_spec.lua
+  s_142288e0c63285::t_44265643380675 583-584,693-736
+tests/protocol_spec.lua
+  s_142288e0c63285::t_bb2b4df8f38fbd 11,662-663,941-973
+tests/roster_sync_spec.lua
+  s_142288e0c63285::t_12f5ae70bec9af 81,83
+tests/ui_smoke_spec.lua
+  s_142288e0c63285::t_b26c3dc85d2809 3544-3548
+tests/view_model_groups_spec.lua
+  s_142288e0c63285::t_b24c23c9a1280f 13,94-100,182,184-211,216,221-227
+tools/make_icons.py
+  s_142288e0c63285::t_ec76f194aeb932 192-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "46c5911687d92e5437f30a2a661c6e81c78149eb",
+  "prompts": {},
+  "sessions": {
+    "s_142288e0c63285": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d00accdd-14cd-4042-8b5e-c5c2deee2496",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
