@@ -7,8 +7,35 @@ local WorldMapToggles = {}
 
 local L = ns.L
 
-local SIZE = 22
-local GAP = 4
+local SIZE = 32
+local GAP = 6
+local INSET = 12
+local RING_WIDTH = 2
+-- The glyph fills this share of the disc, leaving the ring and some air around it.
+local GLYPH_SHARE = 0.55
+-- The addon's own anti-aliased disc (the kit's "disc" icon), the same technique as the map pins: a tinted disc with
+-- a smaller solid disc over it leaves a clean round ring, with no mask texture to keep in step.
+local DISC_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\disc"
+
+WorldMapToggles.SIZE = SIZE
+
+-- Where a button sits on the right edge of the map canvas: { point, relPoint, x, y } for SetPoint, or nil for an
+-- unknown button. Guild is above Enemies and the pair is centred on the edge, a little inward from it.
+function WorldMapToggles.Layout(which)
+  local step = (SIZE + GAP) / 2
+  local y = (which == "guild" and step) or (which == "enemies" and -step)
+  if not y then
+    return nil
+  end
+  return { point = "RIGHT", relPoint = "RIGHT", x = -INSET, y = y }
+end
+
+-- Theme tokens of a button: the ring and the glyph are lit when on and muted when off; the fill behind the glyph is
+-- always the same opaque colour, so the button reads over any map texture.
+function WorldMapToggles.Look(on)
+  local token = on and "accent" or "muted"
+  return { ring = token, glyph = token, fill = "controlSolid" }
+end
 
 -- What both buttons show. args = { guild (the guildmates are shown), enemies (the Intel pins are shown) }. Returns
 -- { guild = button, enemies = button }, each { on, label, icon, color, tooltip = { title, text } }. The colour is the
@@ -75,6 +102,19 @@ local function environment()
   }
 end
 
+local function tint(texture, token, alpha)
+  texture:SetVertexColor(ns.Kit.Theme.Color(token, alpha))
+end
+
+-- Draws one button from its state: the ring, the glyph and the tooltip text.
+local function dress(widget, look, on)
+  local colors = WorldMapToggles.Look(on)
+  tint(widget.ring, colors.ring)
+  tint(widget.fill, colors.fill)
+  ns.Kit.Icons.Apply(widget.glyph, look.icon, colors.glyph)
+  widget.tooltip = look.tooltip[1] .. "\n" .. look.tooltip[2]
+end
+
 -- Draws both buttons again from the settings.
 function WorldMapToggles.Refresh()
   if not (buttons and ns.db) then
@@ -83,47 +123,66 @@ function WorldMapToggles.Refresh()
   local env = environment()
   local state = WorldMapToggles.State({ guild = env.position.worldmap, enemies = env.intel.worldmapPins })
   for which, widget in pairs(buttons) do
-    local look = state[which]
-    widget.opts.icon = look.icon
-    widget.opts.color = look.color
-    widget.opts.tooltip = look.tooltip[1] .. "\n" .. look.tooltip[2]
-    widget:refresh()
+    dress(widget, state[which], state[which].on)
   end
+end
+
+local function buildButton(parent, which)
+  local frame = CreateFrame("Button", nil, parent)
+  frame:SetSize(SIZE, SIZE)
+  frame:RegisterForClicks("LeftButtonUp")
+  local widget = { frame = frame }
+  widget.ring = frame:CreateTexture(nil, "BACKGROUND")
+  widget.ring:SetAllPoints(frame)
+  widget.ring:SetTexture(DISC_TEXTURE)
+  widget.fill = frame:CreateTexture(nil, "BORDER")
+  widget.fill:SetPoint("TOPLEFT", frame, "TOPLEFT", RING_WIDTH, -RING_WIDTH)
+  widget.fill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -RING_WIDTH, RING_WIDTH)
+  widget.fill:SetTexture(DISC_TEXTURE)
+  widget.glyph = frame:CreateTexture(nil, "ARTWORK")
+  widget.glyph:SetPoint("CENTER")
+  widget.glyph:SetSize(math.floor(SIZE * GLYPH_SHARE), math.floor(SIZE * GLYPH_SHARE))
+  widget.highlight = frame:CreateTexture(nil, "HIGHLIGHT")
+  widget.highlight:SetAllPoints(frame)
+  widget.highlight:SetTexture(DISC_TEXTURE)
+  widget.highlight:SetVertexColor(1, 1, 1, 0.15)
+  frame:SetScript("OnEnter", function()
+    if widget.tooltip and GameTooltip then
+      -- The buttons hug the right edge of the map, so the tooltip opens to the left, over the map.
+      GameTooltip:SetOwner(frame, "ANCHOR_LEFT")
+      GameTooltip:SetText(widget.tooltip)
+      GameTooltip:Show()
+    end
+  end)
+  frame:SetScript("OnLeave", function()
+    if GameTooltip then
+      GameTooltip:Hide()
+    end
+  end)
+  frame:SetScript("OnClick", function()
+    if ns.active and ns.db then
+      WorldMapToggles.Toggle(which, environment())
+      WorldMapToggles.Refresh()
+    end
+  end)
+  local place = WorldMapToggles.Layout(which)
+  frame:ClearAllPoints()
+  frame:SetPoint(place.point, parent, place.relPoint, place.x, place.y)
+  frame:SetFrameLevel(parent:GetFrameLevel() + 10)
+  return widget
 end
 
 local function build(parent)
   buttons = {}
-  local previous
-  for _, which in ipairs({ "enemies", "guild" }) do
-    local widget = ns.Kit.IconButton(parent, {
-      icon = which == "guild" and "users" or "swords",
-      size = SIZE,
-      variant = "secondary",
-      onClick = function()
-        if ns.active and ns.db then
-          WorldMapToggles.Toggle(which, environment())
-          WorldMapToggles.Refresh()
-        end
-      end,
-    })
-    widget:Layout(SIZE)
-    widget.frame:ClearAllPoints()
-    if previous then
-      widget.frame:SetPoint("RIGHT", previous, "LEFT", -GAP, 0)
-    else
-      -- Inside the map canvas, a little in from the top right, clear of the Blizzard controls on the title bar.
-      widget.frame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12, -12)
-    end
-    widget.frame:SetFrameLevel(parent:GetFrameLevel() + 10)
-    previous = widget.frame
-    buttons[which] = widget
+  for _, which in ipairs({ "guild", "enemies" }) do
+    buttons[which] = buildButton(parent, which)
   end
 end
 
 -- Builds the buttons on the world map and keeps them in step with the settings. Does nothing, and never raises,
 -- when the world map or the kit is missing. Runs once.
 function WorldMapToggles.Start()
-  if buttons or not (WorldMapFrame and ns.Kit and ns.Kit.IconButton) then
+  if buttons or not (WorldMapFrame and ns.Kit and ns.Kit.Icons and ns.Kit.Theme) then
     return
   end
   local parent = WorldMapFrame.ScrollContainer or WorldMapFrame
@@ -142,7 +201,8 @@ function WorldMapToggles.Start()
   WorldMapToggles.Refresh()
 end
 
--- The kit widgets keyed "guild" and "enemies", or nil before they were made (for the tests).
+-- The button tables ({ frame, ring, fill, glyph, highlight }) keyed "guild" and "enemies", or nil before they were
+-- made (for the tests).
 function WorldMapToggles.Widgets()
   return buttons
 end
