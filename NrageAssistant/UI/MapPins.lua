@@ -4,24 +4,31 @@ local _, ns = ...
 -- HereBeDragons: it places a pooled pin frame per pin through the library's icon calls, and does nothing when the
 -- library is missing. The enemy pins (docs/PVP_INTEL_PLAN.md section 3.4) have a pool and a library key of their own,
 -- so redrawing one set never removes the other.
--- A pin is a round class icon inside a ring: the ring carries the signal (the class colour, red for an enemy, grey when
--- the pin is on another layer) and the pin is always fully opaque, so it stays readable over any map.
+-- A pin is a class icon inside a diamond: the diamond keeps it apart from the round pins Blizzard draws for the party
+-- and the raid, and its border carries the signal (the class colour, red for an enemy, grey when the pin is on another
+-- layer). An enemy pin also wears a swords badge. The pin is always fully opaque, so it stays readable over any map.
 -- The decisions (pooling, which maps, coalescing) are apart from the frames so they can be tested with fakes; the
 -- frames themselves (BuildPin) are client-only.
 local MapPins = {}
 
 local L = ns.L
 
-local MINIMAP_SIZE, WORLDMAP_SIZE = 12, 14
+-- A diamond shows about half of its square, so the pins are a little bigger than a round pin would be.
+local MINIMAP_SIZE, WORLDMAP_SIZE = 15, 18
 local CLASS_TEXTURE = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
 local DOT_TEXTURE = "Interface\\Buttons\\WHITE8X8"
--- The ring is the addon's own anti-aliased disc (the kit's "disc" icon) tinted at runtime: a solid disc behind a
--- smaller masked icon leaves a clean round ring, with no second mask to keep in step.
-local RING_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\disc"
-local MASK_TEXTURE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+-- The border is the addon's own anti-aliased diamond tinted at runtime, and the same diamond masks the smaller icon on
+-- top of it, which leaves a clean diamond-shaped border.
+local ICONS = "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\"
+local RING_TEXTURE = ICONS .. "pin-diamond"
+local MASK_TEXTURE = RING_TEXTURE
+local BADGE_TEXTURE = ICONS .. "role-dps"
+local BADGE_BACK_TEXTURE = ICONS .. "disc"
+local BADGE_SHARE = 0.6
 -- How much of each side of a class cell is cut away, so the square frame baked into the atlas does not show.
 local CROP = 0.08
-local RING_WIDTH = 2
+-- Measured on the square; across the slanted edges the border is about 0.7 of this.
+local RING_WIDTH = 3
 local GREY = { 0.5, 0.5, 0.5 }
 local GREEN = { 0.3, 1, 0.3 }
 local RED = { 1, 0.35, 0.35 }
@@ -91,8 +98,8 @@ local function setRing(frame, color)
   frame.border:SetVertexColor(color[1], color[2], color[3], 1)
 end
 
--- Dresses a pin frame for `pin`: the round class icon (or a round grey dot when the class is unknown) inside a ring in
--- the class colour, and a grey ring when the member is on another layer. The pin is never transparent.
+-- Dresses a pin frame for `pin`: the class icon (or a grey diamond when the class is unknown) inside a diamond border
+-- in the class colour, and a grey border when the member is on another layer. The pin is never transparent.
 function MapPins.DressPin(frame, pin)
   frame.pin = pin
   local coords = pin.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[pin.class]
@@ -112,12 +119,16 @@ function MapPins.DressPin(frame, pin)
   frame:SetAlpha(1)
 end
 
--- Dresses a pin frame for an enemy: the class icon in a red ring (grey when the reporter is on another layer), and a
--- mark when the enemy is on a Kill on Sight list.
+-- Dresses a pin frame for an enemy: the class icon in a red diamond with a red swords badge (both grey when the
+-- reporter is on another layer), and a mark when the enemy is on a Kill on Sight list.
 function MapPins.DressEnemyPin(frame, pin)
   MapPins.DressPin(frame, pin)
   frame.enemy = true
-  setRing(frame, pin.sameLayer == false and GREY or RED)
+  local color = pin.sameLayer == false and GREY or RED
+  setRing(frame, color)
+  if frame.badge then
+    frame.badge:SetVertexColor(color[1], color[2], color[3], 1)
+  end
   if frame.mark then
     frame.mark:SetText(pin.kos and "!" or "")
   end
@@ -139,7 +150,7 @@ local function showTooltip(frame)
   GameTooltip:Show()
 end
 
--- A new pin frame of `kind` ("minimap" or "worldmap"): a ring disc with the round icon inside. Client only.
+-- A new pin frame of `kind` ("minimap" or "worldmap"): a diamond with the diamond-masked icon inside. Client only.
 function MapPins.BuildPin(kind)
   local size = kind == "minimap" and MINIMAP_SIZE or WORLDMAP_SIZE
   local frame = CreateFrame("Frame", nil, UIParent)
@@ -167,9 +178,20 @@ function MapPins.BuildPin(kind)
   return frame
 end
 
--- A new enemy pin frame: a pin with a mark for the Kill on Sight players. Client only.
+-- A new enemy pin frame: a pin with a swords badge on its bottom-right corner, on a dark disc so it reads over any map,
+-- and a mark for the Kill on Sight players. The badge sits in the empty corner of the diamond's square. Client only.
 function MapPins.BuildEnemyPin(kind)
   local frame = MapPins.BuildPin(kind)
+  local badge = math.floor(frame:GetWidth() * BADGE_SHARE)
+  frame.badgeBack = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+  frame.badgeBack:SetTexture(BADGE_BACK_TEXTURE)
+  frame.badgeBack:SetVertexColor(0, 0, 0, 0.85)
+  frame.badgeBack:SetSize(badge, badge)
+  frame.badgeBack:SetPoint("CENTER", frame, "BOTTOMRIGHT", -2, 2)
+  frame.badge = frame:CreateTexture(nil, "OVERLAY", nil, 2)
+  frame.badge:SetTexture(BADGE_TEXTURE)
+  frame.badge:SetSize(badge - 2, badge - 2)
+  frame.badge:SetPoint("CENTER", frame.badgeBack, "CENTER")
   frame.mark = frame:CreateFontString(nil, "OVERLAY")
   frame.mark:SetFontObject(ns.Kit.Theme.StyleFont("smallMedium"))
   frame.mark:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 3, -3)

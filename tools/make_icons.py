@@ -189,6 +189,9 @@ ICONS = {
     "hex": [Polygon(*_hex(16, 16, 14))],
     "hex-outline": [Line(*_hex(16, 16, 13.5), closed=True)],
     "diamond": [Polygon(16, 3, 29, 16, 16, 29, 3, 16)],
+    # The map pins of the guild map and the PvP intel: a diamond that fills the whole tile, so it never reads as the
+    # round pin of a party member. It is both the tinted border and the mask of the class icon.
+    "pin-diamond": [Polygon(16, 0.5, 31.5, 16, 16, 31.5, 0.5, 16)],
     # Bold role marks, legible at badge size (about 10 pixels) on top of a class icon.
     "role-tank": [Polygon(5, 4, 27, 4, 27, 15, 16, 29, 5, 15)],
     "role-heal": [Line(16, 4, 16, 28, width=8), Line(4, 16, 28, 16, width=8)],
