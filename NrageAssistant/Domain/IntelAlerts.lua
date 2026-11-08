@@ -59,11 +59,20 @@ local function call(fn, ...)
   return ok and value or nil
 end
 
--- "Name (level 60) <Guild>", from a name, a level and a guild that were already read as plain text.
+-- "Name (Mage, level 60) <Guild>", from a name, a class token, a level and a guild that were already read as plain
+-- text. A class or a level that is not known is left out.
 local function describe(info)
   local text = info.name
+  local parts = {}
+  local className = ns.IntelModel.ClassName(info.class)
+  if className then
+    parts[#parts + 1] = className
+  end
   if type(info.level) == "number" and info.level > 0 then
-    text = text .. " (" .. L("level %d"):format(info.level) .. (info.levelEstimated and "?" or "") .. ")"
+    parts[#parts + 1] = L("level %d"):format(info.level) .. (info.levelEstimated and "?" or "")
+  end
+  if #parts > 0 then
+    text = text .. " (" .. table.concat(parts, ", ") .. ")"
   end
   local guild = ns.IntelModel.Plain(info.guild)
   if guild then
@@ -95,9 +104,10 @@ local function kosGuilds(self)
   return self.guildSet
 end
 
--- The alert an enemy read now calls for, without delivering it: { kind, key, name, text, sound, announce } where
--- `sound` is the kind when sounds are on and `announce` the channel of the automatic announcement, or nil. `result`
--- is what IntelService:OnSeen returned and `details` what the reader gave. Nil when nothing applies.
+-- The alert an enemy read now calls for, without delivering it: { kind, key, name, class, text, sound, announce } where
+-- `class` is the class token when it is a known class (the window tints its name), `sound` is the kind when sounds
+-- are on and `announce` the channel of the automatic announcement, or nil. `result` is what IntelService:OnSeen
+-- returned and `details` what the reader gave. Nil when nothing applies.
 function IntelAlerts:Decide(result, details)
   if type(result) ~= "table" or type(details) ~= "table" or result.ignored then
     return nil
@@ -120,6 +130,7 @@ function IntelAlerts:Decide(result, details)
   end
   local info = {
     name = result.record.name,
+    class = details.class,
     level = details.level,
     levelEstimated = details.levelEstimated,
     guild = details.guild,
@@ -128,6 +139,7 @@ function IntelAlerts:Decide(result, details)
     kind = kind,
     key = result.key,
     name = info.name,
+    class = ns.IntelModel.ClassName(details.class) and details.class or nil,
     text = textFor(kind, info),
     sound = settings.sound and kind or nil,
     announce = settings.announce ~= "none" and settings.announce or nil,
@@ -285,6 +297,7 @@ function IntelAlerts:OnContact(result, details)
   if delivered or result.isNew then
     autoAnnounce(self, result.key, {
       name = result.record.name,
+      class = details.class,
       level = details.level,
       levelEstimated = details.levelEstimated,
       guild = details.guild,
@@ -318,7 +331,11 @@ function IntelAlerts:OnReport(entry)
     kind = "kos",
     key = key,
     name = name,
-    text = L("%s reports Kill on Sight: %s"):format(source, describe({ name = name, level = entry.level })),
+    class = ns.IntelModel.ClassName(entry.class) and entry.class or nil,
+    text = L("%s reports Kill on Sight: %s"):format(
+      source,
+      describe({ name = name, class = entry.class, level = entry.level })
+    ),
     sound = settings.sound and "kos" or nil,
   }
   self:Deliver(alert)
@@ -336,7 +353,8 @@ function IntelAlerts:AnnounceNow(name, channel)
   local record = self.deps.service:Player(clean)
   local info = { name = clean }
   if record then
-    info.level, info.levelEstimated, info.guild = record.level, record.levelEstimated, record.guild
+    info.class, info.level, info.levelEstimated, info.guild =
+      record.class, record.level, record.levelEstimated, record.guild
   end
   return announceTo(self, info, channel)
 end

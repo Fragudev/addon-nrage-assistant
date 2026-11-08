@@ -844,9 +844,23 @@ local function buildWarning()
   warning:Hide()
 end
 
--- Shows `text` in the movable warning for a few seconds, tinted by the kind of the alert. Returns false when the
--- warning cannot be shown (the caller then falls back to the error area at the top of the screen).
-function IntelWindow.Warn(text, kind)
+-- `text` escaped, with the first "(<class name>" written in the colour of the class token `class`.
+local function warningText(text, class)
+  local escaped = ns.ViewModel.Escape(text)
+  local name = ns.IntelModel.ClassName(class)
+  local hex = ns.Kit.Theme.ClassHex(class)
+  local at = name and hex and escaped:find("(" .. name, 1, true)
+  if not at then
+    return escaped
+  end
+  local from, to = at + 1, at + #name
+  return escaped:sub(1, from - 1) .. "|cff" .. hex .. escaped:sub(from, to) .. "|r" .. escaped:sub(to + 1)
+end
+
+-- Shows `text` in the movable warning for a few seconds, tinted by the kind of the alert, with the name of the class
+-- token `class` (optional) in the class colour. Returns false when the warning cannot be shown (the caller then falls
+-- back to the error area at the top of the screen).
+function IntelWindow.Warn(text, kind, class)
   if type(text) ~= "string" or not (ns.db and ns.Kit) then
     return false
   end
@@ -857,7 +871,7 @@ function IntelWindow.Warn(text, kind)
     local token = ns.ViewModel.IntelWarnColor(kind)
     warning.shape.border:SetColor(token)
     ns.Kit.SetTextColor(warning.text, token)
-    warning.text:SetText(ns.ViewModel.Escape(text))
+    warning.text:SetText(warningText(text, class))
     warning:Show()
   end)
   if not ok then

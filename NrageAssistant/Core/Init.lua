@@ -855,7 +855,7 @@ local function StartIntel()
     mapId = platform.GetPlayerMapId,
     window = function(text, alert)
       if ns.IntelWindow and ns.IntelWindow.Warn then
-        return ns.IntelWindow.Warn(text, alert.kind) ~= false
+        return ns.IntelWindow.Warn(text, alert.kind, alert.class) ~= false
       end
       return false
     end,

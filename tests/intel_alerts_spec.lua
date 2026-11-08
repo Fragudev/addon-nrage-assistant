@@ -72,7 +72,7 @@ local function build(overrides)
       return env.map
     end,
     window = function(text, alert)
-      env.windows[#env.windows + 1] = { text = text, kind = alert.kind }
+      env.windows[#env.windows + 1] = { text = text, kind = alert.kind, class = alert.class }
       return env.window
     end,
     errorText = function(text)
@@ -133,7 +133,7 @@ describe("IntelAlerts:Decide", function()
     assert.are.equal("kos", alert.kind)
     assert.are.equal("kos", alert.sound)
     assert.is_nil(alert.announce)
-    assert.are.equal("Kill on Sight: Bob (level 60) <Evil>", alert.text)
+    assert.are.equal("Kill on Sight: Bob (Rogue, level 60) <Evil>", alert.text)
     env.guildKos.eve = { name = "Eve" }
     assert.are.equal("kos", decide({ name = "Eve" }).kind)
   end)
@@ -200,7 +200,21 @@ describe("IntelAlerts:Decide", function()
   it("marks an estimated level and drops pipes from a guild name", function()
     env.service:AddKos({ name = "Bob" })
     local alert = decide({ level = 70, levelEstimated = true, guild = "Ev|il" })
-    assert.are.equal("Kill on Sight: Bob (level 70?) <Evil>", alert.text)
+    assert.are.equal("Kill on Sight: Bob (Rogue, level 70?) <Evil>", alert.text)
+    assert.are.equal("ROGUE", alert.class)
+  end)
+
+  it("names the class and the level when they are known, and leaves out what is not", function()
+    env.service:AddKos({ name = "Bob" })
+    assert.are.equal("Kill on Sight: Bob (Rogue, level 60) <Evil>", decide().text)
+    env.service:AddKos({ name = "Cid" })
+    assert.are.equal("Kill on Sight: Cid (level 60) <Evil>", decide({ name = "Cid", class = false }).text)
+    env.service:AddKos({ name = "Dan" })
+    assert.are.equal("Kill on Sight: Dan (Mage) <Evil>", decide({ name = "Dan", class = "MAGE", level = false }).text)
+    env.service:AddKos({ name = "Eli" })
+    local alert = decide({ name = "Eli", class = "NOTACLASS", level = false, guild = false })
+    assert.are.equal("Kill on Sight: Eli", alert.text)
+    assert.is_nil(alert.class)
   end)
 
   it("looks the Kill On Sight guilds up again only after a few seconds", function()
@@ -224,7 +238,7 @@ describe("IntelAlerts:OnContact", function()
   it("shows the warning in the window, plays the sound and counts it", function()
     local alert = contact(env)
     assert.are.equal("kos", alert.kind)
-    assert.are.same({ { text = alert.text, kind = "kos" } }, env.windows)
+    assert.are.same({ { text = alert.text, kind = "kos", class = "ROGUE" } }, env.windows)
     assert.are.same({}, env.errors)
     assert.are.same({ "kos" }, env.sounds)
     assert.are.equal(1, env.alerts.fired)
@@ -318,6 +332,10 @@ describe("IntelAlerts guild reports", function()
     assert.are.equal("kos", alert.kind)
     assert.are.equal("Ann reports Kill on Sight: Bob (level 60)", alert.text)
     assert.are.same({ "kos" }, env.sounds)
+    env.clock = env.clock + Constants.INTEL_REALERT_SECONDS
+    alert = report({ class = "HUNTER" })
+    assert.are.equal("Ann reports Kill on Sight: Bob (Hunter, level 60)", alert.text)
+    assert.are.equal("HUNTER", alert.class)
   end)
 
   it("shares the cooldown with the own sightings", function()
@@ -361,7 +379,7 @@ describe("IntelAlerts announcements", function()
   it("announces a new enemy to the chosen channel at most once per enemy per window", function()
     env.settings.announce = "guild"
     contact(env)
-    assert.are.same({ { channel = "GUILD", text = "Enemy player nearby: Bob (level 60) <Evil>" } }, env.sent)
+    assert.are.same({ { channel = "GUILD", text = "Enemy player nearby: Bob (Rogue, level 60) <Evil>" } }, env.sent)
     env.clock = env.clock + 10
     env.service:ClearNearby()
     contact(env)
@@ -417,7 +435,7 @@ describe("IntelAlerts announcements", function()
     env.settings.announce = "self"
     contact(env)
     assert.are.same({}, env.sent)
-    assert.are.same({ "Enemy player nearby: Bob (level 60) <Evil>" }, env.said)
+    assert.are.same({ "Enemy player nearby: Bob (Rogue, level 60) <Evil>" }, env.said)
   end)
 
   it("skips party and raid when the player is not in one, and uses the instance chat in a battleground", function()
@@ -459,7 +477,10 @@ describe("IntelAlerts announcements", function()
     contact(env)
     assert.are.same({}, env.sent)
     assert.is_true(env.alerts:AnnounceNow("Bob-Realm", "localdefense"))
-    assert.are.same({ channel = "LOCALDEFENSE", text = "Enemy player nearby: Bob (level 60) <Evil>" }, env.sent[1])
+    assert.are.same(
+      { channel = "LOCALDEFENSE", text = "Enemy player nearby: Bob (Rogue, level 60) <Evil>" },
+      env.sent[1]
+    )
     assert.is_true(env.alerts:AnnounceNow("Stranger", "guild"))
     assert.are.equal("Enemy player nearby: Stranger", env.sent[2].text)
   end)
