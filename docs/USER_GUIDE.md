@@ -736,6 +736,10 @@ never; 5 minutes by default).
 - In combat the rows keep their places. A player who leaves stays greyed out, and a newcomer can be targeted only
   after combat.
 
+Automatic announcements (the *Announce* setting) are capped at 3 per minute across all enemies, on top of the
+once-per-enemy-every-5-minutes rule, so a big world PvP fight cannot flood chat and disconnect you. Skipped ones can be
+announced later. The *only me* option and manual announcements are not capped.
+
 ### Kill on Sight
 
 There are two lists:
