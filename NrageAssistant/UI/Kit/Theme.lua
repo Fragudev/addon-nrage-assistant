@@ -168,6 +168,12 @@ function Theme.ClassColor(token)
   return value and hex(value) or nil
 end
 
+-- "rrggbb" of a class token, for colour codes in text, or nil when it is not a known class.
+function Theme.ClassHex(token)
+  local value = CLASS_COLORS[token]
+  return value and value:lower() or nil
+end
+
 -- Item quality (0 poor .. 5 legendary) -> color, as the game shows it.
 local QUALITY_COLORS = { [0] = "9D9D9D", "FFFFFF", "1EFF00", "0070DD", "A335EE", "FF8000" }
 

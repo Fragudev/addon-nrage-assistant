@@ -931,6 +931,13 @@ describe("IntelWindow on fake frames", function()
       assert.is_false(warning:IsShown())
     end)
 
+    it("tints the class name with the class colour and escapes the rest", function()
+      IntelWindow.Warn("Kill on Sight: Mage|x (Mage, level 60) <G>", "kos", "MAGE")
+      assert.are.equal("Kill on Sight: Mage||x (|cff3fc7ebMage|r, level 60) <G>", IntelWindow.WarningFrame().text.text)
+      IntelWindow.Warn("Kill on Sight: Ann (level 60)", "kos", "NOTACLASS")
+      assert.are.equal("Kill on Sight: Ann (level 60)", IntelWindow.WarningFrame().text.text)
+    end)
+
     it("lets the last warning keep the frame", function()
       IntelWindow.Warn("one", "new")
       IntelWindow.Warn("two", "stealth")

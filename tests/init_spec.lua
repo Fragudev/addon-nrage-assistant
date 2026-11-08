@@ -741,15 +741,15 @@ describe("Init", function()
       -- With the window there, the warning goes to it.
       local warned = {}
       env.ns.IntelWindow = {
-        Warn = function(text, kind)
-          warned[#warned + 1] = kind .. ":" .. text
+        Warn = function(text, kind, class)
+          warned[#warned + 1] = kind .. ":" .. text .. ":" .. tostring(class)
         end,
       }
       env.ns.intel:AddKos({ name = "Tom" })
-      env.units.nameplate2 = { name = "Tom", faction = "Horde" }
+      env.units.nameplate2 = { name = "Tom", faction = "Horde", class = "WARLOCK" }
       intelFrame.OnEvent(intelFrame, "NAME_PLATE_UNIT_ADDED", "nameplate2")
       env.ns.IntelWindow = nil
-      assert.are.same({ "kos:Kill on Sight: Tom" }, warned)
+      assert.are.same({ "kos:Kill on Sight: Tom (Warlock):WARLOCK" }, warned)
       assert.are.equal(1, #shown)
     end)
 
