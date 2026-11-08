@@ -1,0 +1,19 @@
+release-notes/v1.8.2.md
+  s_1a736b533b3f82::t_94b1173d99aada 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e01f9f1c06f929d197088bae785a109c5c46a055",
+  "prompts": {},
+  "sessions": {
+    "s_1a736b533b3f82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c362f3a9-eddf-4a99-a86b-a64a8e8259e5",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
