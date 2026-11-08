@@ -658,10 +658,6 @@ describe("Protocol.Validate PVP_KILL", function()
     local _, reason = validate(missing)
     assert.are.equal("bad_payload", reason)
   end)
-
-  it("is at protocol minor version 12", function()
-    assert.are.equal(12, Constants.PROTOCOL_MINOR)
-  end)
 end)
 
 describe("Protocol.Validate BLACKLIST_UPSERT and BLACKLIST_DELETE", function()

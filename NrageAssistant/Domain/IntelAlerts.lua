@@ -40,6 +40,7 @@ function IntelAlerts.New(deps)
     deps = deps,
     alerted = {},
     announced = {},
+    sizes = { alerted = 0, announced = 0 },
     sentAt = {},
     guildSet = nil,
     guildSetAt = nil,
@@ -146,6 +147,24 @@ function IntelAlerts:Decide(result, details)
   }
 end
 
+-- Stores `now` under `id` in the cooldown table `name` ("alerted" or "announced"), whose entries last `seconds`. The
+-- size is counted as entries come and go, and the expired ones are cleared only once the table holds COOLDOWN_MAX.
+local function remember(self, name, id, now, seconds)
+  local tbl = self[name]
+  if tbl[id] == nil then
+    if self.sizes[name] >= COOLDOWN_MAX then
+      for old, at in pairs(tbl) do
+        if now - at >= seconds then
+          tbl[old] = nil
+          self.sizes[name] = self.sizes[name] - 1
+        end
+      end
+    end
+    self.sizes[name] = self.sizes[name] + 1
+  end
+  tbl[id] = now
+end
+
 -- Is this (kind, key) still inside its cooldown? Marks it as alerted when not.
 local function cooling(self, kind, key)
   local now = self.deps.now()
@@ -154,18 +173,7 @@ local function cooling(self, kind, key)
   if last and now - last < ns.Constants.INTEL_REALERT_SECONDS then
     return true
   end
-  local count = 0
-  for _ in pairs(self.alerted) do
-    count = count + 1
-  end
-  if count >= COOLDOWN_MAX then
-    for old, at in pairs(self.alerted) do
-      if now - at >= ns.Constants.INTEL_REALERT_SECONDS then
-        self.alerted[old] = nil
-      end
-    end
-  end
-  self.alerted[id] = now
+  remember(self, "alerted", id, now, ns.Constants.INTEL_REALERT_SECONDS)
   return false
 end
 
@@ -264,18 +272,7 @@ local function autoAnnounce(self, key, info)
   if toChat then
     self.sentAt[#self.sentAt + 1] = now
   end
-  local count = 0
-  for _ in pairs(self.announced) do
-    count = count + 1
-  end
-  if count >= COOLDOWN_MAX then
-    for old, at in pairs(self.announced) do
-      if now - at >= ns.Constants.INTEL_ANNOUNCE_SECONDS then
-        self.announced[old] = nil
-      end
-    end
-  end
-  self.announced[key] = now
+  remember(self, "announced", key, now, ns.Constants.INTEL_ANNOUNCE_SECONDS)
   self.announcedCount = self.announcedCount + 1
   return true
 end

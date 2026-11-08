@@ -134,17 +134,30 @@ describe("IntelService:OnSeen", function()
     assert.are.equal("personal", env.service:OnSeen(bob(), {}).kos)
   end)
 
-  it("removes the record seen longest ago when the list is full", function()
+  it("removes the oldest records in one batch when the list is full", function()
     local limit = Constants.INTEL_PLAYERS_MAX
+    local batch = math.floor(limit * 0.05)
     for index = 1, limit do
       env.intel.players["p" .. index] = { name = "P" .. index, lastSeen = 100 + index, wins = 0, losses = 0 }
     end
     env = build({ intel = env.intel })
     env.service:OnSeen(bob(), {})
     assert.is_nil(env.intel.players.p1)
-    assert.is_table(env.intel.players.p2)
+    assert.is_nil(env.intel.players["p" .. batch])
+    assert.is_table(env.intel.players["p" .. (batch + 1)])
     assert.is_table(env.intel.players.bob)
-    assert.are.equal(limit, env.service:Counts().players)
+    assert.are.equal(limit - batch + 1, env.service:Counts().players)
+  end)
+
+  it("replaces a damaged saved record instead of raising", function()
+    env.intel.players.bob = { name = "Bob", lastSeen = 1, wins = 0, losses = 0 }
+    env.intel.players.eve = "damaged"
+    env = build({ intel = env.intel })
+    local result = env.service:OnSeen(bob(), {})
+    assert.are.equal(1, result.record.seen)
+    assert.is_truthy(env.service:OnSeen({ name = "Eve" }, {}))
+    assert.are.equal("Eve", env.intel.players.eve.name)
+    assert.are.equal(2, env.service:Counts().players)
   end)
 
   it("stops counting new maps when the zone list is full", function()

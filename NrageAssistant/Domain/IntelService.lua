@@ -94,22 +94,31 @@ function IntelService:IsIgnored(name)
   return key ~= nil and self.intel.ignore[key] ~= nil
 end
 
--- Makes room for one more player record: the one seen longest ago goes.
+-- Makes room for one more player record. When the list is full, the PLAYER_EVICT_SHARE oldest records (by lastSeen)
+-- go in one pass, so the full scan runs once per batch of new enemies instead of once per new enemy.
+local PLAYER_EVICT_SHARE = 0.05
+
 function IntelService:MakePlayerRoom()
-  if self.playerCount < ns.Constants.INTEL_PLAYERS_MAX then
+  local max = ns.Constants.INTEL_PLAYERS_MAX
+  if self.playerCount < max then
     return
   end
-  local oldestKey, oldestAt
+  local list = {}
   for key, record in pairs(self.intel.players) do
-    local at = type(record) == "table" and record.lastSeen or 0
-    if not oldestAt or at < oldestAt or (at == oldestAt and key < oldestKey) then
-      oldestKey, oldestAt = key, at
+    list[#list + 1] =
+      { key = key, at = type(record) == "table" and type(record.lastSeen) == "number" and record.lastSeen or 0 }
+  end
+  table.sort(list, function(a, b)
+    if a.at ~= b.at then
+      return a.at < b.at
     end
+    return a.key < b.key
+  end)
+  local evict = math.max(1, math.floor(max * PLAYER_EVICT_SHARE))
+  for index = 1, math.min(evict, #list) do
+    self.intel.players[list[index].key] = nil
   end
-  if oldestKey then
-    self.intel.players[oldestKey] = nil
-    self.playerCount = self.playerCount - 1
-  end
+  self.playerCount = #list - math.min(evict, #list)
 end
 
 -- Counts one contact on a map. A map that is new when the list is full is not counted.
@@ -161,11 +170,14 @@ function IntelService:OnSeen(details, where)
 
   local players = self.intel.players
   local record = players[key]
-  if not record then
-    self:MakePlayerRoom()
+  -- A damaged saved record is replaced, like Touch does: the counters below must be numbers.
+  if not (usable(record) and type(record.seen) == "number") then
+    if record == nil then
+      self:MakePlayerRoom()
+      self.playerCount = self.playerCount + 1
+    end
     record = { firstSeen = wall, seen = 0, wins = 0, losses = 0 }
     players[key] = record
-    self.playerCount = self.playerCount + 1
   end
   updateRecord(record, details, name)
   record.lastSeen = wall

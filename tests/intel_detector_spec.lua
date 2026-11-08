@@ -329,4 +329,27 @@ describe("IntelDetector:OnDeath", function()
     env.units.target = "raise"
     assert.are.same({ nil, "unknown" }, { env.detector:OnDeath(nil) })
   end)
+
+  it("records nothing where detection is off", function()
+    env.units.target = enemy("Bob")
+    env.detector:OnUnit("target")
+    env.allowed = false
+    assert.are.same({ nil, "sanctuary" }, { env.detector:OnDeath("Bob") })
+    assert.are.equal(0, env.intel.players.bob.losses)
+    assert.are.equal(0, env.detector.lossSources.recap)
+  end)
+end)
+
+describe("IntelDetector:Rescan targeting memory", function()
+  it("forgets the enemies that targeted the player longer ago than the fallback looks", function()
+    local env = build()
+    env.targeting.nameplate1 = true
+    env.units.nameplate1 = enemy("Old")
+    env.detector:OnUnit("nameplate1")
+    assert.is_table(env.detector.targeting.old)
+    env.units.nameplate1, env.targeting.nameplate1 = nil, nil
+    env.clock = env.clock + Constants.INTEL_LOSS_FALLBACK_SECONDS + 1
+    env.detector:Rescan()
+    assert.is_nil(env.detector.targeting.old)
+  end)
 end)

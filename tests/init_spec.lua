@@ -506,7 +506,7 @@ describe("Init", function()
 
       env.ns.guildRoster = {
         Lookup = function()
-          return { rankName = "Miembro", rankIndex = 5 }
+          return { rankName = "Soldado", rankIndex = 5 }
         end,
       }
       assert.is_true(env.ns.intelSync:Handle("I1:1411:1:2:0:0:0:0:Eve", "GUILD", "Ann"))
@@ -591,6 +591,10 @@ describe("Init", function()
       assert.are.equal("Fay", env.ns.IntelNearby()[1].name)
       assert.are.equal(1411, env.ns.IntelNearby()[1].map)
       assert.is_true(hook.settings().minimapTooltip)
+      -- Where detection is off, the tooltip records nothing either.
+      env.ns.db.global.settings.intel.enabled = false
+      hook.feed({ name = "Gus", class = "MAGE" })
+      assert.is_nil(env.ns.intel:Player("Gus"))
     end)
 
     it("tells the player once that sharing the sightings is on, and only when Intel is running", function()

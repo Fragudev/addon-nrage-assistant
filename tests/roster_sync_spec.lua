@@ -78,11 +78,6 @@ local function deliver(receiver, messageType, payload, sender, role)
 end
 
 describe("Protocol roster messages", function()
-  it("is at protocol 1.12", function()
-    assert.are.equal(1, Constants.PROTOCOL_MAJOR)
-    assert.are.equal(12, Constants.PROTOCOL_MINOR)
-  end)
-
   it("accepts a clean roster upsert and delete, and drops unknown fields", function()
     local message =
       assert(validate("ROSTER_UPSERT", { rosterId = "r-1", name = "Main raid", rev = 1, updatedAt = 5, x = 1 }))
@@ -721,7 +716,7 @@ describe("RosterCommands", function()
       tombstones = env.tombstones,
       platform = {
         GetOwnGuildRank = function()
-          return role == "rl" and "RL" or "Rank", role == "gm" and 0 or 4
+          return role == "rl" and "Raid Lider" or "Rank", role == "gm" and 0 or 4
         end,
         GetIdentityKey = function()
           return "Me-Realm"

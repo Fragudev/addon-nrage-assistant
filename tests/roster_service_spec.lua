@@ -305,7 +305,7 @@ describe("RosterService visibility", function()
   it("builds the viewer of the own character", function()
     local platform = {
       GetOwnGuildRank = function()
-        return "RL", 3
+        return "Raid Lider", 3
       end,
       GetIdentityKey = function()
         return "Me-Realm"

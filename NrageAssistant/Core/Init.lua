@@ -244,7 +244,7 @@ local function StartPvP()
         if victim then
           feed:OnHonorKill(victim, tracker:Where())
           -- The same honour kill is a win against that enemy in Intel.
-          if ns.intel then
+          if ns.intel and ns.intelDetector and ns.intelDetector:Allowed() then
             pcall(ns.intel.OnWin, ns.intel, victim)
           end
         end
@@ -1028,8 +1028,11 @@ local function StartIntel()
   pcall(ns.MinimapButton.HookTooltip, {
     service = service,
     settings = settings,
+    -- The same rule as the detector: nothing is recorded where detection is off.
     feed = function(details)
-      service:OnSeen(details, where())
+      if detector:Allowed() then
+        service:OnSeen(details, where())
+      end
     end,
   })
 

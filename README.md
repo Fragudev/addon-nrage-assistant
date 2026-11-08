@@ -2,7 +2,7 @@
 
 <p align="center">
   Guild coordination and raid readiness for <b>Nrage</b> (Alliance, PvP ruleset) on <b>World of Warcraft: Forever</b>:
-  raid events, loot council, PvP seasons, layers, the guild map and groups, in one window.
+  raid events, loot council, PvP seasons, enemy Intel, layers, the guild map and groups, in one window.
 </p>
 
 <p align="center">
@@ -81,8 +81,8 @@ The addon is published on CurseForge, but it only works for Nrage:
 - It **disables itself** for characters outside Nrage (Alliance, PvP ruleset) and does not register its message prefix
   there; the login message says why.
 - Shared data is accepted only from guild members, and edits only from members whose role allows them.
-- Your role is your **guild rank**, matched by name (`GM`, `CoGM`, `Oficial`, `RL`, `Roster`, `Miembro`, `Alter`); the
-  guild master is recognised by rank index 0, never by a name. Roles are changed in the game, not in the addon, and a
+- Your role is your **guild rank**, matched by name (`Emperador`, `Comandante`, `Oficial`, `Raid Lider`, `Raider`,
+  `Soldado`, `Alter`); the guild master is recognised by rank index 0, never by a name. Roles are changed in the game, not in the addon, and a
   rank with any other name counts as Alter.
 
 ## Features
@@ -108,22 +108,28 @@ The addon is published on CurseForge, but it only works for Nrage:
 ### PvP and PvP seasons
 
 - **Kill counter** split into open world and battleground, a guild **kill ranking** and a **recent kills** feed.
-- **Seasons:** missions approved by the GM and CoGM, a points ranking and end-of-season rewards.
+- **Seasons:** missions approved by the Emperador and Comandante, a points ranking and end-of-season rewards.
 
 ### Installed check
 
-- The GM and CoGM see every guild member with whether they run the addon and which version (up to date, outdated,
+- The Emperador and Comandante see every guild member with whether they run the addon and which version (up to date, outdated,
   not installed, never seen), with the last version seen for offline members, and filters by name, status, version
   and online.
+- **Ask online members** makes everyone online answer with their version again, at most once a minute.
 
 ### Intel (enemy players)
 
 - **Nearby enemies** seen through their nameplates in battlegrounds, arenas and world PvP, with level, class, race and
-  guild, in a compact window. Turn enemy nameplates on first: stealthed enemies are not seen.
+  guild, in a compact window you can resize to between 1 and 20 rows. Turn enemy nameplates on first: stealthed
+  enemies are not seen.
+- **Alerts** name the enemy's class and level (`Kill on Sight: Bob (Rogue, level 60) <Evil>`), with the class in its
+  colour in the warning window. Automatic chat announcements are off by default and capped at 3 per minute.
 - **Kill on Sight** lists: your own, never shared, and a **guild list** with a category and reason for each player.
 - **Sightings** shared with the guild, on by default. A sighting shows where you were, so you can turn it off in the
   Intel settings.
-- **Statistics** of the enemies you meet, wins and losses, and **bounties** the GM and CoGM open on guild-listed players.
+- **Statistics** of the enemies you meet, wins and losses, and **bounties** the Emperador and Comandante open on guild-listed players.
+- Enemies on the minimap and the world map as red diamond pins, shown or hidden with the **Enemies** button on the
+  world map.
 - Imports from Spy (Forever) and a session or season report.
 
 ### Guild tools
@@ -131,8 +137,11 @@ The addon is published on CurseForge, but it only works for Nrage:
 - **Professions:** "who can craft this?" with online members first and a one-click whisper.
 - **Blacklist:** a guild-wide list of players to be warned about.
 - **Layers:** your current layer, the layers guildmates have shared, and layer swap requests.
-- **Guild map:** guildmates who share their position, on the minimap and the world map.
-- **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. The leader invites with a click. Only members with the addon see the board.
+- **Guild map:** guildmates who share their position, on the minimap and the world map, each as a class icon inside a
+  diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
+- **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. Each post shows its
+  seats with the class and role of who is in. The leader invites with a click. Only members with the addon see the
+  board.
 
 ### Sync
 
@@ -169,6 +178,8 @@ The full walkthrough, tab by tab and role by role, is the [user guide](docs/USER
 | [Layer swap plan](docs/LAYER_SWAP_PLAN.md) | design of layer swap requests |
 | [PvP missions, seasons and rewards plan](docs/PVP_MISSIONS_PLAN.md) | design of PvP seasons |
 | [Guild map plan](docs/GUILD_MAP_PLAN.md) | design of the guild map |
+| [PvP Intel plan](docs/PVP_INTEL_PLAN.md) | design of Intel, the enemy player tracker |
+| [Groups plan](docs/LFG_PLAN.md) | design of the Groups board |
 
 ## Building from source
 
@@ -206,9 +217,9 @@ for, or when the placeholders differ.
 NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
   Domain/                Profile, readiness, events, loot, permissions, reports, templates, PvP and PvP seasons,
-                         layers, diagnostics
-  Sync/                  Codec, protocol, inbox and outbound queue, event, loot and PvP season sync, snapshot,
-                         import/export
+                         Intel, Groups, layers, positions, installs, blacklist, diagnostics
+  Sync/                  Codec, protocol, inbox and outbound queue, event, loot, roster, blacklist, guild Kill on
+                         Sight, Groups, Intel and PvP season sync, snapshot, import/export
   UI/                    Window (own widget kit in Kit/), tabs and view models
   Commands/              Slash commands
   Locales/               Translations (esES)

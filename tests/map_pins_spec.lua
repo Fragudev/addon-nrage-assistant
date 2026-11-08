@@ -124,6 +124,21 @@ describe("MapPins.Controller:Redraw", function()
     assert.are.equal(1, count(env.hbd, "RemoveAllMinimapIcons"))
   end)
 
+  it("calls the library again only when something that shows changed", function()
+    local env = build()
+    env.controller:Redraw({ pin("Ann", { age = 1 }) }, env.settings)
+    env.hbd.calls = {}
+    local later = pin("Ann", { age = 5 })
+    assert.are.equal(1, env.controller:Redraw({ later }, env.settings))
+    assert.are.same({}, env.hbd.calls)
+    assert.are.equal(later, env.built[1].pin)
+    env.controller:Redraw({ pin("Ann", { x = 0.6 }) }, env.settings)
+    assert.are.equal(1, count(env.hbd, "AddMinimapIconMap"))
+    env.hbd.calls = {}
+    env.controller:Redraw({ pin("Ann", { x = 0.6 }) }, { minimap = true, worldmap = false })
+    assert.are.equal(1, count(env.hbd, "RemoveAllWorldMapIcons"))
+  end)
+
   it("reuses the frames it built", function()
     local env = build()
     env.controller:Redraw({ pin("Ann"), pin("Bob") }, env.settings)

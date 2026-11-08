@@ -1564,7 +1564,7 @@ end)
 
 describe("ViewModel.MemberRows", function()
   local entries = {
-    ["Ann-Realm"] = { rankName = "RL", rankIndex = 3, level = 60, class = "MAGE" },
+    ["Ann-Realm"] = { rankName = "Raid Lider", rankIndex = 3, level = 60, class = "MAGE" },
     ["Bob"] = { rankName = "Oficial", rankIndex = 2, level = 59, class = "WARRIOR" },
     ["Boss"] = { rankName = "Maestro", rankIndex = 0, level = 60, class = "PRIEST" },
     ["Cid"] = { rankName = "Recruit", rankIndex = 7, level = 40, class = "ROGUE" },

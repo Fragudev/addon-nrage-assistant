@@ -61,6 +61,22 @@ local function allowedNow(self)
   return true
 end
 
+-- May the contacts be read and recorded here now? Returns true, or false plus the reason of `allowed`. Every path that
+-- writes Intel records outside the detector (an honour kill, the minimap tooltip) asks it first.
+function IntelDetector:Allowed()
+  return allowedNow(self)
+end
+
+-- Drops the enemies that targeted the player longer ago than the loss fallback looks.
+function IntelDetector:PruneTargeting()
+  local now, within = self.deps.now(), ns.Constants.INTEL_LOSS_FALLBACK_SECONDS
+  for key, seen in pairs(self.targeting) do
+    if now - seen.at > within then
+      self.targeting[key] = nil
+    end
+  end
+end
+
 -- Reads one unit already known to be allowed. `quiet` leaves the "unreadable" drop uncounted: a scan asks about
 -- units that do not exist, which is the normal case. `stealth` marks the enemy as having just cast a stealth ability.
 function IntelDetector:Read(unit, quiet, stealth)
@@ -165,8 +181,13 @@ function IntelDetector:ResolveKiller(recapKiller)
 end
 
 -- The player died: stores the loss against the killer (see ResolveKiller) and counts which source named it. Returns
--- the result of IntelService:OnLoss plus the source, or nil plus "unknown".
+-- the result of IntelService:OnLoss plus the source, or nil plus "unknown" or the reason of `allowed` (nothing is
+-- recorded where detection is off).
 function IntelDetector:OnDeath(recapKiller)
+  local ok, why = allowedNow(self)
+  if not ok then
+    return self:Drop(why)
+  end
   local name, source = self:ResolveKiller(recapKiller)
   self.lossSources[source] = (self.lossSources[source] or 0) + 1
   if not name then
@@ -181,6 +202,7 @@ end
 
 -- Reads every unit the client can show an enemy on, asking `allowed` once. Returns how many enemies were read.
 function IntelDetector:Rescan()
+  self:PruneTargeting()
   local ok, why = allowedNow(self)
   if not ok then
     self:Drop(why)

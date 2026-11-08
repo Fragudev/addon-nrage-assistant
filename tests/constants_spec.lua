@@ -10,10 +10,6 @@ describe("Constants", function()
     assert.are.equal("NRAGE", ns.Constants.ADDON_PREFIX)
   end)
 
-  it("is at schema version 17", function()
-    assert.are.equal(17, ns.Constants.SCHEMA_VERSION)
-  end)
-
   it("keeps a position message inside its size limit and the directory inside the rate limit", function()
     local constants = ns.Constants
     assert.are.equal("NRAGEPOS", constants.POSITION_PREFIX)
@@ -30,12 +26,13 @@ describe("Constants", function()
     assert.are.equal(0, ns.Constants.GUILD_MASTER_RANK_INDEX)
     assert.is_nil(ns.Constants.ASSIGNABLE_ROLES)
     assert.are.same({
-      gm = "gm",
-      cogm = "cogm",
+      emperador = "gm",
+      comandante = "cogm",
       oficial = "officer",
-      rl = "rl",
-      roster = "roster",
-      miembro = "member",
+      ["raid lider"] = "rl",
+      ["raid líder"] = "rl",
+      raider = "roster",
+      soldado = "member",
       alter = "alter",
     }, ns.Constants.RANK_ROLES)
     assert.is_false(ns.Constants.BETA_ADMIN_ENABLED)

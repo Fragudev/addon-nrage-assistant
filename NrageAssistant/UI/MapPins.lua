@@ -226,22 +226,56 @@ local function acquire(self, kind, index)
   return pool[index]
 end
 
+-- What decides how the pins look and where they sit: when it is the same as last time, nothing has to be drawn again.
+-- The age and the level only show in the tooltip, which reads the pin of the frame.
+local function signature(pins, settings, max)
+  local parts = { tostring(settings.minimap ~= false), tostring(settings.worldmap ~= false) }
+  for index, pin in ipairs(pins) do
+    if index > max then
+      break
+    end
+    parts[#parts + 1] = table.concat({
+      tostring(pin.key or pin.name),
+      tostring(pin.map),
+      tostring(pin.x),
+      tostring(pin.y),
+      tostring(pin.class),
+      tostring(pin.sameLayer),
+      tostring(pin.kos),
+    }, ",")
+  end
+  return table.concat(parts, ";")
+end
+
 -- Draws `pins` again: every icon is removed and one is added per pin, only on the maps the settings enable. The pool
--- never holds more frames than Constants.POSITION_DIRECTORY_MAX. Returns the number of pins drawn, nil without the
--- library.
+-- never holds more frames than Constants.POSITION_DIRECTORY_MAX. When nothing that shows changed since the last draw,
+-- the frames only take the new pins (for the tooltip) and the library is not called. Returns the number of pins drawn,
+-- nil without the library.
 function Controller:Redraw(pins, settings)
   local deps = self.deps
   local hbd = deps.hbd
   if not hbd then
     return nil
   end
+  local max = deps.max or ns.Constants.POSITION_DIRECTORY_MAX
+  local drawn = math.min(#pins, max)
+  local current = signature(pins, settings, max)
+  if current == self.signature then
+    for index = 1, drawn do
+      for _, kind in ipairs({ "minimap", "worldmap" }) do
+        local frame = self.pools[kind][index]
+        if frame then
+          frame.pin = pins[index]
+        end
+      end
+    end
+    return drawn
+  end
+  self.signature = current
   hbd:RemoveAllMinimapIcons(deps.ref)
   hbd:RemoveAllWorldMapIcons(deps.ref)
-  local drawn = 0
-  for index, pin in ipairs(pins) do
-    if index > (deps.max or ns.Constants.POSITION_DIRECTORY_MAX) then
-      break
-    end
+  for index = 1, drawn do
+    local pin = pins[index]
     if settings.minimap ~= false then
       local frame = acquire(self, "minimap", index)
       deps.dress(frame, pin)
@@ -252,7 +286,6 @@ function Controller:Redraw(pins, settings)
       deps.dress(frame, pin)
       hbd:AddWorldMapIconMap(deps.ref, frame, pin.map, pin.x, pin.y, deps.worldFlag)
     end
-    drawn = drawn + 1
   end
   return drawn
 end

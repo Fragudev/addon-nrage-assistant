@@ -52,13 +52,16 @@ ns.Constants = {
   -- Guild rank name (trimmed, lowercase) -> addon role: "gm" | "cogm" | "officer" | "rl" | "roster" | "member" |
   -- "alter". A rank that is not listed here is treated as "alter" (least privilege), so renaming a rank in the game
   -- demotes its members until this table is updated. The guild master is always "gm", whatever the rank is called.
+  -- The ranks were renamed in 2026-11: Emperador, Comandante, Oficial, Raid Lider, Raider, Soldado, Alter. "Raid
+  -- Líder" is accepted with its accent too.
   RANK_ROLES = {
-    gm = "gm",
-    cogm = "cogm",
+    emperador = "gm",
+    comandante = "cogm",
     oficial = "officer",
-    rl = "rl",
-    roster = "roster",
-    miembro = "member",
+    ["raid lider"] = "rl",
+    ["raid líder"] = "rl",
+    raider = "roster",
+    soldado = "member",
     alter = "alter",
   },
 
