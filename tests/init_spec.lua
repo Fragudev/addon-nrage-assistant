@@ -567,6 +567,12 @@ describe("Init", function()
       local settings = controller.deps.settings()
       assert.is_true(settings.minimap and settings.worldmap)
       assert.is_false(settings.follow)
+      -- The button on the world map turns only the world map pins off; the minimap ones stay on.
+      env.ns.db.global.settings.intel.worldmapPins = false
+      settings = controller.deps.settings()
+      assert.is_true(settings.minimap)
+      assert.is_false(settings.worldmap)
+      assert.are.equal("none", env.ns.db.global.settings.intel.mapMode)
       assert.are.equal(env.ns.Platform.ShowWorldMap, controller.deps.follow)
     end)
 

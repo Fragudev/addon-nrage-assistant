@@ -594,6 +594,10 @@ function ns.SetPositionDisplay(which, on)
   if ns.mapPins then
     ns.mapPins:Request()
   end
+  -- The Guild button on the world map shows this same setting.
+  if ns.WorldMapToggles then
+    pcall(ns.WorldMapToggles.Refresh)
+  end
 end
 
 -- Guild map. Positions travel on their own prefix, outside the NRAGE envelope (docs/PROTOCOL.md): a short strict text
@@ -1007,13 +1011,15 @@ local function StartIntel()
     after = C_Timer.After,
     pins = enemyPins,
     settings = function()
-      return { minimap = true, worldmap = true, follow = settings().mapFollow }
+      -- The minimap pins are always on (mapMode still filters them); the world map ones follow the map button.
+      return { minimap = true, worldmap = settings().worldmapPins, follow = settings().mapFollow }
     end,
     follow = platform.ShowWorldMap,
   })
 
   -- The button by the target frame, and the level and class of the enemies on the tooltip of the minimap.
   pcall(ns.IntelTargetButton.Start)
+  pcall(ns.WorldMapToggles.Start)
   pcall(ns.MinimapButton.HookTooltip, {
     service = service,
     settings = settings,

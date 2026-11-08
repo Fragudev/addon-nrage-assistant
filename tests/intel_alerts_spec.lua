@@ -373,6 +373,36 @@ describe("IntelAlerts announcements", function()
     assert.are.equal(2, env.alerts.announcedCount)
   end)
 
+  it("sends at most INTEL_ANNOUNCE_MAX_PER_MINUTE automatic announcements to the chat in any minute", function()
+    env.settings.announce = "guild"
+    local max = Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE
+    for index = 1, max + 3 do
+      contact(env, { name = "Foe" .. string.char(96 + index) })
+    end
+    assert.are.equal(max, #env.sent)
+    assert.are.equal(max, env.alerts.announcedCount)
+    assert.are.equal(3, env.alerts.drops.announce_rate)
+    -- A dropped enemy is not marked: it is announced once the minute has passed.
+    env.clock = env.clock + 60
+    env.service:ClearNearby()
+    contact(env, { name = "Foe" .. string.char(96 + max + 1) })
+    assert.are.equal(max + 1, #env.sent)
+  end)
+
+  it("does not count announcements to the player only, nor the manual ones, against the minute", function()
+    env.settings.announce = "self"
+    for index = 1, Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE + 2 do
+      contact(env, { name = "Foe" .. string.char(96 + index) })
+    end
+    assert.are.equal(Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE + 2, #env.said)
+    env.settings.announce = "guild"
+    for index = 1, Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE do
+      assert.is_true(env.alerts:AnnounceNow("Man" .. string.char(96 + index), "guild"))
+    end
+    contact(env, { name = "Late" })
+    assert.are.equal(Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE + 1, #env.sent)
+  end)
+
   it("announces even when no alert fires, but only for a new enemy", function()
     env.settings.alertNew = false
     env.settings.announce = "guild"

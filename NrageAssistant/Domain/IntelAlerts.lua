@@ -11,7 +11,9 @@ local _, ns = ...
 --   * Delivery: the warning goes to the movable window, to the error area at the top of the screen, or nowhere
 --     (settings.warnTarget); the sound follows settings.sound.
 --   * Announcements go to the player (self), the party, the raid or the guild, at most once per enemy per
---     Constants.INTEL_ANNOUNCE_SECONDS. Local Defense only through AnnounceNow, from a click or a typed command.
+--     Constants.INTEL_ANNOUNCE_SECONDS. Automatic ones that reach a chat channel are also capped globally at
+--     Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE per 60 s (the player-only scope and AnnounceNow are not counted).
+--     Local Defense only through AnnounceNow, from a click or a typed command.
 --
 -- deps = { settings = function() -> Settings.Intel, service = IntelService, now = function() -> monotonic seconds,
 --          mapId = function() -> the own map id or nil,
@@ -28,6 +30,8 @@ local L = ns.L
 local GUILD_SET_SECONDS = 5
 -- The tables of cooldowns are cleaned when they hold more than this many entries.
 local COOLDOWN_MAX = 500
+-- Length of the sliding window of the global announcement cap (seconds).
+local ANNOUNCE_WINDOW_SECONDS = 60
 
 IntelAlerts.KINDS = { "kos", "kosGuild", "stealth", "race", "new" }
 
@@ -36,6 +40,7 @@ function IntelAlerts.New(deps)
     deps = deps,
     alerted = {},
     announced = {},
+    sentAt = {},
     guildSet = nil,
     guildSetAt = nil,
     fired = 0,
@@ -225,8 +230,27 @@ local function autoAnnounce(self, key, info)
   if last and now - last < ns.Constants.INTEL_ANNOUNCE_SECONDS then
     return false
   end
+  -- Only sends to chat count toward the cap; "self" is a local print.
+  local toChat = self:ChannelFor(scope) ~= "SELF"
+  if toChat then
+    local kept = {}
+    for _, at in ipairs(self.sentAt) do
+      if now - at < ANNOUNCE_WINDOW_SECONDS then
+        kept[#kept + 1] = at
+      end
+    end
+    self.sentAt = kept
+    if #kept >= ns.Constants.INTEL_ANNOUNCE_MAX_PER_MINUTE then
+      -- Not marked as announced, so the enemy can still be announced once the window frees up.
+      drop(self, "announce_rate")
+      return false
+    end
+  end
   if not announceTo(self, info, scope) then
     return false
+  end
+  if toChat then
+    self.sentAt[#self.sentAt + 1] = now
   end
   local count = 0
   for _ in pairs(self.announced) do

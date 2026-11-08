@@ -693,6 +693,9 @@ is on another layer than you. Members of your own party or raid are not drawn: t
   nothing else changes.
 - Whether the pins are placed correctly on the Forever client has not been checked in game yet (see
   `docs/API_NOTES.md`).
+- On the world map, the **Guild** button in the top-right corner (people icon) shows or hides the guildmates. It is the
+  same setting as *Show guildmates on the world map*, so the two always agree. The button is lit when the pins are shown
+  and dimmed when they are hidden; its tooltip says what a click does.
 
 ## Intel
 
@@ -720,6 +723,13 @@ below).
 - **A sighting shows your position, not the enemy's.** The client does not give the enemy's coordinates, so the map
   pin is where you were when you saw them.
 
+### On the world map
+
+The **Enemies** button in the top-right corner of the world map (swords icon) shows or hides the enemies Intel reports
+there. It is the *Show enemies on the world map* switch in the Maps group of the Intel settings, on by default. It
+changes only the world map: the enemy pins on the minimap are not affected. The button is lit when on and dimmed when
+off, like the Guild button.
+
 ### The compact window
 
 `/nrage intel show` opens it and `/nrage intel hide` closes it; **Intel** in the minimap button's right-click menu
@@ -735,6 +745,10 @@ never; 5 minutes by default).
   (only me, party, raid, guild or Local Defense).
 - In combat the rows keep their places. A player who leaves stays greyed out, and a newcomer can be targeted only
   after combat.
+
+Automatic announcements (the *Announce* setting) are capped at 3 per minute across all enemies, on top of the
+once-per-enemy-every-5-minutes rule, so a big world PvP fight cannot flood chat and disconnect you. Skipped ones can be
+announced later. The *only me* option and manual announcements are not capped.
 
 ### Kill on Sight
 

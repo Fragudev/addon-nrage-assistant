@@ -1272,4 +1272,14 @@ ns.Locale.Register("es", {
   ["Who in the guild runs the addon, and which version."] = "Quién de la hermandad usa el addon y con qué versión.",
   ["Who in the guild runs the addon, and which version. Newest seen: %s."] = "Quién de la hermandad usa el addon y con qué versión. La más reciente vista: %s.",
   ["Offline members show the last version seen. Never seen may only mean not logged in since."] = "Los desconectados muestran la última versión vista. «Nunca visto» puede significar solo que no se ha conectado desde entonces.",
+
+  -- UI/WorldMapToggles.lua, UI/ViewModelIntel.lua
+  ["Enemies"] = "Enemigos",
+  ["Guildmates on the map"] = "Compañeros de hermandad en el mapa",
+  ["Intel enemies on the map"] = "Enemigos de Intel en el mapa",
+  ["Click to hide guildmates on the world map."] = "Clic para ocultar a los compañeros de hermandad en el mapa del mundo.",
+  ["Click to show guildmates on the world map."] = "Clic para mostrar a los compañeros de hermandad en el mapa del mundo.",
+  ["Click to hide the enemies reported by Intel on the world map."] = "Clic para ocultar los enemigos avisados por Intel en el mapa del mundo.",
+  ["Click to show the enemies reported by Intel on the world map."] = "Clic para mostrar los enemigos avisados por Intel en el mapa del mundo.",
+  ["Show enemies on the world map"] = "Mostrar enemigos en el mapa del mundo",
 })

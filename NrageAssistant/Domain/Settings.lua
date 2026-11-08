@@ -78,6 +78,7 @@ local INTEL_SCALARS = {
   { "inArena", true, isBoolean },
   { "mapMode", "zone", oneOf({ all = true, zone = true, continent = true, none = true }) },
   { "mapFollow", false, isBoolean },
+  { "worldmapPins", true, isBoolean },
   { "minimapTooltip", true, isBoolean },
   { "minimapFeed", false, isBoolean },
   { "targetButton", true, isBoolean },

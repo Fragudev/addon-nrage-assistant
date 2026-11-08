@@ -39,7 +39,22 @@ jobs:
         uses: leafo/gh-actions-luarocks@v6
 
       - name: Install luacheck, busted and luacov
-        run: luarocks install luacheck && luarocks install busted && luarocks install luacov
+        # Some rocks (lua-term, a busted dependency) are fetched from GitHub archives, which the runner sometimes
+        # fails to download. Each install is retried a few times; an installed rock is skipped on the next attempt.
+        run: |
+          for rock in luacheck busted luacov; do
+            for attempt in 1 2 3; do
+              if luarocks install "$rock"; then
+                break
+              fi
+              if [[ "$attempt" == 3 ]]; then
+                echo "::error::Could not install $rock after 3 attempts."
+                exit 1
+              fi
+              echo "Installing $rock failed (attempt $attempt), retrying in 20 s."
+              sleep 20
+            done
+          done
 
       - name: Lint
         run: luacheck NrageAssistant tests

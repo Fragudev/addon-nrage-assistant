@@ -419,6 +419,9 @@ ns.Constants = {
   -- A skull level (-1) is shown as the own level plus this, marked as estimated.
   INTEL_SKULL_LEVEL_BONUS = 10,
   INTEL_ANNOUNCE_SECONDS = 300,
+  -- Global cap on automatic announcements to chat in any 60 s window; a big fight must not flood the channel and
+  -- get the client disconnected. Announcements to the player only and the manual ones are not counted.
+  INTEL_ANNOUNCE_MAX_PER_MINUTE = 3,
   -- Spell ids of the stealth abilities. Classic values, to confirm on Forever (plan measurement M9).
   INTEL_STEALTH_SPELLS = {
     [1784] = true,
