@@ -1,5 +1,5 @@
 -- The /nrage slash command: the command words are case-insensitive, the text after them keeps its case.
-local function load_slash(seen)
+local function load_slash(seen, identity)
   local function probe(name)
     return {
       Handle = function(action)
@@ -32,6 +32,32 @@ local function load_slash(seen)
     PvPProbe = probe("pvp"),
     LayerProbe = probe("layer"),
     Probe = probe("lockdown"),
+    Constants = { GUILD_CLUB_ID = 123 },
+    GetVersion = function()
+      return "1.2.3"
+    end,
+    Platform = {
+      GetRealmName = function()
+        return "RealmPvP"
+      end,
+      GetGuildName = function()
+        return "Nrage"
+      end,
+      GetGuildClubId = function()
+        return identity.clubId
+      end,
+      GetFaction = function()
+        return "Alliance"
+      end,
+      IsChatMessagingLockedDown = function()
+        return false
+      end,
+    },
+    AccessGuard = {
+      Evaluate = function()
+        return identity.allowed, identity.reason
+      end,
+    },
   }
   _G.SlashCmdList = {}
   assert(loadfile("NrageAssistant/Commands/Slash.lua"))("NrageAssistant", ns)
@@ -39,13 +65,18 @@ local function load_slash(seen)
 end
 
 describe("/nrage", function()
-  local seen, printed, realPrint
+  local seen, printed, identity, realPrint, realGetBuildInfo
 
   before_each(function()
     seen = {}
     printed = {}
-    load_slash(seen)
+    identity = { clubId = 123, allowed = true }
+    load_slash(seen, identity)
     realPrint = _G.print
+    realGetBuildInfo = _G.GetBuildInfo
+    _G.GetBuildInfo = function()
+      return "1.0", "1", "date", 16001
+    end
     _G.print = function(line)
       printed[#printed + 1] = line
     end
@@ -53,6 +84,7 @@ describe("/nrage", function()
 
   after_each(function()
     _G.print = realPrint
+    _G.GetBuildInfo = realGetBuildInfo
   end)
 
   local function run(msg)
@@ -62,6 +94,23 @@ describe("/nrage", function()
   it("takes the command word in any case and passes the rest of the text unchanged", function()
     run("PVP Grant Yonemon Gg M-1 40")
     assert.are.same({ "pvp:Grant Yonemon Gg M-1 40" }, seen)
+  end)
+
+  it("shows the version, the expected club id and the access result in debug identity", function()
+    run("debug identity")
+    local output = table.concat(printed, "\n")
+    assert.is_truthy(output:find("version: 1.2.3", 1, true))
+    assert.is_truthy(output:find("clubId: 123 (number)", 1, true))
+    assert.is_truthy(output:find("expected clubId: 123 (number)", 1, true))
+    assert.is_truthy(output:find("access: ok", 1, true))
+  end)
+
+  it("tells a text club id from a number and names the reason of a refusal in debug identity", function()
+    identity.clubId, identity.allowed, identity.reason = "123", false, "wrong_guild"
+    run("debug identity")
+    local output = table.concat(printed, "\n")
+    assert.is_truthy(output:find("clubId: 123 (string)", 1, true))
+    assert.is_truthy(output:find("access: wrong_guild", 1, true))
   end)
 
   it("answers help in any case", function()
