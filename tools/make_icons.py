@@ -189,6 +189,15 @@ ICONS = {
     "hex": [Polygon(*_hex(16, 16, 14))],
     "hex-outline": [Line(*_hex(16, 16, 13.5), closed=True)],
     "diamond": [Polygon(16, 3, 29, 16, 16, 29, 3, 16)],
+    # Bold role marks, legible at badge size (about 10 pixels) on top of a class icon.
+    "role-tank": [Polygon(5, 4, 27, 4, 27, 15, 16, 29, 5, 15)],
+    "role-heal": [Line(16, 4, 16, 28, width=8), Line(4, 16, 28, 16, width=8)],
+    "role-dps": [
+        Line(7, 7, 25, 25, width=4.5),
+        Line(25, 7, 7, 25, width=4.5),
+        Line(19, 29, 29, 19, width=4.5),
+        Line(3, 19, 13, 29, width=4.5),
+    ],
 }
 
 

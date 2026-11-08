@@ -23,6 +23,7 @@ local function load_addon()
     "Domain/GuildKosService",
     "Domain/ReadinessRules",
     "Sync/Codec",
+    "Domain/LfgModel",
     "Sync/Protocol",
     "Sync/Inbox",
     "Sync/OutboundQueue",

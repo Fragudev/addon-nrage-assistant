@@ -1,6 +1,6 @@
 local function load_board()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/LfgBoard" }) do
+  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/LfgModel", "Domain/LfgBoard" }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns
@@ -64,6 +64,20 @@ describe("LfgBoard", function()
     assert.are.equal("hi", post.note)
     assert.are.equal(100, post.lastSeen)
     assert.are.equal(0, post.age)
+  end)
+
+  it("keeps the party of a post and hands out a copy", function()
+    local party = { { c = "WARRIOR", r = "tank" }, { c = "PRIEST" } }
+    assert.is_true(
+      env.board:Apply("Ann", open({ members = 2, needs = { tank = 0, heal = 1, dps = 2 }, party = party }))
+    )
+    local post = env.board:Get("Ann")
+    assert.are.same(party, post.party)
+    post.party[1].c = "MAGE"
+    assert.are.equal("WARRIOR", env.board:Get("Ann").party[1].c)
+    assert.is_nil(env.board:Get("Ann").party[3])
+    assert.is_true(env.board:Apply("Bob", open()))
+    assert.is_nil(env.board:Get("Bob").party)
   end)
 
   it("keys the sender like a name, so a case or space difference is the same member", function()

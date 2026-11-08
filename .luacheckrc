@@ -108,6 +108,7 @@ read_globals = {
   "UIParent",
   "UISpecialFrames",
   "UnitClass",
+  "UnitExists",
   "UnitFactionGroup",
   "UnitAffectingCombat",
   "UnitGUID",

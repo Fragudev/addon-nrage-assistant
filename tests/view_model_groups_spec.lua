@@ -10,6 +10,7 @@ local function load_view_model(locale)
     "Domain/PermissionService",
     "Domain/ProfileService",
     "Domain/LfgModel",
+    "Domain/IntelModel",
     "UI/Kit/Theme",
     "UI/Kit/Util",
     "UI/ViewModel",
@@ -90,7 +91,13 @@ describe("ViewModel groups board", function()
     assert.are.equal("Dungeon", row.kindLabel)
     assert.are.equal("Leader: Kaelis · Level 34+ · 4 min ago · Bring potions", row.line)
     assert.are.same({ "1 Tank", "1 Heal" }, row.chips)
-    assert.are.same({ total = 5, filled = 3 }, row.pips)
+    assert.are.same({
+      { filled = true },
+      { filled = true },
+      { filled = true },
+      { filled = false, role = "tank" },
+      { filled = false, role = "heal" },
+    }, row.seats)
     assert.are.equal("3 of 5 members", row.membersLabel)
     assert.are.equal("Apply", row.cta)
     assert.is_true(row.enabled)
@@ -172,19 +179,52 @@ describe("ViewModel groups board", function()
     assert.is_true(view().kindFilters[1].active)
   end)
 
-  it("never invents a pips count outside the party", function()
+  it("never invents a seat outside the party", function()
     local row = view({ posts = { entry({ members = 9 }) } }).rows[1]
-    assert.are.same({ total = 5, filled = 5 }, row.pips)
+    assert.are.equal(5, #row.seats)
+    for _, seat in ipairs(row.seats) do
+      assert.is_true(seat.filled)
+    end
+  end)
+
+  it("shows the class and the known role of each member, and lists them in the tooltip", function()
+    local party = { { c = "WARRIOR", r = "tank" }, { c = "PRIEST" }, { c = "MAGE", r = "dps" } }
+    local row = view({ posts = { entry({ party = party }) } }).rows[1]
+    assert.are.same({
+      { filled = true, class = "WARRIOR", role = "tank" },
+      { filled = true, class = "PRIEST" },
+      { filled = true, class = "MAGE", role = "dps" },
+      { filled = false, role = "tank" },
+      { filled = false, role = "heal" },
+    }, row.seats)
+    assert.are.equal("3 of 5 members\nWarrior · Tank\nPriest\nMage · DPS", row.membersLabel)
+  end)
+
+  it("leaves a free seat without a role when the post asks for fewer than the room left", function()
+    local row = view({ posts = { entry({ members = 1, needs = { tank = 1, heal = 0, dps = 1 } }) } }).rows[1]
+    assert.are.same({
+      { filled = true },
+      { filled = false, role = "tank" },
+      { filled = false, role = "dps" },
+      { filled = false },
+      { filled = false },
+    }, row.seats)
   end)
 end)
 
 describe("ViewModel groups own post", function()
-  it("shows the post, the roles still needed and the diamonds", function()
+  it("shows the post, the roles still needed and the seats", function()
     local own = view({ status = { post = own_post({ minLevel = 20, note = "Be on time" }) } }).own
     assert.are.equal("Your group · Quest", own.header)
     assert.are.equal("Elite quests", own.title)
     assert.are.same({ "1 Tank", "2 DPS" }, own.chips)
-    assert.are.same({ total = 5, filled = 2 }, own.pips)
+    assert.are.same({
+      { filled = true },
+      { filled = true },
+      { filled = false, role = "tank" },
+      { filled = false, role = "dps" },
+      { filled = false, role = "dps" },
+    }, own.seats)
     assert.are.equal("2 of 5 members", own.membersLabel)
     assert.are.equal("Level 20+", own.levelText)
     assert.are.equal("Be on time", own.note)

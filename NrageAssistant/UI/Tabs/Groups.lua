@@ -284,8 +284,8 @@ local function chips(parent, list)
   return row
 end
 
-local function pips(parent, data, label)
-  return Kit.Pips(parent, { total = data.total, filled = data.filled, tooltip = label, layout = { width = "auto" } })
+local function seats(parent, data, label)
+  return Kit.Seats(parent, { seats = data, tooltip = label, layout = { width = "auto" } })
 end
 
 local function ownCard(page, own)
@@ -293,7 +293,7 @@ local function ownCard(page, own)
   local head = Kit.Row(card, { gap = 14, align = "center" })
   Kit.Label(head, { text = own.title, style = "value", layout = { weight = 1 } })
   chips(head, own.chips)
-  pips(head, own.pips, own.membersLabel)
+  seats(head, own.seats, own.membersLabel)
   labelButton(head, L("Edit"), function()
     openForm(true)
   end, { disabled = not own.editEnabled })
@@ -387,7 +387,7 @@ local function postCard(page, post)
   Kit.Label(head, { text = post.kindLabel, style = "small", color = "muted", layout = { width = "auto" } })
   Kit.Label(info, { text = post.line, style = "small", color = "dim" })
   chips(row, post.chips)
-  pips(row, post.pips, post.membersLabel)
+  seats(row, post.seats, post.membersLabel)
   local action = Kit.Stack(row, { gap = 2, layout = { width = 130 } })
   labelButton(action, post.cta, function()
     openApply(post)

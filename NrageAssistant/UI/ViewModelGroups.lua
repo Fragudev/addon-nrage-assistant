@@ -86,11 +86,37 @@ local function needChips(needs)
   return chips
 end
 
--- The five diamonds: { total, filled } and the text that says the same.
-local function pips(members)
+-- The seats of a party, for Kit.Seats: the members first ({ filled, class, role } from `party`, the leader first; a
+-- member the post does not describe has no class), then one seat per role still needed (tank, heal, dps), then the
+-- free seats nobody is asked for. The tooltip says the same as text: the count, then a line per member.
+local function seats(members, needs, party)
   local total = ns.Constants.LFG_PARTY_SIZE
   local filled = math.max(0, math.min(total, members or 1))
-  return { total = total, filled = filled }, L("%d of %d members"):format(filled, total)
+  local list, lines = {}, { L("%d of %d members"):format(filled, total) }
+  for index = 1, filled do
+    local seat = type(party) == "table" and party[index] or nil
+    local class = seat and seat.c or nil
+    local role = seat and seat.r or nil
+    list[#list + 1] = { filled = true, class = class, role = role }
+    if class then
+      local text = ns.IntelModel.ClassName(class)
+      if role and ViewModel.GROUP_ROLES[role] then
+        text = text .. " · " .. ViewModel.GROUP_ROLES[role]
+      end
+      lines[#lines + 1] = text
+    end
+  end
+  for _, role in ipairs(ROLE_ORDER) do
+    for _ = 1, (needs and needs[role] or 0) do
+      if #list < total then
+        list[#list + 1] = { filled = false, role = role }
+      end
+    end
+  end
+  while #list < total do
+    list[#list + 1] = { filled = false }
+  end
+  return list, table.concat(lines, "\n")
 end
 
 local function filterItems(order, texts, current)
@@ -148,12 +174,12 @@ local function applicantRow(row, state)
 end
 
 local function ownView(post, state)
-  local pipsView, membersLabel = pips(post.members)
+  local seatsView, membersLabel = seats(post.members, post.needs, post.party)
   local view = {
     title = Escape(post.title),
     header = L("Your group · %s"):format(ViewModel.GROUP_KINDS[post.kind] or Escape(tostring(post.kind))),
     chips = needChips(post.needs),
-    pips = pipsView,
+    seats = seatsView,
     membersLabel = membersLabel,
     applicants = {},
     editEnabled = not state.locked,
@@ -231,7 +257,7 @@ end
 --   posts, the own one included), filter = { kind, role }, ownName, canPost, postReason, canInvite, inviteReason,
 --   canApply = function(pid) -> ok, reason }.
 -- Returns { available, locked, newGroup = { enabled, reason }, own, closed, application, rows, kindFilters,
--- roleFilters, empty (text) } where each row is { pid, title, leader, needs, kindLabel, line, chips, pips,
+-- roleFilters, empty (text) } where each row is { pid, title, leader, needs, kindLabel, line, chips, seats,
 -- membersLabel, cta, enabled, reason }.
 function ViewModel.GroupsView(state)
   local view = { available = state.available ~= false, locked = state.locked == true, rows = {} }
@@ -279,7 +305,7 @@ function ViewModel.GroupsView(state)
       if entry.note then
         parts[#parts + 1] = Escape(entry.note)
       end
-      local pipsView, membersLabel = pips(entry.members)
+      local seatsView, membersLabel = seats(entry.members, entry.needs, entry.party)
       local row = {
         pid = entry.pid,
         title = Escape(entry.title),
@@ -288,7 +314,7 @@ function ViewModel.GroupsView(state)
         kindLabel = ViewModel.GROUP_KINDS[entry.kind] or Escape(tostring(entry.kind)),
         line = table.concat(parts, " · "),
         chips = needChips(entry.needs),
-        pips = pipsView,
+        seats = seatsView,
         membersLabel = membersLabel,
       }
       local active = applied and (applied.state == "applied" or applied.state == "invited")

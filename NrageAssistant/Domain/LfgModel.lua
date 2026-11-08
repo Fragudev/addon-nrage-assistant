@@ -3,8 +3,10 @@ local _, ns = ...
 -- Pure rules of a Groups post (docs/LFG_PLAN.md): the kinds, the roles, the needs of a party and the payloads that
 -- travel on the wire. Nothing here touches the client.
 --
--- A post is { kind, title, needs = { tank, heal, dps }, members, minLevel?, note? }. `members` counts the leader and
--- whoever is already in the party; needs plus members never exceed Constants.LFG_PARTY_SIZE.
+-- A post is { kind, title, needs = { tank, heal, dps }, members, minLevel?, note?, party? }. `members` counts the
+-- leader and whoever is already in the party; needs plus members never exceed Constants.LFG_PARTY_SIZE. `party` lists
+-- the seats taken, the leader first: { { c = class file token, r = wire role or nil } }, exactly `members` long. It is
+-- optional: older clients do not send it, and a party the client cannot read is left out.
 local LfgModel = {}
 
 -- In display order; the sets used to validate are in Constants.
@@ -18,6 +20,61 @@ function LfgModel.WireRole(value)
   local role = ns.ProfileService.NormalizeRole(value)
   return role and WIRE_ROLES[role] or nil
 end
+
+local MAX_CLASS_LENGTH = 20
+
+-- A clean copy of `party` for a post of `members` seats, or nil when it is missing or does not fit: every seat needs a
+-- class file token ("WARRIOR") and may carry a wire role.
+function LfgModel.CleanParty(party, members)
+  if type(party) ~= "table" or type(members) ~= "number" or #party ~= members then
+    return nil
+  end
+  local clean = {}
+  for index = 1, members do
+    local seat = party[index]
+    if type(seat) ~= "table" then
+      return nil
+    end
+    local class = seat.c
+    if not (type(class) == "string" and #class <= MAX_CLASS_LENGTH and class:find("^%u+$")) then
+      return nil
+    end
+    local role = seat.r
+    if role ~= nil and not (type(role) == "string" and ns.Constants.LFG_ROLES[role]) then
+      return nil
+    end
+    clean[index] = { c = class, r = role }
+  end
+  return clean
+end
+
+-- true when two parties (clean or nil) show the same seats.
+function LfgModel.SameParty(a, b)
+  if a == nil or b == nil then
+    return a == b
+  end
+  if #a ~= #b then
+    return false
+  end
+  for index = 1, #a do
+    if a[index].c ~= b[index].c or a[index].r ~= b[index].r then
+      return false
+    end
+  end
+  return true
+end
+
+local function copyParty(party)
+  if not party then
+    return nil
+  end
+  local copy = {}
+  for index, seat in ipairs(party) do
+    copy[index] = { c = seat.c, r = seat.r }
+  end
+  return copy
+end
+LfgModel.CopyParty = copyParty
 
 local function trimmed(value)
   return type(value) == "string" and value:match("^%s*(.-)%s*$") or value
@@ -66,8 +123,8 @@ function LfgModel.FitNeeds(needs, room)
   return fitted
 end
 
--- The clean post for `fields` ({ kind, title, needs, members, minLevel, note }), or nil plus "bad_kind" | "bad_title"
--- | "bad_needs" | "no_needs" | "bad_members" | "full" | "bad_level" | "bad_note".
+-- The clean post for `fields` ({ kind, title, needs, members, minLevel, note, party }), or nil plus "bad_kind" |
+-- "bad_title" | "bad_needs" | "no_needs" | "bad_members" | "full" | "bad_level" | "bad_note".
 function LfgModel.NewPost(fields)
   local constants = ns.Constants
   if type(fields) ~= "table" then
@@ -111,6 +168,8 @@ function LfgModel.NewPost(fields)
     end
     post.note = note
   end
+  -- A party that does not fit is left out rather than refusing the post: it only decorates the seats.
+  post.party = LfgModel.CleanParty(fields.party, fields.members)
   return post
 end
 
@@ -126,6 +185,7 @@ function LfgModel.PostPayload(pid, rev, post)
     members = post.members,
     minLevel = post.minLevel,
     note = post.note,
+    party = copyParty(post.party),
   }
 end
 

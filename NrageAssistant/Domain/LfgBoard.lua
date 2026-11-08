@@ -58,6 +58,7 @@ local function view(self, entry)
   if entry.needs then
     copy.needs = { tank = entry.needs.tank, heal = entry.needs.heal, dps = entry.needs.dps }
   end
+  copy.party = ns.LfgModel.CopyParty(entry.party)
   return copy
 end
 
@@ -114,6 +115,7 @@ function LfgBoard:Apply(sender, payload)
     replacement.members = payload.members
     replacement.minLevel = payload.minLevel
     replacement.note = payload.note
+    replacement.party = ns.LfgModel.CleanParty(payload.party, payload.members)
   else
     replacement.outcome = payload.o
   end

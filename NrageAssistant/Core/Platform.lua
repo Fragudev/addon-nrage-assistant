@@ -802,6 +802,38 @@ function Platform.GetGroupMemberNames()
   return names
 end
 
+-- The seats of the player's party, the player first: { { name, class } } where `class` is a file token ("WARRIOR") or
+-- nil when it is not readable. Empty in a raid (only parties are posted to Groups) and when not readable at all.
+function Platform.GetPartyClasses()
+  local seats = {}
+  local inRaid = IsInRaid and select(2, pcall(IsInRaid)) == true
+  if inRaid or not UnitClass then
+    return seats
+  end
+  local function seat(unit)
+    local okClass, _, class = pcall(UnitClass, unit)
+    return {
+      name = groupName(function()
+        return (UnitName(unit))
+      end),
+      class = okClass and fileToken(class) or nil,
+    }
+  end
+  seats[1] = seat("player")
+  if Platform.IsInGroup() then
+    for index = 1, 4 do
+      local unit = "party" .. index
+      local okExists, exists = pcall(UnitExists or function()
+        return false
+      end, unit)
+      if okExists and exists then
+        seats[#seats + 1] = seat(unit)
+      end
+    end
+  end
+  return seats
+end
+
 -- Shows `text` as a raid warning in the middle of the screen. False when the client has no such frame.
 function Platform.ShowRaidNotice(text)
   if not (RaidNotice_AddMessage and RaidWarningFrame) then

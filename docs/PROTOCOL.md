@@ -37,7 +37,8 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`); minor 7 added the PvP season messages
   (`PVP_SEASON` and the others of the "PvP seasons" section); minor 8 added event sign-up (`SIGNUP_UPSERT`); minor 9
   replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`; minor 10 added the guild Kill on Sight messages
-  (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*).
+  (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
+  `party` of an open `LFG_POST`.
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -65,7 +66,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
 | `KOS_UPSERT` | guild | `key` (the name key, no `:`), `name` (1 to 40 bytes), `category` (`gank`, `camp`, `corpse`, `objective`, `insult` or `other`), optional `reason` (up to 100 bytes), `rev`, `updatedAt` | anyone adds; for an entry that exists, its author, gm or cogm; the author is the sender |
 | `KOS_DELETE` | guild | `key`, `rev` | the author of the entry, gm or cogm; gm or cogm for an entry this client does not hold |
-| `LFG_POST` | guild | `pid`, `rev`, `s` (`open` or `closed`); open: `kind`, `title`, `needs{tank, heal, dps}`, `members`, optional `minLevel` and `note`; closed: `o` (`full`, `cancelled` or `expired`) | anyone; the owner is the sender |
+| `LFG_POST` | guild | `pid`, `rev`, `s` (`open` or `closed`); open: `kind`, `title`, `needs{tank, heal, dps}`, `members`, optional `minLevel`, `note` and `party[]` (`c`, optional `r`); closed: `o` (`full`, `cancelled` or `expired`) | anyone; the owner is the sender |
 | `LFG_APPLY` | guild | `pid`, `s` (`apply`, `withdraw`, `accept` or `decline`); `apply`: `role`, optional `note`; `accept` and `decline`: `to` | anyone; the actor is the sender |
 | `I1` sighting (prefix `NRAGEINT`, plain text, not an envelope type) | guild in the open world; the group in a battleground | `map`, `x`, `y`, `class`, `race`, `level`, `flags`, `name` (see *Enemy sightings*) | anyone in the guild roster; the sender is the client that sent it |
 | `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
@@ -202,6 +203,12 @@ Rules for an open post: `kind` is `dungeon`, `quest` or `other`; `title` is 1 to
 and `dps`, each 0 to 4, and their sum is at least 1; `members` is 1 to 4; the needs and the members together never
 exceed five. `minLevel` (1 to 100) and `note` (up to 100 bytes) are optional. Text fields refuse `|` and control
 characters. Unknown fields are dropped.
+
+`party` (minor 12, optional) lists the seats already taken, the leader first, so the board can show who is in the
+group: each seat is `{ c, r }` where `c` is a class file token (`WARRIOR`, upper-case letters, up to 20) and `r` is an
+optional role (`tank`, `heal` or `dps`) when the leader knows it (the leader's own declared role, or the role an
+applicant joined as). It must hold exactly `members` seats; a `party` that does not fit is dropped and the post is
+kept. Older clients drop it as an unknown field.
 
 `LFG_APPLY` is one step of an application.
 

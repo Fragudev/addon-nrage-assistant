@@ -155,6 +155,15 @@ local function new_client(world, name)
       return c.raid
     end,
     board = c.board,
+    partyClasses = function()
+      if c.seatsFail then
+        error("party")
+      end
+      return c.seats
+    end,
+    ownRole = function()
+      return c.role
+    end,
     onChange = function()
       c.changes = c.changes + 1
       if c.changeFails then
@@ -984,6 +993,88 @@ describe("LfgService joining", function()
     world.advance(Constants.LFG_POST_TTL + 1)
     bob.service:Sweep()
     assert.are.equal(0, bob.board.count)
+  end)
+end)
+
+describe("LfgService party seats", function()
+  local world, lead, ann
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+    lead.seats = { { name = "Lead", class = "WARRIOR" } }
+    lead.role = "tank"
+  end)
+
+  local function lastParty()
+    return world.sent[#world.sent].payload.party
+  end
+
+  it("posts the leader's class and declared role, and the board of the others shows it", function()
+    assert.is_true(lead.service:Post(fields()))
+    assert.are.same({ { c = "WARRIOR", r = "tank" } }, lastParty())
+    assert.are.same({ { c = "WARRIOR", r = "tank" } }, ann.board:Get("Lead").party)
+    assert.are.same({ { c = "WARRIOR", r = "tank" } }, lead.service:Status().post.party)
+  end)
+
+  it("gives a joined applicant the role they applied as, and none to who was there before", function()
+    lead.size = 2
+    lead.group = { Old = true }
+    lead.seats = { { name = "Lead", class = "WARRIOR" }, { name = "Old", class = "MAGE" } }
+    lead.service:Post(fields({ needs = { tank = 0, heal = 1, dps = 2 } }))
+    assert.are.same({ { c = "WARRIOR", r = "tank" }, { c = "MAGE" } }, lastParty())
+    local pid = lead.board:Get("Lead").pid
+    ann.service:Apply(pid, "heal")
+    lead.service:Invite("Ann")
+    lead.seats[3] = { name = "Ann", class = "PRIEST" }
+    join(ann, lead)
+    assert.are.same({ { c = "WARRIOR", r = "tank" }, { c = "MAGE" }, { c = "PRIEST", r = "heal" } }, lastParty())
+  end)
+
+  it("matches a joined applicant whose name carries a realm", function()
+    local post = lead.service
+    post:Post(fields())
+    local pid = lead.board:Get("Lead").pid
+    post:OnApply("Ann-Realm", { pid = pid, s = "apply", role = "dps" })
+    lead.group["Ann-Realm"] = true
+    lead.size = 2
+    lead.seats = { { name = "Lead", class = "WARRIOR" }, { name = "Ann", class = "ROGUE" } }
+    post:OnGroupChanged()
+    assert.are.same({ { c = "WARRIOR", r = "tank" }, { c = "ROGUE", r = "dps" } }, lastParty())
+  end)
+
+  it("republishes when only the seats changed", function()
+    lead.seats = nil
+    lead.service:Post(fields())
+    assert.is_nil(lastParty())
+    local before = #world.sent
+    lead.seats = { { name = "Lead", class = "WARRIOR" } }
+    lead.service:OnGroupChanged()
+    assert.are.equal(before + 1, #world.sent)
+    assert.are.same({ { c = "WARRIOR", r = "tank" } }, lastParty())
+    lead.service:OnGroupChanged()
+    assert.are.equal(before + 1, #world.sent)
+  end)
+
+  it("leaves the party out when the client cannot read all of it, and still posts", function()
+    lead.size = 2
+    lead.group = { Old = true }
+    lead.seats = { { name = "Lead", class = "WARRIOR" } }
+    assert.is_true(lead.service:Post(fields({ needs = { tank = 0, heal = 1, dps = 2 } })))
+    assert.is_nil(lastParty())
+    lead.seats = { { name = "Lead", class = "WARRIOR" }, { name = "Old" } }
+    lead.service:OnGroupChanged()
+    assert.is_nil(lastParty())
+    lead.seatsFail = true
+    assert.is_true(lead.service:Update({ title = "Stockade" }))
+    assert.is_nil(lastParty())
+  end)
+
+  it("posts a seat without a role when the leader declared none", function()
+    lead.role = nil
+    lead.service:Post(fields())
+    assert.are.same({ { c = "WARRIOR" } }, lastParty())
   end)
 end)
 

@@ -212,44 +212,106 @@ Kit.Define("IconButton", {
   end,
 })
 
--- A row of small diamonds, some filled: the members of a party. opts: total (how many diamonds, default 5), filled,
--- size (default 12), tooltip (the same information as text, since color alone says it badly).
-local PIPS_MAX = 8
-local PIP_GAP = 4
+-- The seats of a party: a class icon framed in the class color for each member, with a small mark of the role when it
+-- is known, and the mark of the role still needed, dim, for each free seat. opts: seats = { { class (file token),
+-- role (tank | heal | dps), filled (boolean) } } (up to SEATS_MAX), size (default 18), tooltip (the same as text).
+-- A filled seat without a known class shows a person; a free seat that no role needs is an empty frame.
+local SEATS_MAX = 8
+local SEAT_GAP = 4
+local CLASS_TEXTURE = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
+-- How much of each side of a class cell is cut away, so the square frame baked into the atlas does not show.
+local CLASS_CROP = 0.08
+local ROLE_COLORS = { tank = "ice", heal = "success", dps = "danger" }
 
-Kit.Define("Pips", {
+local function dressSeat(seat, data, size)
+  local coords = data.filled and data.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[data.class]
+  local inset
+  seat.edge:Show()
+  seat.icon:SetTexCoord(0, 1, 0, 1)
+  if coords then
+    local color = Theme.ClassColor(data.class) or { Theme.Color("muted") }
+    seat.edge:SetColorTexture(color[1], color[2], color[3], 1)
+    local h = (coords[2] - coords[1]) * CLASS_CROP
+    local v = (coords[4] - coords[3]) * CLASS_CROP
+    seat.icon:SetTexture(CLASS_TEXTURE)
+    seat.icon:SetTexCoord(coords[1] + h, coords[2] - h, coords[3] + v, coords[4] - v)
+    seat.icon:SetVertexColor(1, 1, 1, 1)
+    seat.icon:Show()
+    inset = 1
+  elseif data.filled then
+    seat.edge:SetColorTexture(Theme.Color("accent", 0.25))
+    Icons.Apply(seat.icon, "user", "accent")
+    inset = 2
+  elseif data.role and ROLE_COLORS[data.role] then
+    seat.edge:SetColorTexture(Theme.Color("muted", 0.12))
+    Icons.Apply(seat.icon, "role-" .. data.role, "muted", 0.6)
+    inset = math.floor(size / 4)
+  else
+    seat.edge:SetColorTexture(Theme.Color("muted", 0.08))
+    seat.icon:Hide()
+    inset = 0
+  end
+  seat.icon:ClearAllPoints()
+  seat.icon:SetPoint("TOPLEFT", seat.edge, "TOPLEFT", inset, -inset)
+  seat.icon:SetPoint("BOTTOMRIGHT", seat.edge, "BOTTOMRIGHT", -inset, inset)
+
+  local badgeSize = math.max(8, math.floor(size * 0.55 + 0.5))
+  if data.filled and data.role and ROLE_COLORS[data.role] then
+    seat.badgeBack:SetSize(badgeSize + 2, badgeSize + 2)
+    seat.badgeBack:ClearAllPoints()
+    seat.badgeBack:SetPoint("CENTER", seat.edge, "BOTTOMRIGHT", -1, 1)
+    Icons.Apply(seat.badgeBack, "disc", "panelSolid")
+    seat.badge:SetSize(badgeSize - 2, badgeSize - 2)
+    seat.badge:ClearAllPoints()
+    seat.badge:SetPoint("CENTER", seat.badgeBack, "CENTER", 0, 0)
+    Icons.Apply(seat.badge, "role-" .. data.role, ROLE_COLORS[data.role])
+  else
+    seat.badgeBack:Hide()
+    seat.badge:Hide()
+  end
+end
+
+Kit.Define("Seats", {
   create = function(obj)
     obj.frame:EnableMouse(true)
-    obj.dots = {}
-    for index = 1, PIPS_MAX do
-      obj.dots[index] = obj.frame:CreateTexture(nil, "ARTWORK")
+    obj.seats = {}
+    for index = 1, SEATS_MAX do
+      obj.seats[index] = {
+        edge = obj.frame:CreateTexture(nil, "BACKGROUND"),
+        icon = obj.frame:CreateTexture(nil, "ARTWORK"),
+        badgeBack = obj.frame:CreateTexture(nil, "OVERLAY", nil, 1),
+        badge = obj.frame:CreateTexture(nil, "OVERLAY", nil, 2),
+      }
     end
     tooltipOn(obj)
   end,
   apply = function(obj, opts)
-    obj.size = opts.size or 12
-    obj.total = math.min(PIPS_MAX, opts.total or 5)
-    for index, dot in ipairs(obj.dots) do
+    obj.size = opts.size or 18
+    local data = opts.seats or {}
+    obj.total = math.min(SEATS_MAX, #data)
+    for index, seat in ipairs(obj.seats) do
       if index <= obj.total then
-        dot:SetSize(obj.size, obj.size)
-        dot:ClearAllPoints()
-        dot:SetPoint("LEFT", obj.frame, "LEFT", (index - 1) * (obj.size + PIP_GAP), 0)
-        -- A free seat is the same diamond, dimmer: the shape stays and only the fill changes.
-        if index <= (opts.filled or 0) then
-          Icons.Apply(dot, "diamond", "accent")
-        else
-          Icons.Apply(dot, "diamond", "muted", 0.35)
-        end
+        seat.edge:SetSize(obj.size, obj.size)
+        seat.edge:ClearAllPoints()
+        seat.edge:SetPoint("LEFT", obj.frame, "LEFT", (index - 1) * (obj.size + SEAT_GAP), 0)
+        dressSeat(seat, data[index], obj.size)
       else
-        dot:Hide()
+        seat.edge:Hide()
+        seat.icon:Hide()
+        seat.badgeBack:Hide()
+        seat.badge:Hide()
       end
     end
   end,
   layout = function(obj)
-    return obj.size
+    -- The role mark sticks out of the bottom-right corner by a few pixels.
+    return obj.size + 4
   end,
   natural = function(obj)
-    return obj.total * obj.size + (obj.total - 1) * PIP_GAP
+    if obj.total == 0 then
+      return 0
+    end
+    return obj.total * obj.size + (obj.total - 1) * SEAT_GAP + 4
   end,
 })
 

@@ -580,6 +580,8 @@ describe("Platform group", function()
     "GetNumGroupMembers",
     "GetRaidRosterInfo",
     "UnitName",
+    "UnitClass",
+    "UnitExists",
     "RaidNotice_AddMessage",
     "RaidWarningFrame",
     "ChatTypeInfo",
@@ -686,6 +688,50 @@ describe("Platform group", function()
     end
     assert.is_false(Platform.IsInGroup())
     assert.are.same({}, Platform.GetGroupMemberNames())
+  end)
+
+  describe("party classes", function()
+    local function classes(map)
+      _G.UnitClass = function(unit)
+        local value = map[unit]
+        if value == "boom" then
+          error("restricted")
+        end
+        return value and "Localized" or nil, value
+      end
+      _G.UnitExists = function(unit)
+        return unit == "player" or map[unit] ~= nil
+      end
+    end
+
+    it("lists the player first, then the party members with their class tokens", function()
+      party({ player = "Lead", party1 = "Ann", party2 = { "Bob", "OtherRealm" } })
+      classes({ player = "WARRIOR", party1 = "priest", party2 = "MAGE" })
+      assert.are.same({
+        { name = "Lead", class = "WARRIOR" },
+        { name = "Ann", class = "PRIEST" },
+        { name = "Bob", class = "MAGE" },
+      }, Platform.GetPartyClasses())
+    end)
+
+    it("is the player alone outside a group, and empty in a raid", function()
+      _G.IsInGroup = function()
+        return false
+      end
+      _G.UnitName = function()
+        return "Lead"
+      end
+      classes({ player = "WARRIOR", party1 = "MAGE" })
+      assert.are.same({ { name = "Lead", class = "WARRIOR" } }, Platform.GetPartyClasses())
+      raid({ "Lead", "Ann" })
+      assert.are.same({}, Platform.GetPartyClasses())
+    end)
+
+    it("keeps a seat whose class cannot be read, without a class", function()
+      party({ player = "Lead", party1 = "Ann" })
+      classes({ player = "WARRIOR", party1 = "boom" })
+      assert.are.same({ { name = "Lead", class = "WARRIOR" }, { name = "Ann" } }, Platform.GetPartyClasses())
+    end)
   end)
 
   it("gives an empty list when the group APIs are missing", function()

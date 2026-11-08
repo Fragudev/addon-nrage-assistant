@@ -26,7 +26,9 @@ local _, ns = ...
 --            invite = function() -> ok, reason }  (see LfgService.Eligibility),
 --          invite = function(name) -> ok, reason, isGroupMember = function(name) -> boolean,
 --          groupSize = function() -> number (0 or 1 when alone), isRaid = function() -> boolean (only `true` counts),
---          isLeader = function() -> boolean, board = LfgBoard, onChange = function() (optional) }
+--          isLeader = function() -> boolean, board = LfgBoard, onChange = function() (optional),
+--          partyClasses = function() -> { { name, class } } the party, the player first (optional),
+--          ownRole = function() -> wire role or nil, the player's declared role (optional) }
 local LfgService = {}
 LfgService.__index = LfgService
 
@@ -139,6 +141,41 @@ local function members(self)
   return math.max(1, size or 1)
 end
 
+-- The key of a joined member's role: the name without a realm, so the party (UnitName) and the applicant (the sender)
+-- meet.
+local function roleKey(name)
+  if type(name) ~= "string" then
+    return nil
+  end
+  return ns.Validate.NameKey(name:match("^[^%-]+") or name)
+end
+
+-- The seats of the own post: { { c = class, r = role } } for `count` members, the leader first, or nil when the client
+-- cannot read the whole party. The leader's role is the declared one; a member's role is the one they joined as
+-- (`roles`, by roleKey), unknown for whoever was in the party before.
+local function partyOf(self, count, roles)
+  if not self.deps.partyClasses then
+    return nil
+  end
+  local ok, seats = pcall(self.deps.partyClasses)
+  if not (ok and type(seats) == "table" and #seats == count) then
+    return nil
+  end
+  local party = {}
+  for index, seat in ipairs(seats) do
+    local role
+    if index == 1 then
+      local okRole, own = pcall(self.deps.ownRole or function() end)
+      role = okRole and own or nil
+    else
+      local key = roleKey(seat.name)
+      role = key and roles and roles[key] or nil
+    end
+    party[index] = { c = seat.class, r = role }
+  end
+  return ns.LfgModel.CleanParty(party, count)
+end
+
 local function cleanLevel(value)
   if value == false or value == 0 then
     return nil
@@ -194,13 +231,15 @@ function LfgService:Post(fields)
   end
   local merged = merge(nil, type(fields) == "table" and fields or {})
   merged.members = members(self)
+  merged.party = partyOf(self, merged.members, nil)
   local clean, why = ns.LfgModel.NewPost(merged)
   if not clean then
     return false, why
   end
 
   local now = self.deps.now()
-  local post = { pid = self.deps.newId(), rev = 1, fields = clean, createdAt = now, applicants = {}, grouped = false }
+  local post =
+    { pid = self.deps.newId(), rev = 1, fields = clean, createdAt = now, applicants = {}, roles = {}, grouped = false }
   post.grouped = clean.members > 1
   local sent, why2 = publish(self, post, true)
   if not sent then
@@ -228,6 +267,7 @@ function LfgService:Update(fields)
   end
   local merged = merge(post.fields, type(fields) == "table" and fields or {})
   merged.members = members(self)
+  merged.party = partyOf(self, merged.members, post.roles)
   local clean, why = ns.LfgModel.NewPost(merged)
   if not clean then
     return false, why
@@ -625,17 +665,20 @@ local function syncPost(self)
   for key, row in pairs(post.applicants) do
     if isMemberOfGroup(self, row.name) then
       needs[row.role] = math.max(0, needs[row.role] - 1)
+      post.roles[roleKey(row.name)] = row.role
       post.applicants[key] = nil
     end
   end
   local count = math.max(1, size)
   needs = ns.LfgModel.FitNeeds(needs, constants.LFG_PARTY_SIZE - count)
 
+  local party = partyOf(self, count, post.roles)
   local fields = post.fields
   local same = count == fields.members
     and needs.tank == fields.needs.tank
     and needs.heal == fields.needs.heal
     and needs.dps == fields.needs.dps
+    and ns.LfgModel.SameParty(party, fields.party)
   if same then
     return
   end
@@ -646,6 +689,7 @@ local function syncPost(self)
     members = count,
     minLevel = fields.minLevel,
     note = fields.note,
+    party = party,
   }
   post.fields, post.rev = updated, post.rev + 1
   if ns.LfgModel.IsFull(updated) then
@@ -712,7 +756,7 @@ local function left(self, deadline)
 end
 
 -- { post, application, closed }. `closed` is { title, outcome } of an own post that closed by itself, until Dismiss or
--- a new post. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, minLevel, note,
+-- a new post. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, minLevel, note, party,
 -- remaining, age, left (seconds to LFG_POST_MAX_AGE), applicants = { { name, role, note, state (pending | invited |
 -- retry), left, at } oldest first } }. `application` is the own application, or nil: { pid, leader, title, role,
 -- note, state (applied | invited | joined | declined | withdrawn | expired), reason, left }. A finished
@@ -749,6 +793,7 @@ function LfgService:Status()
       members = fields.members,
       minLevel = fields.minLevel,
       note = fields.note,
+      party = ns.LfgModel.CopyParty(fields.party),
       remaining = ns.LfgModel.RemainingNeeds(fields),
       age = math.max(0, now - post.createdAt),
       left = math.max(0, ns.Constants.LFG_POST_MAX_AGE - (now - post.createdAt)),

@@ -518,6 +518,8 @@ local function validateLfgPost(payload)
     end
     clean.note = payload.note
   end
+  -- Optional (protocol 1.12): a party that does not fit is dropped, the post is kept.
+  clean.party = ns.LfgModel.CleanParty(payload.party, payload.members)
   return clean
 end
 

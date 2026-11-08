@@ -534,6 +534,11 @@ local function StartLfg()
     groupSize = platform.GetGroupSize,
     isLeader = platform.IsGroupLeader,
     isRaid = platform.IsInRaid,
+    partyClasses = platform.GetPartyClasses,
+    ownRole = function()
+      local fields = ns.character and ns.character.profile and ns.character.profile.fields or {}
+      return fields.role and ns.LfgModel.WireRole(fields.role.value) or nil
+    end,
     board = board,
     onChange = function()
       ns.UI.LfgChanged()

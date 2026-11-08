@@ -5,6 +5,7 @@ local function load_modules()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/EventModel",
+    "Domain/LfgModel",
     "Sync/Protocol",
     "Sync/SyncRules",
     "Sync/LfgSync",
