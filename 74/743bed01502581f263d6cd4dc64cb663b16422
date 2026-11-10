@@ -1,0 +1,71 @@
+NrageAssistant/Domain/Professions.lua
+  s_899db75e1dccbf::t_1d04eed9a30806 1-123
+NrageAssistant/Domain/ReadinessService.lua
+  s_899db75e1dccbf::t_42bc864b1bb00e 70-72,80
+NrageAssistant/NrageAssistant.toc
+  s_899db75e1dccbf::t_41c5b7df3ce7cb 29
+NrageAssistant/UI/Tabs/Rules.lua
+  s_899db75e1dccbf::t_ff22e1d117aad0 28
+NrageAssistant/UI/ViewModel.lua
+  s_899db75e1dccbf::t_a5e8dbf0b018be 907-908
+NrageAssistant/UI/ViewModelGuild.lua
+  s_899db75e1dccbf::t_0453a54dff6adc 316-317
+NrageAssistant/UI/ViewModelProfessions.lua
+  s_899db75e1dccbf::t_ea01b208586763 14-15,87-92
+tests/announcement_popup_spec.lua
+  s_899db75e1dccbf::t_144ce2f22d6572 16
+tests/blacklist_commands_spec.lua
+  s_899db75e1dccbf::t_46d13e497a0755 16
+tests/domain_spanish_spec.lua
+  s_899db75e1dccbf::t_ed28269cc01d54 13,57
+tests/intel_target_button_spec.lua
+  s_899db75e1dccbf::t_775ee5df1cb884 30
+tests/intel_window_spec.lua
+  s_899db75e1dccbf::t_36eca47dc62160 33
+tests/layer_popup_spec.lua
+  s_899db75e1dccbf::t_312bf21af74831 8
+tests/lfg_popup_spec.lua
+  s_899db75e1dccbf::t_d46d96b13df4d3 14
+tests/loot_popup_spec.lua
+  s_899db75e1dccbf::t_ae3967842f69a6 308
+tests/professions_spec.lua
+  s_899db75e1dccbf::t_41bf333137cc3a 1-69
+tests/readiness_service_spec.lua
+  s_899db75e1dccbf::t_31780da2fa1df8 5,42-59
+tests/secondary_frames_spec.lua
+  s_899db75e1dccbf::t_37ae3e23e1e9c7 20
+tests/ui_smoke_spec.lua
+  s_899db75e1dccbf::t_e773970ab16536 56
+tests/view_model_announcements_spec.lua
+  s_899db75e1dccbf::t_574f777b412f20 16
+tests/view_model_installs_spec.lua
+  s_899db75e1dccbf::t_2ef037f100f75b 13
+tests/view_model_intel_spec.lua
+  s_899db75e1dccbf::t_9d04dd1d02642a 21
+tests/view_model_layers_spec.lua
+  s_899db75e1dccbf::t_0974648cf89cc7 14
+tests/view_model_modules_spec.lua
+  s_899db75e1dccbf::t_cf86e9394db471 13
+tests/view_model_pvp_spec.lua
+  s_899db75e1dccbf::t_ed34821cc07583 26
+tests/view_model_ranks_spec.lua
+  s_899db75e1dccbf::t_689f72324d9aef 13
+tests/view_model_spec.lua
+  s_899db75e1dccbf::t_353ce41b2fe82c 22,313-319,1193-1202,2423-2434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "74743bed01502581f263d6cd4dc64cb663b16422",
+  "prompts": {},
+  "sessions": {
+    "s_899db75e1dccbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a8125f6-2e91-4c48-863f-ac26ed1464c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
