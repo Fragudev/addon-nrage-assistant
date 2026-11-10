@@ -757,6 +757,39 @@ function Platform.GetPlayerFaction()
   return ok and faction or nil
 end
 
+-- The map id of the battleground instance the player is in (the eighth return of GetInstanceInfo: 489 for Warsong
+-- Gulch, 529 for Arathi Basin, 30 for Alterac Valley; not measured on Forever yet, API_NOTES M9), or nil outside a
+-- battleground or when the client does not say. It names the battleground type, not one match.
+function Platform.GetBattlegroundInstance()
+  -- Read from _G: this client call is not in the luacheck globals list yet.
+  local getInstanceInfo = _G.GetInstanceInfo
+  if not (IsInInstance and getInstanceInfo) then
+    return nil
+  end
+  local ok, mapId = pcall(function()
+    local _, instanceType = IsInInstance()
+    if instanceType ~= "pvp" then
+      return nil
+    end
+    local value = select(8, getInstanceInfo())
+    if type(value) == "number" and value > 0 and value % 1 == 0 then
+      return value
+    end
+    return nil
+  end)
+  return ok and mapId or nil
+end
+
+-- Asks the client for the score data, which makes it fire UPDATE_BATTLEFIELD_SCORE (and with it the winner, once the
+-- battleground is decided). True when the request was made.
+function Platform.RequestBattlegroundScore()
+  local request = _G.RequestBattlefieldScoreData
+  if type(request) ~= "function" then
+    return false
+  end
+  return (pcall(request))
+end
+
 -- Group (party or raid). The names are those the client gives: on Forever `UnitName` returns only the first word
 -- of a multi-word name, and what `GetRaidRosterInfo` returns for one has not been measured yet (see API_NOTES).
 -- Every call is guarded, so a missing API or a secret value leaves a name out instead of raising.

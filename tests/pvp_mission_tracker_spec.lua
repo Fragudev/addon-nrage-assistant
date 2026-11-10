@@ -364,6 +364,43 @@ describe("PvPMissionTracker battleground wins and manual missions", function()
   end)
 end)
 
+describe("PvPMissionTracker faction and battleground rows", function()
+  it("derives the enemy classes and races from the faction of the player", function()
+    local classes, races = Tracker.EnemySets("Alliance")
+    assert.are.same(Constants.PVP_ENEMY_CLASSES_BY_FACTION.Alliance, classes)
+    assert.are.same(Constants.PVP_ENEMY_RACES_BY_FACTION.Alliance, races)
+    assert.are.same({ "DWARF", "GNOME", "HUMAN", "NIGHTELF" }, select(2, Tracker.EnemySets("Horde")))
+    -- an unreadable faction falls back to the lists of an Alliance guild
+    assert.are.same(Constants.PVP_ENEMY_CLASSES, (Tracker.EnemySets(nil)))
+    assert.are.same(Constants.PVP_ENEMY_RACES, select(2, Tracker.EnemySets("Neutral")))
+  end)
+
+  it("fills the race bar with the races of the other side for a Horde player", function()
+    local log = {
+      kill(NOW - 3, "A", { race = "HUMAN" }),
+      kill(NOW - 2, "B", { race = "ORC" }),
+      kill(NOW - 1, "C", { race = "GNOME" }),
+    }
+    local m = mission({ distinct = "race" })
+    local horde = Tracker.Progress(m, log, NOW, {}, SEASON, "Horde")
+    assert.are.same({ { label = "Races", done = 2, total = 4 } }, horde.bars)
+    local alliance = Tracker.Progress(m, log, NOW, {}, SEASON, "Alliance")
+    assert.are.same({ { label = "Races", done = 1, total = 4 } }, alliance.bars)
+  end)
+
+  it("counts a battleground result of the log by its kind, and a loss is not a win or a kill", function()
+    local log = {
+      { kind = "bg", result = "win", bg = "wsg", at = NOW - 3, mapId = 1459 },
+      { kind = "bg", result = "loss", bg = "wsg", at = NOW - 2, mapId = 1459 },
+      kill(NOW - 1, "Zed"),
+    }
+    local result = progress(mission({ kind = "bg_wins", count = 2 }), log)
+    assert.are.equal(1, result.bars[1].done)
+    assert.are.same({ at = NOW - 3, bgWin = true, mapId = 1459 }, result.evidence[1])
+    assert.are.equal(1, progress(mission({ count = 5 }), log).bars[1].done)
+  end)
+end)
+
 describe("PvPMissionTracker texts", function()
   it("translates the bar labels and the zone names, and passes unknown ones through", function()
     ns.Locale.Use("esES")

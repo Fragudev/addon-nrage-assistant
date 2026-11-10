@@ -290,6 +290,20 @@ ns.Constants = {
   -- tokens (the second return of UnitClass / UnitRace, upper-cased). The guild is Alliance (plan, section 7).
   PVP_ENEMY_CLASSES = { "DRUID", "HUNTER", "MAGE", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR" },
   PVP_ENEMY_RACES = { "ORC", "SCOURGE", "TAUREN", "TROLL" },
+  -- The same sets keyed by the faction of the PLAYER (the enemy sets of the other side), for a guild of either side.
+  -- Without a readable faction the lists above (the Horde side, an Alliance guild) apply.
+  PVP_ENEMY_CLASSES_BY_FACTION = {
+    Alliance = { "DRUID", "HUNTER", "MAGE", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR" },
+    Horde = { "DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE", "WARLOCK", "WARRIOR" },
+  },
+  PVP_ENEMY_RACES_BY_FACTION = {
+    Alliance = { "ORC", "SCOURGE", "TAUREN", "TROLL" },
+    Horde = { "DWARF", "GNOME", "HUMAN", "NIGHTELF" },
+  },
+  -- The battleground type by the map id of its instance (API_NOTES M9: not measured on Forever yet), and how often the
+  -- score data is requested while the player is inside one (the winner comes with it).
+  PVP_BG_BY_MAP = { [489] = "wsg", [529] = "ab", [30] = "av" },
+  PVP_BG_SCORE_POLL_SECONDS = 30,
   -- The zones an admin can pick for a mission: uiMapIds of the capitals and contested zones, with the English name
   -- (a key for L()). The ids are from the Classic map tables and are TO BE MEASURED on Forever (plan, M1); a zone
   -- whose id turns out wrong is fixed here, nothing else depends on the list.

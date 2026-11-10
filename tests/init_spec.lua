@@ -811,6 +811,29 @@ describe("Init", function()
   end)
 
   describe("PvP missions handlers", function()
+    it("listen to the score update and the end of combat, which feed the battleground result", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local frame
+      for _, candidate in ipairs(env.frames) do
+        if candidate.events.UPDATE_BATTLEFIELD_STATUS then
+          frame = candidate
+        end
+      end
+      assert.is_true(frame.events.UPDATE_BATTLEFIELD_SCORE)
+      assert.is_true(frame.events.PLAYER_REGEN_ENABLED)
+      local seen = {}
+      env.ns.pvpMissions.OnBattlegroundScore = function()
+        seen[#seen + 1] = "score"
+      end
+      env.ns.pvpMissions.OnCombatEnded = function()
+        seen[#seen + 1] = "combat"
+      end
+      frame.OnEvent(frame, "UPDATE_BATTLEFIELD_SCORE")
+      frame.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+      assert.are.same({ "score", "combat" }, seen)
+    end)
+
     local function missionsFrame()
       for _, frame in ipairs(env.frames) do
         if frame.events.UPDATE_BATTLEFIELD_STATUS then

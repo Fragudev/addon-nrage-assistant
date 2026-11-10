@@ -71,6 +71,8 @@ local function new_client(world, name, withMissions)
       winner = nil,
       faction = "Alliance",
       inBg = true,
+      bgInstance = 489,
+      scoreRequests = 0,
       enemy = {},
     }
     client.active = true
@@ -102,6 +104,13 @@ local function new_client(world, name, withMissions)
         end,
         IsInBattleground = function()
           return client.world.inBg
+        end,
+        GetBattlegroundInstance = function()
+          return client.world.inBg and client.world.bgInstance or nil
+        end,
+        RequestBattlegroundScore = function()
+          client.world.scoreRequests = client.world.scoreRequests + 1
+          return true
         end,
         HasBattlegroundWinner = function()
           return client.world.winnerApi ~= false
@@ -335,23 +344,42 @@ describe("PvPMissionService unit cache feed", function()
   end)
 end)
 
-describe("PvPMissionService battleground wins", function()
+describe("PvPMissionService battleground results", function()
+  local function results(member)
+    local list = {}
+    for _, row in ipairs(member.char.pvpLog.events) do
+      if row.kind == "bg" then
+        list[#list + 1] = row.result
+      end
+    end
+    return list
+  end
+
   it("logs a win of the own side once per battleground", function()
     local _, _, member = setup({ kind = "bg_wins", count = 1 })
     member.world.winner = "Alliance"
     assert.is_true(member.missions:OnBattlegroundStatus())
     assert.is_false(member.missions:OnBattlegroundStatus())
-    assert.are.same({ kind = "bg", result = "win", at = T0 + 12 * 3600, mapId = 1411 }, member.char.pvpLog.events[1])
+    assert.are.same(
+      { kind = "bg", result = "win", bg = "wsg", at = T0 + 12 * 3600, mapId = 1411 },
+      member.char.pvpLog.events[1]
+    )
     assert.are.equal(1, #member.char.pvpLog.events)
     assert.is_true(member.missions:Progress("m1").complete)
   end)
 
-  it("ignores a loss, an undecided battleground, a unit outside one and an unknown faction", function()
+  it("logs a loss as a loss (it does not count as a win), and nothing for an undecided battleground", function()
     local _, _, member = setup({ kind = "bg_wins", count = 1 })
-    member.world.winner = "Horde"
-    assert.is_false(member.missions:OnBattlegroundStatus())
     member.world.winner = nil
     assert.is_false(member.missions:OnBattlegroundStatus())
+    member.world.winner = "Horde"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.are.same({ "loss" }, results(member))
+    assert.is_false(member.missions:Progress("m1").complete)
+  end)
+
+  it("ignores a unit outside a battleground and an unknown faction", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
     member.world.winner = "Alliance"
     member.world.inBg = false
     assert.is_false(member.missions:OnBattlegroundStatus())
@@ -361,19 +389,56 @@ describe("PvPMissionService battleground wins", function()
     assert.are.equal(0, #member.char.pvpLog.events)
   end)
 
-  it("does not log twice after a reload in the same battleground, but does for the next world", function()
+  it("works for a Horde player too: the winner is compared with the own faction", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.faction = "Horde"
+    member.world.winner = "Horde"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.are.same({ "win" }, results(member))
+  end)
+
+  it("takes the result from the score update when the status did not give it", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.world.winner = "Alliance"
+    assert.is_true(member.missions:OnBattlegroundScore())
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    assert.are.same({ "win" }, results(member))
+  end)
+
+  it("logs a winner that was seen but never logged when the player leaves", function()
+    local _, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.missions:OnWorldEntered(false, false)
+    -- the faction could not be read while inside: the winner is remembered but nothing is logged
+    member.world.faction = nil
+    member.world.winner = "Alliance"
+    assert.is_false(member.missions:OnBattlegroundStatus())
+    assert.are.equal(0, #member.char.pvpLog.events)
+    member.world.faction = "Alliance"
+    member.world.inBg = false
+    member.missions:OnWorldEntered(false, false)
+    assert.are.same({ "win" }, results(member))
+    assert.is_nil(member.char.pvpLog.bg)
+  end)
+
+  it("logs nothing on leaving when no winner was ever seen", function()
+    local _, _, member = setup()
+    member.missions:OnWorldEntered(false, false)
+    member.world.inBg = false
+    member.missions:OnWorldEntered(false, false)
+    assert.are.equal(0, #member.char.pvpLog.events)
+  end)
+
+  it("does not log twice after a reload or a login in the same battleground, but does for the next one", function()
     local world, _, member = setup({ kind = "bg_wins", count = 1 })
+    member.missions:OnWorldEntered(false, false)
     member.world.winner = "Alliance"
     assert.is_true(member.missions:OnBattlegroundStatus())
-    -- a /reload forgets the memory of the session: the marker saved with the log remains
-    member.missions.winLogged = false
     member.missions:OnWorldEntered(false, true)
     assert.is_false(member.missions:OnBattlegroundStatus())
-    -- a login keeps it too (the player may be in the same battleground)
     member.missions:OnWorldEntered(true, false)
     assert.is_false(member.missions:OnBattlegroundStatus())
     assert.are.equal(1, #member.char.pvpLog.events)
-    -- a loading screen into another world clears it
+    -- a loading screen into another world and back into a battleground is a new one
     member.missions:OnWorldEntered(false, false)
     world.clock = world.clock + 60
     assert.is_true(member.missions:OnBattlegroundStatus())
@@ -390,11 +455,92 @@ describe("PvPMissionService battleground wins", function()
     assert.are.equal(2, #member.char.pvpLog.events)
   end)
 
-  it("logs a win without a season too (the result is kept for when the season arrives)", function()
+  it("tells a battleground type from another by the map id of the instance", function()
+    local _, _, member = setup()
+    member.world.winner = "Alliance"
+    member.world.bgInstance = 529
+    member.missions:OnWorldEntered(false, false)
+    member.missions:OnBattlegroundStatus()
+    assert.are.equal("ab", member.char.pvpLog.events[1].bg)
+    member.world.inBg = false
+    member.missions:OnWorldEntered(false, false)
+    member.world.inBg = true
+    member.world.bgInstance = 30
+    member.missions:OnWorldEntered(false, false)
+    member.missions:OnBattlegroundStatus()
+    assert.are.equal("av", member.char.pvpLog.events[2].bg)
+  end)
+
+  it("logs a result without a season too (kept for when the season arrives)", function()
     local lone = new_client(new_world(), "Ann", true)
     lone.world.winner = "Alliance"
     assert.is_true(lone.missions:OnBattlegroundStatus())
     assert.are.equal(1, #lone.char.pvpLog.events)
+  end)
+
+  it("keeps working when the client cannot name the instance", function()
+    local _, _, member = setup()
+    member.missions.deps.platform.GetBattlegroundInstance = nil
+    member.world.winner = "Alliance"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.is_nil(member.char.pvpLog.events[1].bg)
+    assert.is_false(member.missions:OnBattlegroundStatus())
+  end)
+
+  describe("score requests", function()
+    it("asks for the score after combat only inside a battleground whose result is not logged", function()
+      local _, _, member = setup()
+      assert.is_true(member.missions:OnCombatEnded())
+      assert.are.equal(1, member.world.scoreRequests)
+      member.world.inBg = false
+      assert.is_false(member.missions:OnCombatEnded())
+      member.world.inBg = true
+      member.world.winner = "Alliance"
+      member.missions:OnBattlegroundStatus()
+      assert.is_false(member.missions:OnCombatEnded())
+      assert.are.equal(1, member.world.scoreRequests)
+    end)
+
+    it("asks every 30 seconds while inside a battleground, once per loop, and stops when it ends", function()
+      local _, _, member = setup()
+      member.missions:OnWorldEntered(false, false)
+      member.missions:OnWorldEntered(false, false)
+      assert.are.equal(1, member.world.scoreRequests)
+      assert.are.equal(1, #member.timers)
+      assert.are.equal(Constants.PVP_BG_SCORE_POLL_SECONDS, member.timers[1].delay)
+      fire(member)
+      assert.are.equal(2, member.world.scoreRequests)
+      assert.are.equal(1, #member.timers)
+      member.world.inBg = false
+      fire(member)
+      assert.are.equal(2, member.world.scoreRequests)
+      assert.are.equal(0, #member.timers)
+      assert.is_false(member.missions.scoring)
+    end)
+
+    it("stops the loop when the addon is no longer active", function()
+      local _, _, member = setup()
+      member.missions:OnWorldEntered(false, false)
+      member.active = false
+      fire(member)
+      assert.are.equal(0, #member.timers)
+    end)
+  end)
+
+  it("counts a class mission with the enemy classes of the other side for a Horde player", function()
+    local _, _, member = setup({ kind = "kills", distinct = "class", count = 1 }, { repeatKind = "once" })
+    member.world.faction = "Horde"
+    local classes = Constants.PVP_ENEMY_CLASSES_BY_FACTION.Horde
+    assert.is_truthy(classes)
+    for index, class in ipairs(classes) do
+      member.cache:Remember("C" .. index, class, "HUMAN")
+      kill(member, "C" .. index)
+    end
+    local bar = member.missions:Progress("m1").bars[1]
+    assert.are.same({ label = "Classes", done = #classes, total = #classes }, bar)
+    member.world.faction = "Alliance"
+    -- the same kills read against the other side's list: the paladin is not an enemy class there
+    assert.are.equal(#classes - 1, member.missions:Progress("m1").bars[1].done)
   end)
 end)
 

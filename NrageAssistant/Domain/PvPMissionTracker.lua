@@ -194,6 +194,14 @@ local function mergedEvidence(lists)
   return evidenceOf(merged)
 end
 
+-- The enemy class and race tokens a distinct mission counts, for a player of `faction` ("Alliance" | "Horde"). Any
+-- other value (an unreadable faction) gives the lists of an Alliance guild.
+function PvPMissionTracker.EnemySets(faction)
+  local constants = ns.Constants
+  return constants.PVP_ENEMY_CLASSES_BY_FACTION[faction] or constants.PVP_ENEMY_CLASSES,
+    constants.PVP_ENEMY_RACES_BY_FACTION[faction] or constants.PVP_ENEMY_RACES
+end
+
 local function periodClaims(claims, missionId, periodKey)
   local used = 0
   for _, entry in pairs(claims or {}) do
@@ -206,14 +214,15 @@ local function periodClaims(claims, missionId, periodKey)
 end
 
 -- The progress of `mission` for the log `kills` at server time `now`. `claims` is the local claim table
--- (char.pvpMissions.claims: { [claimId] = { claim, state } }), which says how many claims the period already has;
--- `season` (optional) gives the dates.
+-- (char.pvpClaims[seasonId]: { [claimId] = { claim, state } }), which says how many claims the period already has;
+-- `season` (optional) gives the dates and `faction` (optional) the side of the player, which decides the enemy classes
+-- and races of a class or race mission.
 --
 -- Returns { bars = { { label, done, total } }, unknown, complete, couldComplete, claimable, periodKey, evidence,
 -- nextN } where `nextN` is the claim number the next claim would use (n of the claim id) and `claimable` says whether
 -- a claim is allowed now (complete, or able to complete once the approver counts the unknown ones; the mission is
 -- active; the season is running; the period still has a free claim).
-function PvPMissionTracker.Progress(mission, kills, now, claims, season)
+function PvPMissionTracker.Progress(mission, kills, now, claims, season, faction)
   local goal = mission.goal
   local periodKey = ns.PvPSeasonModel.PeriodKey(mission.repeatKind, now)
   local result = {
@@ -247,7 +256,6 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season)
     end
   end
 
-  local constants = ns.Constants
   if goal.kind == "manual" then
     result.complete = true
     result.couldComplete = true
@@ -269,11 +277,12 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season)
     result.evidence = evidenceOf(firsts)
   elseif goal.distinct == "class" or goal.distinct == "race" or goal.distinct == "class_race" then
     local dimensions = {}
+    local enemyClasses, enemyRaces = PvPMissionTracker.EnemySets(faction)
     if goal.distinct ~= "race" then
-      dimensions[#dimensions + 1] = { label = "Classes", field = "class", tokens = constants.PVP_ENEMY_CLASSES }
+      dimensions[#dimensions + 1] = { label = "Classes", field = "class", tokens = enemyClasses }
     end
     if goal.distinct ~= "class" then
-      dimensions[#dimensions + 1] = { label = "Races", field = "race", tokens = constants.PVP_ENEMY_RACES }
+      dimensions[#dimensions + 1] = { label = "Races", field = "race", tokens = enemyRaces }
     end
     local complete, could, lists, unknownRows = true, true, {}, {}
     for _, spec in ipairs(dimensions) do

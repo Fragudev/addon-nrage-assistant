@@ -27,7 +27,7 @@ PvPMissionService.__index = PvPMissionService
 
 function PvPMissionService.New(deps)
   return setmetatable(
-    { deps = deps, unitSource = false, winSource = false, looping = false, winLogged = false, refused = {} },
+    { deps = deps, unitSource = false, winSource = false, looping = false, scoring = false, refused = {} },
     PvPMissionService
   )
 end
@@ -141,51 +141,147 @@ function PvPMissionService:OnUnit(unit)
   return info ~= nil and self.deps.cache:Remember(info.name, info.class, info.race)
 end
 
--- The battleground status changed: when the player's side won, a win is logged, once per battleground instance.
--- Returns true when a win was logged.
-function PvPMissionService:OnBattlegroundStatus()
-  local platform = self.deps.platform
-  if self:WinLogged() or platform.IsInBattleground() ~= true then
+-- The battleground result (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.4). Three sources, the first that gives a winner
+-- wins and the result is logged once per battleground instance: UPDATE_BATTLEFIELD_STATUS, UPDATE_BATTLEFIELD_SCORE
+-- (asked for with RequestBattlefieldScoreData when combat ends and every PVP_BG_SCORE_POLL_SECONDS inside the
+-- battleground) and, if a winner was seen but never logged, the moment the player leaves the instance. An instance is
+-- the battleground map id plus the time the player entered it, kept in `char.pvpLog.bg` so a reload does not log the
+-- result again:
+--   log.bg = { id = map id, bg = "wsg" | "ab" | "av" | nil, startedAt, winner = "Alliance" | "Horde" | nil, logged }
+function PvPMissionService:BgInstance()
+  local read = self.deps.platform.GetBattlegroundInstance
+  return read and read() or nil
+end
+
+-- The record of the battleground the player is in now: the saved one when it is the same instance, otherwise a new one
+-- (the one saved is settled first). Nil when the character has no saved log.
+function PvPMissionService:BgRecord()
+  local log = self:WriteLog()
+  if not log then
+    return nil
+  end
+  local id = self:BgInstance()
+  if type(log.bg) == "table" and log.bg.id == id then
+    return log.bg
+  end
+  self:SettleBg()
+  log.bg = { id = id, bg = id and ns.Constants.PVP_BG_BY_MAP[id] or nil, startedAt = self.deps.now() }
+  return log.bg
+end
+
+-- Logs the result of `record` (win or loss of the player's side) once. Returns true when a row was logged.
+function PvPMissionService:LogBgResult(record, winner)
+  local faction = self.deps.platform.GetPlayerFaction()
+  if record.logged or not winner or not faction then
     return false
   end
-  local winner = platform.GetBattlegroundWinner()
-  if not winner or winner ~= platform.GetPlayerFaction() then
-    return false
-  end
-  local now = self.deps.now()
   local log = self:WriteLog()
   if not log then
     return false
   end
-  -- The marker is saved with the log, so a reload inside the same battleground does not log the win again. A real
-  -- world entry clears it (OnWorldEntered).
-  log.bgWinLogged = true
-  self.winLogged = true
-  self:Append(log, { kind = "bg", result = "win", at = now, mapId = platform.GetPlayerMapId() })
+  record.logged = true
+  self:Append(log, {
+    kind = "bg",
+    result = winner == faction and "win" or "loss",
+    bg = record.bg,
+    at = self.deps.now(),
+    mapId = self.deps.platform.GetPlayerMapId(),
+  })
   self:Changed()
   return true
 end
 
--- Has the win of the battleground the player is in been logged already? The saved marker survives a /reload.
-function PvPMissionService:WinLogged()
-  local log = self.deps.log()
-  if type(log) == "table" then
-    return log.bgWinLogged == true
+-- The player left the battleground: a winner that was seen but never logged is logged now, and the record goes.
+function PvPMissionService:SettleBg()
+  local log = self:WriteLog()
+  if not log or type(log.bg) ~= "table" then
+    return false
   end
-  return self.winLogged
+  local record = log.bg
+  log.bg = nil
+  return self:LogBgResult(record, record.winner)
 end
 
--- PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi). A loading screen into another world makes the next
--- battleground win a new one. A /reload or a login keeps the marker: the player may still be in the same battleground
--- (a login into another place is cleared by the next loading screen). Without arguments it counts as a new world.
-function PvPMissionService:OnWorldEntered(isInitialLogin, isReloadingUi)
-  if isInitialLogin or isReloadingUi then
+-- A battleground status or score update arrived: when the battleground has a winner it is remembered, and logged if no
+-- earlier source did. Returns true when a result was logged.
+function PvPMissionService:OnBattlegroundStatus()
+  local platform = self.deps.platform
+  if platform.IsInBattleground() ~= true then
+    return false
+  end
+  local winner = platform.GetBattlegroundWinner()
+  if not winner then
+    return false
+  end
+  local record = self:BgRecord()
+  if not record then
+    return false
+  end
+  record.winner = winner
+  return self:LogBgResult(record, winner)
+end
+
+-- UPDATE_BATTLEFIELD_SCORE carries the same information as the status.
+PvPMissionService.OnBattlegroundScore = PvPMissionService.OnBattlegroundStatus
+
+-- Asks the client for the score data (so the winner arrives) while the player is in a battleground whose result is not
+-- logged yet. Returns true when the request was made.
+function PvPMissionService:RequestScore()
+  local platform = self.deps.platform
+  if not platform.RequestBattlegroundScore or platform.IsInBattleground() ~= true then
+    return false
+  end
+  local log = self.deps.log()
+  if type(log) == "table" and type(log.bg) == "table" and log.bg.logged and log.bg.id == self:BgInstance() then
+    return false
+  end
+  return platform.RequestBattlegroundScore() == true
+end
+
+-- PLAYER_REGEN_ENABLED: the fight is over, a good moment to ask for the score.
+function PvPMissionService:OnCombatEnded()
+  return self:RequestScore()
+end
+
+-- Requests the score every PVP_BG_SCORE_POLL_SECONDS while the player is in a battleground (and the addon is active).
+function PvPMissionService:ScoreTick()
+  if not self.deps.isActive() or self.deps.platform.IsInBattleground() ~= true then
+    self.scoring = false
     return
   end
-  self.winLogged = false
-  local log = self.deps.log()
-  if type(log) == "table" then
-    log.bgWinLogged = nil
+  self:RequestScore()
+  self.deps.schedule(ns.Constants.PVP_BG_SCORE_POLL_SECONDS, function()
+    self:ScoreTick()
+  end)
+end
+
+function PvPMissionService:StartScoring()
+  if self.scoring then
+    return
+  end
+  self.scoring = true
+  self:ScoreTick()
+end
+
+-- PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi). A loading screen into another world settles the battleground
+-- the player left (a result seen but not logged is logged now) and starts the record of the one they entered. A
+-- /reload or a login keeps the saved record while the player is still in the same battleground (a login into another
+-- place settles it). Without arguments it counts as a new world.
+function PvPMissionService:OnWorldEntered(isInitialLogin, isReloadingUi)
+  local inBg = self.deps.platform.IsInBattleground() == true
+  local log = self:WriteLog()
+  if log then
+    local record = type(log.bg) == "table" and log.bg or nil
+    local sameInstance = inBg and record ~= nil and record.id == self:BgInstance()
+    if not ((isInitialLogin or isReloadingUi) and sameInstance) then
+      self:SettleBg()
+    end
+    if inBg then
+      self:BgRecord()
+    end
+  end
+  if inBg then
+    self:StartScoring()
   end
 end
 
@@ -222,7 +318,14 @@ function PvPMissionService:Progress(missionId)
   if not mission then
     return nil
   end
-  return ns.PvPMissionTracker.Progress(mission, self:Events(), self.deps.now(), self:ReadClaims(season), season)
+  return ns.PvPMissionTracker.Progress(
+    mission,
+    self:Events(),
+    self.deps.now(),
+    self:ReadClaims(season),
+    season,
+    self.deps.platform.GetPlayerFaction()
+  )
 end
 
 local BEST = { approved = 3, pending = 2, rejected = 1 }

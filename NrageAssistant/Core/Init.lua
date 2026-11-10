@@ -84,6 +84,9 @@ local PVP_MISSION_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_U
 local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
 local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
 local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
+-- The score update brings the winner of a battleground too, and the end of a fight is a good moment to ask for it.
+local PVP_MISSION_SCORE_EVENT = "UPDATE_BATTLEFIELD_SCORE"
+local PVP_MISSION_REGEN_EVENT = "PLAYER_REGEN_ENABLED"
 
 -- Runs a handler of the PvP missions. One that raises never reaches the client: it is listed with the startup errors
 -- (ns.ReportStartupError, for /nrage debug) and costs nothing else.
@@ -139,6 +142,8 @@ local function StartPvPMissions(feed)
   missions.unitSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_NAMEPLATE_EVENT) or missions.unitSource
   missions.winSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WIN_EVENT)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
+  ns.Platform.TryRegisterEvent(frame, PVP_MISSION_SCORE_EVENT)
+  ns.Platform.TryRegisterEvent(frame, PVP_MISSION_REGEN_EVENT)
   -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit.
   frame:SetScript("OnEvent", function(_, event, unit, isReloadingUi)
     if not ns.active then
@@ -146,6 +151,10 @@ local function StartPvPMissions(feed)
     end
     if event == PVP_MISSION_WIN_EVENT then
       GuardedMissionCall("pvpMissions.battlegroundStatus", missions.OnBattlegroundStatus, missions)
+    elseif event == PVP_MISSION_SCORE_EVENT then
+      GuardedMissionCall("pvpMissions.battlegroundScore", missions.OnBattlegroundScore, missions)
+    elseif event == PVP_MISSION_REGEN_EVENT then
+      GuardedMissionCall("pvpMissions.combatEnded", missions.OnCombatEnded, missions)
     elseif event == PVP_MISSION_WORLD_EVENT then
       GuardedMissionCall("pvpMissions.worldEntered", missions.OnWorldEntered, missions, unit, isReloadingUi)
     else
