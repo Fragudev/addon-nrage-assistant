@@ -1,0 +1,35 @@
+NrageAssistant/Core/Constants.lua
+  s_0149a02cc6acee::t_0fe1c3891a31b3 293-306
+NrageAssistant/Core/Init.lua
+  s_0149a02cc6acee::t_83ddaa70daa025 87-89,145-146,154-157
+NrageAssistant/Core/Platform.lua
+  s_0149a02cc6acee::t_523a9097ae7c0d 760-792
+NrageAssistant/Domain/PvPMissionService.lua
+  s_0149a02cc6acee::t_988b39f207b64d 30,144-161,163-175,182-189,194-233,235-236,238,241-249,252-284,321-328
+NrageAssistant/Domain/PvPMissionTracker.lua
+  s_0149a02cc6acee::t_876ec20d009ba0 197-204,217-219,225,280,282,285
+tests/init_spec.lua
+  s_0149a02cc6acee::t_56ae94fcdafc5a 814-836
+tests/platform_unmeasured_spec.lua
+  s_0149a02cc6acee::t_07fa3463ec6134 534-588
+tests/pvp_mission_service_spec.lua
+  s_0149a02cc6acee::t_2c563d4115b208 74-75,108-114,347-357,363-366,371,375-382,392-431,433,441,458-474,480-544
+tests/pvp_mission_tracker_spec.lua
+  s_0149a02cc6acee::t_4b447e2333ad9b 367-403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "146a71918f8e3258c3750dd7fc31d1aae60797c1",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
