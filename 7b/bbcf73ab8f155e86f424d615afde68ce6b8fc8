@@ -1,0 +1,41 @@
+NrageAssistant/Core/Constants.lua
+  s_0149a02cc6acee::t_a0ee7b6fe2d63b 5,24,277-283
+NrageAssistant/Core/Init.lua
+  s_0149a02cc6acee::t_577840ee9766f6 88-97,107-110,148,150,1248-1249,1251,1405-1411,1434
+NrageAssistant/Core/Store.lua
+  s_0149a02cc6acee::t_5fa78c265dab51 14-15,213-265,302-307
+NrageAssistant/Domain/PvPFeed.lua
+  s_0149a02cc6acee::t_8528a67b38af1b 140-143,145
+NrageAssistant/Domain/PvPMissionService.lua
+  s_0149a02cc6acee::t_3b5211f9834f71 3-5,7-11,14-15,18-23,50-51,53-54,56,59-60,65,69-105,111,114,122-124,138,148,156,164,225,247,303-305,318,343
+NrageAssistant/Domain/PvPMissionTracker.lua
+  s_0149a02cc6acee::t_eb92f9127eb2e2 7-9,111-119,121,234
+NrageAssistant/Domain/PvPSeasonService.lua
+  s_0149a02cc6acee::t_b59feed2d1cab2 814-818,821
+tests/init_spec.lua
+  s_0149a02cc6acee::t_210ed6b1d5feb9 813-845
+tests/pvp_feed_spec.lua
+  s_0149a02cc6acee::t_386d3a4e52f503 79,84,86,88-89
+tests/pvp_mission_service_spec.lua
+  s_0149a02cc6acee::t_ffaff8cf670857 63,81-84,160-164,191-192,216-226,234,240,242-279,283-284,286,289,291-293,296,298-302,305,307-315,320,324-326,333-334,344-345,361,375,380,390,393,396-397,473,491,652
+tests/pvp_season_commands_spec.lua
+  s_0149a02cc6acee::t_f09fc7942549ca 355-359,362-367
+tests/store_spec.lua
+  s_0149a02cc6acee::t_216a5ce53c9ca1 84,130,138,152,159,194,222,249,309,318,338,368,385,410,432,449-451,464,467-470,485,519-601
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "7bbbcf73ab8f155e86f424d615afde68ce6b8fc8",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
