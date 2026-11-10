@@ -537,7 +537,7 @@ itself; nothing is shared until you claim.
 
 - **What counts.** Only honourable kills (a grey target gives no honour and never counts), done between the start and
   the end date of the season, in the current period of the mission (*once*: the whole season; *daily*: today, server
-  day, UTC; *weekly*: this ISO week, UTC). The same victim counts at most 3 times per server day, across all missions.
+  day, UTC; *weekly*: this ISO week, UTC). The same victim counts at most 3 times per server day, unless the mission sets its own cap.
   A mission can ask for a number of kills, a number of different players, one kill of each enemy class and/or race, a
   number of battleground wins, or be *manual* (you describe what you did in the note).
 - **Zones and place.** A mission can be limited to some zones and to the open world or battlegrounds. A kill whose
@@ -546,10 +546,21 @@ itself; nothing is shared until you claim.
   enemy players you saw (target, mouseover, nameplates) for an hour. If it did not see the victim before the kill,
   the class or race is *unknown*: it does not fill the bar, but if the unknown kills could complete it you can still
   claim, and the approver decides from the evidence.
-- **Battleground wins** are logged once per battleground when the client reports your side as the winner.
+- **Battleground results** (win or loss) are logged once per battleground. The addon takes the winner from the status
+  event, from the score screen data (asked for after combat and every 30 seconds inside) or, last, when you leave.
+  A mission can count wins or battlegrounds played, and only some of Warsong Gulch, Arathi Basin and Alterac Valley.
+- **Your log does not depend on the season.** Kills and results are kept for 45 days (up to 3000 rows) even before
+  the season reaches your client, and count as soon as it does. Changing season keeps them.
+- **More options per mission** (Advanced section of the admin form): victim classes and races, a per-victim daily cap
+  of its own, a minimum number of guildmates in your group (needs the guild roster; names with spaces may not match),
+  an event window, a limit of completions per member in the season, and automatic claiming. The mission card says its
+  rules in plain words, since when it counts, and shows *Ready to claim* before you claim.
+- **Progress for the officers.** Your client tells the approvers how far you are (numbers only, at most every 2
+  minutes). GM and CoGM see it in Admin, PvP, *Progress*; it is not checked, the claim decides.
 - **Claiming.** When a mission is complete (or could be, with unknown classes), claim it. The claim carries up to 60
   of the rows that back it, the counts and your note, and goes to the guild. It is repeated after you log in and
-  about every 10 minutes while it waits, so an approver who comes online later receives it. A claim is *pending*
+  about every 10 minutes while it waits, and whenever a GM or CoGM comes online, so an approver who comes online later
+  receives it. A claim is *pending*
   until the GM or the CoGM approves or rejects it. A period allows as many approved claims as the mission says
   (usually one), and a rejected claim uses its place.
 - **Not available on this client.** Zones, class and race, and battleground wins depend on what the game client lets

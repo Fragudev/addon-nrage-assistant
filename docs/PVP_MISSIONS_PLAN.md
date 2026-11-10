@@ -641,8 +641,10 @@ ns.pvpMissions:Availability()         -- -> { kills = bool, zones = bool, classR
   upper-case file tokens) and store it in memory (`PVP_UNIT_CACHE_MAX`, `PVP_UNIT_CACHE_TTL`). Each event is registered
   in `pcall`; the combat log stays disabled.
 - **Battleground wins.** On `UPDATE_BATTLEFIELD_STATUS`, inside a battleground, when `Platform.GetBattlegroundWinner()`
-  equals the own faction, a win is logged once; `PLAYER_ENTERING_WORLD` re-arms it, and a win already logged less than
-  `PVP_BG_WIN_DEDUPE_SECONDS` ago (a reload inside the same battleground) is not logged again.
+  equals the own faction, a win is logged once; `PLAYER_ENTERING_WORLD` re-arms it. (`PVP_BG_WIN_DEDUPE_SECONDS` no
+  longer exists: the log keeps a record of the current battleground instance, so a reload inside it logs nothing
+  twice. Since schema 18 losses are logged too and the log no longer belongs to a season: see
+  `docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md`, part C.)
 - **Cap and filters** are the order of 2.4: the per-victim cap first (3 per victim per UTC day, case-insensitive),
   then season dates, current period, kind, place and zones.
 
