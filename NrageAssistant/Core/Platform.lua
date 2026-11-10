@@ -835,6 +835,13 @@ function Platform.GetPartyClasses()
 end
 
 -- Shows `text` as a raid warning in the middle of the screen. False when the client has no such frame.
+-- Reloads the interface (a module switched on after login starts on the next load). Only from a click.
+function Platform.ReloadUI()
+  if ReloadUI then
+    ReloadUI()
+  end
+end
+
 function Platform.ShowRaidNotice(text)
   if not (RaidNotice_AddMessage and RaidWarningFrame) then
     return false

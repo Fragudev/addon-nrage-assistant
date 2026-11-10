@@ -9,6 +9,9 @@ local function load_view_model(locale)
     "Core/Validate",
     "Domain/PvPService",
     "Domain/PermissionService",
+    "Domain/ModuleRegistry",
+    "Domain/Settings",
+    "Domain/ModuleService",
     "Domain/PvPSeasonModel",
     "Domain/IntelModel",
     "Domain/RosterService",
@@ -873,5 +876,25 @@ describe("ViewModel closing, deliveries and history", function()
 
   it("formats a short date", function()
     assert.are.equal("20 Oct", ViewModel.PvPShortDate(T0, utc))
+  end)
+end)
+
+describe("ViewModel.PvPSubTabs with the Intel module off", function()
+  local db
+  before_each(function()
+    db = { global = {} }
+    ns.modules = ns.ModuleService.New({
+      db = function()
+        return db
+      end,
+    })
+  end)
+  after_each(function()
+    ns.modules = nil
+  end)
+
+  it("drops the Intel sub-tab and keeps the others", function()
+    ns.modules:SetEnabled("intel", false)
+    assert.are.same({ "season", "missions", "stats", "feed", "history" }, values(ViewModel.PvPSubTabs()))
   end)
 end)

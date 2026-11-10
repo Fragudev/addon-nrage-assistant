@@ -14,9 +14,12 @@ UI.Register("home", function(page)
   local character = ns.character
   UI.IdentityCard(page, character.profile)
   UI.SpecsCard(page, character.profile.fields or {})
-  UI.DrawLayers(page)
+  -- The cards of a module that is off are left out (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, Part A.4).
+  if not ns.modules or ns.modules:IsEnabled("layers") then
+    UI.DrawLayers(page)
+  end
   -- The open groups of the guild, with a way to the board.
-  if ns.lfgBoard then
+  if ns.lfgBoard and (not ns.modules or ns.modules:IsEnabled("groups")) then
     local card = Kit.Card(page, { title = L("Groups"), gap = 8 })
     local row = Kit.Row(card, { gap = 12, align = "center" })
     Kit.Label(row, { text = ns.ViewModel.GroupsSummary(ns.lfgBoard:OpenCount()), layout = { weight = 1 } })

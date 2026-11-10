@@ -345,6 +345,9 @@ function LootPopup.Pass(sessionId)
 end
 
 function LootPopup.Refresh()
+  if ns.modules and not ns.modules:IsEnabled("loot") then
+    return
+  end
   if controller and ns.active and ns.character and ns.db then
     local existing = {}
     for _, event in pairs(ns.db.global.events) do

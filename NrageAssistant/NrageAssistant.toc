@@ -23,6 +23,8 @@ Core\PvPProbe.lua
 Core\LayerProbe.lua
 Core\Store.lua
 Domain\Settings.lua
+Domain\ModuleRegistry.lua
+Domain\ModuleService.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua
@@ -116,6 +118,7 @@ UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
 UI\ViewModelGroups.lua
 UI\ViewModelInstalls.lua
+UI\ViewModelModules.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -134,6 +137,7 @@ UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
 UI\Tabs\Groups.lua
 UI\Tabs\Installs.lua
+UI\Tabs\Modules.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua

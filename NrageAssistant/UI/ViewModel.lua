@@ -667,6 +667,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
     { value = "groups", text = L("Groups"), icon = "users", group = "guild" },
+    { value = "modules", text = L("Modules"), icon = "gear", group = "guild" },
     { value = "raid", text = L("Raid"), icon = "calendar", group = "admin" },
     { value = "rules", text = L("Roster rules"), icon = "list", group = "admin" },
     { value = "roster", text = L("Members"), icon = "users", group = "admin" },
@@ -687,8 +688,18 @@ local TAB_ACTIONS = {
   installs = "install_check",
 }
 
+-- Is the module that owns the tab `value` on for this player? A tab no module owns is always on, and so is every tab
+-- while the module service does not exist (the specs that load only part of the addon).
+local function moduleOn(value)
+  local id = ns.ModuleRegistry and ns.ModuleRegistry.ForTab(value)
+  return id == nil or not ns.modules or ns.modules:IsEnabled(id)
+end
+
 -- Does a player with `role` and the roster `rosterId` (nil without one) see `tab` (an entry of TABS)?
 local function tabVisible(tab, role, rosterId)
+  if not moduleOn(tab.value) then
+    return false
+  end
   local permission = ns.PermissionService
   if tab.group == "admin" and permission.Scope(role, "admin_view", rosterId) == "none" then
     return false

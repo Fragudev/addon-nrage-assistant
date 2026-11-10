@@ -9,6 +9,9 @@ local function load_view_model(locale)
     "Domain/PvPService",
     "Domain/LayerModel",
     "Domain/PermissionService",
+    "Domain/ModuleRegistry",
+    "Domain/Settings",
+    "Domain/ModuleService",
     "Domain/RosterService",
     "Domain/RecipeService",
     "Domain/EventModel",
@@ -83,6 +86,7 @@ describe("ViewModel misc", function()
       loot = true,
       pvp = true,
       groups = true,
+      modules = true,
       raid = true,
       rules = true,
       roster = true,
@@ -106,13 +110,14 @@ describe("ViewModel misc", function()
       "loot",
       "pvp",
       "groups",
+      "modules",
       "raid",
       "rules",
       "roster",
       "pvpadmin",
       "installs",
     }, order)
-    for _, value in ipairs({ "home", "professions", "events", "ready", "loot", "pvp", "groups" }) do
+    for _, value in ipairs({ "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" }) do
       assert.are.equal("guild", groups[value], value)
     end
     for _, value in ipairs({ "raid", "rules", "roster", "pvpadmin", "installs" }) do
@@ -136,6 +141,7 @@ describe("ViewModel misc", function()
       loot = "Loot",
       pvp = "PvP",
       groups = "Groups",
+      modules = "Modules",
       raid = "Raid",
       rules = "Roster rules",
       roster = "Members",
@@ -1191,7 +1197,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
     return labels, values
   end
 
-  local GUILD_ALL = { "home", "professions", "events", "ready", "loot", "pvp", "groups" }
+  local GUILD_ALL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" }
 
   it("groups the tabs in Guild and Admin, with no unlabeled group", function()
     local labels, values = navValues("gm")
@@ -1209,8 +1215,8 @@ describe("ViewModel sidebar, user card and sync pill", function()
       officer = { GUILD_ALL, { "raid", "rules", "roster" } },
       rl = { GUILD_ALL, { "raid", "rules", "roster" } },
       roster = { GUILD_ALL },
-      member = { { "home", "professions", "pvp", "groups" } },
-      alter = { { "home", "professions", "pvp", "groups" } },
+      member = { { "home", "professions", "pvp", "groups", "modules" } },
+      alter = { { "home", "professions", "pvp", "groups", "modules" } },
     }
     for role, groups in pairs(expected) do
       local _, values = navValues(role, "r1")
@@ -1219,7 +1225,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
   end)
 
   it("shows the ranks that depend on a roster nothing but the Guild basics without one", function()
-    local basics = { { "home", "professions", "pvp", "groups" } }
+    local basics = { { "home", "professions", "pvp", "groups", "modules" } }
     for _, role in ipairs({ "roster", "member", "alter" }) do
       local labels, values = navValues(role, nil)
       assert.are.same({ "Guild" }, labels, role)
@@ -1227,12 +1233,12 @@ describe("ViewModel sidebar, user card and sync pill", function()
     end
     -- The Admin group opens with admin_view, but its tabs follow their own scope: rl without a roster has none.
     local _, rl = navValues("rl", nil)
-    assert.are.same({ { "home", "professions", "pvp", "groups" }, {} }, { rl[1], rl[2] or {} })
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, {} }, { rl[1], rl[2] or {} })
     -- gm, cogm and officer reach every roster, so a missing roster of their own changes nothing for them.
     local _, gm = navValues("gm", nil)
     assert.are.same({ GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs" } }, gm)
     local _, officer = navValues("officer", nil)
-    assert.are.same({ { "home", "professions", "pvp", "groups" }, { "rules", "roster" } }, officer)
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "rules", "roster" } }, officer)
   end)
 
   it("keeps the Admin group away from roster, member and alter, and from a player without a rank", function()
@@ -1337,7 +1343,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
     ns.Locale.UsePreference("es", "enUS")
     assert.are.equal("Inicio", vm.TABS[1].text)
     assert.are.equal("Inicio", vm.NavGroups("member")[1].items[1].text)
-    assert.are.equal("Reglas del roster", vm.TABS[9].text)
+    assert.are.equal("Reglas del roster", vm.TABS[10].text)
     assert.are.equal("cumplido", vm.Word("met"))
     ns.Locale.UsePreference("auto", "enUS")
     assert.are.equal("Home", vm.TABS[1].text)
@@ -2549,5 +2555,69 @@ describe("ViewModel.UpcomingEventRows", function()
     assert.are.same({}, ViewModel.UpcomingEventRows({}, 1000, rosters))
     local rows = ViewModel.UpcomingEventRows({ a = event("a", "|cffff0000Red", 5000) }, 1000, rosters)
     assert.are.equal("||cffff0000Red", rows[1].title)
+  end)
+end)
+
+describe("ViewModel module switches", function()
+  local db
+
+  before_each(function()
+    db = { global = {} }
+    viewNs.modules = viewNs.ModuleService.New({
+      db = function()
+        return db
+      end,
+    })
+  end)
+
+  after_each(function()
+    viewNs.modules = nil
+  end)
+
+  local roles = { "gm", "cogm", "officer", "rl", "roster", "member", "alter" }
+
+  it("shows every tab when no module is off", function()
+    local values = {}
+    for _, tab in ipairs(ViewModel.TabsFor("gm", "r1")) do
+      values[tab.value] = true
+    end
+    for _, value in ipairs({ "home", "professions", "events", "loot", "pvp", "groups", "pvpadmin", "installs" }) do
+      assert.is_true(values[value] == true, value)
+    end
+  end)
+
+  it("hides the tabs of a module that is off, for every role, admin tabs included", function()
+    viewNs.modules:SetEnabled("pvp", false)
+    for _, role in ipairs(roles) do
+      assert.is_false(ViewModel.TabVisible("pvp", role, "r1"), role)
+      assert.is_false(ViewModel.TabVisible("pvpadmin", role, "r1"), role)
+    end
+  end)
+
+  it("keeps the tabs of the other modules", function()
+    viewNs.modules:SetEnabled("pvp", false)
+    assert.is_true(ViewModel.TabVisible("professions", "member", "r1"))
+    assert.is_true(ViewModel.TabVisible("home", "member", "r1"))
+  end)
+
+  it("hides the Raid tabs and the Loot tab, which needs Raid, when Raid is off", function()
+    viewNs.modules:SetEnabled("raid", false)
+    assert.is_false(ViewModel.TabVisible("events", "gm", "r1"))
+    assert.is_false(ViewModel.TabVisible("roster", "gm", "r1"))
+    assert.is_false(ViewModel.TabVisible("loot", "gm", "r1"))
+    assert.is_true(ViewModel.TabVisible("pvp", "gm", "r1"))
+  end)
+
+  it("keeps every tab when the module service does not exist yet", function()
+    viewNs.modules = nil
+    assert.is_true(ViewModel.TabVisible("pvp", "member", "r1"))
+  end)
+
+  it("lists the Modules tab for everybody, in the Guild group", function()
+    for _, role in ipairs(roles) do
+      assert.is_true(ViewModel.TabVisible("modules", role, "r1"), role)
+    end
+    local guild = ViewModel.NavGroups("member", "r1")[1].items
+    assert.are.equal("modules", guild[#guild].value)
   end)
 end)

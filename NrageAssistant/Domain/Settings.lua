@@ -140,4 +140,25 @@ function Settings.Intel(db)
   return intel
 end
 
+-- The modules the player turned off (db.global.settings.modules.off, a set of module ids). Created on first use, and an
+-- entry that is not `true` is dropped; ids of modules this version does not know are kept, so a newer version's
+-- switches survive. Returns the live set.
+function Settings.ModulesOff(db)
+  local settings = settingsOf(db)
+  if type(settings.modules) ~= "table" then
+    settings.modules = {}
+  end
+  if type(settings.modules.off) ~= "table" then
+    settings.modules.off = {}
+  end
+  return repairSet(settings.modules.off, function(key)
+    return type(key) == "string"
+  end)
+end
+
+-- Turns a module switch off (`off` true) or back on (`off` false or nil); the other switches are left alone.
+function Settings.SetModuleOff(db, id, off)
+  Settings.ModulesOff(db)[id] = off == true or nil
+end
+
 ns.Settings = Settings

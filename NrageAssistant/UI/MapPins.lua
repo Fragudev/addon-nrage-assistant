@@ -313,6 +313,10 @@ function Controller:Request()
   if self.pending or not self.deps.hbd then
     return
   end
+  -- The guild pins follow the Position module switch (deps.enabled, optional).
+  if self.deps.enabled and not self.deps.enabled() then
+    return
+  end
   local wait = 0
   if self.lastAt then
     wait = math.max(0, ns.Constants.POSITION_REDRAW_SECONDS - (self.deps.now() - self.lastAt))
@@ -339,6 +343,7 @@ function MapPins.Start(deps)
   return Controller.New({
     hbd = hbd or nil,
     ref = ns,
+    enabled = deps.enabled,
     newPin = MapPins.BuildPin,
     dress = MapPins.DressPin,
     worldFlag = HBD_PINS_WORLDMAP_SHOW_CONTINENT,
