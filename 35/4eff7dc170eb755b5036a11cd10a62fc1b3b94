@@ -1,0 +1,41 @@
+NrageAssistant/Domain/RankMapModel.lua
+  s_0149a02cc6acee::t_9e1978ac067b47 15,107-138
+NrageAssistant/Domain/RankMapService.lua
+  s_0149a02cc6acee::t_8c7ad69f7f2eba 42,44,47,49
+NrageAssistant/Locales/esES.lua
+  s_0149a02cc6acee::t_b5891c355b345a 1285-1309
+NrageAssistant/NrageAssistant.toc
+  s_0149a02cc6acee::t_599c19b6b8b903 122,141
+NrageAssistant/Sync/Comm.lua
+  s_0149a02cc6acee::t_7fb5cf307ec0bc 1324-1325
+NrageAssistant/UI/Main.lua
+  s_0149a02cc6acee::t_1571118c5e3598 429-434
+NrageAssistant/UI/Tabs/Ranks.lua
+  s_0149a02cc6acee::t_3be10fe96c9c9a 1-173
+NrageAssistant/UI/ViewModel.lua
+  s_0149a02cc6acee::t_d8cf468aa9a3b3 675,689-690
+NrageAssistant/UI/ViewModelRanks.lua
+  s_0149a02cc6acee::t_8536eef0ecdaa8 1-157
+tests/ui_smoke_spec.lua
+  s_0149a02cc6acee::t_fc95c58b751094 21,40,86,112,156-159,625,630-643,1136-1223
+tests/view_model_ranks_spec.lua
+  s_0149a02cc6acee::t_7d31346c5816f0 1-222
+tests/view_model_spec.lua
+  s_0149a02cc6acee::t_fe5a58c3b2faed 91,115,120,146,385,1203,1210-1213,1231-1232,1234,1237,1239,1298-1304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "354eff7dc170eb755b5036a11cd10a62fc1b3b94",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
