@@ -93,8 +93,8 @@ client checks the sender against its own copy of the guild roster.
 | Soldado | member | see shared data, edit and publish your own sheet, add players to the blacklist |
 | Alter | alter | the same as a member, except putting yourself forward for loot |
 
-A rank with any other name counts as **Alter**. **If you rename a rank in the game without updating the addon, everybody
-in that rank becomes an Alter** until the addon knows the new name (`RANK_ROLES` in `Core/Constants.lua`).
+A rank with any other name counts as **Alter**, until the guild master or a co-guild master saves a rank mapping (see
+*If you rename a guild rank* below), which follows the rank position instead of its name.
 
 The PvP officer flag is gone: approving claims, marking deliveries and the rest of the PvP administration are for GM
 and CoGM only. Rosters and assignments can only be changed by GM and CoGM for now; the readiness rules of a roster by GM, CoGM and the RL of that roster.
@@ -587,6 +587,23 @@ filters by name, the chips by status (each shows how many members it holds), the
 only* keeps the members connected now. **Ask online members** makes everyone online with a recent version answer
 with their version again, at most once a minute; the answers arrive over a few seconds. The tab only knows about members
 heard from since you installed this version: *Never seen* may just mean "not logged in since".
+
+## Ranks
+
+The **Ranks** tab of the Admin group (every Admin rank can read it; only GM and CoGM can change it) maps each guild rank
+to an addon role. One row per rank in the game: the position, its current name, how many members it has and the addon
+role. The guild master's row is fixed. **Until a mapping is saved, the roles come from the rank names**, exactly as before.
+
+**If you rename a guild rank.** Open **Ranks** and press **Save mapping** once (the dropdowns start from today's roles, so
+saving changes nobody). From then on the roles follow the rank position: renaming a rank in the game keeps the role of
+its members, and the tab shows a note such as "Rank 2 was renamed from Comandante to X; its role is kept". If ranks are
+added or removed in the game, positions below them shift, so the tab warns in red ("Guild ranks changed; review the
+mapping") and the mapping should be reviewed and saved again.
+
+Change a role with its dropdown. Below the table a preview lists who changes role ("3 members change role: Name (Officer
+-> Member), ..."), and **Save mapping** sends the mapping to the guild; every client checks that the sender is the guild
+master or a co-guild master by the roles it already holds. A co-guild master can not change the role of their own rank, and
+nobody can give the guild master's role to a rank. The footer shows who saved the mapping and when.
 
 ## Blacklist
 
