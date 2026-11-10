@@ -683,7 +683,7 @@ Kit.Define("UserCard", {
 })
 
 -- opts: groups = { { label, items = { { value, text, icon, badge } } } }, value, onSelect(value),
--- user = { name, detail },
+-- user = { name, detail }, scroll (the offset of the rows, kept when the sidebar is built again),
 -- translucent (the window shows its scene behind it). It sits on the bottom left of the window, so only that
 -- corner is cut: the others would poke out of the window's own cut.
 Kit.Define("Sidebar", {
@@ -693,10 +693,13 @@ Kit.Define("Sidebar", {
   apply = function(obj, opts)
     obj.shape:SetFill(opts.translucent and { color = "side", alpha = Theme.metrics.sceneSurfaceAlpha } or "side")
     obj.shape.border:SetColor("border")
-    obj.nav = Kit.Stack(
-      obj,
-      { gap = 2, pad = { Theme.metrics.sidebarPadX, Theme.metrics.sidebarPadY, Theme.metrics.sidebarPadX, 0 } }
-    )
+    -- The rows scroll when the window is too short for all of them; the user card stays pinned under them.
+    obj.nav = Kit.ScrollArea(obj, {
+      gap = 2,
+      pad = { Theme.metrics.sidebarPadX, Theme.metrics.sidebarPadY, Theme.metrics.sidebarPadX, 0 },
+      autoGutter = true,
+    })
+    obj.nav.offset = opts.scroll or 0
     obj.rows = {}
     for index, group in ipairs(opts.groups or {}) do
       if group.label then
@@ -724,15 +727,15 @@ Kit.Define("Sidebar", {
   end,
   layout = function(obj, width, height)
     obj.shape:Resize()
-    obj.nav:Layout(width)
-    Kit.Place(obj.nav, obj.frame, 0, 0)
+    local cardHeight = 0
     if obj.card then
-      local h = obj.card:Layout(width)
+      cardHeight = obj.card:Layout(width)
       obj.card.frame:ClearAllPoints()
       obj.card.frame:SetPoint("BOTTOMLEFT", obj.frame, "BOTTOMLEFT", 0, 0)
-      return height or h
     end
-    return height or 0
+    obj.nav:Layout(width, math.max(0, (height or 0) - cardHeight))
+    Kit.Place(obj.nav, obj.frame, 0, 0)
+    return height or cardHeight
   end,
 })
 

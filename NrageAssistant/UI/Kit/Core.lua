@@ -377,6 +377,7 @@ Kit.Define("Card", {
 -- A scrolling column. The children live in a scroll child; the viewport size comes from the parent
 -- (Layout(width, height)) because the window knows how much room there is. The wheel scrolls 40 units a notch.
 local WHEEL_STEP = 40
+local THUMB_MIN = 24 -- the shortest thumb, so it can still be grabbed
 
 Kit.Define("ScrollArea", {
   frameType = "Frame",
@@ -395,18 +396,66 @@ Kit.Define("ScrollArea", {
     obj.scroll:SetScript("OnMouseWheel", function(_, delta)
       obj:SetScroll(obj.offset - delta * WHEEL_STEP)
     end)
+    -- The bar takes the mouse over the whole gutter (the thumb alone is too thin to aim at): pressing the thumb
+    -- drags it, pressing the track jumps the thumb there and keeps dragging until the button is released.
+    obj.bar = CreateFrame("Frame", nil, obj.frame)
+    obj.bar:EnableMouse(true)
+    obj.bar:EnableMouseWheel(true)
+    obj.bar:SetScript("OnMouseWheel", function(_, delta)
+      obj:SetScroll(obj.offset - delta * WHEEL_STEP)
+    end)
+    obj.bar:SetScript("OnEnter", function()
+      obj.barHovered = true
+      obj:PaintThumb()
+    end)
+    obj.bar:SetScript("OnLeave", function()
+      obj.barHovered = false
+      obj:PaintThumb()
+    end)
+    obj.bar:SetScript("OnMouseDown", function(_, button)
+      if button ~= "LeftButton" or (obj.range or 0) <= 0 then
+        return
+      end
+      local y = obj:CursorFromTop()
+      local top, height = obj.thumbTop or 0, obj.thumbHeight or 0
+      obj.grab = (y >= top and y <= top + height) and (y - top) or math.floor(height / 2)
+      obj:DragThumb()
+      obj.bar:SetScript("OnUpdate", function()
+        obj:DragThumb()
+      end)
+      obj:PaintThumb()
+    end)
+    local function stopDrag()
+      obj.grab = nil
+      obj.bar:SetScript("OnUpdate", nil)
+      obj:PaintThumb()
+    end
+    obj.bar:SetScript("OnMouseUp", stopDrag)
+    obj.bar:SetScript("OnHide", stopDrag)
   end,
   apply = function(obj, opts)
     obj.gap = opts.gap or Theme.metrics.blockGap
     obj.pad = opts.pad
     obj.track:SetColorTexture(Theme.Color("border", 0.04))
-    obj.thumb:SetColorTexture(Theme.Color("text", 0.2))
+    obj:PaintThumb()
   end,
+  -- opts.autoGutter: the gutter of the bar is kept only while there is something to scroll, so the content takes the
+  -- whole width when it fits (the sidebar). Without it the gutter is always kept.
   layout = function(obj, width, height)
     local gutter = Theme.metrics.scrollbar + 4
     height = height or obj.opts.height or 200
     local inner = math.max(0, width - gutter)
-    local total = layoutStack(obj, inner, obj.gap, obj.pad)
+    local total
+    if obj.opts.autoGutter then
+      total = layoutStack(obj, width, obj.gap, obj.pad)
+      if total > height then
+        total = layoutStack(obj, inner, obj.gap, obj.pad)
+      else
+        inner = width
+      end
+    else
+      total = layoutStack(obj, inner, obj.gap, obj.pad)
+    end
     obj.scroll:SetSize(inner, height)
     obj.contentFrame:SetSize(inner, math.max(total, 1))
     obj.view, obj.content = height, total
@@ -418,8 +467,34 @@ Kit.Define("ScrollArea", {
   end,
   reset = function(obj)
     obj.offset = 0
+    obj.grab = nil
+    obj.barHovered = false
+    obj.bar:SetScript("OnUpdate", nil)
   end,
 })
+
+-- The thumb is brighter while the mouse is over the bar and while it is dragged.
+function Widget:PaintThumb()
+  if self.thumb then
+    local alpha = self.grab and 0.45 or (self.barHovered and 0.32 or 0.2)
+    self.thumb:SetColorTexture(Theme.Color("text", alpha))
+  end
+end
+
+-- The cursor height, in units from the top of the widget.
+function Widget:CursorFromTop()
+  local _, y = GetCursorPosition()
+  return (self.frame:GetTop() or 0) - y / self.frame:GetEffectiveScale()
+end
+
+-- Follows the cursor while the thumb is held: the thumb top is the cursor less where it was grabbed.
+function Widget:DragThumb()
+  if not self.grab then
+    return
+  end
+  local top = self:CursorFromTop() - self.grab
+  self:SetScroll(Util.ThumbOffset(top, self.view or 0, self.content or 0, self.view or 0, THUMB_MIN))
+end
 
 -- Moves the view to `offset` (clamped) and updates the thumb.
 function Widget:SetScroll(offset)
@@ -446,14 +521,24 @@ function Widget:UpdateThumb(width, height)
   if not needed then
     self.track:Hide()
     self.thumb:Hide()
+    if self.bar then
+      self.bar:Hide()
+    end
     return
   end
-  local top, thumbHeight = Util.Thumb(self.view, self.content, self.offset, height, 24)
+  local top, thumbHeight = Util.Thumb(self.view, self.content, self.offset, height, THUMB_MIN)
+  self.thumbTop, self.thumbHeight = top, thumbHeight
   self.track:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", 0, 0)
   self.track:SetSize(barWidth, height)
   self.thumb:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", 0, -top)
   self.thumb:SetSize(barWidth, thumbHeight)
   self.track:Show()
   self.thumb:Show()
+  if self.bar then
+    self.bar:ClearAllPoints()
+    self.bar:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", 0, 0)
+    self.bar:SetSize(barWidth + 4, height)
+    self.bar:Show()
+  end
   self.width = width
 end

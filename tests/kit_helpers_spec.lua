@@ -261,6 +261,21 @@ describe("Kit.Util", function()
     assert.are.same({ 75, 25 }, { top, height })
     assert.are.equal(20, select(2, Util.Thumb(10, 1000, 0, 100, 20)))
   end)
+
+  it("turns a dragged thumb position back into a scroll offset", function()
+    -- view 100, content 400, track 100: the thumb is 25 high and travels 75 units for a range of 300.
+    assert.are.equal(0, Util.ThumbOffset(0, 100, 400, 100, 20))
+    assert.are.equal(300, Util.ThumbOffset(75, 100, 400, 100, 20))
+    assert.are.equal(120, Util.ThumbOffset(30, 100, 400, 100, 20))
+    -- Past either end it stays inside the range.
+    assert.are.equal(0, Util.ThumbOffset(-40, 100, 400, 100, 20))
+    assert.are.equal(300, Util.ThumbOffset(500, 100, 400, 100, 20))
+    -- It is the inverse of Util.Thumb for the positions the thumb can take.
+    local top = Util.Thumb(100, 400, 180, 100, 20)
+    assert.are.equal(180, Util.ThumbOffset(top, 100, 400, 100, 20))
+    -- Nothing to scroll: always 0.
+    assert.are.equal(0, Util.ThumbOffset(50, 100, 80, 100, 20))
+  end)
 end)
 
 describe("Kit.Pixel", function()

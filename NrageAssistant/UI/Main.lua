@@ -526,7 +526,10 @@ function UI.BuildSidebar()
   if not window then
     return
   end
+  -- The scroll of the rows survives the rebuild, so picking a tab low in a short window does not jump to the top.
+  local navScroll = 0
   if sidebar then
+    navScroll = sidebar.nav and sidebar.nav:GetScroll() or 0
     sidebar:Release()
   end
   local role = UI.Role()
@@ -545,6 +548,7 @@ function UI.BuildSidebar()
     end,
     user = ns.ViewModel.UserCard(ns.Platform.GetIdentityKey(), ns.Platform.GetOwnGuildRank(), role),
     translucent = window.scene,
+    scroll = navScroll,
   })
   sidebar:Layout(SIDEBAR_WIDTH, contentHeight)
   Kit.Place(sidebar, window.body, 0, 0)

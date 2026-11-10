@@ -152,6 +152,58 @@ describe("Kit widgets", function()
       Kit.Button(scroll, { text = "only" })
       scroll:Layout(400, 200)
       assert.are.equal(0, scroll.range)
+      assert.is_false(scroll.bar:IsShown())
+    end)
+
+    it("drags the thumb with the mouse and jumps to a click on the track", function()
+      local cursorY = 700
+      local saved = _G.GetCursorPosition
+      _G.GetCursorPosition = function()
+        return 0, cursorY
+      end
+      local scroll = Kit.ScrollArea(_G.UIParent, { gap = 0 })
+      for index = 1, 20 do
+        Kit.Button(scroll, { text = tostring(index) })
+      end
+      -- view 200, content 600: the thumb is 66 high and travels 134 units for a range of 400. The frame top is 700.
+      scroll:Layout(400, 200)
+      assert.is_true(scroll.bar:IsShown())
+      local bar = scroll.bar.scripts
+      -- Press on the thumb (at its top) and drag 67 units down: half the travel, half the range.
+      bar.OnMouseDown(scroll.bar, "LeftButton")
+      cursorY = 700 - 67
+      bar.OnUpdate(scroll.bar)
+      assert.are.equal(200, scroll:GetScroll())
+      -- Past the end it stops at the range.
+      cursorY = 0
+      bar.OnUpdate(scroll.bar)
+      assert.are.equal(400, scroll:GetScroll())
+      bar.OnMouseUp(scroll.bar)
+      assert.is_nil(scroll.bar.scripts.OnUpdate)
+      -- A click on the track above the thumb centres the thumb there.
+      cursorY = 700 - 33
+      bar.OnMouseDown(scroll.bar, "LeftButton")
+      assert.are.equal(0, scroll:GetScroll())
+      bar.OnMouseUp(scroll.bar)
+      -- Another button does nothing; the wheel over the bar scrolls too.
+      bar.OnMouseDown(scroll.bar, "RightButton")
+      assert.is_nil(scroll.bar.scripts.OnUpdate)
+      bar.OnMouseWheel(scroll.bar, -1)
+      assert.are.equal(40, scroll:GetScroll())
+      _G.GetCursorPosition = saved
+    end)
+
+    it("keeps the gutter only while there is something to scroll with autoGutter", function()
+      local scroll = Kit.ScrollArea(_G.UIParent, { gap = 0, autoGutter = true })
+      local button = Kit.Button(scroll, { text = "only" })
+      scroll:Layout(200, 300)
+      assert.are.equal(200, button.width)
+      for index = 1, 20 do
+        Kit.Button(scroll, { text = tostring(index) })
+      end
+      scroll:Layout(200, 300)
+      assert.is_true(button.width < 200)
+      assert.is_true(scroll.range > 0)
     end)
   end)
 
@@ -1130,6 +1182,29 @@ describe("Kit widgets", function()
       assert.are.equal(1, #find_all(sidebar, "UserCard"))
       local bare = Kit.Sidebar(_G.UIParent, { groups = {}, value = "x" })
       assert.are.equal(300, bare:Layout(200, 300))
+    end)
+
+    it("scrolls the rows of a short sidebar above the pinned user card and keeps the given offset", function()
+      local items = {}
+      for index = 1, 20 do
+        items[index] = { value = "tab" .. index, text = "Tab " .. index, icon = "home" }
+      end
+      local sidebar = Kit.Sidebar(_G.UIParent, {
+        groups = { { items = items } },
+        value = "tab1",
+        user = { name = "Ann", detail = "Raider - member" },
+        scroll = 120,
+      })
+      assert.are.equal(300, sidebar:Layout(200, 300))
+      assert.are.equal("ScrollArea", sidebar.nav.kind)
+      -- The rows get what the card leaves (300 - 60) and can scroll the rest.
+      assert.are.equal(240, sidebar.nav.view)
+      assert.is_true(sidebar.nav.range > 0)
+      assert.are.equal(120, sidebar.nav:GetScroll())
+      -- A tall window needs no scroll: the offset falls back to 0.
+      sidebar:Layout(200, 2000)
+      assert.are.equal(0, sidebar.nav.range)
+      assert.are.equal(0, sidebar.nav:GetScroll())
     end)
 
     describe("sidebar badge", function()
