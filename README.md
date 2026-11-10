@@ -82,8 +82,10 @@ The addon is published on CurseForge, but it only works for Nrage:
   there; the login message says why.
 - Shared data is accepted only from guild members, and edits only from members whose role allows them.
 - Your role is your **guild rank**, matched by name (`Emperador`, `Comandante`, `Oficial`, `Raid Lider`, `Raider`,
-  `Soldado`, `Alter`); the guild master is recognised by rank index 0, never by a name. Roles are changed in the game, not in the addon, and a
-  rank with any other name counts as Alter.
+  `Soldado`, `Alter`); the guild master is recognised by rank index 0, never by a name. A rank with any other name
+  counts as Alter.
+- The Emperador and Comandante can save a **rank mapping** (Admin, Ranks) that ties each rank position to a role, so a
+  rank renamed in the game keeps its role. A Comandante cannot change their own rank's role.
 
 ## Features
 
@@ -109,6 +111,19 @@ The addon is published on CurseForge, but it only works for Nrage:
 
 - **Kill counter** split into open world and battleground, a guild **kill ranking** and a **recent kills** feed.
 - **Seasons:** missions approved by the Emperador and Comandante, a points ranking and end-of-season rewards.
+- **Missions** count honour kills, battleground wins or battlegrounds played, with optional filters (zone,
+  battleground, victim class or race, guildmates in the group, time window) and limits (per victim per day, total
+  completions). Kills are logged even before the season reaches you, and approvers see each member's progress.
+
+### Announcements
+
+- A read-only **board** for every member and an **editor** for the Emperador and Comandante, with pin, expiry and an
+  optional **popup** that reaches every member (after combat, or at login for the ones missed).
+
+### Modules
+
+- Each player turns modules (Professions, Raid, Loot, PvP, Intel, Groups, Layers, Guild map, Blacklist,
+  Announcements) on or off for themselves. Off hides the tabs and stops alerts and popups; synced data keeps arriving.
 
 ### Installed check
 

@@ -1,7 +1,8 @@
 # Nrage Assistant
 
 Guild coordination and raid readiness for **Nrage** (Alliance, PvP ruleset) on **World of Warcraft: Forever**. Raid
-events, raid checks, loot council, PvP seasons, enemy Intel, layers, a guild map and groups, in one window.
+events, raid checks, loot council, PvP seasons, enemy Intel, layers, a guild map, groups and guild announcements, in
+one window.
 
 > **Nrage only.** The addon disables itself for any character outside Nrage, so it does nothing on other guilds or
 > realms.
@@ -14,8 +15,11 @@ Open the window with the minimap button or `/nrage`. Everything you can do lives
 - **Admin**: what the guild's leaders use to run the rosters. You only see it if your rank allows it.
 
 Your permissions come from your **guild rank**, the same one you have in game: Emperador, Comandante, Oficial, Raid
-Lider, Raider, Soldado and Alter. Nobody assigns roles inside the addon. Most leaders work on **their own roster**. The Emperador and the
-Comandante can pick any roster.
+Lider, Raider, Soldado and Alter. The Emperador and the Comandante can tie each rank to a role in the **Ranks** section,
+so renaming a rank in the game does not change anyone's permissions. Most leaders work on **their own roster**. The
+Emperador and the Comandante can pick any roster.
+
+Don't need everything? In **Modules** you turn off the parts you do not use, for you only.
 
 There is no server and no website. Data travels between guildmates through the addon's own messages, so what a
 leader changes reaches everyone running the addon. Values are never guessed: each one says whether it was read from
@@ -27,6 +31,11 @@ the game, typed by the player or received from someone else, and what the game c
 
 Your character at a glance: name, class, level and item level, your main and secondary spec, and your **layer**. You
 also see the layers your guildmates have shared, and you can ask to swap layers.
+
+### Announcements
+
+The guild's announcements, pinned ones first. When a new one arrives you may get a **popup** with it, which waits until
+you leave combat; the ones you missed show at login. The newest pinned announcement also shows on Home.
 
 ### Raid
 
@@ -51,7 +60,10 @@ Ranks Raider and above can apply, and a Raider follows the sessions read-only.
 ### PvP
 
 A kill counter split into open world and battlegrounds, a guild **kill ranking**, a **recent kills** feed, and **PvP
-seasons** with missions, a points ranking and end-of-season rewards.
+seasons** with missions, a points ranking and end-of-season rewards. Missions count honour kills, battleground wins or
+battlegrounds played, and can be limited by zone, battleground, victim class or race, guildmates in your group or a
+time window. Each mission card explains its rules and tells you when it is **ready to claim**; kills made before the
+season reached you still count.
 
 ### Intel
 
@@ -81,6 +93,11 @@ board and apply with a role, and you invite them with one click. Each post shows
 of who is already in, and the roles still missing. Nothing is saved, and a post closes by itself when the party is
 full.
 
+### Modules
+
+Turn Professions, Raid, Loot, PvP, Intel, Groups, Layers, Guild map, Blacklist and Announcements on or off. Only you are
+affected, and turning a module off never deletes its data.
+
 ## Admin
 
 | Section | Who | What |
@@ -88,7 +105,9 @@ full.
 | **Raid** | Emperador, Comandante, Oficial, Raid Lider | Create events, take attendance, set assignments, use templates and see reports. |
 | **Roster rules** | Emperador, Comandante, Raid Lider (Oficial reads) | The raid requirements of each roster, the rules Raid check uses. |
 | **Members** | Emperador, Comandante, Raid Lider (Oficial reads) | The rosters and who belongs to each. A Raid Lider adds and removes players in their own roster. |
-| **PvP** | Emperador, Comandante | Approve missions and claims, run the season, prizes and deliveries. |
+| **PvP** | Emperador, Comandante | Approve missions and claims, run the season, prizes and deliveries, and follow each member's mission progress. |
+| **Announcements** | Emperador, Comandante | Publish, pin, edit and delete announcements, choose whether each one sends a popup, and send it again. |
+| **Ranks** | Emperador, Comandante (Oficial and Raid Lider read) | Tie each guild rank to an addon role, with a preview of who changes role. A Comandante cannot change their own rank. |
 | **Installed check** | Emperador, Comandante | Every member with whether they run the addon and which version: up to date, outdated, not installed or never seen. Ask the members online to answer again. |
 
 ## Good to know
