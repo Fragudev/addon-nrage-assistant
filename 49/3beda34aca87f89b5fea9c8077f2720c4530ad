@@ -1,0 +1,55 @@
+NrageAssistant/Core/Constants.lua
+  s_0149a02cc6acee::t_8c5a0c30343840 5,24,365-385
+NrageAssistant/Core/Store.lua
+  s_0149a02cc6acee::t_fa079a67bd75cc 12-14,214-222
+NrageAssistant/Domain/AnnouncementModel.lua
+  s_0149a02cc6acee::t_fe93f70f30ee71 1-195
+NrageAssistant/Domain/AnnouncementService.lua
+  s_0149a02cc6acee::t_db253025a7a82e 1-297
+NrageAssistant/Domain/PermissionService.lua
+  s_0149a02cc6acee::t_dad54db1ae28a8 85-87
+NrageAssistant/NrageAssistant.toc
+  s_0149a02cc6acee::t_b386dab4439232 78-79,98
+NrageAssistant/Sync/AnnouncementSync.lua
+  s_0149a02cc6acee::t_8088c0957668aa 1-202
+NrageAssistant/Sync/Comm.lua
+  s_0149a02cc6acee::t_39c1c070c7818b 17-18,58-60,363-365,506-510,640-641,659-661,722-732,1193-1230,1474-1485,1587-1588
+NrageAssistant/Sync/Protocol.lua
+  s_0149a02cc6acee::t_15227bcd7abdcd 710-734,778-779
+NrageAssistant/Sync/Transfer.lua
+  s_0149a02cc6acee::t_a97594e3be6c4e 134-136,150-153,201-205,275-296,336-338,340-350,403-415
+tests/announcement_model_spec.lua
+  s_0149a02cc6acee::t_02a2feebd39bbd 1-167
+tests/announcement_service_spec.lua
+  s_0149a02cc6acee::t_5b516447464013 1-380
+tests/announcement_sync_spec.lua
+  s_0149a02cc6acee::t_df2cd56ce0b133 1-300
+tests/announcement_transfer_spec.lua
+  s_0149a02cc6acee::t_1701670418d421 1-159
+tests/comm_spec.lua
+  s_0149a02cc6acee::t_3cf727178a6a8d 18-19,44,79-81,164-170,3112,3133-3326
+tests/protocol_spec.lua
+  s_0149a02cc6acee::t_13008ae4f6b434 12,1183-1250
+tests/roster_sync_spec.lua
+  s_0149a02cc6acee::t_0617ae8e7bb258 18-19,43
+tests/store_spec.lua
+  s_0149a02cc6acee::t_1fe55ddc024974 84,108-125,148,156,170,177,212,240,267,327,336,356,386,403,428,450,499
+tests/transfer_spec.lua
+  s_0149a02cc6acee::t_3ae95a76f5f906 16-17,35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "493beda34aca87f89b5fea9c8077f2720c4530ad",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
