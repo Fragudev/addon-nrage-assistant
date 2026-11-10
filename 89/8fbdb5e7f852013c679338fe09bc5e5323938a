@@ -1,0 +1,31 @@
+NrageAssistant/NrageAssistant.toc
+  s_0149a02cc6acee::t_59824f4c3bf0dd 145
+  s_0149a02cc6acee::t_c2d479e5f714f2 122
+NrageAssistant/UI/AnnouncementPopup.lua
+  s_0149a02cc6acee::t_dbc01c3f7c6a86 1-307
+NrageAssistant/Locales/esES.lua
+  s_0149a02cc6acee::t_7d80f9effb8e94 1285-1290
+  s_0149a02cc6acee::t_d6b8e14672d345 1291-1337
+tests/announcement_service_spec.lua
+  s_0149a02cc6acee::t_0f46f74d8a5aa6 346-366
+tests/announcement_popup_spec.lua
+  s_0149a02cc6acee::t_7aa6747983402f 1-351
+NrageAssistant/UI/ViewModelAnnouncements.lua
+  s_0149a02cc6acee::t_5d6f2e00698100 1-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "898fbdb5e7f852013c679338fe09bc5e5323938a",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
