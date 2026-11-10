@@ -82,6 +82,9 @@ local ACTIONS = {
   pvp_season_manage = GLOBAL_ONLY,
   pvp_mission_manage = GLOBAL_ONLY,
   pvp_prize_manage = GLOBAL_ONLY,
+  -- Publishing, editing and deleting guild announcements (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md part B). The receiver
+  -- applies an announcement only from a sender who has this action.
+  announce_manage = GLOBAL_ONLY,
 }
 
 -- Maps a rank name to a role using `mapping` (default: Constants.RANK_ROLES). The name is trimmed and compared in

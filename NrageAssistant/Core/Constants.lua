@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 17,
+  SCHEMA_VERSION = 18,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 12,
+  PROTOCOL_MINOR = 13,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -361,6 +361,27 @@ ns.Constants = {
   LFG_SWEEP_SECONDS = 15,
   -- A Groups popup that cannot be shown during a lockdown tries again after this long.
   LFG_POPUP_RETRY_SECONDS = 5,
+
+  -- Announcements (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md part B). The limits count characters, not bytes. An
+  -- announcement is kept until its expiry; its removal leaves a tombstone for ANNOUNCE_TOMBSTONE_TTL_SECONDS. A
+  -- popup is only worth showing for an announcement touched in the last ANNOUNCE_POPUP_MAX_AGE_SECONDS, and at most
+  -- ANNOUNCE_POPUP_QUEUE_MAX wait for the player. A gm or cogm sends the own announcements again some time after login.
+  ANNOUNCE_MAX = 30,
+  ANNOUNCE_TITLE_MAX = 60,
+  ANNOUNCE_BODY_MAX = 600,
+  ANNOUNCE_EXPIRY_CHOICES = { "never", "1d", "7d", "30d" },
+  ANNOUNCE_EXPIRY_SECONDS = { ["1d"] = 24 * 3600, ["7d"] = 7 * 24 * 3600, ["30d"] = 30 * 24 * 3600 },
+  ANNOUNCE_TOMBSTONE_TTL_SECONDS = 30 * 24 * 3600,
+  ANNOUNCE_TOMBSTONE_MAX = 200,
+  ANNOUNCE_POPUP_MAX_AGE_SECONDS = 7 * 24 * 3600,
+  ANNOUNCE_POPUP_QUEUE_MAX = 3,
+  ANNOUNCE_POPUP_RETRY_SECONDS = 5,
+  ANNOUNCE_SNAPSHOT_MAX = 30,
+  ANNOUNCE_RESEND_DELAY_MIN = 5,
+  ANNOUNCE_RESEND_DELAY_MAX = 40,
+  ANNOUNCE_REDRAW_SECONDS = 1,
+  -- The popups still due for stored announcements are asked for this long after the activation.
+  ANNOUNCE_LOGIN_POPUP_DELAY = 8,
 
   -- Guild map. Positions travel on their own addon prefix (not through the NRAGE envelope): a message is
   -- "P1:<map>:<x>:<y>" of at most POSITION_MAX_BYTES bytes, x and y in 0..10000. The own position is checked every

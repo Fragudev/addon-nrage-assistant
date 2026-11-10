@@ -9,7 +9,9 @@ local _, ns = ...
 --                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
 --                               deliveries } (see PvPSeasonSync),
---                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory) }
+--                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory),
+--                 announcements = { items, tombstones, openedAt } and announcementsSeen = { [id] = popupRev }
+--                 (see AnnouncementService) }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
 --                             pvpSync = { rev }, pvpMissions = { seasonId, kills = {}, claims = {} } }
 local Store = {}
@@ -208,6 +210,15 @@ local MIGRATIONS = {
   -- tab. Nothing else is touched.
   [17] = function(db)
     ensureTable(ensureTable(db, "global"), "installs")
+  end,
+  -- v18: guild announcements (announcements = { items, tombstones, openedAt }, see AnnouncementService) and the popups
+  -- this account has already seen (announcementsSeen[id] = popupRev). Nothing else is touched.
+  [18] = function(db)
+    local global = ensureTable(db, "global")
+    local announcements = ensureTable(global, "announcements")
+    ensureTable(announcements, "items")
+    ensureTable(announcements, "tombstones")
+    ensureTable(global, "announcementsSeen")
   end,
 }
 

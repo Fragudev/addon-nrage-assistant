@@ -13,6 +13,8 @@ local function load_modules()
     "Domain/RosterService",
     "Domain/RecipeService",
     "Domain/EventModel",
+    "Domain/AnnouncementModel",
+    "Domain/AnnouncementService",
     "Domain/EventService",
     "Domain/LootModel",
     "Domain/LootService",
@@ -30,6 +32,7 @@ local function load_modules()
     "Sync/ReadinessRulesSync",
     "Sync/RosterSync",
     "Sync/RecipeSync",
+    "Sync/AnnouncementSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)

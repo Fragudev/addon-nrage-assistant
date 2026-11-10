@@ -707,6 +707,31 @@ local function validateSyncData(payload)
   return { items = payload.items }
 end
 
+-- Announcements (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md part B). ANN is a whole announcement; the author is not on the
+-- wire, the receiver takes it from the sender. ANN_DEL removes one: its `rev` is above the last one the sender saw.
+local function validateAnnouncement(payload)
+  local clean = ns.AnnouncementModel.Validate({
+    id = payload.id,
+    title = payload.title,
+    body = payload.body,
+    createdAt = payload.createdAt,
+    updatedAt = payload.updatedAt,
+    rev = payload.rev,
+    popup = payload.popup,
+    popupRev = payload.popupRev,
+    pinned = payload.pinned,
+    expiresAt = payload.expiresAt,
+  })
+  return clean
+end
+
+local function validateAnnouncementDelete(payload)
+  if not (isId(payload.id) and isInt(payload.rev, 1, MAX_REV) and isInt(payload.updatedAt, 0, MAX_TIMESTAMP)) then
+    return nil
+  end
+  return { id = payload.id, rev = payload.rev, updatedAt = payload.updatedAt }
+end
+
 local VALIDATORS = {
   HELLO = validateHello,
   PROFILE = validateProfile,
@@ -750,6 +775,8 @@ local VALIDATORS = {
   SIGNUP_UPSERT = validateSignupUpsert,
   ASSIGN_UPSERT = validateAssignUpsert,
   DELETE = validateDelete,
+  ANN = validateAnnouncement,
+  ANN_DEL = validateAnnouncementDelete,
 }
 
 function Protocol.Build(messageType, payload, id)
