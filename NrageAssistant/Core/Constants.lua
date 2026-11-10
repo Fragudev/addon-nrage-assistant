@@ -380,6 +380,8 @@ ns.Constants = {
   LFG_ROLES = { tank = true, heal = true, dps = true },
   LFG_OUTCOMES = { full = true, cancelled = true, expired = true },
   LFG_REPUBLISH_SECONDS = 120,
+  -- No new group alert for this long after login: every post already open is repeated within it and looks new.
+  LFG_ALERT_WARMUP = 120,
   LFG_POST_TTL = 360,
   LFG_POST_MAX_AGE = 3600,
   LFG_BOARD_MAX = 50,

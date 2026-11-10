@@ -170,6 +170,13 @@ local function new_client(world, name)
         error("ui")
       end
     end,
+    onNewPost = function(sender, post)
+      c.alerts = c.alerts or {}
+      c.alerts[#c.alerts + 1] = sender .. ":" .. post.title
+      if c.alertFails then
+        error("alert")
+      end
+    end,
   })
   world.clients[#world.clients + 1] = c
   return c
@@ -1403,5 +1410,52 @@ describe("LfgService.Eligibility", function()
     assert.are.same({ false, "full" }, { rules({ group = true, size = 5 }).invite() })
     assert.are.same({ false, "in_group" }, { rules({ group = true, size = 2 }).apply() })
     assert.are.same({ false, "combat" }, { rules({ combat = true }).invite() })
+  end)
+end)
+
+describe("LfgService new group alert", function()
+  local world, lead, ann
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+    -- Past the warm-up: every post that was open at login has been repeated by now.
+    world.advance(ns.Constants.LFG_ALERT_WARMUP)
+  end)
+
+  it("tells the others once when a new group is posted, never the leader", function()
+    lead.service:Post(fields())
+    assert.are.same({ "Lead:Deadmines" }, ann.alerts)
+    assert.is_nil(lead.alerts)
+    -- A repeat, an update and the close of the same post do not alert again.
+    lead.service:Republish()
+    lead.service:Update({ title = "Deadmines run" })
+    lead.service:Close()
+    assert.are.same({ "Lead:Deadmines" }, ann.alerts)
+  end)
+
+  it("alerts again for a new post of the same leader", function()
+    lead.service:Post(fields())
+    lead.service:Close()
+    lead.service:Post(fields({ title = "Stockade" }))
+    assert.are.same({ "Lead:Deadmines", "Lead:Stockade" }, ann.alerts)
+  end)
+
+  it("stays quiet during the warm-up after login, when old posts arrive as new", function()
+    local late = new_client(world, "Late")
+    lead.service:Post(fields())
+    assert.is_nil(late.alerts)
+    assert.are.equal(1, late.board:OpenCount())
+    world.advance(ns.Constants.LFG_ALERT_WARMUP)
+    lead.service:Close()
+    lead.service:Post(fields({ title = "Stockade" }))
+    assert.are.same({ "Lead:Stockade" }, late.alerts)
+  end)
+
+  it("keeps the post on the board when the alert fails", function()
+    ann.alertFails = true
+    lead.service:Post(fields())
+    assert.are.equal(1, ann.board:OpenCount())
   end)
 end)

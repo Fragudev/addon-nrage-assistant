@@ -13,6 +13,7 @@ local function load_view_model(locale)
     "Domain/IntelModel",
     "UI/Kit/Theme",
     "UI/Kit/Util",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelGroups",
@@ -84,6 +85,17 @@ local function own_post(overrides)
 end
 
 describe("ViewModel groups board", function()
+  it("writes the alert of a new group with its kind, title and leader, escaped", function()
+    assert.are.equal(
+      "New group (Dungeon): Deadmines - Lead",
+      ViewModel.GroupAlertText("Lead", { kind = "dungeon", title = "Deadmines" })
+    )
+    assert.are.equal(
+      "New group (Other): a||b - Lead",
+      ViewModel.GroupAlertText("Lead", { kind = "weird", title = "a|b" })
+    )
+  end)
+
   it("describes a post: title, kind, leader, level, age, note, roles and members", function()
     local row = view().rows[1]
     assert.are.equal("p-1", row.pid)

@@ -646,6 +646,10 @@ local function StartLfg()
       ns.UI.LfgChanged()
       ns.LfgPopup.Refresh()
     end,
+    -- Another member opened a group: a short line at the top of the screen, like the Intel warnings.
+    onNewPost = function(sender, post)
+      platform.ShowNoticeText(ns.ViewModel.GroupAlertText(sender, post))
+    end,
   })
   ns.lfgBoard, ns.lfgService = board, service
   ns.comm.lfgService = service
