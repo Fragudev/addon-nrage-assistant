@@ -609,6 +609,7 @@ describe("Window smoke test", function()
       "loot",
       "pvp",
       "groups",
+      "modules",
       "raid",
       "rules",
       "roster",
@@ -618,12 +619,24 @@ describe("Window smoke test", function()
     local expected = {
       GM = all,
       CoGM = all,
-      Council = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster" },
-      RL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "raid", "rules", "roster" },
-      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups" },
-      Member = { "home", "professions", "pvp", "groups" },
-      Alter = { "home", "professions", "pvp", "groups" },
-      Norost = { "home", "professions", "pvp", "groups" },
+      Council = {
+        "home",
+        "professions",
+        "events",
+        "ready",
+        "loot",
+        "pvp",
+        "groups",
+        "modules",
+        "raid",
+        "rules",
+        "roster",
+      },
+      RL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules", "raid", "rules", "roster" },
+      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" },
+      Member = { "home", "professions", "pvp", "groups", "modules" },
+      Alter = { "home", "professions", "pvp", "groups", "modules" },
+      Norost = { "home", "professions", "pvp", "groups", "modules" },
     }
     for rank, values in pairs(expected) do
       env = build(rank)

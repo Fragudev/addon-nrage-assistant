@@ -1282,4 +1282,6 @@ ns.Locale.Register("es", {
   ["Click to hide the enemies reported by Intel on the world map."] = "Clic para ocultar los enemigos avisados por Intel en el mapa del mundo.",
   ["Click to show the enemies reported by Intel on the world map."] = "Clic para mostrar los enemigos avisados por Intel en el mapa del mundo.",
   ["Show enemies on the world map"] = "Mostrar enemigos en el mapa del mundo",
+  -- Domain/ModuleRegistry, UI/ViewModel
+  ["Modules"] = "Módulos",
 })
