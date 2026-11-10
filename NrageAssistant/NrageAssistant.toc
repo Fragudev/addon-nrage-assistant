@@ -23,6 +23,8 @@ Core\PvPProbe.lua
 Core\LayerProbe.lua
 Core\Store.lua
 Domain\Settings.lua
+Domain\ModuleRegistry.lua
+Domain\ModuleService.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua
@@ -75,6 +77,8 @@ Domain\LfgModel.lua
 Domain\LfgBoard.lua
 Domain\LfgService.lua
 Domain\InstallDirectory.lua
+Domain\RankMapModel.lua
+Domain\RankMapService.lua
 Domain\AnnouncementModel.lua
 Domain\AnnouncementService.lua
 Sync\Codec.lua
@@ -95,6 +99,7 @@ Sync\LayerSync.lua
 Sync\PositionSync.lua
 Sync\IntelSync.lua
 Sync\LfgSync.lua
+Sync\RankMapSync.lua
 Sync\AnnouncementSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
@@ -119,6 +124,8 @@ UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
 UI\ViewModelGroups.lua
 UI\ViewModelInstalls.lua
+UI\ViewModelModules.lua
+UI\ViewModelRanks.lua
 UI\ViewModelAnnouncements.lua
 UI\Main.lua
 UI\Cards.lua
@@ -138,6 +145,8 @@ UI\Tabs\Professions.lua
 UI\Tabs\Layers.lua
 UI\Tabs\Groups.lua
 UI\Tabs\Installs.lua
+UI\Tabs\Modules.lua
+UI\Tabs\Ranks.lua
 UI\Tabs\Announcements.lua
 UI\Tabs\AnnouncementsAdmin.lua
 UI\PopupFrame.lua

@@ -211,6 +211,9 @@ local function build(view)
 end
 
 function LayerPopup.Refresh()
+  if ns.modules and not ns.modules:IsEnabled("layers") then
+    return
+  end
   if controller and ns.active then
     controller:Refresh()
   end

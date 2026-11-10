@@ -162,6 +162,9 @@ local function build(view)
 end
 
 function LfgPopup.Refresh()
+  if ns.modules and not ns.modules:IsEnabled("groups") then
+    return
+  end
   if controller and ns.active then
     controller:Refresh()
   end

@@ -11,6 +11,7 @@ local function load_modules()
     "Domain/RecipeService",
     "Domain/EventModel",
     "Domain/AnnouncementModel",
+    "Domain/RankMapModel",
     "Domain/AnnouncementService",
     "Domain/EventService",
     "Domain/LootModel",
@@ -30,6 +31,7 @@ local function load_modules()
     "Sync/RosterSync",
     "Sync/RecipeSync",
     "Sync/AnnouncementSync",
+    "Sync/RankMapSync",
     "Sync/Transfer",
   }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
@@ -85,7 +87,7 @@ local function receiver(roles)
 end
 
 local function snapshot(max)
-  return Transfer.BuildSnapshot({}, {}, 5, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, board(), max, NOW)
+  return Transfer.BuildSnapshot({}, {}, 5, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, board(), max, NOW)
 end
 
 describe("Transfer announcements in a snapshot", function()

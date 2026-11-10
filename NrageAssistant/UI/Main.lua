@@ -450,6 +450,12 @@ function UI.RulesChanged()
   end
 end
 
+-- The rank map changed (saved here or received): the role of this player may have changed, so the sidebar is built
+-- again, and the Ranks tab, or any tab the role no longer reaches, is drawn again.
+function UI.RanksChanged()
+  UI.RostersChanged()
+end
+
 -- Rosters or roles arrived or changed: the role of this player may have changed, so the sidebar is built again too.
 local rostersRedraw = throttledRedraw(function()
   return true
@@ -574,6 +580,13 @@ function UI.SelectTab(tab)
   end
   currentTab = tab
   UI.WatchReadiness(ReadinessIsShown())
+  UI.BuildSidebar()
+  UI.Redraw()
+end
+
+-- A module was switched on or off (ns.modules): the sidebar is built again, so a tab that is hidden now gives way to
+-- Home (BuildSidebar), and the open tab is drawn again.
+function UI.ModulesChanged()
   UI.BuildSidebar()
   UI.Redraw()
 end

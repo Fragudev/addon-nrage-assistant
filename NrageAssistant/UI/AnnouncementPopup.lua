@@ -286,6 +286,9 @@ function AnnouncementPopup.Start()
     end,
     after = C_Timer.After,
     now = platform.ServerTime,
+    enabled = function()
+      return not ns.modules or ns.modules:IsEnabled("announcements")
+    end,
     show = build,
     hide = close,
     openBoard = function()

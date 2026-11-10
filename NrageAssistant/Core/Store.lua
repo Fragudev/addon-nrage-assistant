@@ -10,6 +10,7 @@ local _, ns = ...
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
 --                               deliveries } (see PvPSeasonSync),
 --                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory),
+--                 rankMaps = { [guildKey] = { rev, updatedAt, by, ranks } } (see RankMapModel),
 --                 announcements = { items, tombstones, openedAt } and announcementsSeen = { [id] = popupRev }
 --                 (see AnnouncementService) }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
@@ -211,9 +212,14 @@ local MIGRATIONS = {
   [17] = function(db)
     ensureTable(ensureTable(db, "global"), "installs")
   end,
-  -- v18: guild announcements (announcements = { items, tombstones, openedAt }, see AnnouncementService) and the popups
-  -- this account has already seen (announcementsSeen[id] = popupRev). Nothing else is touched.
+  -- v18: the rank map of each guild (rankMaps[guildKey] = { rev, updatedAt, by, ranks }, see RankMapModel). Empty until
+  -- a gm or cogm saves one: the roles keep coming from the rank names until then.
   [18] = function(db)
+    ensureTable(ensureTable(db, "global"), "rankMaps")
+  end,
+  -- v19: guild announcements (announcements = { items, tombstones, openedAt }, see AnnouncementService) and the popups
+  -- this account has already seen (announcementsSeen[id] = popupRev). Nothing else is touched.
+  [19] = function(db)
     local global = ensureTable(db, "global")
     local announcements = ensureTable(global, "announcements")
     ensureTable(announcements, "items")

@@ -81,6 +81,7 @@ read_globals = {
   "IsInRaid",
   "PlaySound",
   "RaidNotice_AddMessage",
+  "ReloadUI",
   "RaidWarningFrame",
   "SOUNDKIT",
   "GetPVPLifetimeStats",

@@ -30,6 +30,29 @@ function Platform.GetOwnGuildRank()
   return rankName, rankIndex
 end
 
+-- The rank names of the player's guild as { [rankIndex] = name }, with 0 for the guild master. Assumes that
+-- `GuildControlGetRankName(i)` is 1-based and maps to rankIndex `i - 1`, the index GetGuildRosterInfo and GetGuildInfo
+-- give (M10 in docs/API_NOTES.md, not measured yet). {} when the client cannot say.
+function Platform.GetGuildRanks()
+  local ranks = {}
+  -- Read through _G: these two are not in the luacheck client list and nothing else uses them.
+  local getNumRanks, getRankName = _G.GuildControlGetNumRanks, _G.GuildControlGetRankName
+  if not (getNumRanks and getRankName) then
+    return ranks
+  end
+  local ok, total = pcall(getNumRanks)
+  if not ok or type(total) ~= "number" then
+    return ranks
+  end
+  for position = 1, total do
+    local named, name = pcall(getRankName, position)
+    if named and type(name) == "string" and name ~= "" then
+      ranks[position - 1] = name
+    end
+  end
+  return ranks
+end
+
 -- true when the client says the player is the guild master, false when it says not, nil when it cannot say
 -- (no such API, or it raised). Not measured on Forever yet (API_NOTES); the rank index is the primary source.
 function Platform.IsGuildLeader()
@@ -835,6 +858,13 @@ function Platform.GetPartyClasses()
 end
 
 -- Shows `text` as a raid warning in the middle of the screen. False when the client has no such frame.
+-- Reloads the interface (a module switched on after login starts on the next load). Only from a click.
+function Platform.ReloadUI()
+  if ReloadUI then
+    ReloadUI()
+  end
+end
+
 function Platform.ShowRaidNotice(text)
   if not (RaidNotice_AddMessage and RaidWarningFrame) then
     return false

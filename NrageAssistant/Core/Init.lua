@@ -35,6 +35,32 @@ function ns.IsDevBuild()
   return not version or version == "@project-version@"
 end
 
+-- The rank map of the current guild (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, part D) answers every role lookup through
+-- ns.rankMap. It is read lazily: while the guild or the realm is unknown, or nothing was saved, the roles come from the
+-- rank names as before.
+local function InstallRankMap()
+  ns.rankMapService = ns.RankMapService.New({
+    maps = ns.db.global.rankMaps,
+    guildKey = function()
+      -- A client call that raises (or is missing) only means "no map": the rank names answer instead.
+      local ok, guild, realm = pcall(function()
+        return ns.Platform.GetGuildName(), ns.Platform.GetRealmName()
+      end)
+      return ok and ns.RankMapService.GuildKey(guild, realm) or nil
+    end,
+  })
+  ns.rankMap = ns.rankMapService:Provider()
+end
+
+-- The rank map changed (saved here, or received from the guild): every role is worked out from it on the next lookup,
+-- so only what is on screen has to follow. The sidebar is built again (the own role may have changed) and the Ranks
+-- tab redraws. The access guard does not depend on roles (guild, faction and ruleset only), so it is not run again.
+function ns.RanksChanged()
+  if ns.UI and ns.UI.RanksChanged then
+    ns.UI.RanksChanged()
+  end
+end
+
 local function InitDatabase()
   -- A migration that raises must not leave the addon without a database or without a reason: the saved data stays
   -- as it was and the addon turns itself off with a notice.
@@ -45,6 +71,7 @@ local function InitDatabase()
   if db then
     NrageAssistantDB = db
     ns.db = db
+    InstallRankMap()
     -- The saved language is applied before anything is drawn, so every text is read in it.
     ns.Locale.UsePreference(ns.Settings.Language(db), ns.Platform.GetLocale())
   else
@@ -128,6 +155,9 @@ local function StartPvPMissions(feed)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
   -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit.
   frame:SetScript("OnEvent", function(_, event, unit, isReloadingUi)
+    if not ns.modules:IsEnabled("pvp") then
+      return
+    end
     if not ns.active then
       return
     end
@@ -229,6 +259,9 @@ local function StartPvP()
     or false
   feed.blowNames = tracker.blowsAvailable
   pvpFrame:SetScript("OnEvent", function(_, event, text)
+    if not ns.modules:IsEnabled("pvp") then
+      return
+    end
     if not ns.active then
       return
     end
@@ -283,6 +316,9 @@ local function StartBlacklist()
     end,
     -- Each part is guarded inside Platform: a warning that cannot be shown must not hide the chat line.
     alert = function(match)
+      if not ns.modules:IsEnabled("blacklist") then
+        return
+      end
       local line = ns.ViewModel.BlacklistAlertLine(match)
       print(("%s: %s"):format(PREFIX, line))
       ns.Platform.ShowRaidNotice(line)
@@ -693,6 +729,9 @@ local function StartPosition()
     now = platform.Now,
     after = C_Timer.After,
     pins = pins,
+    enabled = function()
+      return ns.modules:IsEnabled("map")
+    end,
     settings = function()
       return ns.PositionModel.Settings(ns.db)
     end,
@@ -875,13 +914,18 @@ local function StartIntel()
   })
   ns.intelAlerts = alerts
   directory.deps.onSighting = function(entry)
+    if not ns.modules:IsEnabled("intel") then
+      return
+    end
     alerts:OnReport(entry)
   end
   detector.deps.onContact = function(result, details, spot)
     if not result.ignored then
       pcall(publisher.Offer, publisher, details, spot, result.kos ~= nil)
     end
-    alerts:OnContact(result, details)
+    if ns.modules:IsEnabled("intel") then
+      alerts:OnContact(result, details)
+    end
   end
 
   ns.intelCommands = ns.IntelCommands.New({
@@ -1145,6 +1189,9 @@ local function StartBossLoot()
   end
   bossLootStarted = true
   lootFrame:SetScript("OnEvent", function()
+    if not ns.modules:IsEnabled("loot") then
+      return
+    end
     if ns.active then
       local items = ns.Platform.GetLootWindowItems()
       if items and #items > 0 then
@@ -1172,6 +1219,9 @@ local function SkillOf(name)
 end
 
 local function ScanRecipes()
+  if not ns.modules:IsEnabled("professions") then
+    return
+  end
   if not (ns.active and ns.character) then
     return
   end
@@ -1442,6 +1492,31 @@ local ACTIVATION_STEPS = {
   { name = "announcements", run = StartAnnouncements },
 }
 
+-- The names of the activation steps, in order. Domain/ModuleRegistry checks that each is core or owned by a module.
+function ns.ActivationStepNames()
+  local names = {}
+  for _, step in ipairs(ACTIVATION_STEPS) do
+    names[#names + 1] = step.name
+  end
+  return names
+end
+
+-- The personal module switches (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, Part A). Read them with
+-- ns.modules:IsEnabled(id); the saved database is read when asked, so this works before the database exists.
+ns.modules = ns.ModuleService.New({
+  db = function()
+    return ns.db
+  end,
+  skipped = function()
+    return ns.skippedSteps
+  end,
+  onChange = function()
+    if ns.UI and ns.UI.ModulesChanged then
+      ns.UI.ModulesChanged()
+    end
+  end,
+})
+
 -- The steps that raised in this session ({ step, error }), for /nrage debug and the tests.
 ns.startupErrors = {}
 local STARTUP_ERRORS_MAX = 20
@@ -1464,17 +1539,24 @@ end
 local function Activate()
   ns.active = true
   local failed = {}
+  -- The steps of a module that is off are not run; they are listed so Modules can ask for a reload when it is on.
+  ns.skippedSteps = {}
   for _, step in ipairs(ACTIVATION_STEPS) do
-    local ok, err = pcall(step.run)
-    if not ok then
-      -- A core step is tried again on every guild event: the list keeps the first failures only.
-      if #ns.startupErrors < STARTUP_ERRORS_MAX then
-        ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
-      end
-      failed[#failed + 1] = step.name
-      if step.core then
-        ns.active = false
-        break
+    local moduleId = ns.ModuleRegistry.ForStep(step.name)
+    if moduleId and not ns.modules:IsEnabled(moduleId) then
+      ns.skippedSteps[#ns.skippedSteps + 1] = step.name
+    else
+      local ok, err = pcall(step.run)
+      if not ok then
+        -- A core step is tried again on every guild event: the list keeps the first failures only.
+        if #ns.startupErrors < STARTUP_ERRORS_MAX then
+          ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
+        end
+        failed[#failed + 1] = step.name
+        if step.core then
+          ns.active = false
+          break
+        end
       end
     end
   end

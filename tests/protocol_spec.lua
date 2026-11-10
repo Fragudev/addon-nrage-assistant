@@ -9,6 +9,7 @@ local function load_protocol()
   assert(loadfile("NrageAssistant/Domain/LootModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/PvPSeasonModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/LfgModel.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/RankMapModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/AnnouncementModel.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Sync/Protocol.lua"))("NrageAssistant", ns)
   return ns.Protocol, ns.Constants
@@ -1246,5 +1247,58 @@ describe("Protocol ANN and ANN_DEL", function()
   it("accepts the longest title and body in two-byte characters", function()
     local worst = payload({ title = ("\195\177"):rep(60), body = ("\195\177"):rep(600), expiresAt = 10000 })
     assert.is_truthy(validate("ANN", worst))
+  end)
+end)
+
+describe("Protocol RANK_MAP", function()
+  local function rank_map(payload)
+    return Protocol.Validate(Protocol.Build("RANK_MAP", payload, "rm-1"))
+  end
+
+  local function good()
+    return {
+      rev = 2,
+      updatedAt = 1000,
+      ranks = { { i = 1, r = "cogm", n = "Comandante" }, { i = 3, r = "rl", n = "Raid" } },
+    }
+  end
+
+  it("accepts a map of rows and drops unknown fields", function()
+    local payload = good()
+    payload.extra = "x"
+    payload.ranks[1].extra = "y"
+    local m = rank_map(payload)
+    assert.are.same(good(), m.p)
+  end)
+
+  it("accepts an empty map", function()
+    assert.is_truthy(rank_map({ rev = 1, updatedAt = 0, ranks = {} }))
+  end)
+
+  it("refuses gm, index 0, index 10, duplicates, bad roles and bad names", function()
+    local function with_row(row)
+      local payload = good()
+      payload.ranks[2] = row
+      return rank_map(payload)
+    end
+    assert.is_nil(with_row({ i = 2, r = "gm", n = "X" }))
+    assert.is_nil(with_row({ i = 0, r = "alter", n = "X" }))
+    assert.is_nil(with_row({ i = 10, r = "alter", n = "X" }))
+    assert.is_nil(with_row({ i = 1, r = "alter", n = "X" }))
+    assert.is_nil(with_row({ i = 2, r = "owner", n = "X" }))
+    assert.is_nil(with_row({ i = 2, r = "alter", n = "|cffff0000X" }))
+    assert.is_nil(with_row({ i = 2, r = "alter", n = ("n"):rep(33) }))
+    assert.is_nil(with_row({ i = 2, r = "alter" }))
+  end)
+
+  it("refuses a bad revision, time or row count", function()
+    assert.is_nil(rank_map({ rev = 0, updatedAt = 1, ranks = {} }))
+    assert.is_nil(rank_map({ rev = 1, updatedAt = -1, ranks = {} }))
+    assert.is_nil(rank_map({ rev = 1, updatedAt = 1 }))
+    local many = {}
+    for index = 1, 10 do
+      many[index] = { i = index, r = "alter", n = "N" }
+    end
+    assert.is_nil(rank_map({ rev = 1, updatedAt = 1, ranks = many }))
   end)
 end)

@@ -19,6 +19,8 @@ Comm.__index = Comm
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
 --       onRosterChange(messageType) (optional), pvpSeason (the season ledger table, see PvPSeasonSync),
 --       onPvPSeasonChange(messageType) and onPvPSeasonClosed(seasonId) (optional), ledgerInbox (optional),
+--       rankMaps (the rank maps by guild, see RankMapSync), guildKey() -> key or nil, entryOf(name) -> { rankName,
+--       rankIndex } or nil (the guild roster) and onRanksChange(messageType) (optional),
 --       roleOf(sender) -> role or nil, ownRole() -> role or nil, isOnline(name) -> boolean or nil (optional),
 --       snapshotInbox (optional), version (string), now() -> seconds, schedule(delaySeconds, fn),
 --       random(low, high) -> number, onPeerSeen(sender, info) (optional: every valid message from a member, info as
@@ -48,6 +50,10 @@ function Comm.New(deps)
     onGuildKosChange = deps.onGuildKosChange,
     readinessRules = deps.readinessRules or {},
     onRulesChange = deps.onRulesChange,
+    rankMaps = deps.rankMaps or {},
+    guildKey = deps.guildKey,
+    entryOf = deps.entryOf,
+    onRanksChange = deps.onRanksChange,
     -- The layer directory and swap flow are in memory and created after Comm (Init.StartLayer sets them).
     layerDirectory = deps.layerDirectory,
     layerSwap = deps.layerSwap,
@@ -345,6 +351,9 @@ function Comm:HandleMessage(text, sender, channel)
   if ns.ReadinessRulesSync.IsRulesMessage(message.t) then
     return self:HandleReadinessRules(sender, message)
   end
+  if ns.RankMapSync.IsRankMapMessage(message.t) then
+    return self:HandleRankMap(sender, message)
+  end
   if ns.BlacklistSync.IsBlacklistMessage(message.t) then
     return self:HandleBlacklist(sender, message)
   end
@@ -504,6 +513,9 @@ function Comm:SendSnapshot(target)
       math.floor(constants.ROSTERS_MAX * count / constants.SYNC_MAX_EVENTS),
       self.guildKos,
       guildKosMax,
+      -- The rank map goes along only from somebody who may author it: a receiver applies it under the rank of the
+      -- sender of the snapshot.
+      self:AuthoredRankMap(),
       -- Only a gm or cogm snapshot carries announcements: the receiver applies them under the role of the sender.
       ns.PermissionService.Can(self.ownRole and self.ownRole(), "announce_manage") and self.announcements or nil,
       math.floor(constants.ANNOUNCE_SNAPSHOT_MAX * count / constants.SYNC_MAX_EVENTS),
@@ -642,6 +654,10 @@ function Comm:HandleWhisper(text, sender)
   ctx.readinessRules = self.readinessRules
   ctx.rosters, ctx.members = self.rosters, self.members
   ctx.roleOf = self.roleOf
+  ctx.rankMaps, ctx.rankGuildKey = self.rankMaps, self.guildKey and self.guildKey() or false
+  ctx.entryOf = function(name)
+    return self:EntryOf(name)
+  end
   local summary = ns.Transfer.ApplyItems(message.p.items, ctx, sender, role)
   self.lastSnapshot = { from = sender, applied = summary.applied, total = summary.total, at = self.now() }
   if summary.firstError then
@@ -661,6 +677,9 @@ function Comm:HandleWhisper(text, sender)
   end
   if summary.rules > 0 and self.onRulesChange then
     self.onRulesChange("SYNC_DATA")
+  end
+  if (summary.rankMap or 0) > 0 and self.onRanksChange then
+    self.onRanksChange("SYNC_DATA")
   end
   if summary.rosters > 0 and self.onRosterChange then
     self.onRosterChange("SYNC_DATA")
@@ -1028,6 +1047,45 @@ function Comm:HandleReadinessRules(sender, message)
   return ok, reason
 end
 
+-- The tables the rank map works with. The roster entry of a name is read from the local guild roster (the own
+-- character from the client, since it is not in its own messages), never from a message.
+function Comm:RankMapContext()
+  return {
+    maps = self.rankMaps,
+    guildKey = self.guildKey and self.guildKey() or nil,
+    now = self.platform.ServerTime,
+    entryOf = function(name)
+      return self:EntryOf(name)
+    end,
+  }
+end
+
+-- { rankName, rankIndex } of `name`: the own character reads the client (rank index 0 for the guild master, also when
+-- only IsGuildLeader says so); anybody else the guild roster.
+function Comm:EntryOf(name)
+  if self.platform.GetOwnGuildRank and name == self.platform.GetIdentityKey() then
+    local rankName, rankIndex = self.platform.GetOwnGuildRank()
+    if type(rankName) ~= "string" or rankName == "" then
+      return nil
+    end
+    if self.platform.IsGuildLeader and self.platform.IsGuildLeader() == true then
+      rankIndex = ns.Constants.GUILD_MASTER_RANK_INDEX
+    end
+    return { rankName = rankName, rankIndex = rankIndex }
+  end
+  return self.entryOf and self.entryOf(name) or nil
+end
+
+-- RANK_MAP: the sender is authorized by the roster and the map this client holds, before the incoming map is applied
+-- (RankMapSync); the author is the sender, never a payload field.
+function Comm:HandleRankMap(sender, message)
+  local ok, reason = ns.RankMapSync.Apply(self:RankMapContext(), message, sender)
+  if ok and self.onRanksChange then
+    self.onRanksChange(message.t)
+  end
+  return ok, reason
+end
+
 -- LAYER_STATE and LAYER_SWAP: live only, nothing is saved. The sender's role is read from the local guild roster and
 -- the actor is always the sender, never a payload field.
 function Comm:HandleLayer(sender, message)
@@ -1298,6 +1356,70 @@ function Comm:SetReadinessRules(rosterId, rules)
   return true, payload.rev, (self:SendReadinessRules(rosterId))
 end
 
+-- Tells the guild the stored rank map (one message, replacing one still waiting in the queue).
+function Comm:SendRankMap()
+  local key = self.guildKey and self.guildKey() or nil
+  local payload = ns.RankMapSync.Payload(key and self.rankMaps[key])
+  if not payload then
+    return false, "no_rank_map"
+  end
+  return self:Send("RANK_MAP", payload, "RM")
+end
+
+-- The stored map when this client may author it (the guild master, or a co-guild master by the map held), else nil:
+-- what a snapshot carries.
+function Comm:AuthoredRankMap()
+  local key = self.guildKey and self.guildKey() or nil
+  local held = key and self.rankMaps[key] or nil
+  if held and ns.RankMapSync.MayAuthor(self:EntryOf(self.platform.GetIdentityKey()), held) then
+    return held
+  end
+  return nil
+end
+
+-- Once after login, whoever saved the current map tells the guild again, for the members who were not there.
+function Comm:SendAuthoredRankMap()
+  local held = self:AuthoredRankMap()
+  if held and held.by == self.platform.GetIdentityKey() then
+    return self:SendRankMap()
+  end
+  return false, "not_author"
+end
+
+-- Replaces the rank map of the guild with `ranks` ({ [index] = { role, name } }): the guild master or a co-guild
+-- master.
+-- It is validated and applied here first (own messages are never received), then told to the guild. Returns true, the
+-- revision used and whether it was queued; or false plus the reason (RankMapSync.Apply: "no_guild", "invalid",
+-- "forbidden", "self_row", "stale").
+function Comm:SetRankMap(ranks)
+  local ctx = self:RankMapContext()
+  local sender = self.platform.GetIdentityKey()
+  if type(ctx.guildKey) ~= "string" then
+    return false, "no_guild"
+  end
+  local held = ctx.maps[ctx.guildKey]
+  local heldRev = type(held) == "table" and type(held.rev) == "number" and held.rev or 0
+  local heldAt = type(held) == "table" and type(held.updatedAt) == "number" and held.updatedAt or 0
+  local payload = ns.RankMapModel.ToWire({
+    ranks = ranks,
+    rev = math.min(heldRev + 1, 2147483647),
+    -- Later than the held map, so an edit made right after another one always outranks it.
+    updatedAt = math.max(ctx.now(), heldAt + 1),
+  })
+  local message = ns.Protocol.Validate(ns.Protocol.Build("RANK_MAP", payload, "local"))
+  if not message then
+    return false, "invalid"
+  end
+  local ok, reason = ns.RankMapSync.Apply(ctx, message, sender)
+  if not ok then
+    return false, reason
+  end
+  if self.onRanksChange then
+    self.onRanksChange(message.t)
+  end
+  return true, payload.rev, (self:SendRankMap())
+end
+
 -- Local roster changes -> wire. Keyed, so a newer edit replaces one still waiting in the queue.
 function Comm:SendRoster(roster)
   return self:Send("ROSTER_UPSERT", ns.RosterSync.RosterPayload(roster), "RO:" .. roster.id)
@@ -1496,6 +1618,19 @@ function Comm.Start()
         ns.UI.RulesChanged()
       end
     end,
+    rankMaps = ns.db.global.rankMaps,
+    guildKey = function()
+      return ns.rankMapService and ns.rankMapService.guildKey() or nil
+    end,
+    entryOf = function(name)
+      return ns.guildRoster and ns.guildRoster:Lookup(name) or nil
+    end,
+    -- A map that arrives changes roles: Init works out the own role again and the windows redraw.
+    onRanksChange = function()
+      if ns.RanksChanged then
+        ns.RanksChanged()
+      end
+    end,
     recipes = ns.db.global.recipes,
     onRecipesChange = function()
       if ns.UI and ns.UI.RecipesChanged then
@@ -1584,6 +1719,8 @@ function Comm.Start()
       -- Whoever can set rules tells the guild the sets of their rosters once, for the members who were not there
       -- when they were set.
       comm:SendAuthoredReadinessRules()
+      -- And the rank map, if this client saved the one in force.
+      comm:SendAuthoredRankMap()
       -- And a gm or cogm repeats their live announcements.
       comm:SendOwnAnnouncements()
       -- And the roster definitions (the assignments of the members travel in the snapshot an admin answers).
