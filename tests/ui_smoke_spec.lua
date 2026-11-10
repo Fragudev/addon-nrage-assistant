@@ -13,12 +13,14 @@ local ALL_TABS = {
   "loot",
   "pvp",
   "groups",
+  "announcements",
   "raid",
   "rules",
   "roster",
   "pvpadmin",
   "installs",
   "ranks",
+  "announceadmin",
 }
 -- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
 -- anyway.
@@ -67,6 +69,8 @@ local function load_window(locale)
     "Domain/IntelImport",
     "Domain/GuildKosService",
     "Domain/InstallDirectory",
+    "Domain/AnnouncementModel",
+    "Domain/AnnouncementService",
     "UI/Kit/Theme",
     "UI/Kit/Pixel",
     "UI/Kit/Shape",
@@ -83,6 +87,7 @@ local function load_window(locale)
     "UI/ViewModelIntel",
     "UI/ViewModelGroups",
     "UI/ViewModelInstalls",
+    "UI/ViewModelAnnouncements",
     "UI/ViewModelRanks",
     "UI/MinimapButton",
     "Commands/RaidCommands",
@@ -109,6 +114,9 @@ local function load_window(locale)
     "UI/Tabs/Layers",
     "UI/Tabs/Groups",
     "UI/Tabs/Installs",
+    "UI/Tabs/Announcements",
+    "UI/Tabs/AnnouncementsAdmin",
+    "UI/AnnouncementPopup",
     "Domain/ModuleRegistry",
     "Domain/ModuleService",
     "UI/ViewModelModules",
@@ -256,8 +264,38 @@ local function build(rank, locale)
       members = {},
       recipes = {},
       installs = {},
+      announcements = { items = {}, tombstones = {} },
+      announcementsSeen = {},
     },
   }
+  -- The announcements: the real service, over a fake transport that records what it sends.
+  env.announced = {}
+  ns.announcements = ns.AnnouncementService.New({
+    store = ns.db.global.announcements,
+    seen = ns.db.global.announcementsSeen,
+    now = function()
+      return ns.Platform.ServerTime()
+    end,
+    ownName = function()
+      return "Leader-Realm"
+    end,
+    ownRole = function()
+      return ns.PermissionService.OwnRole(ns.Platform)
+    end,
+    newId = function()
+      env.counter = env.counter + 1
+      return "ann" .. env.counter
+    end,
+    send = {
+      upsert = function(announcement)
+        env.announced[#env.announced + 1] = "ANN:" .. announcement.id
+      end,
+      delete = function(id)
+        env.announced[#env.announced + 1] = "ANN_DEL:" .. id
+      end,
+    },
+    onChange = function() end,
+  })
   -- The role is the guild rank: "GM" and "CoGM" have no roster, the other ranks put this character in roster r1 (a
   -- "Norost" player has no roster at all).
   ns.db.global.members, ns.db.global.rosters = Roles.assignments(rank == "Norost" and "Roster" or rank, "Leader-Realm")
@@ -621,6 +659,7 @@ describe("Window smoke test", function()
       "loot",
       "pvp",
       "groups",
+      "announcements",
       "modules",
       "raid",
       "rules",
@@ -628,6 +667,7 @@ describe("Window smoke test", function()
       "pvpadmin",
       "installs",
       "ranks",
+      "announceadmin",
     }
     local expected = {
       GM = all,
@@ -640,6 +680,7 @@ describe("Window smoke test", function()
         "loot",
         "pvp",
         "groups",
+        "announcements",
         "modules",
         "raid",
         "rules",
@@ -654,16 +695,17 @@ describe("Window smoke test", function()
         "loot",
         "pvp",
         "groups",
+        "announcements",
         "modules",
         "raid",
         "rules",
         "roster",
         "ranks",
       },
-      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" },
-      Member = { "home", "professions", "pvp", "groups", "modules" },
-      Alter = { "home", "professions", "pvp", "groups", "modules" },
-      Norost = { "home", "professions", "pvp", "groups", "modules" },
+      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "announcements", "modules" },
+      Member = { "home", "professions", "pvp", "groups", "announcements", "modules" },
+      Alter = { "home", "professions", "pvp", "groups", "announcements", "modules" },
+      Norost = { "home", "professions", "pvp", "groups", "announcements", "modules" },
     }
     for rank, values in pairs(expected) do
       env = build(rank)
@@ -4857,6 +4899,283 @@ describe("Window smoke test: Intel", function()
         ns.UI.IntelHide()
       end)
     end)
+  end)
+end)
+
+describe("Announcements tabs", function()
+  local env
+
+  local function publish(fields)
+    return assert(env.ns.announcements:Publish(fields))
+  end
+
+  -- Draws the editor as the guild master.
+  local function editor()
+    env = build("GM")
+    return env.open("announceadmin")
+  end
+
+  local function sidebarNode()
+    local found
+    for _, node in ipairs(env.ns.Kit.fake.nodes) do
+      if node.kind == "Sidebar" then
+        found = node
+      end
+    end
+    return found
+  end
+
+  local function stored(id, overrides)
+    local a = {
+      id = id,
+      title = "Title " .. id,
+      body = "",
+      author = "Gm-Realm",
+      createdAt = 900,
+      updatedAt = 900,
+      rev = 1,
+      popup = false,
+      popupRev = 1,
+      pinned = false,
+    }
+    for key, value in pairs(overrides or {}) do
+      a[key] = value
+    end
+    env.ns.db.global.announcements.items[id] = a
+    return a
+  end
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  describe("the board", function()
+    it("says there is nothing yet", function()
+      env = build("Member")
+      env.open("announcements")
+      assert.is_truthy(env.text():find("No announcements yet", 1, true))
+    end)
+
+    it("lists the announcements, pinned first, with who and what, and nothing to edit", function()
+      env = build("Member")
+      stored("plain", { title = "Plain one", body = "Second body", createdAt = 950 })
+      stored("pinned", { title = "Pinned one", body = "First body", pinned = true })
+      env.open("announcements")
+      local text = env.text()
+      assert.is_truthy(text:find("Pinned one", 1, true))
+      assert.is_truthy(text:find("Plain one", 1, true))
+      assert.is_truthy(text:find("First body", 1, true))
+      assert.is_truthy(text:find("Gm-Realm", 1, true))
+      assert.is_true(text:find("Pinned one", 1, true) < text:find("Plain one", 1, true))
+      assert.is_nil(env.find(env.page(), "Button", "Publish"))
+      assert.is_nil(env.find(env.page(), "Button", "Edit"))
+      assert.is_nil(env.find(env.page(), "Button", "Delete"))
+    end)
+
+    it("hides an announcement that expired", function()
+      env = build("Member")
+      stored("gone", { title = "Gone", expiresAt = 999 })
+      env.open("announcements")
+      assert.is_nil(env.text():find("Gone", 1, true))
+    end)
+
+    it("escapes what was received", function()
+      env = build("Member")
+      stored("x", { title = "T|cffff0000", body = "B|r", author = "A|n" })
+      env.open("announcements")
+      local text = env.text()
+      assert.is_truthy(text:find("T||cffff0000", 1, true))
+      assert.is_nil(text:find("T|cffff0000", 1, true))
+    end)
+
+    it("opening it reads everything, and the count of the sidebar goes", function()
+      env = build("Member")
+      stored("x")
+      assert.are.equal(1, env.ns.announcements:Unread())
+      env.open("home")
+      local updates = {}
+      rawset(sidebarNode(), "SetItemBadge", function(_, value, text)
+        updates[#updates + 1] = { value, text }
+      end)
+      env.ns.UI.AnnouncementsChanged()
+      assert.are.same({ { "announcements", "1" } }, updates)
+      env.ns.UI.SelectTab("announcements")
+      assert.are.equal(0, env.ns.announcements:Unread())
+    end)
+
+    it("says it is not available before the service starts", function()
+      env = build("Member")
+      env.ns.announcements = nil
+      env.open("announcements")
+      assert.is_truthy(env.text():find("Announcements are not available", 1, true))
+    end)
+  end)
+
+  describe("the editor", function()
+    it("cannot publish without a title, and says why", function()
+      editor()
+      local button = env.find(env.page(), "Button", "Publish")
+      assert.is_true(button.opts.disabled)
+      assert.are.equal("The title is not valid", button.opts.tooltip)
+    end)
+
+    it("publishes with the popup on by default, and clears the form", function()
+      editor()
+      env.find(env.page(), "EditBox").opts.onChange("Raid night")
+      env.find(env.page(), "TextArea").opts.onChange("Bring flasks\nBe on time")
+      env.press("Publish")
+      local items = env.ns.db.global.announcements.items
+      local id = next(items)
+      assert.are.equal("Raid night", items[id].title)
+      assert.are.equal("Bring flasks\nBe on time", items[id].body)
+      assert.is_true(items[id].popup)
+      assert.is_false(items[id].pinned)
+      assert.are.same({ "ANN:" .. id }, env.announced)
+      assert.are.equal("success", env.banner().opts.kind)
+      assert.are.equal("", env.find(env.page(), "EditBox").opts.text)
+      assert.is_truthy(env.text():find("Published: 1 of 30", 1, true))
+    end)
+
+    it("publishes with the switches and expiry the guild master chose", function()
+      editor()
+      env.find(env.page(), "EditBox").opts.onChange("Short")
+      env.find(env.page(), "Switch", "Send popup").opts.onChange(false)
+      env.find(env.page(), "Switch", "Pin").opts.onChange(true)
+      env.find(env.page(), "Dropdown").opts.onChange("1d")
+      env.press("Publish")
+      local items = env.ns.db.global.announcements.items
+      local a = items[next(items)]
+      assert.is_false(a.popup)
+      assert.is_true(a.pinned)
+      assert.are.equal(1000 + 86400, a.expiresAt)
+    end)
+
+    it("edits an announcement and keeps its expiry when the player did not change it", function()
+      editor()
+      local a = publish({ title = "Old", expiry = "7d" })
+      env.ns.UI.Redraw()
+      env.press("Edit")
+      env.find(env.page(), "EditBox").opts.onChange("New")
+      assert.is_truthy(env.find(env.page(), "Button", "Save changes"))
+      env.ns.Platform.ServerTime = function()
+        return 5000
+      end
+      env.press("Save changes")
+      local saved = env.ns.db.global.announcements.items[a.id]
+      assert.are.equal("New", saved.title)
+      assert.are.equal(2, saved.rev)
+      assert.are.equal(1000 + 7 * 86400, saved.expiresAt)
+    end)
+
+    it("cancels an edit", function()
+      editor()
+      local a = publish({ title = "Old" })
+      env.ns.UI.Redraw()
+      env.press("Edit")
+      env.press("Cancel")
+      assert.is_nil(env.find(env.page(), "Button", "Save changes"))
+      assert.are.equal("Old", env.ns.db.global.announcements.items[a.id].title)
+    end)
+
+    it("deletes in two clicks", function()
+      editor()
+      local a = publish({ title = "Doomed" })
+      env.ns.UI.Redraw()
+      env.press("Delete")
+      assert.is_truthy(env.ns.db.global.announcements.items[a.id])
+      env.press("Click again to delete")
+      assert.is_nil(env.ns.db.global.announcements.items[a.id])
+      assert.are.equal("ANN_DEL:" .. a.id, env.announced[#env.announced])
+    end)
+
+    it("sends the popup again", function()
+      editor()
+      local a = publish({ title = "Again", popup = false })
+      env.ns.UI.Redraw()
+      env.press("Send popup again")
+      assert.are.equal(2, env.ns.db.global.announcements.items[a.id].popupRev)
+      assert.is_true(env.ns.db.global.announcements.items[a.id].popup)
+      assert.are.equal("success", env.banner().opts.kind)
+    end)
+
+    it("marks the silent ones in the list", function()
+      editor()
+      publish({ title = "Silent", popup = false })
+      env.ns.UI.Redraw()
+      assert.is_truthy(env.find(env.page(), "Badge", "No popup"))
+    end)
+
+    it("stops at 30 and says the board is full", function()
+      editor()
+      for index = 1, 30 do
+        publish({ title = "n" .. index })
+      end
+      env.ns.UI.Redraw()
+      env.find(env.page(), "EditBox").opts.onChange("One more")
+      env.ns.UI.Redraw()
+      assert.is_true(env.find(env.page(), "Button", "Publish").opts.disabled)
+      assert.is_truthy(env.text():find("Published: 30 of 30", 1, true))
+    end)
+
+    it("is refused by the service for an officer who got in anyway", function()
+      env = build("Council")
+      env.forceTabs = true
+      env.open("announceadmin")
+      env.find(env.page(), "EditBox").opts.onChange("Forged")
+      env.find(env.page(), "Button", "Publish").opts.onClick()
+      assert.is_nil(next(env.ns.db.global.announcements.items))
+      assert.are.same({}, env.announced)
+      assert.are.equal("warning", env.banner().opts.kind)
+      assert.is_truthy(env.banner().opts.text:find("guild master", 1, true))
+    end)
+
+    it("is in the sidebar of the guild master and the co-guild master only", function()
+      local function sees(rank)
+        local other = build(rank)
+        other.ns.ViewModel.TabVisible = other.realTabVisible
+        local role = other.ns.PermissionService.OwnRole(other.ns.Platform)
+        local visible = other.ns.ViewModel.TabVisible("announceadmin", role, "r1")
+        pcall(other.close)
+        return visible
+      end
+      for _, rank in ipairs({ "GM", "CoGM" }) do
+        assert.is_true(sees(rank), rank)
+      end
+      for _, rank in ipairs({ "Council", "RL", "Roster", "Member", "Alter" }) do
+        assert.is_false(sees(rank), rank)
+      end
+      env = build("GM")
+    end)
+  end)
+
+  describe("Home", function()
+    it("shows the pinned announcement as a line with a way to the board", function()
+      env = build("Member")
+      stored("p", { title = "Server restart", pinned = true })
+      env.open("home")
+      assert.is_truthy(env.text():find("Announcement: Server restart", 1, true))
+      env.press("Open board")
+      assert.are.equal("announcements", env.ns.UI.CurrentTab())
+    end)
+
+    it("shows nothing when no announcement is pinned", function()
+      env = build("Member")
+      stored("p", { title = "Not pinned" })
+      env.open("home")
+      assert.is_nil(env.text():find("Not pinned", 1, true))
+    end)
+  end)
+
+  it("redraws when announcements change, only on the tabs that show them", function()
+    env = build("GM")
+    env.open("announcements")
+    local count = #env.ns.Kit.fake.nodes
+    env.ns.UI.AnnouncementsChanged()
+    assert.is_true(#env.ns.Kit.fake.nodes > count)
+    env.open("professions")
+    count = #env.ns.Kit.fake.nodes
+    env.ns.UI.AnnouncementsChanged()
+    assert.are.equal(count, #env.ns.Kit.fake.nodes)
   end)
 end)
 

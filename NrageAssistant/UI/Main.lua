@@ -324,6 +324,30 @@ function UI.LfgChanged()
   groupsRedraw()
 end
 
+-- The announcements not read yet: the count of the Announcements item of the sidebar.
+local function unreadAnnouncements()
+  return ns.announcements and ns.announcements:Unread() or 0
+end
+
+-- Changes the count of the sidebar without building it again; the count is on every tab.
+function UI.RefreshAnnouncementsBadge()
+  if UI.IsOpen() and sidebar then
+    sidebar:SetItemBadge("announcements", ns.ViewModel.AnnouncementsBadge(unreadAnnouncements()))
+  end
+end
+
+local announcementsRedraw = throttledRedraw(function()
+  return currentTab == "announcements" or currentTab == "announceadmin" or currentTab == "home"
+end, ns.Constants.ANNOUNCE_REDRAW_SECONDS)
+
+-- An announcement was published, changed, deleted or arrived from the guild (a snapshot brings the whole board): the
+-- count of the sidebar follows at once, and the board, the editor and Home are drawn again at most once per
+-- ANNOUNCE_REDRAW_SECONDS.
+function UI.AnnouncementsChanged()
+  UI.RefreshAnnouncementsBadge()
+  announcementsRedraw()
+end
+
 -- A blacklist entry arrived from the guild (a snapshot brings the whole list), or the group changed.
 UI.BlacklistChanged = throttledRedraw(function()
   return currentTab == "blacklist"
@@ -514,7 +538,7 @@ function UI.BuildSidebar()
     return
   end
   sidebar = Kit.Sidebar(window.body, {
-    groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId(), openGroups()),
+    groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId(), openGroups(), unreadAnnouncements()),
     value = currentTab,
     onSelect = function(value)
       UI.SelectTab(value)

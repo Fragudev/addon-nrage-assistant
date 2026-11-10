@@ -79,6 +79,8 @@ Domain\LfgService.lua
 Domain\InstallDirectory.lua
 Domain\RankMapModel.lua
 Domain\RankMapService.lua
+Domain\AnnouncementModel.lua
+Domain\AnnouncementService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
@@ -98,6 +100,7 @@ Sync\PositionSync.lua
 Sync\IntelSync.lua
 Sync\LfgSync.lua
 Sync\RankMapSync.lua
+Sync\AnnouncementSync.lua
 Sync\Transfer.lua
 Sync\Comm.lua
 UI\Kit\Theme.lua
@@ -123,6 +126,7 @@ UI\ViewModelGroups.lua
 UI\ViewModelInstalls.lua
 UI\ViewModelModules.lua
 UI\ViewModelRanks.lua
+UI\ViewModelAnnouncements.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -143,10 +147,13 @@ UI\Tabs\Groups.lua
 UI\Tabs\Installs.lua
 UI\Tabs\Modules.lua
 UI\Tabs\Ranks.lua
+UI\Tabs\Announcements.lua
+UI\Tabs\AnnouncementsAdmin.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua
 UI\LfgPopup.lua
+UI\AnnouncementPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua

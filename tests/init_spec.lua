@@ -871,6 +871,131 @@ describe("Init", function()
   end)
 end)
 
+describe("Init announcements", function()
+  local env, timers, popups, sent
+
+  local function announcement(id, overrides)
+    local a = {
+      id = id,
+      title = "Title " .. id,
+      body = "",
+      author = "Gm-Realm",
+      createdAt = os.time() - 100,
+      updatedAt = os.time() - 100,
+      rev = 1,
+      popup = true,
+      popupRev = 1,
+      pinned = false,
+    }
+    for key, value in pairs(overrides or {}) do
+      a[key] = value
+    end
+    return a
+  end
+
+  -- Logs in as the guild master, with `items` already saved.
+  local function start(items)
+    env.fire("ADDON_LOADED", "NrageAssistant")
+    for id, record in pairs(items or {}) do
+      env.ns.db.global.announcements.items[id] = record
+    end
+    env.ns.Platform.GetOwnGuildRank = function()
+      return "Emperador", 0
+    end
+    env.ns.Platform.GetIdentityKey = function()
+      return "Me-Realm"
+    end
+    env.ns.Comm.Start = function()
+      env.ns.comm = {
+        NextId = function()
+          return "id-1"
+        end,
+        SendAnnouncement = function(_, a)
+          sent[#sent + 1] = "ANN:" .. a.id
+          return true
+        end,
+        SendAnnouncementDelete = function(_, id)
+          sent[#sent + 1] = "ANN_DEL:" .. id
+          return true
+        end,
+      }
+      return env.ns.comm
+    end
+    env.ns.AnnouncementPopup.Add = function(a)
+      popups[#popups + 1] = a.id
+    end
+    env.fire("PLAYER_LOGIN")
+  end
+
+  before_each(function()
+    env = build()
+    timers, popups, sent = {}, {}, {}
+    _G.C_Timer.After = function(seconds, fn)
+      timers[#timers + 1] = { seconds = seconds, fn = fn }
+    end
+  end)
+
+  after_each(function()
+    env.restore()
+  end)
+
+  it("starts once, as its own step, and the guild master can publish through Comm", function()
+    start()
+    assert.are.same({}, env.ns.startupErrors)
+    assert.is_table(env.ns.announcements)
+    assert.is_function(env.ns.AnnouncementReceived)
+    local a = assert(env.ns.announcements:Publish({ title = "Hello" }))
+    assert.are.same({ "ANN:" .. a.id }, sent)
+    assert.are.equal(a, env.ns.db.global.announcements.items[a.id])
+    assert.is_nil(env.ns.announcements:Edit(a.id, { title = "" }))
+    local service = env.ns.announcements
+    env.fire("PLAYER_GUILD_UPDATE")
+    assert.are.equal(service, env.ns.announcements)
+  end)
+
+  it("purges what expired before the service starts", function()
+    start({
+      alive = announcement("alive"),
+      dead = announcement("dead", { expiresAt = os.time() - 5 }),
+    })
+    assert.is_truthy(env.ns.db.global.announcements.items.alive)
+    assert.is_nil(env.ns.db.global.announcements.items.dead)
+  end)
+
+  it("hands a received announcement to the popup when it is due", function()
+    start()
+    env.ns.AnnouncementReceived(announcement("new"))
+    assert.are.same({ "new" }, popups)
+    env.ns.AnnouncementReceived(announcement("silent", { popup = false }))
+    assert.are.same({ "new" }, popups)
+  end)
+
+  it("asks again for the popups still due for what is stored, a moment after the start", function()
+    start({ waiting = announcement("waiting"), seen = announcement("seen") })
+    env.ns.db.global.announcementsSeen.seen = 1
+    local pending
+    for _, timer in ipairs(timers) do
+      if timer.seconds == env.ns.Constants.ANNOUNCE_LOGIN_POPUP_DELAY then
+        pending = timer
+      end
+    end
+    assert.is_truthy(pending)
+    assert.are.same({}, popups)
+    pending.fn()
+    assert.are.same({ "waiting" }, popups)
+  end)
+
+  it("tells the UI when the board changes", function()
+    start()
+    local changes = 0
+    env.ns.UI.AnnouncementsChanged = function()
+      changes = changes + 1
+    end
+    assert(env.ns.announcements:Publish({ title = "Hello" }))
+    assert.are.equal(1, changes)
+  end)
+end)
+
 describe("Init modules", function()
   local env
 

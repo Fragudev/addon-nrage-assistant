@@ -63,7 +63,10 @@ describe("ViewModel.ModuleRows", function()
     for index, row in ipairs(rows) do
       ids[index] = row.id
     end
-    assert.are.same({ "professions", "raid", "loot", "pvp", "intel", "groups", "layers", "map", "blacklist" }, ids)
+    assert.are.same(
+      { "professions", "raid", "loot", "pvp", "intel", "groups", "layers", "map", "blacklist", "announcements" },
+      ids
+    )
     local pvp = rowOf(rows, "pvp")
     assert.are.equal("PvP", pvp.label)
     assert.are.same({ "PvP", "PvP" }, pvp.tabs)

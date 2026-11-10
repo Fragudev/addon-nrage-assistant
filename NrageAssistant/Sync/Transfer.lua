@@ -133,6 +133,9 @@ end
 -- ("K:" tombstones) to add, last; its entries carry their author like the blacklist ones. The text export leaves
 -- them out too. `rankMap` (optional) is the stored rank map of the guild: it goes last, and only counts at the receiver
 -- when whoever sends the snapshot may author it (see RankMapSync).
+-- `announcements` (optional) is the announcements store, `maxAnnouncements` how many of its live
+-- announcements and removals to add (after the rank map) and `now` the server time that decides which have
+-- expired; like the rules they are only worth carrying from a gm or cogm (see AnnouncementSync).
 function Transfer.BuildSnapshot(
   events,
   tombstones,
@@ -147,7 +150,10 @@ function Transfer.BuildSnapshot(
   maxRules,
   guildKos,
   maxGuildKos,
-  rankMap
+  rankMap,
+  announcements,
+  maxAnnouncements,
+  now
 )
   local list = {}
   for _, event in pairs(events) do
@@ -198,6 +204,11 @@ function Transfer.BuildSnapshot(
   if rankMap then
     local item = ns.RankMapSync.SnapshotItem(rankMap)
     if item then
+      items[#items + 1] = item
+    end
+  end
+  if announcements and maxAnnouncements and maxAnnouncements > 0 and now then
+    for _, item in ipairs(ns.AnnouncementSync.SnapshotItems(announcements, now, maxAnnouncements)) do
       items[#items + 1] = item
     end
   end
@@ -270,6 +281,28 @@ local function applyGuildKosItem(item, ctx, sender, role)
   return ns.GuildKosSync.Apply(ctx, message, sender, role, origin)
 end
 
+-- An announcement item of a snapshot, applied as if the sender had sent it (so only a gm or cogm counts). The author
+-- it names is believed only when this client's own guild roster says that member may manage announcements too;
+-- otherwise the sender stays the author.
+local function applyAnnouncementItem(item, ctx, sender, role)
+  local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
+  if not message then
+    return false, invalid
+  end
+  local origin
+  if item.t == "ANN" and type(item.author) == "string" and ns.EventModel.IsCharacterKey(item.author) then
+    local authorRole = ctx.roleOf and ctx.roleOf(item.author)
+    if authorRole ~= nil and ns.PermissionService.Can(authorRole, "announce_manage") then
+      origin = { author = item.author }
+    end
+  end
+  return ns.AnnouncementSync.Apply({
+    store = ctx.announcements,
+    now = ctx.now,
+    onApplied = ctx.onAnnouncement,
+  }, message, sender, role, origin)
+end
+
 -- A roster or member item of a snapshot, applied as if the sender had sent it (so only an admin's counts).
 local function applyRosterItem(item, ctx, sender, role)
   local message, invalid = ns.Protocol.Validate(ns.Protocol.Build(item.t, item.p, "import"))
@@ -321,8 +354,9 @@ end
 -- `ctx.guildKos` is (see GuildKosSync); the readiness rules likewise when `ctx.readinessRules` is there. Returns
 -- { total, applied, pvp (how many of those were PvP), blacklist (how many were blacklist), guildKos (how many were
 -- guild Kill On Sight), rules (how many roster rule sets were applied), rankMap (1 when the rank map was applied),
--- skipped = { [reason] = count },
--- firstError (the first error an item raised, if any) }.
+-- announcements (how many were announcements, applied when `ctx.announcements` is there;
+-- `ctx.onAnnouncement(announcement)` hears each stored one), skipped = { [reason] = count }, firstError (the first
+-- error an item raised, if any) }.
 function Transfer.ApplyItems(items, ctx, sender, role)
   local summary = {
     total = #items,
@@ -333,6 +367,7 @@ function Transfer.ApplyItems(items, ctx, sender, role)
     rules = 0,
     rosters = 0,
     rankMap = 0,
+    announcements = 0,
     skipped = {},
   }
   local function skip(why)
@@ -397,6 +432,19 @@ function Transfer.ApplyItems(items, ctx, sender, role)
       if ok then
         summary.applied = summary.applied + 1
         summary.rankMap = summary.rankMap + 1
+      else
+        skip(why)
+      end
+    elseif
+      type(item) == "table"
+      and type(item.t) == "string"
+      and ctx.announcements
+      and ns.AnnouncementSync.IsAnnouncementMessage(item.t)
+    then
+      local ok, why = applyAnnouncementItem(item, ctx, sender, role)
+      if ok then
+        summary.applied = summary.applied + 1
+        summary.announcements = summary.announcements + 1
       else
         skip(why)
       end

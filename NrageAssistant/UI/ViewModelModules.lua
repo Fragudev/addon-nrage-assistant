@@ -44,6 +44,10 @@ ViewModel.MODULE_TEXT = ns.Locale.Table(function()
       label = L("Blacklist"),
       description = L("The alert when a blacklisted player joins your group."),
     },
+    announcements = {
+      label = L("Announcements"),
+      description = L("The guild announcements board and the popup when a new one arrives."),
+    },
   }
 end)
 

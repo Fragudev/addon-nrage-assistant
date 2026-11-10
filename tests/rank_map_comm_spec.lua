@@ -11,6 +11,7 @@ local function load_addon()
     "Core/Validate",
     "Domain/PermissionService",
     "Domain/RankMapModel",
+    "Domain/AnnouncementModel",
     "Domain/RosterService",
     "Domain/PvPSeasonModel",
     "Domain/RecipeService",
@@ -40,6 +41,7 @@ local function load_addon()
     "Sync/LayerSync",
     "Sync/LfgSync",
     "Sync/RankMapSync",
+    "Sync/AnnouncementSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do

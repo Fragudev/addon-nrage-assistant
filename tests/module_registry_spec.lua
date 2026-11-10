@@ -33,6 +33,7 @@ describe("ModuleRegistry", function()
       "layers",
       "map",
       "blacklist",
+      "announcements",
     }, ids(Registry.List()))
   end)
 
