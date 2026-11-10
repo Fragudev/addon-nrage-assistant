@@ -1,0 +1,21 @@
+docs/PROTOCOL.md
+  s_0149a02cc6acee::t_977286df1d64a2 41,225-262,568-570,590
+docs/USER_GUIDE.md
+  s_0149a02cc6acee::t_4f9ca0b218e083 33,43-44,47,92,686-718
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "c612f97c3919f6ef455d19a663efbfc8370926a5",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
