@@ -1385,6 +1385,15 @@ local ACTIVATION_STEPS = {
   { name = "selfTest", run = ScheduleSelfTest },
 }
 
+-- The names of the activation steps, in order. Domain/ModuleRegistry checks that each is core or owned by a module.
+function ns.ActivationStepNames()
+  local names = {}
+  for _, step in ipairs(ACTIVATION_STEPS) do
+    names[#names + 1] = step.name
+  end
+  return names
+end
+
 -- The steps that raised in this session ({ step, error }), for /nrage debug and the tests.
 ns.startupErrors = {}
 local STARTUP_ERRORS_MAX = 20

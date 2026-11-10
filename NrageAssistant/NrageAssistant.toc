@@ -23,6 +23,8 @@ Core\PvPProbe.lua
 Core\LayerProbe.lua
 Core\Store.lua
 Domain\Settings.lua
+Domain\ModuleRegistry.lua
+Domain\ModuleService.lua
 Domain\ProfileService.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua

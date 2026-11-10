@@ -214,3 +214,37 @@ describe("Comm:StatusInfo", function()
     assert.are.equal(3, info.snapshot.applied)
   end)
 end)
+
+describe("Settings modules", function()
+  local Settings
+
+  before_each(function()
+    Settings = load({ "Core/Constants", "Core/Validate", "Domain/Settings" }).Settings
+  end)
+
+  it("starts with no module off on an empty database", function()
+    local db = { global = {} }
+    assert.are.same({}, Settings.ModulesOff(db))
+    assert.are.same({ off = {} }, db.global.settings.modules)
+  end)
+
+  it("keeps only the entries that say true", function()
+    local off = { pvp = true, raid = false, loot = "yes", future = true }
+    local db = { global = { settings = { modules = { off = off } } } }
+    assert.are.same({ pvp = true, future = true }, Settings.ModulesOff(db))
+  end)
+
+  it("repairs a damaged modules value without raising", function()
+    local db = { global = { settings = { modules = "broken" } } }
+    assert.are.same({}, Settings.ModulesOff(db))
+    assert.are.same({ off = {} }, db.global.settings.modules)
+  end)
+
+  it("writes one module switch and leaves the others alone", function()
+    local db = { global = {} }
+    Settings.SetModuleOff(db, "pvp", true)
+    Settings.SetModuleOff(db, "raid", true)
+    Settings.SetModuleOff(db, "pvp", false)
+    assert.are.same({ raid = true }, Settings.ModulesOff(db))
+  end)
+end)
