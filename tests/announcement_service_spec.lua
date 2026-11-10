@@ -343,6 +343,27 @@ describe("AnnouncementService board", function()
   end)
 end)
 
+describe("AnnouncementService.PendingPopups", function()
+  it("lists the popups still due for what is stored, newest first, without the seen, old or silent ones", function()
+    local gm, _, _, mem = world()
+    local first = assert(gm.service:Publish({ title = "first" }))
+    gm.clock = gm.clock + 10
+    mem.clock = gm.clock
+    local second = assert(gm.service:Publish({ title = "second" }))
+    assert(gm.service:Publish({ title = "silent", popup = false }))
+    local seenAlready = assert(gm.service:Publish({ title = "seen" }))
+    mem.service:MarkSeen(seenAlready.id)
+    mem.store.items[first.id].updatedAt = mem.store.items[first.id].updatedAt - 100
+    local ids = {}
+    for _, a in ipairs(mem.service:PendingPopups()) do
+      ids[#ids + 1] = a.id
+    end
+    assert.are.same({ second.id, first.id }, ids)
+    mem.clock = mem.clock + Constants.ANNOUNCE_POPUP_MAX_AGE_SECONDS + 1
+    assert.are.same({}, mem.service:PendingPopups())
+  end)
+end)
+
 describe("AnnouncementService.Purge", function()
   it("removes expired announcements, old tombstones and the seen marks of what is gone", function()
     local gm = world()

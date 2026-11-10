@@ -119,6 +119,7 @@ UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
 UI\ViewModelGroups.lua
 UI\ViewModelInstalls.lua
+UI\ViewModelAnnouncements.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
@@ -141,6 +142,7 @@ UI\PopupFrame.lua
 UI\LootPopup.lua
 UI\LayerPopup.lua
 UI\LfgPopup.lua
+UI\AnnouncementPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
 UI\MapPins.lua
