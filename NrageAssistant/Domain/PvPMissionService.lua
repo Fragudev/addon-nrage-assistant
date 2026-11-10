@@ -20,7 +20,9 @@ local _, ns = ...
 --          GetBattlegroundWinner, GetPlayerFaction, IsInBattleground, HasBattlegroundWinner },
 --          killsAvailable = function() -> boolean, schedule = function(delay, fn), random = function(min, max),
 --          isActive = function() -> boolean, onChange = function() (optional), isGuildKos = function(name) -> boolean
---          (optional: is the victim on the guild Kill On Sight list right now) }
+--          (optional: is the victim on the guild Kill On Sight list right now), guildInGroup = function() -> number
+--          (optional: the guild members in the group of the player now, the player excluded), onAutoClaim =
+--          function(mission, claim) (optional: a mission with `autoClaim` was claimed) }
 -- The wiring sets `unitSource` and `winSource` to true when the events behind them could be registered.
 local PvPMissionService = {}
 PvPMissionService.__index = PvPMissionService
@@ -119,6 +121,15 @@ function PvPMissionService:OnHonorKill(entry)
   -- A bounty counts a kill by what the guild KOS said at this moment: the flag is saved with the kill and later list
   -- changes do not touch it.
   local isKos = self.deps.isGuildKos
+  -- The guild members in the group at this moment, for the missions that ask for a group (saved only when there are
+  -- some, a row without it counts as none).
+  local inGroup
+  if self.deps.guildInGroup then
+    local readable, count = pcall(self.deps.guildInGroup)
+    if readable and type(count) == "number" and count > 0 then
+      inGroup = math.floor(count)
+    end
+  end
   self:Append(log, {
     kind = "kill",
     honor = true,
@@ -129,8 +140,10 @@ function PvPMissionService:OnHonorKill(entry)
     place = entry.where,
     class = class,
     race = race,
+    guildInGroup = inGroup,
   })
   self:Changed()
+  self:AutoClaim()
   return true
 end
 
@@ -188,6 +201,7 @@ function PvPMissionService:LogBgResult(record, winner)
     mapId = self.deps.platform.GetPlayerMapId(),
   })
   self:Changed()
+  self:AutoClaim()
   return true
 end
 
@@ -386,7 +400,7 @@ function PvPMissionService:Claim(missionId, note)
     return nil, "inactive"
   end
   local result = self:Progress(missionId)
-  if result.nextN > (mission.perPlayer or 1) then
+  if result.nextN > (mission.perPlayer or 1) or result.maxedOut then
     return nil, "limit"
   end
   if not result.claimable then
@@ -410,6 +424,33 @@ function PvPMissionService:Claim(missionId, note)
   self:KeepAnnouncing()
   self:Changed()
   return claim, queued
+end
+
+-- The missions of the active season whose goal asks for an automatic claim are claimed as soon as the log completes
+-- them (and only the first claim of a period: later ones are the member's choice). A manual mission never is (it needs
+-- a note). Returns how many claims went out.
+function PvPMissionService:AutoClaim()
+  local season = self.deps.season:ActiveSeason()
+  if not (season and season.state == "active") then
+    return 0
+  end
+  local sent = 0
+  for _, mission in ipairs(self.deps.season:Missions(season.id)) do
+    local goal = mission.goal
+    if goal.autoClaim == true and goal.kind ~= "manual" then
+      local result = self:Progress(mission.id)
+      if result and result.complete and result.claimable and result.nextN == 1 then
+        local claim = self:Claim(mission.id)
+        if claim then
+          sent = sent + 1
+          if self.deps.onAutoClaim then
+            pcall(self.deps.onAutoClaim, mission, claim)
+          end
+        end
+      end
+    end
+  end
+  return sent
 end
 
 -- Are there local claims of the active season still waiting for a decision (and still worth announcing)?

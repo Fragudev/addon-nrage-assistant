@@ -232,6 +232,14 @@ ns.Constants = {
   PVP_MISSION_COUNT_MAX = 500,
   PVP_MISSION_ZONES_MAX = 5,
   PVP_MISSION_PER_PLAYER_MAX = 10,
+  -- The optional goal fields (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.6): at most PVP_MISSION_FILTER_MAX classes or
+  -- races in a filter, a per-victim daily cap up to PVP_MISSION_VICTIM_CAP_MAX (0 = no cap), at most
+  -- PVP_MISSION_GUILD_GROUP_MAX guild members required in the group, at most PVP_MISSION_COMPLETIONS_MAX completions
+  -- per member in a season (0 = no limit).
+  PVP_MISSION_FILTER_MAX = 10,
+  PVP_MISSION_VICTIM_CAP_MAX = 20,
+  PVP_MISSION_GUILD_GROUP_MAX = 40,
+  PVP_MISSION_COMPLETIONS_MAX = 100,
   PVP_REASON_MAX = 100,
   PVP_NOTE_MAX = 100,
   PVP_PRIZE_ENTRIES_MAX = 5,

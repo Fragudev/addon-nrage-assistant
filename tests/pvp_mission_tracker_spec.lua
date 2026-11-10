@@ -396,8 +396,135 @@ describe("PvPMissionTracker faction and battleground rows", function()
     }
     local result = progress(mission({ kind = "bg_wins", count = 2 }), log)
     assert.are.equal(1, result.bars[1].done)
-    assert.are.same({ at = NOW - 3, bgWin = true, mapId = 1459 }, result.evidence[1])
+    assert.are.same({ at = NOW - 3, bgWin = true, mapId = 1459, bg = "wsg" }, result.evidence[1])
     assert.are.equal(1, progress(mission({ count = 5 }), log).bars[1].done)
+  end)
+end)
+
+describe("PvPMissionTracker mission options", function()
+  local function bg(at, result, which, mapId)
+    return { kind = "bg", result = result, bg = which, at = at, mapId = mapId or 1459 }
+  end
+
+  it("counts the battlegrounds played, wins and losses, and keeps a win-only count for bg_wins", function()
+    local log = { bg(NOW - 3, "win", "wsg"), bg(NOW - 2, "loss", "ab"), bg(NOW - 1, "loss", "av"), kill(NOW, "Zed") }
+    local played = progress(mission({ kind = "bg_played", count = 3 }), log)
+    assert.are.same({ { label = "Battlegrounds", done = 3, total = 3 } }, played.bars)
+    assert.is_true(played.complete)
+    assert.are.same({ at = NOW - 2, bgWin = false, mapId = 1459, bg = "ab" }, played.evidence[2])
+    assert.are.equal(1, progress(mission({ kind = "bg_wins", count = 3 }), log).bars[1].done)
+  end)
+
+  it("filters the battlegrounds by type, and a row without a type never matches the filter", function()
+    local log = { bg(NOW - 3, "win", "wsg"), bg(NOW - 2, "win", "ab"), { kind = "bg", result = "win", at = NOW - 1 } }
+    assert.are.equal(1, progress(mission({ kind = "bg_wins", count = 5, bgs = { "ab" } }), log).bars[1].done)
+    assert.are.equal(2, progress(mission({ kind = "bg_wins", count = 5, bgs = { "ab", "wsg" } }), log).bars[1].done)
+    assert.are.equal(3, progress(mission({ kind = "bg_wins", count = 5, bgs = {} }), log).bars[1].done)
+    assert.are.equal(2, progress(mission({ kind = "bg_played", count = 5, bgs = { "wsg", "ab" } }), log).bars[1].done)
+  end)
+
+  it("keeps the old rows readable: a legacy win counts for wins and for played", function()
+    local log = { { at = NOW - 1, bgWin = true, mapId = 1459 } }
+    assert.are.equal(1, progress(mission({ kind = "bg_wins", count = 1 }), log).bars[1].done)
+    assert.are.equal(1, progress(mission({ kind = "bg_played", count = 1 }), log).bars[1].done)
+  end)
+
+  it("filters the victims by class and by race; an unknown value does not match a filter", function()
+    local log = {
+      kill(NOW - 4, "A", { class = "MAGE", race = "ORC" }),
+      kill(NOW - 3, "B", { class = "ROGUE", race = "TROLL" }),
+      kill(NOW - 2, "C", { class = "MAGE" }),
+      kill(NOW - 1, "D", { race = "ORC" }),
+    }
+    assert.are.equal(2, progress(mission({ count = 5, victimClasses = { "MAGE" } }), log).bars[1].done)
+    assert.are.equal(2, progress(mission({ count = 5, victimRaces = { "ORC" } }), log).bars[1].done)
+    assert.are.equal(
+      1,
+      progress(mission({ count = 5, victimClasses = { "MAGE" }, victimRaces = { "ORC" } }), log).bars[1].done
+    )
+    assert.are.equal(4, progress(mission({ count = 5, victimClasses = {} }), log).bars[1].done)
+  end)
+
+  it("gives a mission its own per-victim daily cap, replacing the global one", function()
+    local log = {}
+    for index = 1, 5 do
+      log[index] = kill(NOW - 10 + index, "Zed")
+    end
+    log[6] = kill(NOW - 4, "Amy", { place = "bg" })
+    -- no cap of its own: the global cap of three applies (and Amy counts)
+    assert.are.equal(4, progress(mission({ count = 10 }), log).bars[1].done)
+    assert.are.equal(1, progress(mission({ count = 10, victimCapPerDay = 1, place = "world" }), log).bars[1].done)
+    assert.are.equal(5, progress(mission({ count = 10, victimCapPerDay = 0, place = "world" }), log).bars[1].done)
+    assert.are.equal(6, progress(mission({ count = 10, victimCapPerDay = 0 }), log).bars[1].done)
+    assert.are.equal(5, progress(mission({ count = 10, victimCapPerDay = 5, place = "world" }), log).bars[1].done)
+  end)
+
+  it("applies the cap of a mission to the rows that match it, not to the whole log", function()
+    -- three kills of Zed in the world and two in a battleground: the global cap would keep three of the five, the
+    -- mission cap of two counts the battleground ones on their own
+    local log = {}
+    for index = 1, 3 do
+      log[#log + 1] = kill(NOW - 20 + index, "Zed")
+    end
+    for index = 1, 2 do
+      log[#log + 1] = kill(NOW - 10 + index, "Zed", { place = "bg" })
+    end
+    assert.are.equal(2, progress(mission({ count = 10, place = "bg", victimCapPerDay = 2 }), log).bars[1].done)
+    assert.are.equal(0, progress(mission({ count = 10, place = "bg" }), log).bars[1].done)
+  end)
+
+  it("needs the guild members in the group the mission asks for", function()
+    local log = {
+      kill(NOW - 3, "A", { guildInGroup = 3 }),
+      kill(NOW - 2, "B", { guildInGroup = 1 }),
+      kill(NOW - 1, "C"),
+    }
+    local result = progress(mission({ count = 5, minGuildInGroup = 2 }), log)
+    assert.are.equal(1, result.bars[1].done)
+    assert.are.equal(3, result.evidence[1].guild)
+    assert.are.equal(3, progress(mission({ count = 5 }), log).bars[1].done)
+    assert.is_nil(progress(mission({ count = 5 }), log).evidence[1].guild)
+  end)
+
+  it("counts only what happened inside the window of the mission", function()
+    local log = { kill(NOW - 30, "A"), kill(NOW - 20, "B"), kill(NOW - 10, "C") }
+    local window = { startsAt = NOW - 25, endsAt = NOW - 15 }
+    assert.are.equal(1, progress(mission({ count = 5, window = window }), log).bars[1].done)
+    local edges = { startsAt = NOW - 20, endsAt = NOW - 10 }
+    assert.are.equal(2, progress(mission({ count = 5, window = edges }), log).bars[1].done)
+    local wins = { bg(NOW - 30, "win", "wsg"), bg(NOW - 20, "win", "wsg") }
+    assert.are.equal(1, progress(mission({ kind = "bg_wins", count = 5, window = window }), wins).bars[1].done)
+  end)
+
+  it("stops being claimable after maxCompletions claims in the season, not counting a rejected one", function()
+    local m = mission({ count = 1, maxCompletions = 2 }, { perPlayer = 5, repeatKind = "daily" })
+    local log = { kill(NOW - 1, "A") }
+    local function claims(...)
+      local out = {}
+      for index, state in ipairs({ ... }) do
+        out["c" .. index] = { claim = { missionId = "m1", periodKey = "2026101" .. index }, state = state }
+      end
+      return out
+    end
+    local first = progress(m, log, claims("approved"))
+    assert.is_true(first.claimable)
+    assert.are.equal(1, first.completions)
+    assert.is_false(first.maxedOut)
+    local second = progress(m, log, claims("approved", "pending"))
+    assert.is_true(second.maxedOut)
+    assert.is_false(second.claimable)
+    assert.is_true(progress(m, log, claims("approved", "rejected")).claimable)
+    -- no limit by default
+    local open = mission({ count = 1 }, { perPlayer = 5 })
+    assert.is_false(progress(open, log, claims("approved", "approved", "approved")).maxedOut)
+  end)
+
+  it("does not change a mission without options: the global cap and the kinds behave as before", function()
+    local log = { kill(NOW - 4, "Zed"), kill(NOW - 3, "Zed"), kill(NOW - 2, "Zed"), kill(NOW - 1, "Zed") }
+    local result = progress(mission({ count = 10 }), log)
+    assert.are.equal(3, result.bars[1].done)
+    assert.is_false(result.maxedOut)
+    assert.are.equal(0, result.completions)
   end)
 end)
 

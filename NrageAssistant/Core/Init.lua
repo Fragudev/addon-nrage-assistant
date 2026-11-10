@@ -127,6 +127,25 @@ local function StartPvPMissions(feed)
       local guildKos = ns.db and ns.db.global and ns.db.global.guildKos
       return guildKos ~= nil and ns.GuildKosService.Find(guildKos, name) ~= nil
     end,
+    -- The guild members in the party or raid of the player, the player excluded (for the missions that ask for a
+    -- group). Names the client gives without the realm are matched with the guild roster.
+    guildInGroup = function()
+      local roster = ns.guildRoster
+      if not (roster and roster:IsReady() and ns.Platform.IsInGroup()) then
+        return 0
+      end
+      local own = ns.Platform.GetPlayerName()
+      local count = 0
+      for _, name in ipairs(ns.Platform.GetGroupMemberNames()) do
+        if name ~= own and roster:Canonical(name) then
+          count = count + 1
+        end
+      end
+      return count
+    end,
+    onAutoClaim = function(mission)
+      print(("%s %s"):format(PREFIX, L("Mission claimed automatically: %s"):format(mission.title)))
+    end,
     onChange = function()
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()

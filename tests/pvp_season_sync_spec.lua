@@ -539,6 +539,57 @@ describe("PvPSeasonSync claims", function()
   end)
 end)
 
+describe("PvPSeasonSync claims past maxCompletions", function()
+  local client
+
+  before_each(function()
+    client = new_client()
+    assert(client.deliver("PVP_SEASON", seasonRecord(), "Boss"))
+    assert(client.deliver(
+      "PVP_MISSION",
+      missionRecord({
+        goal = { kind = "kills", count = 2, zones = {}, place = "any", distinct = "none", maxCompletions = 1 },
+        perPlayer = 5,
+      }),
+      "Boss"
+    ))
+  end)
+
+  it("refuses a second claim while the first one waits, and accepts it again once it is rejected", function()
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann"))
+    local ok, reason = client.deliver("PVP_CLAIM", claimRecord("Ann", 2), "Ann")
+    assert.is_false(ok)
+    assert.are.equal("limit", reason)
+    -- another member is not affected
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Bob", 1), "Bob"))
+    assert.is_true(
+      client.deliver("PVP_REJECT", { claimId = "Ann:m1:20261020:1", seasonId = "s1", at = T0 + 300 }, "Boss")
+    )
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 2), "Ann"))
+  end)
+
+  it("counts the approved claims of the player, and not a voided grant", function()
+    assert.is_true(client.deliver("PVP_GRANT", grantRecord("Ann:m1:20261019:1", "Ann", 10), "Boss"))
+    local ok, reason = client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann")
+    assert.is_false(ok)
+    assert.are.equal("limit", reason)
+    assert.is_true(
+      client.deliver(
+        "PVP_VOID",
+        { grantId = "Ann:m1:20261019:1", seasonId = "s1", reason = "mistake", at = T0 + 400 },
+        "Boss"
+      )
+    )
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann"))
+  end)
+
+  it("does not limit a mission without maxCompletions", function()
+    assert(client.deliver("PVP_MISSION", missionRecord({ rev = 2, perPlayer = 5 }), "Boss"))
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 1), "Ann"))
+    assert.is_true(client.deliver("PVP_CLAIM", claimRecord("Ann", 2), "Ann"))
+  end)
+end)
+
 describe("PvPSeasonSync grants, voids and rejections", function()
   local client
 

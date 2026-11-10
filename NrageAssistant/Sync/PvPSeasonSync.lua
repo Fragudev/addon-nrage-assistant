@@ -295,6 +295,35 @@ local function countQueue(ledger, player)
   return total, own
 end
 
+-- Has the player already completed the mission as many times as its goal allows in this season (`maxCompletions`)?
+-- Counts their approved claims (a voided grant does not count) and their other claims still waiting for a decision.
+local function completionsReached(ledger, mission, claim)
+  local max = mission.goal.maxCompletions
+  if not max or max < 1 then
+    return false
+  end
+  local used = 0
+  for grantId, grant in pairs(ledger.grants[claim.seasonId] or {}) do
+    if grant.player == claim.player and grant.missionId == claim.missionId and not ledger.voids[grantId] then
+      used = used + 1
+    end
+  end
+  local granted = ledger.grants[claim.seasonId] or {}
+  for id, queued in pairs(ledger.queue) do
+    if
+      id ~= claim.id
+      and queued.player == claim.player
+      and queued.missionId == claim.missionId
+      and queued.seasonId == claim.seasonId
+      and not granted[id]
+      and not ledger.rejects[id]
+    then
+      used = used + 1
+    end
+  end
+  return used >= max
+end
+
 -- A claim. It is only kept by a client that approves claims, and only when it fits the active season and a mission the
 -- client knows; a claim it cannot place yet is refused, and the claimant announces it again later.
 local function applyClaim(ctx, payload, by)
@@ -346,6 +375,9 @@ local function applyClaim(ctx, payload, by)
   end
   if payload.periodKey ~= Model.PeriodKey(mission.repeatKind, payload.at) then
     return false, "bad_period"
+  end
+  if completionsReached(ledger, mission, payload) then
+    return false, "limit"
   end
 
   local grants = ledger.grants[payload.seasonId]

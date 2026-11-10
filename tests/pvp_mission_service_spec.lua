@@ -77,6 +77,7 @@ local function new_client(world, name, withMissions)
     }
     client.active = true
     client.kosList = {}
+    client.autoClaims = {}
     client.missions = ns.PvPMissionService.New({
       season = client.season,
       log = function()
@@ -130,6 +131,12 @@ local function new_client(world, name, withMissions)
       end,
       isGuildKos = function(victim)
         return client.kosList[victim] == true
+      end,
+      guildInGroup = function()
+        return client.world.guildInGroup
+      end,
+      onAutoClaim = function(mission, claim)
+        client.autoClaims[#client.autoClaims + 1] = { mission = mission.id, claim = claim.id }
       end,
       onChange = function()
         client.changes = client.changes + 1
@@ -684,7 +691,7 @@ describe("PvPMissionService progress and claims", function()
     member.world.winner = "Alliance"
     member.missions:OnBattlegroundStatus()
     local claim = assert(member.missions:Claim("m1"))
-    assert.are.same({ at = T0 + 12 * 3600, bgWin = true, mapId = 1411 }, claim.evidence[1])
+    assert.are.same({ at = T0 + 12 * 3600, bgWin = true, mapId = 1411, bg = "wsg" }, claim.evidence[1])
   end)
 
   it("sends the largest evidence a client can build", function()
@@ -707,6 +714,81 @@ describe("PvPMissionService progress and claims", function()
     assert.are.equal(Constants.PVP_CLAIM_EVIDENCE_MAX, #member.sent[#member.sent].p.evidence)
     relay(member, admin)
     assert.are.equal(1, #admin.season:Queue())
+  end)
+end)
+
+describe("PvPMissionService mission options", function()
+  it("saves the guild members in the group with the kill, and counts it for a group mission", function()
+    local _, _, member = setup({ count = 2, minGuildInGroup = 3 })
+    member.world.guildInGroup = 3
+    kill(member, "A")
+    member.world.guildInGroup = 1
+    kill(member, "B")
+    member.world.guildInGroup = nil
+    kill(member, "C")
+    assert.are.equal(3, member.char.pvpLog.events[1].guildInGroup)
+    assert.are.equal(1, member.char.pvpLog.events[2].guildInGroup)
+    assert.is_nil(member.char.pvpLog.events[3].guildInGroup)
+    local progress = member.missions:Progress("m1")
+    assert.are.equal(1, progress.bars[1].done)
+    assert.are.equal(3, progress.evidence[1].guild)
+  end)
+
+  it("keeps logging when the group cannot be read", function()
+    local _, _, member = setup()
+    member.missions.deps.guildInGroup = function()
+      error("restricted")
+    end
+    assert.is_true(kill(member, "A"))
+    assert.is_nil(member.char.pvpLog.events[1].guildInGroup)
+  end)
+
+  it("claims the mission by itself when the log completes it, once, and tells the wiring", function()
+    local _, admin, member = setup({ count = 2, autoClaim = true })
+    kill(member, "A")
+    assert.are.equal(0, #member.autoClaims)
+    kill(member, "B")
+    assert.are.same({ { mission = "m1", claim = "Ann:m1:20261020:1" } }, member.autoClaims)
+    assert.are.equal("pending", member.missions:ClaimState("m1"))
+    kill(member, "C")
+    assert.are.equal(1, #member.autoClaims)
+    relay(member, admin)
+    assert.are.equal(1, #admin.season:Queue())
+  end)
+
+  it("does not claim by itself without the option, and never for a manual mission", function()
+    local _, _, member = setup({ count = 1 })
+    kill(member, "A")
+    assert.are.equal(0, #member.autoClaims)
+    assert.are.equal("none", member.missions:ClaimState("m1"))
+    local _, _, other = setup({ kind = "manual", autoClaim = true })
+    assert.are.equal(0, other.missions:AutoClaim())
+  end)
+
+  it("claims a battleground mission by itself when the result arrives", function()
+    local _, _, member = setup({ kind = "bg_played", count = 1, autoClaim = true })
+    member.world.winner = "Horde"
+    assert.is_true(member.missions:OnBattlegroundStatus())
+    assert.are.equal(1, #member.autoClaims)
+  end)
+
+  it("refuses a claim past maxCompletions", function()
+    local _, _, member = setup({ count = 1, maxCompletions = 1 }, { perPlayer = 3 })
+    kill(member, "A")
+    assert(member.missions:Claim("m1"))
+    assert.are.same({ nil, "limit" }, { member.missions:Claim("m1") })
+    assert.is_true(member.missions:Progress("m1").maxedOut)
+  end)
+
+  it("does not count a rejected claim against maxCompletions", function()
+    local _, admin, member = setup({ count = 1, maxCompletions = 1 }, { perPlayer = 3 })
+    kill(member, "A")
+    local claim = assert(member.missions:Claim("m1"))
+    relay(member, admin)
+    assert(admin.season:Reject(claim.id, "no"))
+    relay(admin, member)
+    claims_of(member)[claim.id].state = "rejected"
+    assert.is_truthy(member.missions:Claim("m1"))
   end)
 end)
 
