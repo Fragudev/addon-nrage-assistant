@@ -1,0 +1,19 @@
+NrageAssistant/Sync/Transfer.lua
+  s_0149a02cc6acee::t_1a3f43b86ed7de 358-359
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "561fae1d4e7913d1416968903396cee8cc850122",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
