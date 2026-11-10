@@ -2366,6 +2366,43 @@ describe("Window smoke test: PvP seasons", function()
     end
   end)
 
+  it("shows the progress the members reported to an approver, closest first, and says when there is none", function()
+    env = build("GM")
+    local season = seed(env)
+    go(env, "admin", "progress")
+    assert.is_truthy(env.text():find("No progress reported yet", 1, true))
+    env.ns.db.global.pvpSeason.progress = {
+      ["Ann-Realm"] = { seasonId = season.id, rows = { { missionId = "m1", count = 3, goal = 10 } }, at = 900 },
+      ["Bob-Realm"] = { seasonId = season.id, rows = { { missionId = "m1", count = 10, goal = 10 } }, at = 900 },
+    }
+    env.ns.UI.Redraw()
+    local rows = FakeKit.find_all(env.page(), "Table")[1].opts.rows
+    assert.are.equal(2, #rows)
+    assert.are.equal("Bob-Realm", rows[1].cells.player)
+    assert.are.equal("10 / 10", rows[1].cells.progress)
+    assert.are.equal("Ready to claim", rows[1].cells.status.opts.text)
+    assert.are.equal("3 / 10", rows[2].cells.progress)
+    assert.is_truthy(env.text():find("not checked", 1, true))
+  end)
+
+  it("says the rules, since when they count and that a complete mission is ready to claim", function()
+    env = build("Member")
+    seed(env)
+    local t = tracker(env)
+    t.progress.m1 = {
+      bars = { { label = "Kills", done = 10, total = 10 } },
+      unknown = 0,
+      complete = true,
+      claimable = true,
+      evidence = {},
+    }
+    go(env, "missions")
+    local text = env.text()
+    assert.is_truthy(text:find("Counts honourable kills in", 1, true))
+    assert.is_truthy(text:find("Counts from", 1, true))
+    assert.is_truthy(text:find("Ready to claim", 1, true))
+  end)
+
   it("changes the goal of the form, cancels it, and adds the current zone when the platform can read it", function()
     env = build("GM")
     seed(env)

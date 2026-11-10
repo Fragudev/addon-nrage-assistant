@@ -254,6 +254,62 @@ local function approvals(page)
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
+-- Admin: progress
+
+-- How far the members say they are in each mission, closest first (what their clients last told this one).
+local function progressAdmin(page)
+  local svc = service()
+  local season = svc:ActiveSeason()
+  if not season then
+    noSeason(page)
+    return
+  end
+  local blocks = ViewModel.PvPProgressBlocks(
+    svc:ProgressBoard(season.id),
+    svc:Missions(season.id),
+    { now = ns.Platform.ServerTime() }
+  )
+  if #blocks == 0 then
+    Kit.EmptyState(page, {
+      icon = "list",
+      title = L("No progress reported yet"),
+      hint = L("Members share how far they are while they play; it shows here when an approver is online."),
+    })
+    return
+  end
+  for _, block in ipairs(blocks) do
+    local card = Kit.Card(page, { title = block.title, gap = 6 })
+    local rows = {}
+    for _, row in ipairs(block.rows) do
+      rows[#rows + 1] = {
+        cells = {
+          player = row.player,
+          progress = row.text,
+          status = { widget = "badge", opts = { text = row.status.text, color = row.status.color } },
+          updated = row.updated,
+        },
+      }
+    end
+    Kit.Table(card, {
+      columns = {
+        { key = "player", title = L("Player"), weight = 2 },
+        { key = "progress", title = L("Progress"), width = 80, fit = true },
+        { key = "status", title = L("Status"), width = 110, fit = true },
+        { key = "updated", title = L("Updated"), width = 90, fit = true },
+      },
+      fit = true,
+      rows = rows,
+    })
+  end
+  Kit.Label(page, {
+    text = L("Reported by each member's addon, not checked: the claim and its evidence are what you approve."),
+    style = "small",
+    color = "muted",
+    wrap = true,
+  })
+end
+
+-- ---------------------------------------------------------------------------------------------------------------
 -- Admin: missions
 
 local function fieldRow(parent, label, build, layout)
@@ -1132,7 +1188,9 @@ local function adminView(page)
       UI.Redraw()
     end,
   })
-  if state.admin == "missions" then
+  if state.admin == "progress" then
+    progressAdmin(page)
+  elseif state.admin == "missions" then
     missionsAdmin(page)
   elseif state.admin == "season" then
     seasonAdmin(page)

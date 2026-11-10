@@ -1345,4 +1345,11 @@ ns.Locale.Register("es", {
   ["victims of class %s"] = "víctimas de clase %s",
   ["victims of race %s"] = "víctimas de raza %s",
   ["with at least %d guildmates in the group"] = "con al menos %d compañeros de hermandad en el grupo",
+  ["Members share how far they are while they play; it shows here when an approver is online."] = "Los miembros comparten su avance mientras juegan; se muestra aquí cuando hay un aprobador conectado.",
+  ["No progress reported yet"] = "Aún no hay avances comunicados",
+  ["Progress"] = "Avance",
+  ["Reported by each member's addon, not checked: the claim and its evidence are what you approve."] = "Lo comunica el addon de cada miembro y no se comprueba: lo que apruebas es la reclamación y sus pruebas.",
+  ["Claimed"] = "Reclamada",
+  ["Counts from %s"] = "Cuenta desde %s",
+  ["Ready to claim"] = "Lista para reclamar",
 })

@@ -388,6 +388,11 @@ local function drawMissionCard(page, card)
   for _, text in ipairs(card.chips) do
     Kit.Badge(chips, { text = text, color = "muted" })
   end
+  -- The rules in plain words, and since when they count.
+  Kit.Label(box, { text = card.rules, style = "small", color = "muted", wrap = true })
+  if card.countsFrom then
+    Kit.Label(box, { text = card.countsFrom, style = "small", color = "dim", wrap = true })
+  end
   for _, bar in ipairs(card.bars) do
     local line = Kit.Row(box, { gap = 8, layout = { gap = 8 } })
     Kit.Label(line, { text = bar.label, style = "small", color = "dim", layout = { weight = 1 } })
@@ -498,6 +503,8 @@ local function missionsView(page)
     ended = ended,
     labelText = barLabel,
     zoneName = zoneName,
+    now = ns.Platform.ServerTime(),
+    season = season,
   })
   for _, card in ipairs(cards) do
     drawMissionCard(page, card)

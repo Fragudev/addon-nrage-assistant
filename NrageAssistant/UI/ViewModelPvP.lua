@@ -47,12 +47,13 @@ function ViewModel.PvPHistoryViews()
   }
 end
 
--- The sections of the Admin sub-tab. An admin (gm or cogm) sees all five.
+-- The sections of the Admin sub-tab. An admin (gm or cogm) sees all six.
 -- `options` = { manage = boolean (admin), pending = number of claims waiting }.
 function ViewModel.PvPAdminSections(options)
   local pending = options.pending or 0
   local sections = {
     { value = "approvals", text = pending > 0 and L("Approvals (%d)"):format(pending) or L("Approvals") },
+    { value = "progress", text = L("Progress") },
   }
   if options.manage then
     sections[#sections + 1] = { value = "missions", text = L("Missions") }
@@ -556,13 +557,41 @@ function ViewModel.PvPGoalAvailable(goal, availability)
   return true
 end
 
+-- When the current period of a mission starts (UTC): the day, the ISO week or the season, and not before the start of
+-- its event window. Nil without a clock.
+function ViewModel.PvPCountsFrom(mission, now, season)
+  if type(now) ~= "number" then
+    return nil
+  end
+  local days = math.floor(now / DAY)
+  local start
+  if mission.repeatKind == "daily" then
+    start = days * DAY
+  elseif mission.repeatKind == "weekly" then
+    -- 1970-01-01 was a Thursday: (days + 3) % 7 is the number of days since Monday.
+    start = (days - (days + 3) % 7) * DAY
+  else
+    start = season and season.startsAt or nil
+  end
+  local window = mission.goal and mission.goal.window
+  if window and (not start or window.startsAt > start) then
+    start = window.startsAt
+  end
+  if not start then
+    return nil
+  end
+  return L("Counts from %s"):format(ViewModel.DateText(start) or tostring(start))
+end
+
 -- The cards of the Missions sub-tab. `options` = {
 --   tracker      true when the mission tracker exists on this client (false: no progress, no claims),
 --   progressOf   function(missionId) -> progress | nil,       claimStateOf function(missionId) -> state,
 --   availability the tracker's Availability() or nil,         ended true when the season date has passed,
 --   labelText    function(label) -> text (the tracker's translation of a bar label, optional),
---   zoneName     function(mapId) -> text | nil }
--- A card = { id, title, desc, points, chips, bars = { { label, text, ratio, complete } },
+--   zoneName     function(mapId) -> text | nil,
+--   now          the server time, and season the active season (both optional: with them a card says since when it
+--                counts) }
+-- A card = { id, title, desc, points, chips, rules, countsFrom, bars = { { label, text, ratio, complete } },
 -- status = { text, color } | nil, note, canClaim, noteRequired, unavailable }.
 function ViewModel.PvPMissionCards(missions, options)
   local cards = {}
@@ -590,6 +619,8 @@ function ViewModel.PvPMissionCards(missions, options)
       status = { text = L("Approved"), color = "success" }
     elseif state == "rejected" then
       status = { text = L("Rejected"), color = "danger" }
+    elseif progress and progress.complete and progress.claimable and goal.kind ~= "manual" then
+      status = { text = L("Ready to claim"), color = "accent" }
     elseif progress and #bars > 0 and not progress.complete then
       status = { text = L("In progress"), color = "muted" }
     end
@@ -613,6 +644,10 @@ function ViewModel.PvPMissionCards(missions, options)
       desc = Escape(mission.desc or ""),
       points = L("+%d pts"):format(mission.points),
       chips = ViewModel.PvPCriteriaChips(mission, options.zoneName),
+      rules = Escape(
+        ViewModel.PvPMissionSummary(mission, { zoneName = options.zoneName, dateText = ViewModel.DateText })
+      ),
+      countsFrom = ViewModel.PvPCountsFrom(mission, options.now, options.season),
       bars = bars,
       status = status,
       note = note,
@@ -1043,6 +1078,40 @@ function ViewModel.PvPMissionSummary(fields, options)
     add(L("claimed automatically"))
   end
   return table.concat(parts, ", ") .. "."
+end
+
+-- The Progress section of the admin: one block per mission with how far each member says they are.
+-- `board` = PvPSeasonService:ProgressBoard(seasonId), `missions` = the missions of the season, `options` = { now }.
+-- A block = { id, title, goal, rows = { { player, text, ratio, status = { text, color }, updated } } }, blocks by
+-- title;
+-- missions nobody reported on are left out.
+function ViewModel.PvPProgressBlocks(board, missions, options)
+  local blocks = {}
+  for _, mission in ipairs(missions) do
+    local list = board[mission.id]
+    if list and #list > 0 then
+      local rows = {}
+      for _, entry in ipairs(list) do
+        local status
+        if entry.claimed then
+          status = { text = L("Claimed"), color = "warning" }
+        elseif entry.ready then
+          status = { text = L("Ready to claim"), color = "accent" }
+        else
+          status = { text = L("In progress"), color = "muted" }
+        end
+        rows[#rows + 1] = {
+          player = Escape(entry.player),
+          text = ("%d / %d"):format(entry.count, entry.goal),
+          ratio = entry.goal > 0 and math.min(1, entry.count / entry.goal) or 0,
+          status = status,
+          updated = options and options.now and ViewModel.AgeText(math.max(0, options.now - entry.at)) or "",
+        }
+      end
+      blocks[#blocks + 1] = { id = mission.id, title = Escape(mission.title), goal = mission.goal, rows = rows }
+    end
+  end
+  return blocks
 end
 
 -- The keys (IntelModel.Key) of the players an open bounty names: the active missions of kind "kos" with a target.

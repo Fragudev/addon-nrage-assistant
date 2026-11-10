@@ -88,10 +88,10 @@ describe("ViewModel.PvPSubTabs", function()
 
   it("gives an admin all the admin sections and an officer only approvals and deliveries", function()
     local admin = ViewModel.PvPAdminSections({ manage = true, pending = 3 })
-    assert.are.same({ "approvals", "missions", "season", "prizes", "deliveries" }, values(admin))
+    assert.are.same({ "approvals", "progress", "missions", "season", "prizes", "deliveries" }, values(admin))
     assert.are.equal("Approvals (3)", admin[1].text)
     local officer = ViewModel.PvPAdminSections({ manage = false, pending = 0 })
-    assert.are.same({ "approvals", "deliveries" }, values(officer))
+    assert.are.same({ "approvals", "progress", "deliveries" }, values(officer))
     assert.are.equal("Approvals", officer[1].text)
   end)
 
@@ -414,7 +414,7 @@ describe("ViewModel mission criteria and cards", function()
       card.noteRequired,
     })
     assert.are.same({ label = "Kills", text = "10 / 10", ratio = 1, complete = true }, card.bars[1])
-    assert.is_nil(card.status)
+    assert.are.same({ text = "Ready to claim", color = "accent" }, card.status)
     assert.is_nil(card.note)
   end)
 
@@ -908,6 +908,116 @@ describe("ViewModel mission options (Advanced section)", function()
     assert.is_false(ViewModel.PvPGoalAvailable({ kind = "kills", victimClasses = { "MAGE" } }, { classRace = false }))
     assert.is_true(ViewModel.PvPGoalAvailable({ kind = "kills", victimClasses = {} }, { classRace = false }))
     assert.is_false(ViewModel.PvPGoalAvailable({ kind = "bg_played" }, { bgWins = false }))
+  end)
+end)
+
+describe("ViewModel mission cards: rules, since when and state", function()
+  local mission = {
+    id = "m1",
+    title = "Hunt",
+    desc = "",
+    points = 20,
+    repeatKind = "weekly",
+    perPlayer = 1,
+    active = true,
+    goal = { kind = "kills", count = 5, zones = {}, place = "any", distinct = "none", victimCapPerDay = 1 },
+  }
+  local function card(progress, state, extra)
+    local options = {
+      tracker = true,
+      progressOf = function()
+        return progress
+      end,
+      claimStateOf = function()
+        return state or "none"
+      end,
+      now = T0 + 12 * 3600,
+      season = { startsAt = T0 - 10 * DAY },
+    }
+    for key, value in pairs(extra or {}) do
+      options[key] = value
+    end
+    return ViewModel.PvPMissionCards({ mission }, options)[1]
+  end
+
+  it("says the rules in plain words", function()
+    local c = card({ bars = {}, complete = false, claimable = false })
+    assert.are.equal("Counts honourable kills, 5 times, max 1 per victim per day, 20 points, weekly.", c.rules)
+  end)
+
+  it("says since when it counts: the day, the week (from Monday), the season or the event window", function()
+    -- 2026-10-20 is a Tuesday: the week counts from Monday the 19th at 00:00
+    local weekly = card({ bars = {}, complete = false, claimable = false }).countsFrom
+    assert.is_truthy(weekly:find("Counts from Mon 19 Oct", 1, true))
+    mission.repeatKind = "daily"
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Tue 20 Oct", 1, true))
+    mission.repeatKind = "once"
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Sat 10 Oct", 1, true))
+    mission.goal.window = { startsAt = T0 + 3600, endsAt = T0 + 7200 }
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Tue 20 Oct", 1, true))
+    mission.goal.window = nil
+    mission.repeatKind = "weekly"
+    assert.is_nil(card({ bars = {}, complete = false, claimable = false }, "none", { now = "x" }).countsFrom)
+  end)
+
+  it("tells in progress, ready to claim, claimed (pending) and approved apart", function()
+    local progress = { bars = { { label = "Kills", done = 2, total = 5 } }, complete = false, claimable = false }
+    assert.are.equal("In progress", card(progress).status.text)
+    local ready = { bars = { { label = "Kills", done = 5, total = 5 } }, complete = true, claimable = true }
+    assert.are.equal("Ready to claim", card(ready).status.text)
+    assert.are.equal("Pending approval", card(ready, "pending").status.text)
+    assert.are.equal("Approved", card(ready, "approved").status.text)
+    -- a manual mission has no "ready": the member decides
+    mission.goal.kind = "manual"
+    assert.is_nil(card({ bars = {}, complete = true, claimable = true }).status)
+    mission.goal.kind = "kills"
+  end)
+end)
+
+describe("ViewModel.PvPProgressBlocks", function()
+  local missions = {
+    { id = "m1", title = "Hunt", goal = { kind = "kills" } },
+    { id = "m2", title = "Wins", goal = { kind = "bg_wins" } },
+  }
+
+  it("blocks the missions somebody reported on, with the closest member first and a state per member", function()
+    local board = {
+      m1 = {
+        { player = "Bob", count = 5, goal = 5, ready = true, claimed = true, at = T0 },
+        { player = "Ann", count = 5, goal = 5, ready = true, claimed = false, at = T0 - 600 },
+        { player = "Cat", count = 1, goal = 5, ready = false, claimed = false, at = T0 - 7200 },
+      },
+    }
+    local blocks = ViewModel.PvPProgressBlocks(board, missions, { now = T0 + 60 })
+    assert.are.equal(1, #blocks)
+    assert.are.equal("Hunt", blocks[1].title)
+    assert.are.same({ "Bob", "Ann", "Cat" }, {
+      blocks[1].rows[1].player,
+      blocks[1].rows[2].player,
+      blocks[1].rows[3].player,
+    })
+    assert.are.same({ "Claimed", "Ready to claim", "In progress" }, {
+      blocks[1].rows[1].status.text,
+      blocks[1].rows[2].status.text,
+      blocks[1].rows[3].status.text,
+    })
+    assert.are.same(
+      { "5 / 5", 1, "1 min ago" },
+      { blocks[1].rows[1].text, blocks[1].rows[1].ratio, blocks[1].rows[1].updated }
+    )
+    assert.are.equal("11 min ago", blocks[1].rows[2].updated)
+    assert.are.equal(0.2, blocks[1].rows[3].ratio)
+  end)
+
+  it("is empty when nobody reported, and escapes the names", function()
+    assert.are.same({}, ViewModel.PvPProgressBlocks({}, missions, {}))
+    local blocks = ViewModel.PvPProgressBlocks(
+      { m2 = { { player = "|cffff0000Eve", count = 0, goal = 2, ready = false, claimed = false, at = T0 } } },
+      missions,
+      {}
+    )
+    assert.are.equal("||cffff0000Eve", blocks[1].rows[1].player)
+    assert.are.equal("", blocks[1].rows[1].updated)
   end)
 end)
 
