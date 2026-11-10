@@ -352,18 +352,18 @@ describe("PvPSeasonCommands", function()
   end)
 end)
 
-describe("PvPSeasonService.ClearMissionLog", function()
-  it("drops the kills and claims of the season that closed, and nothing else", function()
-    local log = { seasonId = "s1", kills = { { at = 1 } }, claims = { c = {} } }
-    assert.is_true(ns.PvPSeasonService.ClearMissionLog(log, "s1"))
-    assert.are.same({ kills = {}, claims = {} }, log)
+describe("PvPSeasonService.ClearClaims", function()
+  it("drops the claims of the season that closed, and nothing else", function()
+    local claims = { s1 = { c = {} }, s2 = { d = {} } }
+    assert.is_true(ns.PvPSeasonService.ClearClaims(claims, "s1"))
+    assert.are.same({ s2 = { d = {} } }, claims)
   end)
 
-  it("keeps the log of another season, and copes with no log", function()
-    local log = { seasonId = "s2", kills = { { at = 1 } }, claims = {} }
-    assert.is_false(ns.PvPSeasonService.ClearMissionLog(log, "s1"))
-    assert.are.equal(1, #log.kills)
-    assert.is_false(ns.PvPSeasonService.ClearMissionLog(nil, "s1"))
-    assert.is_false(ns.PvPSeasonService.ClearMissionLog({}, "s1"))
+  it("keeps the claims of another season, and copes with no table", function()
+    local claims = { s2 = { d = {} } }
+    assert.is_false(ns.PvPSeasonService.ClearClaims(claims, "s1"))
+    assert.are.equal(1, #{ claims.s2.d })
+    assert.is_false(ns.PvPSeasonService.ClearClaims(nil, "s1"))
+    assert.is_false(ns.PvPSeasonService.ClearClaims({}, "s1"))
   end)
 end)

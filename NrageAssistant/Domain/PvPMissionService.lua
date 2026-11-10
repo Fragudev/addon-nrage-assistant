@@ -1,24 +1,26 @@
 local _, ns = ...
 
--- The detection side of the PvP missions (docs/PVP_MISSIONS_PLAN.md, sections 2 and 10): the kill log of this
--- character, the battleground wins, the progress of each mission and the claims. Nothing here touches the client: the
--- readers, the clock, the timers and the season service are injected, so the rules are tested with fakes.
+-- The detection side of the PvP missions (docs/PVP_MISSIONS_PLAN.md, sections 2 and 10): the PvP log of this
+-- character, the battleground results, the progress of each mission and the claims. Nothing here touches the client:
+-- the readers, the clock, the timers and the season service are injected, so the rules are tested with fakes.
 --
---   * An honour kill of the feed (and a battleground win) is logged in `char.pvpMissions.kills` while a season is
---     active and the kill is inside its dates. The class and race of the victim come from the unit cache when it has
---     seen the victim, otherwise they stay unknown. The log belongs to one season: another season starts a new one.
+--   * An honour kill of the feed (and a battleground result) is logged in `char.pvpLog.events` whatever the season: a
+--     client that has not received the season yet, or whose season just changed, loses nothing, and the progress of a
+--     mission is computed from the same log when the season is known. The class and race of the victim come from the
+--     unit cache when it has seen the victim, otherwise they stay unknown. Rows older than PVP_LOG_RETENTION_DAYS
+--     days, and the oldest ones beyond PVP_LOG_EVENTS_MAX, are dropped.
 --   * Progress is the pure PvPMissionTracker over that log.
 --   * A claim is built from the progress (summary and evidence), submitted with PvPSeasonService:SubmitClaim and
---     kept in `char.pvpMissions.claims` as `{ claim, state }`. Its state follows the ledger (approved, rejected) and is
---     "pending" until then. Pending claims are announced again a while after login and then every
+--     kept in `char.pvpClaims[seasonId]` as `{ claim, state }`. Its state follows the ledger (approved, rejected) and
+--     is "pending" until then. Pending claims are announced again a while after login and then every
 --     PVP_CLAIM_REANNOUNCE_SECONDS while any is pending, so an approver who logs in later still gets them.
 --
--- deps = { season = PvPSeasonService, log = function() -> char.pvpMissions, cache = PvPUnitCache,
---          now = function() -> server time, platform = { GetPlayerMapId, GetEnemyPlayerInfo, GetBattlegroundWinner,
---          GetPlayerFaction, IsInBattleground, HasBattlegroundWinner }, killsAvailable = function() -> boolean,
---          schedule = function(delay, fn), random = function(min, max), isActive = function() -> boolean,
---          onChange = function() (optional), isGuildKos = function(name) -> boolean (optional: is the victim on the
---          guild Kill On Sight list right now) }
+-- deps = { season = PvPSeasonService, log = function() -> char.pvpLog, claims = function() -> char.pvpClaims,
+--          cache = PvPUnitCache, now = function() -> server time, platform = { GetPlayerMapId, GetEnemyPlayerInfo,
+--          GetBattlegroundWinner, GetPlayerFaction, IsInBattleground, HasBattlegroundWinner },
+--          killsAvailable = function() -> boolean, schedule = function(delay, fn), random = function(min, max),
+--          isActive = function() -> boolean, onChange = function() (optional), isGuildKos = function(name) -> boolean
+--          (optional: is the victim on the guild Kill On Sight list right now) }
 -- The wiring sets `unitSource` and `winSource` to true when the events behind them could be registered.
 local PvPMissionService = {}
 PvPMissionService.__index = PvPMissionService
@@ -45,48 +47,71 @@ function PvPMissionService:Season()
   return nil
 end
 
--- The log of this character for `season`, to read: empty when the saved one belongs to another season.
-function PvPMissionService:ReadLog(season)
+-- The rows of the PvP log of this character (empty when it has none saved).
+function PvPMissionService:Events()
   local log = self.deps.log()
-  if type(log) ~= "table" or log.seasonId ~= season.id then
-    return { kills = {}, claims = {} }
+  if type(log) == "table" and type(log.events) == "table" then
+    return log.events
   end
-  return { kills = log.kills or {}, claims = log.claims or {} }
+  return {}
 end
 
--- The log of this character for `season`, to write: a log of another season is dropped first (a season that closed
--- cleans its own through ClearMissionLog; this covers the one a client never saw close).
-function PvPMissionService:WriteLog(season)
+-- The saved log, to write: nil when the character has none.
+function PvPMissionService:WriteLog()
   local log = self.deps.log()
   if type(log) ~= "table" then
     return nil
   end
-  if log.seasonId ~= season.id then
-    log.seasonId = season.id
-    log.kills = {}
-    log.claims = {}
-    log.bgWinLogged = nil
-  end
-  log.kills = log.kills or {}
-  log.claims = log.claims or {}
+  log.events = log.events or {}
   return log
 end
 
-local function append(log, row)
-  local kills = log.kills
-  kills[#kills + 1] = row
-  while #kills > ns.Constants.PVP_MISSION_KILLS_MAX do
-    table.remove(kills, 1)
+-- The claims of this character for `season`, to read.
+function PvPMissionService:ReadClaims(season)
+  local claims = self.deps.claims()
+  if type(claims) == "table" and type(claims[season.id]) == "table" then
+    return claims[season.id]
+  end
+  return {}
+end
+
+-- The claims of this character for `season`, to write: nil when the character has no claims table.
+function PvPMissionService:WriteClaims(season)
+  local claims = self.deps.claims()
+  if type(claims) ~= "table" then
+    return nil
+  end
+  claims[season.id] = claims[season.id] or {}
+  return claims[season.id]
+end
+
+-- Adds `row` to the log, dropping the rows past the retention.
+function PvPMissionService:Append(log, row)
+  local events = log.events
+  events[#events + 1] = row
+  local cutoff = self.deps.now() - ns.Constants.PVP_LOG_RETENTION_DAYS * 86400
+  local kept = {}
+  for _, event in ipairs(events) do
+    if type(event.at) == "number" and event.at >= cutoff then
+      kept[#kept + 1] = event
+    end
+  end
+  if #kept ~= #events then
+    for index = #events, 1, -1 do
+      events[index] = kept[index]
+    end
+  end
+  while #events > ns.Constants.PVP_LOG_EVENTS_MAX do
+    table.remove(events, 1)
   end
 end
 
 -- An own honour kill, as the feed entry (`victim`, `where`, `time`). Returns true when it was logged.
 function PvPMissionService:OnHonorKill(entry)
-  local season = self:Season()
-  if not (season and entry and entry.victim and entry.time) or not ns.PvPSeasonModel.Contains(season, entry.time) then
+  if not (entry and entry.victim and entry.time) then
     return false
   end
-  local log = self:WriteLog(season)
+  local log = self:WriteLog()
   if not log then
     return false
   end
@@ -94,7 +119,9 @@ function PvPMissionService:OnHonorKill(entry)
   -- A bounty counts a kill by what the guild KOS said at this moment: the flag is saved with the kill and later list
   -- changes do not touch it.
   local isKos = self.deps.isGuildKos
-  append(log, {
+  self:Append(log, {
+    kind = "kill",
+    honor = true,
     kos = isKos and isKos(entry.victim) == true or nil,
     at = entry.time,
     victim = entry.victim,
@@ -108,11 +135,8 @@ function PvPMissionService:OnHonorKill(entry)
 end
 
 -- A unit the player can see ("target", "mouseover", "nameplate4"): an enemy player is remembered with its class and
--- race. Only while a season runs, so nothing is read for nothing.
+-- race, so a kill logged later (also one logged before the season is known) carries them.
 function PvPMissionService:OnUnit(unit)
-  if not self:Season() then
-    return false
-  end
   local info = self.deps.platform.GetEnemyPlayerInfo(unit)
   return info ~= nil and self.deps.cache:Remember(info.name, info.class, info.race)
 end
@@ -120,9 +144,8 @@ end
 -- The battleground status changed: when the player's side won, a win is logged, once per battleground instance.
 -- Returns true when a win was logged.
 function PvPMissionService:OnBattlegroundStatus()
-  local season = self:Season()
   local platform = self.deps.platform
-  if not season or self:WinLogged() or platform.IsInBattleground() ~= true then
+  if self:WinLogged() or platform.IsInBattleground() ~= true then
     return false
   end
   local winner = platform.GetBattlegroundWinner()
@@ -130,7 +153,7 @@ function PvPMissionService:OnBattlegroundStatus()
     return false
   end
   local now = self.deps.now()
-  local log = self:WriteLog(season)
+  local log = self:WriteLog()
   if not log then
     return false
   end
@@ -138,7 +161,7 @@ function PvPMissionService:OnBattlegroundStatus()
   -- world entry clears it (OnWorldEntered).
   log.bgWinLogged = true
   self.winLogged = true
-  append(log, { at = now, bgWin = true, mapId = platform.GetPlayerMapId() })
+  self:Append(log, { kind = "bg", result = "win", at = now, mapId = platform.GetPlayerMapId() })
   self:Changed()
   return true
 end
@@ -199,8 +222,7 @@ function PvPMissionService:Progress(missionId)
   if not mission then
     return nil
   end
-  local log = self:ReadLog(season)
-  return ns.PvPMissionTracker.Progress(mission, log.kills, self.deps.now(), log.claims, season)
+  return ns.PvPMissionTracker.Progress(mission, self:Events(), self.deps.now(), self:ReadClaims(season), season)
 end
 
 local BEST = { approved = 3, pending = 2, rejected = 1 }
@@ -222,7 +244,7 @@ function PvPMissionService:ClaimState(missionId)
   end
   local periodKey = ns.PvPSeasonModel.PeriodKey(mission.repeatKind, self.deps.now())
   local best = "none"
-  for _, entry in pairs(self:ReadLog(season).claims) do
+  for _, entry in pairs(self:ReadClaims(season)) do
     local claim = entry.claim
     if claim and claim.missionId == missionId and claim.periodKey == periodKey then
       local state = self:EntryState(entry)
@@ -278,9 +300,9 @@ function PvPMissionService:Claim(missionId, note)
   if not claim then
     return nil, queued
   end
-  local log = self:WriteLog(season)
-  if log then
-    log.claims[claim.id] = { claim = claim, state = "pending" }
+  local claims = self:WriteClaims(season)
+  if claims then
+    claims[claim.id] = { claim = claim, state = "pending" }
   end
   self:KeepAnnouncing()
   self:Changed()
@@ -293,7 +315,7 @@ function PvPMissionService:HasPending()
   if not season then
     return false
   end
-  for id, entry in pairs(self:ReadLog(season).claims) do
+  for id, entry in pairs(self:ReadClaims(season)) do
     if self:EntryState(entry) == "pending" and not self.refused[id] then
       return true
     end
@@ -318,7 +340,7 @@ function PvPMissionService:Reannounce()
   if not season then
     return 0, 0
   end
-  local claims = self:ReadLog(season).claims
+  local claims = self:ReadClaims(season)
   local ids = {}
   for id in pairs(claims) do
     ids[#ids + 1] = id

@@ -60,7 +60,7 @@ local function new_client(world, name, withMissions)
     end,
   })
   if withMissions then
-    client.char = { seasonId = nil, kills = {}, claims = {} }
+    client.char = { pvpLog = { events = {}, version = 1 }, pvpClaims = {} }
     client.cache = ns.PvPUnitCache.New({
       now = function()
         return world.mono
@@ -78,7 +78,10 @@ local function new_client(world, name, withMissions)
     client.missions = ns.PvPMissionService.New({
       season = client.season,
       log = function()
-        return client.char
+        return client.char and client.char.pvpLog
+      end,
+      claims = function()
+        return client.char and client.char.pvpClaims
       end,
       cache = client.cache,
       now = function()
@@ -154,6 +157,11 @@ local function goal(extra)
   return base
 end
 
+-- The saved claims of `client` for the active season.
+local function claims_of(client)
+  return client.char.pvpClaims[client.season:ActiveSeason().id] or {}
+end
+
 local function kill(client, victim, where)
   return client.missions:OnHonorKill({ victim = victim, where = where or "world", time = client.season.now() })
 end
@@ -180,8 +188,8 @@ describe("PvPMissionService bounties", function()
     assert.is_true(kill(member, "Zed"))
     assert.is_true(kill(member, "Amy"))
     member.kosList.Zed = nil
-    assert.is_true(member.char.kills[1].kos)
-    assert.is_nil(member.char.kills[2].kos)
+    assert.is_true(member.char.pvpLog.events[1].kos)
+    assert.is_nil(member.char.pvpLog.events[2].kos)
     local claim = assert(member.missions:Claim("m1"))
     assert.is_true(claim.evidence[1].kos)
     relay(member, admin)
@@ -205,12 +213,17 @@ describe("PvPMissionService kill log", function()
     local _, _, member = setup()
     member.cache:Remember("Zed", "MAGE", "ORC")
     assert.is_true(kill(member, "Zed", "bg"))
-    local row = member.char.kills[1]
-    assert.are.same(
-      { at = T0 + 12 * 3600, victim = "Zed", mapId = 1411, place = "bg", class = "MAGE", race = "ORC" },
-      row
-    )
-    assert.are.equal(member.season:ActiveSeason().id, member.char.seasonId)
+    local row = member.char.pvpLog.events[1]
+    assert.are.same({
+      kind = "kill",
+      honor = true,
+      at = T0 + 12 * 3600,
+      victim = "Zed",
+      mapId = 1411,
+      place = "bg",
+      class = "MAGE",
+      race = "ORC",
+    }, row)
     assert.are.equal(1, member.changes)
   end)
 
@@ -218,75 +231,107 @@ describe("PvPMissionService kill log", function()
     local _, _, member = setup()
     member.world.mapId = nil
     assert.is_true(kill(member, "Zed"))
-    local row = member.char.kills[1]
+    local row = member.char.pvpLog.events[1]
     assert.is_nil(row.mapId)
     assert.is_nil(row.class)
     assert.is_nil(row.race)
   end)
 
-  it("logs nothing without an active season, outside its dates or for an unusable entry", function()
+  it("logs a kill without an active season and counts it once the season arrives (backfill)", function()
     local world = new_world()
-    local lone = new_client(world, "Ann", true)
-    assert.is_false(kill(lone, "Zed"))
-    local _, admin, member = setup()
+    local admin = new_client(world, "Boss")
+    local member = new_client(world, "Ann", true)
+    assert.is_true(kill(member, "Zed"))
+    assert.is_true(kill(member, "Amy"))
+    assert.are.equal(2, #member.char.pvpLog.events)
+    assert(admin.season:CreateSeason({ name = "S1", startsAt = T0 - DAY, endsAt = T0 + 30 * DAY }))
+    assert(admin.season:UpsertMission({ id = "m1", title = "Hunt", points = 10, goal = goal(), repeatKind = "daily" }))
+    relay(admin, member)
+    assert.are.equal(2, member.missions:Progress("m1").bars[1].done)
+  end)
+
+  it("keeps the kills when the season changes, and the claims stay with their season", function()
+    local world, admin, member = setup()
+    kill(member, "Zed")
+    local first = member.season:ActiveSeason().id
+    member.char.pvpClaims[first] = { c = { claim = { id = "c" }, state = "pending" } }
+    assert(admin.season:CloseSeason(first))
+    relay(admin, member)
+    assert(admin.season:CreateSeason({ name = "S2", startsAt = T0 - DAY, endsAt = T0 + 60 * DAY }))
+    relay(admin, member)
+    world.clock = world.clock + 5
+    assert.are_not.equal(first, member.season:ActiveSeason().id)
+    kill(member, "Amy")
+    assert.are.equal(2, #member.char.pvpLog.events)
+    assert.are.equal("Zed", member.char.pvpLog.events[1].victim)
+    assert.is_table(member.char.pvpClaims[first].c)
+  end)
+
+  it("counts two kills of the same victim seconds apart (the log is written before any merge)", function()
+    local _, _, member = setup()
+    kill(member, "Zed")
+    kill(member, "Zed")
+    assert.are.equal(2, #member.char.pvpLog.events)
+    assert.are.equal(2, member.missions:Progress("m1").bars[1].done)
+  end)
+
+  it("rejects an unusable entry and a character without a saved log", function()
+    local _, _, member = setup()
     assert.is_false(member.missions:OnHonorKill(nil))
     assert.is_false(member.missions:OnHonorKill({ victim = "Zed" }))
     assert.is_false(member.missions:OnHonorKill({ time = T0 }))
-    assert.is_false(member.missions:OnHonorKill({ victim = "Zed", where = "world", time = T0 - 5 * DAY }))
-    assert.is_false(member.missions:OnHonorKill({ victim = "Zed", where = "world", time = T0 + 40 * DAY }))
-    assert.are.equal(0, #member.char.kills)
-    -- after the end date nothing is counted
-    admin.season:EditSeason(admin.season:ActiveSeason().id, { endsAt = T0 + 13 * 3600 })
-    relay(admin, member)
-    member.season.now = function()
-      return T0 + 14 * 3600
-    end
-    assert.is_false(kill(member, "Zed"))
-  end)
-
-  it("keeps at most PVP_MISSION_KILLS_MAX rows, dropping the oldest", function()
-    local _, _, member = setup()
-    for index = 1, Constants.PVP_MISSION_KILLS_MAX + 3 do
-      member.missions:OnHonorKill({ victim = "V" .. index, where = "world", time = T0 + index })
-    end
-    assert.are.equal(Constants.PVP_MISSION_KILLS_MAX, #member.char.kills)
-    assert.are.equal("V4", member.char.kills[1].victim)
-  end)
-
-  it("starts a new log for another season", function()
-    local _, _, member = setup()
-    member.char.seasonId = "old"
-    member.char.kills = { { at = 1, victim = "Old", place = "world" } }
-    member.char.claims = { x = {} }
-    assert.are.same({}, member.missions:ReadLog(member.season:ActiveSeason()).kills)
-    assert.is_true(kill(member, "Zed"))
-    assert.are.equal(1, #member.char.kills)
-    assert.are.equal("Zed", member.char.kills[1].victim)
-    assert.are.same({}, member.char.claims)
-  end)
-
-  it("does not break when the character has no saved log", function()
-    local _, _, member = setup()
+    assert.are.equal(0, #member.char.pvpLog.events)
     member.char = nil
     assert.is_false(kill(member, "Zed"))
-    assert.are.same({}, member.missions:ReadLog(member.season:ActiveSeason()).kills)
+    assert.are.same({}, member.missions:Events())
+  end)
+
+  it("logs a kill outside the season dates but does not count it", function()
+    local _, _, member = setup()
+    assert.is_true(member.missions:OnHonorKill({ victim = "Zed", where = "world", time = T0 - 5 * DAY }))
+    assert.are.equal(1, #member.char.pvpLog.events)
+    assert.are.equal(0, member.missions:Progress("m1").bars[1].done)
+  end)
+
+  it("keeps at most PVP_LOG_EVENTS_MAX rows, dropping the oldest", function()
+    local _, _, member = setup()
+    for index = 1, Constants.PVP_LOG_EVENTS_MAX + 3 do
+      member.missions:OnHonorKill({ victim = "V" .. index, where = "world", time = T0 + index })
+    end
+    assert.are.equal(Constants.PVP_LOG_EVENTS_MAX, #member.char.pvpLog.events)
+    assert.are.equal("V4", member.char.pvpLog.events[1].victim)
+  end)
+
+  it("drops rows older than the retention", function()
+    local _, _, member = setup()
+    local now = T0 + 12 * 3600
+    member.char.pvpLog.events = {
+      { kind = "kill", at = now - (Constants.PVP_LOG_RETENTION_DAYS + 1) * DAY, victim = "Old", place = "world" },
+      { kind = "kill", at = now - 5 * DAY, victim = "Recent", place = "world" },
+    }
+    kill(member, "Zed")
+    assert.are.equal(2, #member.char.pvpLog.events)
+    assert.are.equal("Recent", member.char.pvpLog.events[1].victim)
+    assert.are.equal("Zed", member.char.pvpLog.events[2].victim)
   end)
 end)
 
 describe("PvPMissionService unit cache feed", function()
-  it("remembers the enemy players it sees, only while a season runs", function()
+  it("remembers the enemy players it sees, also before a season is known", function()
     local world = new_world()
     local lone = new_client(world, "Ann", true)
     lone.world.enemy.target = { name = "Zed", class = "MAGE", race = "ORC" }
-    assert.is_false(lone.missions:OnUnit("target"))
+    assert.is_true(lone.missions:OnUnit("target"))
+    kill(lone, "Zed")
+    assert.are.equal("MAGE", lone.char.pvpLog.events[1].class)
 
     local _, _, member = setup()
     member.world.enemy.target = { name = "Zed", class = "MAGE", race = "ORC" }
     assert.is_true(member.missions:OnUnit("target"))
     assert.is_false(member.missions:OnUnit("mouseover"))
     kill(member, "Zed")
-    assert.are.equal("MAGE", member.char.kills[1].class)
-    assert.are.equal("ORC", member.char.kills[1].race)
+    assert.are.equal("MAGE", member.char.pvpLog.events[1].class)
+    assert.are.equal("ORC", member.char.pvpLog.events[1].race)
   end)
 end)
 
@@ -296,8 +341,8 @@ describe("PvPMissionService battleground wins", function()
     member.world.winner = "Alliance"
     assert.is_true(member.missions:OnBattlegroundStatus())
     assert.is_false(member.missions:OnBattlegroundStatus())
-    assert.are.same({ at = T0 + 12 * 3600, bgWin = true, mapId = 1411 }, member.char.kills[1])
-    assert.are.equal(1, #member.char.kills)
+    assert.are.same({ kind = "bg", result = "win", at = T0 + 12 * 3600, mapId = 1411 }, member.char.pvpLog.events[1])
+    assert.are.equal(1, #member.char.pvpLog.events)
     assert.is_true(member.missions:Progress("m1").complete)
   end)
 
@@ -313,7 +358,7 @@ describe("PvPMissionService battleground wins", function()
     member.world.inBg = true
     member.world.faction = nil
     assert.is_false(member.missions:OnBattlegroundStatus())
-    assert.are.equal(0, #member.char.kills)
+    assert.are.equal(0, #member.char.pvpLog.events)
   end)
 
   it("does not log twice after a reload in the same battleground, but does for the next world", function()
@@ -327,12 +372,12 @@ describe("PvPMissionService battleground wins", function()
     -- a login keeps it too (the player may be in the same battleground)
     member.missions:OnWorldEntered(true, false)
     assert.is_false(member.missions:OnBattlegroundStatus())
-    assert.are.equal(1, #member.char.kills)
+    assert.are.equal(1, #member.char.pvpLog.events)
     -- a loading screen into another world clears it
     member.missions:OnWorldEntered(false, false)
     world.clock = world.clock + 60
     assert.is_true(member.missions:OnBattlegroundStatus())
-    assert.are.equal(2, #member.char.kills)
+    assert.are.equal(2, #member.char.pvpLog.events)
   end)
 
   it("counts two wins 20 minutes apart", function()
@@ -342,13 +387,14 @@ describe("PvPMissionService battleground wins", function()
     member.missions:OnWorldEntered(false, false)
     world.clock = world.clock + 20 * 60
     assert.is_true(member.missions:OnBattlegroundStatus())
-    assert.are.equal(2, #member.char.kills)
+    assert.are.equal(2, #member.char.pvpLog.events)
   end)
 
-  it("logs nothing without a season", function()
+  it("logs a win without a season too (the result is kept for when the season arrives)", function()
     local lone = new_client(new_world(), "Ann", true)
     lone.world.winner = "Alliance"
-    assert.is_false(lone.missions:OnBattlegroundStatus())
+    assert.is_true(lone.missions:OnBattlegroundStatus())
+    assert.are.equal(1, #lone.char.pvpLog.events)
   end)
 end)
 
@@ -424,7 +470,7 @@ describe("PvPMissionService progress and claims", function()
     assert.are.equal(3, sent.p.summary.done)
     assert.are.equal(3, sent.p.summary.total)
     assert.are.equal("pending", member.missions:ClaimState("m1"))
-    assert.are.equal("pending", member.char.claims[claim.id].state)
+    assert.are.equal("pending", claims_of(member)[claim.id].state)
     relay(member, admin)
     assert.are.equal(1, #admin.season:Queue())
     assert.is_true(member.changes >= 4)
@@ -442,7 +488,7 @@ describe("PvPMissionService progress and claims", function()
     assert(admin.season:Approve(claim.id))
     relay(admin, member)
     assert.are.equal("approved", member.missions:ClaimState("m1"))
-    assert.are.equal("approved", member.char.claims[claim.id].state)
+    assert.are.equal("approved", claims_of(member)[claim.id].state)
     -- the approved claim is not announced again
     assert.are.equal(0, member.missions:Reannounce())
   end)
@@ -603,7 +649,7 @@ describe("PvPMissionService announcements", function()
 
   it("skips a claim of a season that is no longer the active one", function()
     local _, _, member, claim = pending_claim()
-    member.char.claims[claim.id].claim.seasonId = "other"
+    claims_of(member)[claim.id].claim.seasonId = "other"
     assert.are.equal(0, member.missions:Reannounce())
   end)
 end)

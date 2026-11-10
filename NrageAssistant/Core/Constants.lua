@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 17,
+  SCHEMA_VERSION = 18,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 12,
+  PROTOCOL_MINOR = 13,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -274,10 +274,13 @@ ns.Constants = {
   PVP_MIN_POINTS = 1,
 
   -- PvP missions: detection (docs/PVP_MISSIONS_PLAN.md, sections 2 and 5).
-  -- The own kill log of a character keeps at most PVP_MISSION_KILLS_MAX rows (oldest dropped first). A victim counts at
-  -- most PVP_VICTIM_DAILY_CAP times per server day across all missions. A battleground win is logged once per
-  -- instance (a marker saved with the log survives a reload and is cleared by the next real world entry).
-  PVP_MISSION_KILLS_MAX = 2000,
+  -- The own PvP log of a character (char.pvpLog.events: honour kills and battleground results) does not depend on
+  -- the season: it keeps the rows of the last PVP_LOG_RETENTION_DAYS days, at most PVP_LOG_EVENTS_MAX of them (oldest
+  -- dropped first). A victim counts at most PVP_VICTIM_DAILY_CAP times per server day across all missions that do not
+  -- set their own cap. A battleground result is logged once per instance (the record of the battleground is saved
+  -- with the log, so a reload does not log it again).
+  PVP_LOG_EVENTS_MAX = 3000,
+  PVP_LOG_RETENTION_DAYS = 45,
   PVP_VICTIM_DAILY_CAP = 3,
   -- The unit cache (victim class and race) lives in memory only: at most PVP_UNIT_CACHE_MAX names, least recently
   -- seen dropped first, and an entry older than PVP_UNIT_CACHE_TTL seconds is ignored.

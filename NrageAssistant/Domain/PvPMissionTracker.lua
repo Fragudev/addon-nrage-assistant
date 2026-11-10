@@ -4,8 +4,9 @@ local L = ns.L
 -- How far a character is in a PvP mission (docs/PVP_MISSIONS_PLAN.md, 2.4). Pure: it only reads the kill log it is
 -- given, so the rules are tested without a client.
 --
--- A log row is `{ at, victim, mapId?, place, class?, race? }` for a kill and `{ at, bgWin = true, mapId? }` for a
--- battleground win. The rules, in order:
+-- A log row is `{ kind = "kill", at, victim, mapId?, place, class?, race?, kos? }` for a kill and
+-- `{ kind = "bg", result = "win" | "loss", at, mapId?, bg? }` for a battleground result (rows saved before schema 18
+-- carry no `kind`, and a win is `{ at, bgWin = true }`: they still read the same). The rules, in order:
 --   1. The per-victim cap (D14) is applied to the whole log first, before any mission filter: a victim counts at
 --      most PVP_VICTIM_DAILY_CAP times per server day (UTC), across all missions.
 --   2. A row counts for a mission when it is inside the season dates and the current period of the mission, matches
@@ -107,8 +108,17 @@ local function kosOk(goal, row)
   return ns.Validate.NameKey(row.victim) == ns.Validate.NameKey(goal.target)
 end
 
+-- Is `row` a battleground win of the log?
+local function isWin(row)
+  return row.bgWin == true or (row.kind == "bg" and row.result == "win")
+end
+
+local function isBg(row)
+  return row.bgWin ~= nil or row.kind == "bg"
+end
+
 local function evidenceRow(row)
-  if row.bgWin then
+  if isWin(row) then
     return { at = row.at, bgWin = true, mapId = row.mapId }
   end
   return {
@@ -221,7 +231,7 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season)
   local rows = {}
   if goal.kind ~= "manual" then
     for _, row in ipairs(PvPMissionTracker.CapVictims(kills or {})) do
-      local kindOk = wantsWins and row.bgWin == true or (not wantsWins and row.victim ~= nil and not row.bgWin)
+      local kindOk = wantsWins and isWin(row) or (not wantsWins and row.victim ~= nil and not isBg(row))
       local placeOk = wantsWins or goal.place == "any" or goal.place == nil or row.place == goal.place
       local seasonOk = not season or ns.PvPSeasonModel.Contains(season, row.at)
       if

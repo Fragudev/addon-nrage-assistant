@@ -85,6 +85,16 @@ local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
 local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
 local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
 
+-- Runs a handler of the PvP missions. One that raises never reaches the client: it is listed with the startup errors
+-- (ns.ReportStartupError, for /nrage debug) and costs nothing else.
+local function GuardedMissionCall(name, handler, ...)
+  local ok, err = pcall(handler, ...)
+  if not ok and ns.ReportStartupError then
+    ns.ReportStartupError(name, err)
+  end
+  return ok
+end
+
 -- Builds ns.pvpMissions (the kill log, progress and claims of the PvP missions) and its events. Returns the service,
 -- or nil when it cannot start. A failing handler never raises into the client.
 local function StartPvPMissions(feed)
@@ -94,7 +104,10 @@ local function StartPvPMissions(feed)
   local missions = ns.PvPMissionService.New({
     season = ns.pvpSeason,
     log = function()
-      return ns.character and ns.character.pvpMissions
+      return ns.character and ns.character.pvpLog
+    end,
+    claims = function()
+      return ns.character and ns.character.pvpClaims
     end,
     cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
     now = ns.Platform.ServerTime,
@@ -132,9 +145,9 @@ local function StartPvPMissions(feed)
       return
     end
     if event == PVP_MISSION_WIN_EVENT then
-      pcall(missions.OnBattlegroundStatus, missions)
+      GuardedMissionCall("pvpMissions.battlegroundStatus", missions.OnBattlegroundStatus, missions)
     elseif event == PVP_MISSION_WORLD_EVENT then
-      missions:OnWorldEntered(unit, isReloadingUi)
+      GuardedMissionCall("pvpMissions.worldEntered", missions.OnWorldEntered, missions, unit, isReloadingUi)
     else
       pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
     end
@@ -1232,10 +1245,10 @@ function ns.PvPSeasonChanged(messageType)
   end
 end
 
--- A season closed: the detail of it that this character kept (kills and claims) is dropped; only the final standing
--- stays.
+-- A season closed: the claims this character kept for it are dropped; only the final standing stays. The PvP log is
+-- not tied to a season.
 function ns.PvPSeasonClosed(seasonId)
-  ns.PvPSeasonService.ClearMissionLog(ns.character and ns.character.pvpMissions, seasonId)
+  ns.PvPSeasonService.ClearClaims(ns.character and ns.character.pvpClaims, seasonId)
 end
 
 -- The PvP seasons (docs/PVP_MISSIONS_PLAN.md): the service the interface and the interim commands use. Runs once.
@@ -1389,6 +1402,13 @@ local ACTIVATION_STEPS = {
 ns.startupErrors = {}
 local STARTUP_ERRORS_MAX = 20
 
+-- Lists an error of `step` with the startup ones (a handler that runs after the activation, like the PvP missions').
+function ns.ReportStartupError(step, err)
+  if #ns.startupErrors < STARTUP_ERRORS_MAX then
+    ns.startupErrors[#ns.startupErrors + 1] = { step = step, error = tostring(err) }
+  end
+end
+
 local function ReportStartupFailures(failed)
   if startupFailureShown or #failed == 0 then
     return
@@ -1411,9 +1431,7 @@ local function Activate()
     local ok, err = pcall(step.run)
     if not ok then
       -- A core step is tried again on every guild event: the list keeps the first failures only.
-      if #ns.startupErrors < STARTUP_ERRORS_MAX then
-        ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
-      end
+      ns.ReportStartupError(step.name, err)
       failed[#failed + 1] = step.name
       if step.core then
         ns.active = false

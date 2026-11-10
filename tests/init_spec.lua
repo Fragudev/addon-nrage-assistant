@@ -810,6 +810,39 @@ describe("Init", function()
     end)
   end)
 
+  describe("PvP missions handlers", function()
+    local function missionsFrame()
+      for _, frame in ipairs(env.frames) do
+        if frame.events.UPDATE_BATTLEFIELD_STATUS then
+          return frame
+        end
+      end
+    end
+
+    it("report a failing world entry or battleground status instead of raising into the client", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local frame = missionsFrame()
+      assert.is_truthy(frame)
+      env.ns.pvpMissions.OnWorldEntered = function()
+        error("world boom")
+      end
+      env.ns.pvpMissions.OnBattlegroundStatus = function()
+        error("status boom")
+      end
+      assert.has_no.errors(function()
+        frame.OnEvent(frame, "PLAYER_ENTERING_WORLD", false, false)
+        frame.OnEvent(frame, "UPDATE_BATTLEFIELD_STATUS")
+      end)
+      local steps = {}
+      for _, failure in ipairs(env.ns.startupErrors) do
+        steps[failure.step] = failure.error
+      end
+      assert.is_truthy(steps["pvpMissions.worldEntered"]:find("world boom", 1, true))
+      assert.is_truthy(steps["pvpMissions.battlegroundStatus"]:find("status boom", 1, true))
+    end)
+  end)
+
   describe("database", function()
     it("turns the addon off with a notice when a migration raises, and leaves the saved data alone", function()
       local raw = { global = { schemaVersion = 1 } }

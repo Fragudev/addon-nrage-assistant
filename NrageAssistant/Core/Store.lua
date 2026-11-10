@@ -11,7 +11,8 @@ local _, ns = ...
 --                               deliveries } (see PvPSeasonSync),
 --                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory) }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
---                             pvpSync = { rev }, pvpMissions = { seasonId, kills = {}, claims = {} } }
+--                             pvpSync = { rev }, pvpLog = { events = {}, version }, pvpClaims = { [seasonId] = {
+--                             [claimId] = { claim, state } } } }
 local Store = {}
 
 local function ensureTable(parent, key)
@@ -209,6 +210,59 @@ local MIGRATIONS = {
   [17] = function(db)
     ensureTable(ensureTable(db, "global"), "installs")
   end,
+  -- v18: the PvP log does not belong to a season any more (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.3).
+  -- char.pvpMissions = { seasonId, kills, claims } becomes char.pvpLog = { events, version } (the kill rows and the
+  -- battleground wins, in time order, newest PVP_LOG_EVENTS_MAX kept) and char.pvpClaims[seasonId]. Nothing is lost
+  -- and the old table is removed, so running it again changes nothing.
+  [18] = function(db)
+    local maxEvents = ns.Constants.PVP_LOG_EVENTS_MAX
+    for _, char in pairs(ensureTable(db, "chars")) do
+      if type(char) == "table" then
+        local log = ensureTable(char, "pvpLog")
+        local events = ensureTable(log, "events")
+        if type(log.version) ~= "number" then
+          log.version = 1
+        end
+        local claims = ensureTable(char, "pvpClaims")
+        local old = char.pvpMissions
+        if type(old) == "table" then
+          for _, row in ipairs(type(old.kills) == "table" and old.kills or {}) do
+            if type(row) == "table" and type(row.at) == "number" then
+              if row.bgWin then
+                events[#events + 1] = { kind = "bg", result = "win", at = row.at, mapId = row.mapId }
+              else
+                row.kind = row.kind or "kill"
+                row.honor = true
+                events[#events + 1] = row
+              end
+            end
+          end
+          local order = {}
+          for index, row in ipairs(events) do
+            order[row] = index
+          end
+          table.sort(events, function(a, b)
+            if a.at ~= b.at then
+              return a.at < b.at
+            end
+            return order[a] < order[b]
+          end)
+          while #events > maxEvents do
+            table.remove(events, 1)
+          end
+          if type(old.seasonId) == "string" and type(old.claims) == "table" then
+            local held = ensureTable(claims, old.seasonId)
+            for id, entry in pairs(old.claims) do
+              if held[id] == nil then
+                held[id] = entry
+              end
+            end
+          end
+          char.pvpMissions = nil
+        end
+      end
+    end
+  end,
 }
 
 local function versionOf(db)
@@ -245,9 +299,12 @@ function Store.GetChar(db, identityKey)
   ensureTable(char, "publish")
   ensureTable(char, "pvp")
   ensureTable(char, "recipes")
-  local missions = ensureTable(char, "pvpMissions")
-  ensureTable(missions, "kills")
-  ensureTable(missions, "claims")
+  local log = ensureTable(char, "pvpLog")
+  ensureTable(log, "events")
+  if type(log.version) ~= "number" then
+    log.version = 1
+  end
+  ensureTable(char, "pvpClaims")
   local sync = ensureTable(char, "pvpSync")
   if type(sync.rev) ~= "number" or sync.rev < 0 or sync.rev % 1 ~= 0 then
     sync.rev = 0

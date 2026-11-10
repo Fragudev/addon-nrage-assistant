@@ -811,15 +811,14 @@ function PvPSeasonService:MarkDelivery(seasonId, player, delivered)
   return self.ledger.deliveries[seasonId][player], queued
 end
 
--- Forgets the mission log of a season that closed, in the saved data of the local character (`missions` =
--- char.pvpMissions: the kills and the claims of the season). Returns true when something was dropped.
-function PvPSeasonService.ClearMissionLog(missions, seasonId)
-  if type(missions) ~= "table" or missions.seasonId ~= seasonId then
+-- Forgets the claims of a season that closed, in the saved data of the local character (`claims` = char.pvpClaims:
+-- { [seasonId] = { [claimId] = { claim, state } } }). The PvP log itself is not tied to a season and stays (it ages out
+-- by itself). Returns true when something was dropped.
+function PvPSeasonService.ClearClaims(claims, seasonId)
+  if type(claims) ~= "table" or claims[seasonId] == nil then
     return false
   end
-  missions.seasonId = nil
-  missions.kills = {}
-  missions.claims = {}
+  claims[seasonId] = nil
   return true
 end
 
