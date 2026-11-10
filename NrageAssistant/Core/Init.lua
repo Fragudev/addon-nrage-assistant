@@ -1284,6 +1284,62 @@ local function StartPvPSeason()
   })
 end
 
+local announcementsStarted = false
+
+-- Guild announcements (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md part B). Runs once: access can be lost and regained. What
+-- expired is purged first. The popup is fed by what arrives (Comm calls ns.AnnouncementReceived for each stored
+-- announcement) and, a moment after the start, by the popups still due for what is already stored.
+local function StartAnnouncements()
+  if announcementsStarted then
+    return
+  end
+  announcementsStarted = true
+  local platform = ns.Platform
+  ns.AnnouncementService.Purge({
+    store = ns.db.global.announcements,
+    seen = ns.db.global.announcementsSeen,
+    now = platform.ServerTime,
+  })
+  local service = ns.AnnouncementService.New({
+    store = ns.db.global.announcements,
+    seen = ns.db.global.announcementsSeen,
+    now = platform.ServerTime,
+    ownName = platform.GetIdentityKey,
+    ownRole = function()
+      return ns.PermissionService.OwnRole(platform)
+    end,
+    newId = function()
+      return ns.comm:NextId()
+    end,
+    send = {
+      upsert = function(announcement)
+        return ns.comm:SendAnnouncement(announcement)
+      end,
+      delete = function(id)
+        return ns.comm:SendAnnouncementDelete(id)
+      end,
+    },
+    onChange = function()
+      ns.UI.AnnouncementsChanged()
+    end,
+    onPopup = function(announcement)
+      ns.AnnouncementPopup.Add(announcement)
+    end,
+  })
+  ns.announcements = service
+  ns.AnnouncementReceived = function(announcement)
+    service:OnReceived(announcement)
+  end
+  ns.AnnouncementPopup.Start()
+  C_Timer.After(Constants.ANNOUNCE_LOGIN_POPUP_DELAY, function()
+    if ns.active then
+      for _, announcement in ipairs(service:PendingPopups()) do
+        ns.AnnouncementPopup.Add(announcement)
+      end
+    end
+  end)
+end
+
 local loadedShown = false
 local startupFailureShown = false
 
@@ -1383,6 +1439,7 @@ local ACTIVATION_STEPS = {
   { name = "recipes", run = StartRecipes },
   { name = "autoPublish", run = StartAutoPublish },
   { name = "selfTest", run = ScheduleSelfTest },
+  { name = "announcements", run = StartAnnouncements },
 }
 
 -- The steps that raised in this session ({ step, error }), for /nrage debug and the tests.
