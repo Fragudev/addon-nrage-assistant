@@ -1,0 +1,29 @@
+NrageAssistant/Locales/esES.lua
+  s_0149a02cc6acee::t_53cd3bb8665e83 1348-1354
+NrageAssistant/UI/Tabs/PvP.lua
+  s_0149a02cc6acee::t_ae5acb54f21498 391-395,506-507
+NrageAssistant/UI/Tabs/PvPAdmin.lua
+  s_0149a02cc6acee::t_d7b9aa7ea9d282 256-311,1191-1193
+NrageAssistant/UI/ViewModelPvP.lua
+  s_0149a02cc6acee::t_777638f40dd718 50,56,560-585,591-593,621-622,646-649,1082-1114
+tests/ui_smoke_spec.lua
+  s_0149a02cc6acee::t_68f83658b6d234 2369-2405
+tests/view_model_pvp_spec.lua
+  s_0149a02cc6acee::t_1713cea9c865b4 91,94,417,914-1023
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "91af9809b789c13090e2b595762526dfb0305c33",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
