@@ -76,16 +76,26 @@ function RankMapSync.Apply(ctx, message, sender)
     return false, "forbidden"
   end
   local incoming = Model.FromWire(payload)
-  if not ns.PermissionService.IsGuildMasterIndex(entry.rankIndex) then
+  local fromGuildMaster = ns.PermissionService.IsGuildMasterIndex(entry.rankIndex)
+  if not fromGuildMaster then
     -- A co-guild master: the row of their own rank has to stay cogm.
     if Model.Resolve(incoming, entry.rankName, entry.rankIndex) ~= "cogm" then
       return false, "self_row"
     end
+    -- And the revision moves one step at a time, so nobody can push it to the maximum and freeze the map.
+    if payload.rev > ((held and held.rev) or 0) + 1 then
+      return false, "rev_jump"
+    end
   end
 
   local updatedAt = Rules.ClampTimestamp(ctx, payload.updatedAt)
+  -- The guild master always overrides a map a co-guild master saved, whatever its revision and time: otherwise a
+  -- co-guild master could keep the guild master out with a high revision or a time clamped to the future. Between
+  -- two maps of the guild master, the usual last write wins.
+  local overrides = fromGuildMaster and held ~= nil and held.byGuildMaster ~= true
   if
     held
+    and not overrides
     and not Rules.Wins(
       payload.rev,
       updatedAt,
@@ -98,6 +108,7 @@ function RankMapSync.Apply(ctx, message, sender)
 
   incoming.updatedAt = updatedAt
   incoming.by = sender
+  incoming.byGuildMaster = fromGuildMaster or nil
   ctx.maps[ctx.guildKey] = incoming
   return true
 end

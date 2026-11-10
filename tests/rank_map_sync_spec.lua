@@ -211,7 +211,13 @@ end)
 describe("RankMapSync.Apply conflicts", function()
   local function held(rev, updatedAt, by)
     return {
-      [GUILD] = { rev = rev, updatedAt = updatedAt, by = by, ranks = { [2] = { role = "officer", name = "O" } } },
+      [GUILD] = {
+        rev = rev,
+        updatedAt = updatedAt,
+        by = by,
+        byGuildMaster = by == "Boss" or nil,
+        ranks = { [2] = { role = "officer", name = "O" } },
+      },
     }
   end
 
@@ -240,6 +246,34 @@ describe("RankMapSync.Apply conflicts", function()
       { false, "stale" },
       { apply(ctx, payload(rows_with({ [2] = "member" }), { rev = 3, updatedAt = NOW - 40 }), "Co") }
     )
+  end)
+
+  it("lets the guild master override a co-guild master's map whatever its revision and time", function()
+    local maps = {}
+    local ctx = ctx_of(maps)
+    -- A hostile co-guild master pushes the revision as far as one step allows, again and again, with a future time.
+    assert.is_true((apply(ctx, payload(rows_with({ [2] = "member" }), { rev = 1, updatedAt = NOW + 100000 }), "Co")))
+    assert.is_true((apply(ctx, payload(rows_with({ [2] = "member" }), { rev = 2, updatedAt = NOW + 100000 }), "Co")))
+    assert.is_true((apply(ctx, payload(rows_with({ [1] = "member" }), { rev = 1, updatedAt = NOW - 100 }), "Boss")))
+    assert.are.equal("member", maps[GUILD].ranks[1].role)
+    assert.are.equal("Boss", maps[GUILD].by)
+    assert.is_true(maps[GUILD].byGuildMaster)
+    -- Two maps of the guild master: last write wins as usual.
+    assert.are.same(
+      { false, "stale" },
+      { apply(ctx, payload(rows_with({ [1] = "officer" }), { rev = 1, updatedAt = NOW - 200 }), "Boss") }
+    )
+  end)
+
+  it("drops a co-guild master's map that jumps the revision", function()
+    local maps = held(3, NOW - 50, "Boss")
+    local ctx = ctx_of(maps)
+    assert.are.same(
+      { false, "rev_jump" },
+      { apply(ctx, payload(rows_with({ [2] = "rl" }), { rev = 2147483647 }), "Co") }
+    )
+    assert.are.same({ false, "rev_jump" }, { apply(ctx_of({}), payload(rows_with({}), { rev = 2 }), "Co") })
+    assert.is_true((apply(ctx, payload(rows_with({ [2] = "rl" }), { rev = 4 }), "Co")))
   end)
 
   it("clamps a time that claims to be in the future", function()
