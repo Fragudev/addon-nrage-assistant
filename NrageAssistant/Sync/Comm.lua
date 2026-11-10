@@ -62,6 +62,8 @@ function Comm.New(deps)
     pvpSeason = deps.pvpSeason or {},
     onPvPSeasonChange = deps.onPvPSeasonChange,
     onPvPSeasonClosed = deps.onPvPSeasonClosed,
+    -- Called with the sender of every HELLO from a gm or cogm (set by Init after the PvP missions exist).
+    onApproverHello = deps.onApproverHello,
     -- Ledger pages arrive in bursts (one whisper per page), so they have a limit of their own.
     ledgerInbox = deps.ledgerInbox or ns.Inbox.New({ maxPerWindow = ns.Constants.PVP_LEDGER_PAGES_MAX }),
     ledgerServed = {},
@@ -209,6 +211,10 @@ end
 function Comm:HandleHello(sender, payload)
   local known = self.peers[sender] ~= nil
   self:RememberPeer(sender, { version = payload.version })
+  -- A gm or cogm is online: the claims that no approver has seen yet can be sent again (PvPMissionService decides).
+  if self.onApproverHello and ns.PermissionService.IsGlobal(self.roleOf(sender)) then
+    pcall(self.onApproverHello, sender)
+  end
   if not known or payload.ask then
     self:MaybeReplyHello()
   end
@@ -839,7 +845,8 @@ function Comm:RequestLedger()
   self.lastLedgerRequestAt = now
   -- The catch-up that answers this request is expected for a while, and only then.
   self.ledgerExpectedUntil = now + ns.Constants.PVP_LEDGER_EXPECT_SECONDS
-  return self:Send("PVP_LEDGER_REQ", ns.PvPSeasonSync.RequestPayload(self.pvpSeason, self.pvpSeason.activeId), "PLR")
+  local payload = ns.PvPSeasonSync.RequestPayload(self.pvpSeason, self.pvpSeason.activeId, self:IsPvPApprover())
+  return self:Send("PVP_LEDGER_REQ", payload, "PLR")
 end
 
 -- Can this client answer a ledger request? Only a gm or cogm: every record of a catch-up is an admin record, and a
@@ -944,7 +951,7 @@ end
 function Comm:SendLedger(target, request)
   local constants = ns.Constants
   local sync = ns.PvPSeasonSync
-  local items = sync.LedgerItems(self.pvpSeason, sync.ScopeFor(self.pvpSeason, request))
+  local items = sync.LedgerItems(self.pvpSeason, sync.ScopeFor(self.pvpSeason, request), request.queue == true)
   if #items == 0 then
     return false, "empty"
   end
@@ -1080,6 +1087,15 @@ function Comm:SendLootVote(eventId, sessionId, vote)
 end
 
 -- The own counters. Keyed, so a newer message replaces one still waiting in the queue.
+-- The own progress in the missions. Live only: refused during the lockdown instead of queued, because the next one
+-- carries the current numbers. Keyed, so it never piles up.
+function Comm:SendPvPProgress(payload)
+  if not self.queue.guard:CanSend() then
+    return false, "locked"
+  end
+  return self:Send("PVP_PROGRESS", payload, "PP")
+end
+
 function Comm:SendPvPStats(payload)
   return self:Send("PVP_STATS", payload, "pvp")
 end

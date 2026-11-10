@@ -269,6 +269,13 @@ ns.Constants = {
   -- Ledger catch-up (PVP_LEDGER_REQ / PVP_LEDGER_DATA): a client asks after login and when a season becomes active;
   -- a trusted relay answers by whisper, at most once per requester per cooldown, in pages that fit the snapshot
   -- limit and hold at most PVP_LEDGER_PAGE_ITEMS items.
+  -- Progress summaries (PVP_PROGRESS): a member shares how far they are in each mission at most once per
+  -- PVP_PROGRESS_INTERVAL_SECONDS, and only when something changed. An approver keeps the last summary of at most
+  -- PVP_PROGRESS_MEMBERS_MAX members. A claimant sends its pending claims again when it hears a gm or cogm (a HELLO),
+  -- at most once per PVP_CLAIM_HELLO_COOLDOWN_SECONDS.
+  PVP_PROGRESS_INTERVAL_SECONDS = 120,
+  PVP_PROGRESS_MEMBERS_MAX = 1000,
+  PVP_CLAIM_HELLO_COOLDOWN_SECONDS = 120,
   PVP_LEDGER_REQUEST_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_SERVE_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_PAGE_ITEMS = 400,

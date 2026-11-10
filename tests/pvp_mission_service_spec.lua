@@ -792,6 +792,63 @@ describe("PvPMissionService mission options", function()
   end)
 end)
 
+describe("PvPMissionService approver HELLO", function()
+  local function pending_claim()
+    local world, admin, member = setup()
+    for index = 1, 3 do
+      kill(member, "Victim" .. index)
+    end
+    local claim = assert(member.missions:Claim("m1"))
+    member.timers = {}
+    member.missions.looping = false
+    return world, admin, member, claim
+  end
+
+  it("sends the pending claims again after the login delay when a gm or cogm shows up", function()
+    local _, admin, member, claim = pending_claim()
+    local before = #member.sent
+    assert.is_true(member.missions:OnApproverSeen())
+    assert.are.equal(1, #member.timers)
+    assert.are.equal(Constants.PVP_LOGIN_SEND_DELAY_MIN, member.timers[1].delay)
+    assert.are.equal(before, #member.sent)
+    fire(member)
+    assert.are.equal(before + 1, #member.sent)
+    assert.are.equal("PC:" .. claim.id, member.sent[#member.sent].key)
+    relay(member, admin)
+    assert.are.equal(1, #admin.season:Queue())
+  end)
+
+  it("does it at most once per cooldown, and again after it", function()
+    local world, _, member = pending_claim()
+    assert.is_true(member.missions:OnApproverSeen())
+    assert.is_false(member.missions:OnApproverSeen())
+    world.clock = world.clock + Constants.PVP_CLAIM_HELLO_COOLDOWN_SECONDS
+    assert.is_true(member.missions:OnApproverSeen())
+  end)
+
+  it("does nothing without a pending claim, once decided, or when the addon is off", function()
+    local _, admin, member, claim = pending_claim()
+    member.active = false
+    assert.is_false(member.missions:OnApproverSeen())
+    member.active = true
+    relay(member, admin)
+    assert(admin.season:Approve(claim.id))
+    relay(admin, member)
+    assert.is_false(member.missions:OnApproverSeen())
+    local _, _, other = setup()
+    assert.is_false(other.missions:OnApproverSeen())
+  end)
+
+  it("sends nothing if the addon went off during the delay", function()
+    local _, _, member = pending_claim()
+    member.missions:OnApproverSeen()
+    member.active = false
+    local before = #member.sent
+    fire(member)
+    assert.are.equal(before, #member.sent)
+  end)
+end)
+
 describe("PvPMissionService announcements", function()
   local function pending_claim()
     local world, admin, member = setup()

@@ -13,6 +13,7 @@ local _, ns = ...
 --   grant    { id, seasonId, player, missionId, points, at }          (+ `by`, who authored it)
 --   void     { grantId, seasonId, reason, at }                        (+ `by`)
 --   reject   { claimId, seasonId, reason, at }                        (+ `by`)
+--   progress { seasonId, rows = { { missionId, count, goal } } }   (what a member says they have counted; display only)
 --   prizes   { seasonId, tiers = { ["1"] = rewards, ... }, rev, updatedAt }
 --   officer  { player, intervals = { { from, to? } ... }, rev, updatedAt }
 --   delivery { seasonId, player, tier, delivered, rev, updatedAt }
@@ -451,6 +452,35 @@ function PvPSeasonModel.ValidateMission(fields)
     rev = fields.rev,
     updatedAt = fields.updatedAt,
   }
+end
+
+-- A progress summary: how far the sender is in some missions of a season. Display only, nothing is granted by it.
+function PvPSeasonModel.ValidateProgress(fields)
+  local constants = ns.Constants
+  if type(fields) ~= "table" then
+    return bad("fields")
+  end
+  if not isId(fields.seasonId) then
+    return bad("seasonId")
+  end
+  if type(fields.rows) ~= "table" or #fields.rows > constants.PVP_MISSIONS_MAX then
+    return bad("rows")
+  end
+  local rows, seen = {}, {}
+  for index, row in ipairs(fields.rows) do
+    if
+      type(row) ~= "table"
+      or not isId(row.missionId)
+      or seen[row.missionId]
+      or not isInt(row.goal, 1, constants.PVP_MISSION_COUNT_MAX)
+      or not isInt(row.count, 0, row.goal)
+    then
+      return bad("rows")
+    end
+    seen[row.missionId] = true
+    rows[index] = { missionId = row.missionId, count = row.count, goal = row.goal }
+  end
+  return { seasonId = fields.seasonId, rows = rows }
 end
 
 local function validateSummary(summary)

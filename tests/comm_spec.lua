@@ -391,6 +391,26 @@ describe("Comm HELLO", function()
     assert.are.equal(2, #env.scheduled)
   end)
 
+  it("tells onApproverHello about a HELLO from a gm or cogm, and from nobody else", function()
+    local seen = {}
+    env.comm.onApproverHello = function(sender)
+      seen[#seen + 1] = sender
+    end
+    env.roles["Boss-Realm"] = "gm"
+    env.roles["Off-Realm"] = "cogm"
+    env.roles["Lead-Realm"] = "rl"
+    env.roles["Ann-Realm"] = "member"
+    for index, sender in ipairs({ "Boss-Realm", "Off-Realm", "Lead-Realm", "Ann-Realm", "Stranger-Realm" }) do
+      env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }, "h" .. index), sender, "GUILD")
+    end
+    assert.are.same({ "Boss-Realm", "Off-Realm" }, seen)
+    -- a callback that raises changes nothing
+    env.comm.onApproverHello = function()
+      error("boom")
+    end
+    assert.is_true(env.comm:HandleMessage(env.wire("HELLO", { version = "0.1.0" }, "h9"), "Boss-Realm", "GUILD"))
+  end)
+
   it("holds HELLO during a lockdown and sends it afterwards", function()
     env.locked = true
     assert.is_true(env.comm:SendHello())
@@ -2565,6 +2585,98 @@ describe("Comm PvP seasons", function()
       -- A new edit of the same season is not a new season.
       assert.is_true(guild(fresh, "PVP_SEASON", season({ rev = 2 }), "Boss-Realm", "again"))
       assert.are.equal(1, #fresh.sent)
+    end)
+  end)
+
+  describe("progress summaries and the claim queue between approvers", function()
+    local PERIOD = "all"
+
+    it("sends the own progress under one key, and refuses it during the lockdown", function()
+      local sender = populated(build_env(), "member")
+      assert.is_true(
+        sender.comm:SendPvPProgress({ seasonId = "s1", rows = { { missionId = "m1", count = 1, goal = 2 } } })
+      )
+      local message = Protocol.Validate(sender.codec:Decode(sender.sent[#sender.sent]))
+      assert.are.equal("PVP_PROGRESS", message.t)
+      assert.are.equal(1, message.p.rows[1].count)
+      sender.locked = true
+      local sentBefore = #sender.sent
+      assert.are.same({ false, "locked" }, { sender.comm:SendPvPProgress({ seasonId = "s1", rows = {} }) })
+      assert.are.equal(sentBefore, #sender.sent)
+    end)
+
+    it("stores the summary of a member on an approver, and not on a member", function()
+      local approver = populated(build_env(), "cogm")
+      assert.is_true(
+        guild(
+          approver,
+          "PVP_PROGRESS",
+          { seasonId = "s1", rows = { { missionId = "m1", count = 1, goal = 2 } } },
+          "Ann-Realm"
+        )
+      )
+      assert.are.equal(1, approver.pvpSeason.progress["Ann-Realm"].rows[1].count)
+      assert.is_truthy(approver.seasonChanges[#approver.seasonChanges])
+      local member = populated(build_env(), "member")
+      local ok, reason = guild(member, "PVP_PROGRESS", { seasonId = "s1", rows = {} }, "Ann-Realm")
+      assert.are.same({ false, "not_approver" }, { ok, reason })
+    end)
+
+    it("tells an approver's request to include the queue, and a member's not to", function()
+      local approver = populated(build_env(), "cogm")
+      approver.clock = approver.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(approver.comm:RequestLedger())
+      assert.is_true(Protocol.Validate(approver.codec:Decode(approver.sent[#approver.sent])).p.queue)
+      local member = populated(build_env(), "member")
+      member.clock = member.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(member.comm:RequestLedger())
+      assert.is_nil(Protocol.Validate(member.codec:Decode(member.sent[#member.sent])).p.queue)
+    end)
+
+    it("hands the claim queue of one approver to another through the catch-up", function()
+      local relay = populated(build_env(), "cogm")
+      assert.is_true(guild(relay, "PVP_CLAIM", claim("Ann-Realm"), "Ann-Realm"))
+      assert.is_truthy(relay.pvpSeason.queue["Ann-Realm:m1:" .. PERIOD .. ":1"])
+      relay.sent, relay.targets = {}, {}
+
+      local other = populated(build_env(), "gm")
+      other.roles["Lead-Realm"] = "cogm"
+      -- the other approver holds the season but not the claim
+      for _, name in ipairs({ "seasons", "missions" }) do
+        for key, value in pairs(relay.pvpSeason[name]) do
+          other.pvpSeason[name][key] = value
+        end
+      end
+      other.pvpSeason.activeId = relay.pvpSeason.activeId
+      other.clock = other.clock + ns.Constants.PVP_LEDGER_REQUEST_COOLDOWN_SECONDS
+      assert.is_true(other.comm:RequestLedger())
+      local request = other.sent[#other.sent]
+      relay.roles["Other-Realm"] = "gm"
+      assert.is_true(relay.comm:HandleMessage(request, "Other-Realm", "GUILD"))
+      relay.scheduled[#relay.scheduled].fn()
+      assert.is_true(#relay.sent >= 1)
+      for _, text in ipairs(relay.sent) do
+        other.comm:HandleMessage(text, "Lead-Realm", "WHISPER")
+      end
+      assert.is_truthy(other.pvpSeason.queue["Ann-Realm:m1:" .. PERIOD .. ":1"])
+    end)
+
+    it("does not give the queue to a member that asks", function()
+      local relay = populated(build_env(), "cogm")
+      assert.is_true(guild(relay, "PVP_CLAIM", claim("Ann-Realm"), "Ann-Realm"))
+      local late = build_env()
+      late.ownRole = "member"
+      late.roles["Lead-Realm"] = "cogm"
+      late.roles["Boss-Realm"] = "gm"
+      assert.is_true(late.comm:RequestLedger())
+      relay.roles["Late-Realm"] = "member"
+      assert.is_true(relay.comm:HandleMessage(late.sent[#late.sent], "Late-Realm", "GUILD"))
+      relay.sent, relay.targets = {}, {}
+      relay.scheduled[#relay.scheduled].fn()
+      for _, text in ipairs(relay.sent) do
+        late.comm:HandleMessage(text, "Lead-Realm", "WHISPER")
+      end
+      assert.is_nil(next(late.pvpSeason.queue))
     end)
   end)
 

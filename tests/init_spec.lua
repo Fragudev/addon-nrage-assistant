@@ -811,6 +811,34 @@ describe("Init", function()
   end)
 
   describe("PvP missions handlers", function()
+    it("builds the progress publisher and hooks the HELLO of a gm or cogm to the pending claims", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.is_truthy(env.ns.pvpProgress)
+      assert.is_function(env.ns.comm.onApproverHello)
+      local seen = 0
+      env.ns.pvpMissions.OnApproverSeen = function()
+        seen = seen + 1
+      end
+      env.ns.comm.onApproverHello("Boss-Realm")
+      assert.are.equal(1, seen)
+      env.ns.pvpMissions.OnApproverSeen = function()
+        error("hello boom")
+      end
+      assert.has_no.errors(function()
+        env.ns.comm.onApproverHello("Boss-Realm")
+      end)
+      assert.is_truthy(env.ns.startupErrors[#env.ns.startupErrors].error:find("hello boom", 1, true))
+      -- a season record from the guild asks the publisher to look again, a summary from a member does not
+      local changes = 0
+      env.ns.pvpProgress.Changed = function()
+        changes = changes + 1
+      end
+      env.ns.PvPSeasonChanged("PVP_MISSION")
+      env.ns.PvPSeasonChanged("PVP_PROGRESS")
+      assert.are.equal(1, changes)
+    end)
+
     it("listen to the score update and the end of combat, which feed the battleground result", function()
       env.fire("ADDON_LOADED", "NrageAssistant")
       env.fire("PLAYER_LOGIN")

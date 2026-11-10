@@ -536,6 +536,29 @@ function PvPMissionService:Tick()
   end
 end
 
+-- A gm or cogm is online (their HELLO arrived): the pending claims go out again, after the delay a login uses so the
+-- approver has time to load, and at most once per PVP_CLAIM_HELLO_COOLDOWN_SECONDS. Returns true when it was planned.
+function PvPMissionService:OnApproverSeen()
+  if not self.deps.isActive() or not self:HasPending() then
+    return false
+  end
+  local now = self.deps.now()
+  if self.lastResendAt and now - self.lastResendAt < ns.Constants.PVP_CLAIM_HELLO_COOLDOWN_SECONDS then
+    return false
+  end
+  self.lastResendAt = now
+  local constants = ns.Constants
+  self.deps.schedule(
+    self.deps.random(constants.PVP_LOGIN_SEND_DELAY_MIN, constants.PVP_LOGIN_SEND_DELAY_MAX),
+    function()
+      if self.deps.isActive() then
+        self:Reannounce()
+      end
+    end
+  )
+  return true
+end
+
 -- Announces the pending claims again after the login send delay, and then every PVP_CLAIM_REANNOUNCE_SECONDS while
 -- any is pending.
 function PvPMissionService:StartAnnouncing()

@@ -150,9 +150,34 @@ local function StartPvPMissions(feed)
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()
       end
+      if ns.pvpProgress then
+        ns.pvpProgress:Changed()
+      end
     end,
   })
   ns.pvpMissions = missions
+
+  -- The own progress goes to the approvers by itself (numbers only), and a gm or cogm coming online gets the claims
+  -- that nobody has decided yet.
+  if ns.PvPProgressPublisher and ns.comm then
+    ns.pvpProgress = ns.PvPProgressPublisher.New({
+      missions = missions,
+      season = ns.pvpSeason,
+      send = function(payload)
+        return ns.comm:SendPvPProgress(payload)
+      end,
+      now = ns.Platform.ServerTime,
+      schedule = C_Timer.After,
+      random = math.random,
+      isActive = function()
+        return ns.active == true
+      end,
+    })
+    ns.pvpProgress:SendAtLogin()
+    ns.comm.onApproverHello = function()
+      GuardedMissionCall("pvpMissions.approverSeen", missions.OnApproverSeen, missions)
+    end
+  end
 
   local frame = CreateFrame("Frame")
   for event in pairs(PVP_MISSION_UNITS) do
@@ -1266,6 +1291,10 @@ end
 -- A PvP season record changed here or arrived from the guild: the interface follows (the PvP tab, until it has its own
 -- sub-tabs, redraws like for any other PvP change).
 function ns.PvPSeasonChanged(messageType)
+  -- A season record changed (not a summary from another member): the own progress may have changed with it.
+  if messageType ~= "PVP_PROGRESS" and ns.pvpProgress then
+    ns.pvpProgress:Changed()
+  end
   if ns.UI and ns.UI.PvPSeasonChanged then
     ns.UI.PvPSeasonChanged(messageType)
   elseif ns.UI and ns.UI.PvPChanged then
