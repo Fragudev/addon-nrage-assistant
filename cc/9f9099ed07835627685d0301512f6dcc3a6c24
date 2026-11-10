@@ -1,0 +1,127 @@
+.luacheckrc
+  s_0149a02cc6acee::t_0543b47b885745 84
+NrageAssistant/Core/Constants.lua
+  s_0149a02cc6acee::t_e10e42218b0138 5,24
+NrageAssistant/Core/Init.lua
+  s_0149a02cc6acee::t_680bea9f604c44 38-63,74,158-160,262-264,319-321,732-734,917-919,926-928,1192-1194,1222-1224,1495-1519,1542-1543,1545-1559
+NrageAssistant/Core/Platform.lua
+  s_0149a02cc6acee::t_bb8bc08ac1d553 33-55,861-867
+NrageAssistant/Core/Store.lua
+  s_0149a02cc6acee::t_6b0b21f564d22a 13,215-216,218-222
+NrageAssistant/Domain/ModuleRegistry.lua
+  s_0149a02cc6acee::t_168b9e3d9fd295 1-142
+NrageAssistant/Domain/ModuleService.lua
+  s_0149a02cc6acee::t_95160750a1b60d 1-97
+NrageAssistant/Domain/PermissionService.lua
+  s_0149a02cc6acee::t_86665c06d5e871 6-10,49-50,109-127,129-131,138-141,146,148-152,156-157,168-171
+NrageAssistant/Domain/RankMapModel.lua
+  s_0149a02cc6acee::t_02fd537545d39b 1-233
+NrageAssistant/Domain/RankMapService.lua
+  s_0149a02cc6acee::t_ab76fe37770fa8 1-52
+NrageAssistant/Domain/Settings.lua
+  s_0149a02cc6acee::t_8d8cee24676f82 143-163
+NrageAssistant/Locales/esES.lua
+  s_0149a02cc6acee::t_f3e3f3d5c7cc53 1285-1332
+NrageAssistant/NrageAssistant.toc
+  s_0149a02cc6acee::t_c84d7ffd07cbea 26-27,80-81,102,127-128,148-149
+NrageAssistant/Sync/Comm.lua
+  s_0149a02cc6acee::t_eb6190a3ef06dd 22-23,53-56,354-356,516-518,657-660,681-683,1050-1088,1359-1422,1621-1633,1722-1723
+NrageAssistant/Sync/Protocol.lua
+  s_0149a02cc6acee::t_e8de73b0c61235 565-570,784
+NrageAssistant/Sync/RankMapSync.lua
+  s_0149a02cc6acee::t_e56b3d400ec28d 1-143
+NrageAssistant/Sync/Transfer.lua
+  s_0149a02cc6acee::t_5a5d2d345edddb 134-137,153,204-209,339-349,356-358,368,425-437
+NrageAssistant/UI/AnnouncementPopup.lua
+  s_0149a02cc6acee::t_3dde100f265f73 289-291
+NrageAssistant/UI/LayerPopup.lua
+  s_0149a02cc6acee::t_ddded3951bfc74 214-216
+NrageAssistant/UI/LfgPopup.lua
+  s_0149a02cc6acee::t_1428fa6cbc71f3 165-167
+NrageAssistant/UI/LootPopup.lua
+  s_0149a02cc6acee::t_35267516b04da9 348-350
+NrageAssistant/UI/Main.lua
+  s_0149a02cc6acee::t_a4c0954313be49 453-458,587-593
+NrageAssistant/UI/MapPins.lua
+  s_0149a02cc6acee::t_0aed1c8b4ecbd2 316-319,346
+NrageAssistant/UI/Tabs/Home.lua
+  s_0149a02cc6acee::t_92de2fb2e8f102 31-34,36
+NrageAssistant/UI/Tabs/Modules.lua
+  s_0149a02cc6acee::t_50e4ac35ae7f57 1-85
+NrageAssistant/UI/Tabs/Ranks.lua
+  s_0149a02cc6acee::t_9708740876adc7 1-173
+NrageAssistant/UI/ViewModel.lua
+  s_0149a02cc6acee::t_182d2fcba0a3c0 671,677,693-694,697-703,706-708
+NrageAssistant/UI/ViewModelModules.lua
+  s_0149a02cc6acee::t_7e89eeb3de6d84 1-127
+NrageAssistant/UI/ViewModelPvP.lua
+  s_0149a02cc6acee::t_8b8c688cfefe25 31-38
+NrageAssistant/UI/ViewModelRanks.lua
+  s_0149a02cc6acee::t_c98be66355d9f0 1-157
+NrageAssistant/UI/VotingFrame.lua
+  s_0149a02cc6acee::t_5f5c5be10b961d 398-400
+docs/API_NOTES.md
+  s_0149a02cc6acee::t_16a22701cb95d0 177-192
+docs/PROTOCOL.md
+  s_0149a02cc6acee::t_4357dafa9e74d2 41,93,95,425-451
+docs/USER_GUIDE.md
+  s_0149a02cc6acee::t_896adfc6274310 99-100,594-610,903-915
+tests/announcement_transfer_spec.lua
+  s_0149a02cc6acee::t_e75cbe5a7f1ab1 14,34,90
+tests/comm_spec.lua
+  s_0149a02cc6acee::t_1ecc0b909cea22 14,45
+tests/init_spec.lua
+  s_0149a02cc6acee::t_a020b55d8c5e73 998-1036
+tests/module_registry_spec.lua
+  s_0149a02cc6acee::t_0b89e984aefb0f 1-174
+tests/module_service_spec.lua
+  s_0149a02cc6acee::t_4b276fa9094612 1-111
+tests/permission_rank_map_spec.lua
+  s_0149a02cc6acee::t_e8fe8edb67423e 1-123
+tests/platform_guild_ranks_spec.lua
+  s_0149a02cc6acee::t_cd2f1a7b8a62ac 1-66
+tests/protocol_spec.lua
+  s_0149a02cc6acee::t_f9b33f516cb6d0 12,1252-1304
+tests/rank_map_comm_spec.lua
+  s_0149a02cc6acee::t_78d2afd888bf96 1-290
+tests/rank_map_model_spec.lua
+  s_0149a02cc6acee::t_0d187c51bac8f4 1-181
+tests/rank_map_service_spec.lua
+  s_0149a02cc6acee::t_a974fd5158aef8 1-128
+tests/rank_map_sync_spec.lua
+  s_0149a02cc6acee::t_00d39f90f8a0a8 1-341
+tests/roster_sync_spec.lua
+  s_0149a02cc6acee::t_8b87662145aa01 14,44
+tests/settings_spec.lua
+  s_0149a02cc6acee::t_83c9f99c30e975 217-250
+tests/store_spec.lua
+  s_0149a02cc6acee::t_2215942e2eeee4 84,94-102,117,119,126,129,157,165,179,186,221,249,276,336,345,365,395,412,437,459,508
+tests/transfer_spec.lua
+  s_0149a02cc6acee::t_a2e8ec792ce341 13,36
+tests/ui_smoke_spec.lua
+  s_0149a02cc6acee::t_d7c456f700248d 22,42,91,120-124,168-171,663,669,684,688,699,703,705-708,1197-1284,5181-5277
+tests/view_model_modules_spec.lua
+  s_0149a02cc6acee::t_b9e9fc491a0d66 1-139
+tests/view_model_pvp_spec.lua
+  s_0149a02cc6acee::t_a1f2406b98b932 12-14,881-900
+tests/view_model_ranks_spec.lua
+  s_0149a02cc6acee::t_9f8e31ed3145e5 1-222
+tests/view_model_spec.lua
+  s_0149a02cc6acee::t_785f5c798f78e5 12-14,90,97,117,123,126-136,139,161,168,1219,1225,1232-1235,1237-1238,1247,1253-1254,1256-1259,1262,1264-1267,1326-1332,1379,2593-2656
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "cc9f9099ed07835627685d0301512f6dcc3a6c24",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
