@@ -13,6 +13,7 @@ local function load_modules()
     "Domain/EventModel",
     "Domain/EventService",
     "Domain/BlacklistService",
+    "Domain/Professions",
     "UI/ViewModel",
     "Commands/BlacklistCommands",
   }) do

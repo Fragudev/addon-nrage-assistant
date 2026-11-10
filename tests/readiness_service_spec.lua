@@ -2,6 +2,7 @@ local function load_service()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Core/Locale.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/Domain/Professions.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Domain/ReadinessService.lua"))("NrageAssistant", ns)
   return ns.ReadinessService, ns.Constants
 end
@@ -36,6 +37,24 @@ describe("ReadinessService.EvaluateRule", function()
     local other = { professions = { { name = "Herbalism", skill = 1 } } }
     assert.are.equal("missing", Service.EvaluateRule(rule, other, {}).status)
     assert.are.equal("unknown", Service.EvaluateRule(rule, {}, {}).status)
+  end)
+
+  it("matches a profession across the languages of the admin and of the player", function()
+    -- The admin picked the Spanish name; the client of the player is English, and the other way round.
+    local spanish = { id = "cook", label = "Cooking", check = "profession", profession = "Cocina", min = 150 }
+    assert.are.equal(
+      "met",
+      Service.EvaluateRule(spanish, { professions = { { name = "Cooking", skill = 150 } } }, {}).status
+    )
+    local english = { id = "bs", label = "Smith", check = "profession", profession = "Blacksmithing" }
+    assert.are.equal(
+      "met",
+      Service.EvaluateRule(english, { professions = { { name = "Herrería", skill = 1 } } }, {}).status
+    )
+    -- A profession that is not learned is named in the language of the addon (English here).
+    local outcome = Service.EvaluateRule(spanish, { professions = { { name = "Fishing", skill = 1 } } }, {})
+    assert.are.equal("missing", outcome.status)
+    assert.are.equal("Cooking not learned", outcome.detail)
   end)
 
   it("reads a declared profile field", function()

@@ -10,6 +10,7 @@ local function load_spanish(locale)
     "Domain/RosterService",
     "Domain/RecipeService",
     "Domain/EventModel",
+    "Domain/Professions",
     "Domain/ReadinessService",
     "Domain/ReadinessRules",
     "Domain/ProfileService",
@@ -53,7 +54,7 @@ describe("Readiness in Spanish", function()
     end
     assert.are.equal("sin datos de nivel", detail({ id = "a", label = "A", check = "level", min = 60 }, {}))
     assert.are.equal(
-      "Mining no aprendida",
+      "Minería no aprendida",
       detail({ id = "a", label = "A", check = "profession", profession = "Mining" }, { professions = {} })
     )
     assert.are.equal(

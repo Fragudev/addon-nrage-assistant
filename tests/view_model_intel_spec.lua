@@ -18,6 +18,7 @@ local function load_view_model(locale)
     "UI/Kit/Theme",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelIntel",

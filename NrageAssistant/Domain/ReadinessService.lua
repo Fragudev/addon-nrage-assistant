@@ -67,7 +67,9 @@ local function hasProfession(rule, professions)
     return result(rule, "unknown", L("no profession data"))
   end
   for _, profession in ipairs(professions) do
-    if profession.name:lower() == rule.profession:lower() then
+    -- The rule keeps the name the admin picked and the client names the player's own: they can be in different
+    -- languages, so they are compared through the catalog.
+    if ns.Professions.Same(profession.name, rule.profession) then
       local detail = ("%s %s"):format(profession.name, tostring(profession.skill))
       if rule.min and (profession.skill or 0) < rule.min then
         return result(rule, "missing", L("%s (needs %s)"):format(detail, rule.min), "observed")
@@ -75,7 +77,7 @@ local function hasProfession(rule, professions)
       return result(rule, "met", detail, "observed")
     end
   end
-  return result(rule, "missing", L("%s not learned"):format(rule.profession), "observed")
+  return result(rule, "missing", L("%s not learned"):format(ns.Professions.Name(rule.profession)), "observed")
 end
 
 -- Required slots are enchanted. Rule: { check = "enchants", slots = { 16, 5, ... } }.

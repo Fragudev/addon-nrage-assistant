@@ -19,6 +19,7 @@ local function load_view_model(locale)
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/BlacklistService",
+    "Domain/Professions",
     "Domain/ReadinessRules",
     "Domain/ReadinessService",
     "Domain/ProfileService",
@@ -309,7 +310,13 @@ end)
 describe("ViewModel readiness tab helpers", function()
   it("offers exactly the statuses SetManual accepts", function()
     local ns = {}
-    for _, path in ipairs({ "Core/Constants", "Core/Locale", "Core/Validate", "Domain/ReadinessService" }) do
+    for _, path in ipairs({
+      "Core/Constants",
+      "Core/Locale",
+      "Core/Validate",
+      "Domain/Professions",
+      "Domain/ReadinessService",
+    }) do
       assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
     end
     local platform = {
@@ -1181,6 +1188,16 @@ describe("ViewModel in Spanish", function()
     assert.are.equal("planificado", Spanish.Word("planned"))
     assert.are.equal("presente", Spanish.Word("present"))
     assert.are.equal("something_new", Spanish.Word("something_new"))
+  end)
+
+  it("names professions in Spanish whatever language they came in", function()
+    -- A Spanish addon: the board names the profession itself, not with the English name a guildmate sent.
+    local items = Spanish.ProfessionChoices({ professions = { [185] = "Cooking", [99999] = "Basket weaving" } })
+    assert.are.equal("Cocina", items[3].text)
+    assert.are.equal("Basket weaving", items[2].text)
+    local rule = { check = "profession", profession = "Cooking", min = 150 }
+    assert.are.equal("Cocina 150 o más", Spanish.RuleSummary(rule))
+    assert.are.equal("Cocina", Spanish.RuleFields(rule).profession)
   end)
 
   it("keeps the placeholders working in a translated sentence", function()
@@ -2401,6 +2418,18 @@ describe("ViewModel recipes", function()
     assert.is_false(items[1].value)
     assert.are.equal("Alchemy", items[2].text)
     assert.are.equal(164, items[3].value)
+  end)
+
+  it("names a profession in the language of the addon, not in the one a guildmate sent", function()
+    local items = ViewModel.ProfessionChoices({ professions = { [185] = "Cocina", [171] = "Alquimia" } })
+    assert.are.equal("Alchemy", items[2].text)
+    assert.are.equal("Cooking", items[3].text)
+    local result = ViewModel.RecipeResults({
+      index = { professions = { [185] = "Cocina" }, recipes = { [10] = { professionId = 185, crafters = { "Ann" } } } },
+      online = online,
+      nameOf = nameOf,
+    })
+    assert.are.equal("Cooking", result.rows[1].professionName)
   end)
 
   it("lists recipes by id with every crafter, the online ones first", function()

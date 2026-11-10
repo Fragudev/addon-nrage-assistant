@@ -17,6 +17,7 @@ local function load_addon()
     "Domain/LootModel",
     "Domain/LootService",
     "Domain/ReadinessRules",
+    "Domain/Professions",
     "Domain/ReadinessService",
     "Domain/ProfileService",
     "Domain/ReportService",

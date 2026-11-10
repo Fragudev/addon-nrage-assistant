@@ -11,7 +11,8 @@ local Escape = ViewModel.Escape
 function ViewModel.ProfessionChoices(index)
   local items = {}
   for id, name in pairs(index.professions) do
-    items[#items + 1] = { value = id, text = Escape(name or tostring(id)) }
+    -- Named here, in the language of the addon: the name in the index is the one the first crafter's client sent.
+    items[#items + 1] = { value = id, text = Escape(ns.Professions.NameForId(id, name or tostring(id))) }
   end
   table.sort(items, function(a, b)
     if a.text ~= b.text then
@@ -83,7 +84,12 @@ function ViewModel.RecipeResults(args)
       name = Escape(name or args.nameOf(id) or fallbackName(id)),
       plainName = name or args.nameOf(id) or fallbackName(id),
       professionId = entry.professionId,
-      professionName = Escape(args.index.professions[entry.professionId] or tostring(entry.professionId)),
+      professionName = Escape(
+        ns.Professions.NameForId(
+          entry.professionId,
+          args.index.professions[entry.professionId] or tostring(entry.professionId)
+        )
+      ),
       crafters = crafters,
     }
   end

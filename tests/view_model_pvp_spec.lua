@@ -23,6 +23,7 @@ local function load_view_model(locale)
     "Domain/LootService",
     "Domain/BlacklistService",
     "Domain/ReadinessRules",
+    "Domain/Professions",
     "Domain/ReadinessService",
     "Domain/ProfileService",
     "Domain/ReportService",

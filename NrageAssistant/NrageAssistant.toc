@@ -26,6 +26,7 @@ Domain\Settings.lua
 Domain\ModuleRegistry.lua
 Domain\ModuleService.lua
 Domain\ProfileService.lua
+Domain\Professions.lua
 Domain\ReadinessService.lua
 Domain\ReadinessRules.lua
 Domain\PublishService.lua
