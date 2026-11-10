@@ -353,11 +353,157 @@ local function zonesField(parent, draft)
   end
 end
 
+local function dateField(parent, label, value, onChange)
+  local field = Kit.Field(parent, { label = label, layout = { weight = 1 } })
+  Kit.DateField(field, UI.DateFieldOptions(value, onChange))
+end
+
+-- The chips of a token list of the draft (battlegrounds, enemy classes, enemy races): `choices` = { { value, text } }.
+local function tokenChips(parent, label, draft, field, choices)
+  local box = Kit.Field(parent, { label = label })
+  local flow = Kit.Flow(box, { gap = 6, rowGap = 6 })
+  local chosen = {}
+  for _, token in ipairs(draft[field] or {}) do
+    chosen[token] = true
+  end
+  for _, choice in ipairs(choices) do
+    Kit.Chip(flow, {
+      text = choice.text,
+      active = chosen[choice.value] == true,
+      onToggle = function(active)
+        ViewModel.PvPToggleToken(draft, field, choice.value, active)
+        UI.Redraw()
+      end,
+    })
+  end
+end
+
+-- The optional fields of a mission, under one button so the simple form stays as it is (docs/
+-- ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.6).
+local function advancedSection(card, draft)
+  local open = draft.advancedOpen
+  if open == nil then
+    open = ViewModel.PvPHasAdvanced(draft)
+  end
+  Kit.Button(card, {
+    text = open and L("Hide advanced options") or L("Advanced options"),
+    variant = "ghost",
+    layout = { width = "auto" },
+    onClick = function()
+      draft.advancedOpen = not open
+      UI.Redraw()
+    end,
+  })
+  if not open then
+    return
+  end
+  local kind = draft.kind
+  local kills = kind == "kills" or kind == "kos"
+  if kind == "bg_wins" or kind == "bg_played" then
+    tokenChips(card, L("Battlegrounds (none = any)"), draft, "bgs", ViewModel.PvPBattlegroundChoices())
+  end
+  if kills then
+    local faction = type(ns.Platform.GetPlayerFaction) == "function" and ns.Platform.GetPlayerFaction() or nil
+    local classes, races = ViewModel.PvPEnemyChoices(faction)
+    tokenChips(card, L("Victim classes (none = any)"), draft, "victimClasses", classes)
+    tokenChips(card, L("Victim races (none = any)"), draft, "victimRaces", races)
+    local limits = Kit.Row(card, { gap = 16 })
+    fieldRow(limits, L("Max kills of one victim per day"), function(field)
+      Kit.EditBox(field, {
+        text = draft.victimCap,
+        placeholder = L("Default: %d, 0 = no cap"):format(ns.Constants.PVP_VICTIM_DAILY_CAP),
+        numeric = true,
+        maxLetters = 2,
+        onChange = function(text)
+          draft.victimCap = text
+        end,
+        onEnter = UI.Redraw,
+      })
+    end)
+    fieldRow(limits, L("Guildmates in the group (minimum)"), function(field)
+      Kit.EditBox(field, {
+        text = draft.minGuild,
+        placeholder = L("0 = off"),
+        numeric = true,
+        maxLetters = 2,
+        onChange = function(text)
+          draft.minGuild = text
+        end,
+        onEnter = UI.Redraw,
+      })
+    end)
+  end
+  if kind ~= "manual" then
+    Kit.Switch(card, {
+      label = L("Only inside a time window"),
+      description = L("A weekend event: only what happens between the two dates counts."),
+      checked = draft.windowOn == true,
+      onChange = function(checked)
+        draft.windowOn = checked
+        UI.Redraw()
+      end,
+    })
+    if draft.windowOn then
+      local dates = Kit.Row(card, { gap = 16 })
+      dateField(dates, L("Window start"), draft.windowStart, function(timestamp)
+        draft.windowStart = timestamp
+      end)
+      dateField(dates, L("Window end"), draft.windowEnd, function(timestamp)
+        draft.windowEnd = timestamp
+      end)
+    end
+  end
+  fieldRow(card, L("Max completions per member in the season"), function(field)
+    Kit.EditBox(field, {
+      text = draft.maxCompletions,
+      placeholder = L("0 = no limit"),
+      numeric = true,
+      maxLetters = 3,
+      onChange = function(text)
+        draft.maxCompletions = text
+      end,
+      onEnter = UI.Redraw,
+    })
+  end, { weight = 1 })
+  if kind ~= "manual" then
+    Kit.Switch(card, {
+      label = L("Claim automatically"),
+      description = L("When the goal is reached the claim is sent by itself and the member gets a notice."),
+      checked = draft.autoClaim == true,
+      onChange = function(checked)
+        draft.autoClaim = checked
+        UI.Redraw()
+      end,
+    })
+  end
+  local fields = ViewModel.PvPMissionFields(draft)
+  if fields and ns.PvPSeasonModel.UsesNewGoalFeatures(fields.goal) then
+    Kit.Label(card, {
+      text = L("Members on an older addon version will not see these options: ask them to update."),
+      style = "small",
+      color = "warning",
+      wrap = true,
+    })
+  end
+end
+
 local function missionForm(page)
   local draft = state.missionDraft
   local tracker = ns.pvpMissions
   local title = draft.id and L("Edit mission") or L("New mission")
   local card = Kit.Card(page, { title = title, gap = 12 })
+  if not draft.id then
+    fieldRow(card, L("Start from a template"), function(field)
+      Kit.Dropdown(field, {
+        items = ViewModel.PvPPresetChoices(),
+        placeholder = L("Pick a template"),
+        onChange = function(value)
+          ViewModel.PvPApplyPreset(draft, value)
+          UI.Redraw()
+        end,
+      })
+    end, { weight = 1 })
+  end
   fieldRow(card, L("Title"), function(field)
     Kit.EditBox(field, {
       text = draft.title,
@@ -479,6 +625,16 @@ local function missionForm(page)
       end,
     })
   end)
+
+  advancedSection(card, draft)
+  local fields = ViewModel.PvPMissionFields(draft)
+  Kit.Label(card, {
+    text = fields and ViewModel.PvPMissionSummary(fields, { zoneName = zoneName, dateText = ViewModel.DateText })
+      or L("Fill in the numbers to see what this mission counts."),
+    style = "small",
+    color = "muted",
+    wrap = true,
+  })
 
   local buttons = Kit.Row(card, { gap = 10, layout = { gap = 14 } })
   Kit.Label(buttons, { text = "", layout = { weight = 1 } })
@@ -676,11 +832,6 @@ local function closeSeason(season)
     "success",
     L("Season closed: %d player(s) ranked, %d claim(s) expired."):format(#final.standings, expired or 0)
   )
-end
-
-local function dateField(parent, label, value, onChange)
-  local field = Kit.Field(parent, { label = label, layout = { weight = 1 } })
-  Kit.DateField(field, UI.DateFieldOptions(value, onChange))
 end
 
 local function seasonAdmin(page)

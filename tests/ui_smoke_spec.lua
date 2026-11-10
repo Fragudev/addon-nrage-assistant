@@ -38,6 +38,7 @@ local function load_window(locale)
     "Domain/PermissionService",
     "Domain/PvPSeasonModel",
     "Domain/PvPSeasonService",
+    "Domain/PvPMissionTracker",
     "Sync/Protocol",
     "Sync/SyncRules",
     "Sync/PvPSeasonSync",
@@ -2263,6 +2264,106 @@ describe("Window smoke test: PvP seasons", function()
     env.press("Save mission")
     assert.is_false(env.ns.db.global.pvpSeason.missions[found.id].active)
     assert.are.equal(season.id, env.ns.db.global.pvpSeason.missions[found.id].seasonId)
+  end)
+
+  it("keeps the advanced options of the mission form closed until asked, and saves what they set", function()
+    env = build("GM")
+    seed(env)
+    go(env, "admin", "missions")
+    env.press("New mission")
+    assert.is_nil(env.find(env.page(), "Switch", "Claim automatically"))
+    -- the live line says what the mission counts, with or without the advanced options
+    assert.is_truthy(env.text():find("Counts honourable kills, 10 times, 10 points, once.", 1, true))
+    env.press("Advanced options")
+    assert.is_truthy(env.find(env.page(), "Button", "Hide advanced options"))
+    FakeKit.find(env.page(), "Chip", "Mage").opts.onToggle(true)
+    FakeKit.find(env.page(), "Chip", "Orc").opts.onToggle(true)
+    FakeKit.find(env.page(), "Switch", "Claim automatically").opts.onChange(true)
+    assert.is_truthy(env.text():find("Members on an older addon version", 1, true))
+    assert.is_truthy(env.text():find("victims of class Mage", 1, true))
+    for _, box in ipairs(FakeKit.find_all(env.page(), "EditBox")) do
+      if box.opts.maxLetters == env.ns.Constants.PVP_MISSION_TITLE_MAX then
+        box.opts.onChange("Mages")
+      elseif box.opts.placeholder and box.opts.placeholder:find("Default: 3", 1, true) then
+        box.opts.onChange("1")
+      end
+    end
+    env.press("Create mission")
+    assert.is_truthy(env.banner().opts.text:find("Mission saved", 1, true))
+    local found
+    for _, mission in pairs(env.ns.db.global.pvpSeason.missions) do
+      if mission.title == "Mages" then
+        found = mission
+      end
+    end
+    assert.are.same({ "MAGE" }, found.goal.victimClasses)
+    assert.are.same({ "ORC" }, found.goal.victimRaces)
+    assert.are.equal(1, found.goal.victimCapPerDay)
+    assert.is_true(found.goal.autoClaim)
+    -- editing a mission with options opens the section by itself
+    for _, row in ipairs(FakeKit.find_all(env.page(), "Table")[1].opts.rows) do
+      if row.cells.title == "Mages" then
+        row.cells.edit.opts.onClick()
+      end
+    end
+    assert.is_truthy(env.find(env.page(), "Button", "Hide advanced options"))
+    assert.is_true(FakeKit.find(env.page(), "Chip", "Mage").opts.active)
+  end)
+
+  it("offers the battleground, window and group options for the kinds they apply to", function()
+    env = build("GM")
+    seed(env)
+    go(env, "admin", "missions")
+    env.press("New mission")
+    env.press("Advanced options")
+    local function goalDropdown()
+      for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+        if d.opts.items and d.opts.items[1] and d.opts.items[1].value == "kills" then
+          return d
+        end
+      end
+    end
+    assert.is_nil(env.find(env.page(), "Chip", "Warsong Gulch"))
+    goalDropdown().opts.onChange("bg_played")
+    FakeKit.find(env.page(), "Chip", "Warsong Gulch").opts.onToggle(true)
+    assert.is_nil(env.find(env.page(), "Chip", "Mage"))
+    FakeKit.find(env.page(), "Switch", "Only inside a time window").opts.onChange(true)
+    local dates = FakeKit.find_all(env.page(), "DateField")
+    assert.are.equal(2, #dates)
+    dates[1].opts.onChange(1792454400)
+    dates[2].opts.onChange(1792454400 + 86400)
+    env.ns.UI.Redraw()
+    assert.is_truthy(env.text():find("only from", 1, true))
+    goalDropdown().opts.onChange("manual")
+    assert.is_nil(env.find(env.page(), "Switch", "Claim automatically"))
+    assert.is_nil(env.find(env.page(), "Switch", "Only inside a time window"))
+  end)
+
+  it("fills a new mission from a template, and offers no template when editing", function()
+    env = build("GM")
+    seed(env)
+    go(env, "admin", "missions")
+    env.press("New mission")
+    local templates
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      if d.opts.placeholder == "Pick a template" then
+        templates = d
+      end
+    end
+    assert.are.equal(5, #templates.opts.items)
+    templates.opts.onChange("group_up")
+    assert.is_truthy(env.text():find("with at least 3 guildmates in the group", 1, true))
+    assert.is_truthy(env.find(env.page(), "Button", "Hide advanced options"))
+    env.press("Create mission")
+    assert.is_truthy(env.banner().opts.text:find("Mission saved", 1, true))
+    for _, row in ipairs(FakeKit.find_all(env.page(), "Table")[1].opts.rows) do
+      if row.cells.title == "Group up" then
+        row.cells.edit.opts.onClick()
+      end
+    end
+    for _, d in ipairs(FakeKit.find_all(env.page(), "Dropdown")) do
+      assert.are_not.equal("Pick a template", d.opts.placeholder)
+    end
   end)
 
   it("changes the goal of the form, cancels it, and adds the current zone when the platform can read it", function()
