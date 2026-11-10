@@ -52,6 +52,15 @@ local function InstallRankMap()
   ns.rankMap = ns.rankMapService:Provider()
 end
 
+-- The rank map changed (saved here, or received from the guild): every role is worked out from it on the next lookup,
+-- so only what is on screen has to follow. The sidebar is built again (the own role may have changed) and the Ranks
+-- tab redraws. The access guard does not depend on roles (guild, faction and ruleset only), so it is not run again.
+function ns.RanksChanged()
+  if ns.UI and ns.UI.RanksChanged then
+    ns.UI.RanksChanged()
+  end
+end
+
 local function InitDatabase()
   -- A migration that raises must not leave the addon without a database or without a reason: the saved data stays
   -- as it was and the addon turns itself off with a notice.
