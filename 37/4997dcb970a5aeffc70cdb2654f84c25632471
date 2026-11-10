@@ -1,0 +1,57 @@
+NrageAssistant/Core/Constants.lua
+  s_0149a02cc6acee::t_ca29bc91230c66 272-278
+NrageAssistant/Core/Init.lua
+  s_0149a02cc6acee::t_da045a865f0afe 153-155,160-181,1294-1297
+NrageAssistant/Domain/PvPMissionService.lua
+  s_0149a02cc6acee::t_3c6fcc4164d14d 539-561
+NrageAssistant/Domain/PvPProgressPublisher.lua
+  s_0149a02cc6acee::t_8fdb38f898663f 1-115
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_0149a02cc6acee::t_87db12a8755de8 16,457-485
+NrageAssistant/Domain/PvPSeasonService.lua
+  s_0149a02cc6acee::t_49ef097c28f2ac 239-282
+NrageAssistant/NrageAssistant.toc
+  s_0149a02cc6acee::t_100ebb0021eac5 52
+NrageAssistant/Sync/Comm.lua
+  s_0149a02cc6acee::t_ddc3d4d9fcd73e 65-66,214-217,848-849,954,1090-1098
+NrageAssistant/Sync/Protocol.lua
+  s_0149a02cc6acee::t_cc0bc2bb0381b3 677-681,744
+tests/init_spec.lua
+  s_0149a02cc6acee::t_e7a5e08eb4b34a 814-841
+tests/pvp_mission_service_spec.lua
+  s_0149a02cc6acee::t_2a8f82f3c95724 795-851
+tests/pvp_progress_publisher_spec.lua
+  s_0149a02cc6acee::t_aa14315526cbae 1-191
+tests/pvp_season_service_spec.lua
+  s_0149a02cc6acee::t_132986b69cb257 889-943
+tests/pvp_season_sync_spec.lua
+  s_0149a02cc6acee::t_1b3bce5bafc898 1249-1435
+NrageAssistant/Sync/PvPSeasonSync.lua
+  s_3474568404da8d::t_0142041a2f61fa 19-20,41-53,148-152,437-472,673,704-712,733,776-785,791-792,797-800,805,828-831,959-982
+tests/comm_spec.lua
+  s_3474568404da8d::t_b75cb345a4b0ac 394-413,2591-2682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "374997dcb970a5aeffc70cdb2654f84c25632471",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_3474568404da8d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab5f4b226cb168ec1",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
