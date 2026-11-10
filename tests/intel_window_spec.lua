@@ -30,6 +30,7 @@ local function load_addon()
     "UI/Kit/Controls",
     "UI/Kit/Data",
     "UI/Kit/Shell",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelIntel",

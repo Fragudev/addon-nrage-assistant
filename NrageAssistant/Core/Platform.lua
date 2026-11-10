@@ -1341,6 +1341,14 @@ function Platform.ShowErrorText(text)
   return (pcall(UIErrorsFrame.AddMessage, UIErrorsFrame, text, 1, 0.1, 0.1, 1))
 end
 
+-- Shows `text` in the same area in gold, for news that is not a warning (a new group). False when there is none.
+function Platform.ShowNoticeText(text)
+  if type(text) ~= "string" or not (UIErrorsFrame and UIErrorsFrame.AddMessage) then
+    return false
+  end
+  return (pcall(UIErrorsFrame.AddMessage, UIErrorsFrame, text, 1, 0.82, 0, 1))
+end
+
 -- The name of a map ("Stranglethorn Vale"), or nil when the client does not say.
 function Platform.GetMapName(mapId)
   if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then

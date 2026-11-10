@@ -36,6 +36,10 @@ local function build()
   dofile("tests/support/addon.lua")(ns)
 
   local platform = ns.Platform
+  -- The client clock (GetTime): the Groups service reads it when it is made.
+  platform.Now = function()
+    return 1000
+  end
   platform.IsInGuild = function()
     return true
   end

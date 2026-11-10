@@ -10,6 +10,7 @@ local function load_view_model()
     "Domain/InstallDirectory",
     "UI/Kit/Theme",
     "UI/Kit/Util",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelInstalls",

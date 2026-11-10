@@ -27,6 +27,12 @@ local ROLE_FILTER_TEXT = ns.Locale.Table(function()
   return { all = L("Any role"), tank = L("Tank"), heal = L("Heal"), dps = L("DPS") }
 end)
 
+-- The line shown at the top of the screen when another member opens a group: "New group (Dungeon): title - leader".
+function ViewModel.GroupAlertText(sender, post)
+  local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
+  return L("New group (%s): %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(sender)))
+end
+
 -- Why something cannot be done now: shown beside a disabled button and after a click that was refused. Every reason
 -- the service, the rules and the transport give has a text here.
 ViewModel.GROUP_REASONS = ns.Locale.Table(function()

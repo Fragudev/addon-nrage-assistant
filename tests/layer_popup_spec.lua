@@ -5,6 +5,7 @@ local function load_controller()
     "Core/Locale",
     "Core/Validate",
     "Domain/LayerModel",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelLayers",
     "UI/LayerPopup",

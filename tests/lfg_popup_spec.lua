@@ -11,6 +11,7 @@ local function load_controller()
     "Domain/LfgModel",
     "UI/Kit/Theme",
     "UI/Kit/Util",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelGroups",

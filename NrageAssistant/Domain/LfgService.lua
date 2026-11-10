@@ -28,14 +28,16 @@ local _, ns = ...
 --          groupSize = function() -> number (0 or 1 when alone), isRaid = function() -> boolean (only `true` counts),
 --          isLeader = function() -> boolean, board = LfgBoard, onChange = function() (optional),
 --          partyClasses = function() -> { { name, class } } the party, the player first (optional),
---          ownRole = function() -> wire role or nil, the player's declared role (optional) }
+--          ownRole = function() -> wire role or nil, the player's declared role (optional),
+--          onNewPost = function(sender, post) a group of another member that was not on the board opened; not called
+--            for Constants.LFG_ALERT_WARMUP after New (optional) }
 local LfgService = {}
 LfgService.__index = LfgService
 
 local ACTIVE = { applied = true, invited = true }
 
 function LfgService.New(deps)
-  return setmetatable({ deps = deps, post = nil, application = nil, tokens = 0 }, LfgService)
+  return setmetatable({ deps = deps, post = nil, application = nil, tokens = 0, startedAt = deps.now() }, LfgService)
 end
 
 local function changed(self)
@@ -593,9 +595,19 @@ function LfgService:OnPost(sender, payload)
   if sameName(sender, ownName(self)) then
     return false, "self"
   end
+  local before = self.deps.board:Get(sender)
   local ok, reason = self.deps.board:Apply(sender, payload)
   if not ok then
     return false, reason
+  end
+  -- A group the board did not know is announced, but not during the warm-up after login: the posts that were already
+  -- open arrive as new then, with their repeats.
+  local isNew = payload.s == "open" and not (before and before.pid == payload.pid)
+  if isNew and self.deps.onNewPost and self.deps.now() - self.startedAt >= ns.Constants.LFG_ALERT_WARMUP then
+    local post = self.deps.board:Get(sender)
+    if post then
+      pcall(self.deps.onNewPost, sender, post)
+    end
   end
   local app = self.application
   if app and ACTIVE[app.state] and sameName(sender, app.leader) then

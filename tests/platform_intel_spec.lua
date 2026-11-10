@@ -468,6 +468,7 @@ describe("Platform alert and result readers", function()
     end)
     with_globals({ UIErrorsFrame = false }, function()
       assert.is_false(load_platform().ShowErrorText("Beware"))
+      assert.is_false(load_platform().ShowNoticeText("Hello"))
     end)
     with_globals({
       UIErrorsFrame = {
@@ -477,6 +478,21 @@ describe("Platform alert and result readers", function()
       },
     }, function()
       assert.is_false(load_platform().ShowErrorText("Beware"))
+    end)
+  end)
+
+  it("shows a notice in the same area in its own colour", function()
+    local shown
+    with_globals({
+      UIErrorsFrame = {
+        AddMessage = function(_, text, r, g, b)
+          shown = { text, r, g, b }
+        end,
+      },
+    }, function()
+      assert.is_true(load_platform().ShowNoticeText("New group"))
+      assert.are.same({ "New group", 1, 0.82, 0 }, shown)
+      assert.is_false(load_platform().ShowNoticeText(nil))
     end)
   end)
 

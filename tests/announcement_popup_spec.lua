@@ -13,6 +13,7 @@ local function load_popup()
     "UI/Kit/Theme",
     "UI/Kit/Util",
     "UI/Kit/Calendar",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelHome",
     "UI/ViewModelAnnouncements",

@@ -674,6 +674,9 @@ on Forever is still being checked (see `docs/API_NOTES.md`).
 The **Groups** tab, in the Guild part of the window, is a board where you post a party for a dungeon, a quest or
 anything else. Others apply with a role, and you invite them with a click. A party holds five players; raids stay in
 Events. Every rank can use it. The Groups item of the sidebar shows how many groups are open, your own included.
+When another member opens a new group, a short gold line appears at the top of the screen with its type, title and
+leader (for example "New group (Dungeon): Deadmines - Ann"). There is no line for the groups that were already open
+when you logged in: the first two minutes after login stay quiet.
 
 **Limits.** Read these before you rely on it:
 

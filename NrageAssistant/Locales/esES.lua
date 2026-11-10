@@ -1252,6 +1252,7 @@ ns.Locale.Register("es", {
   ["Your level is too low"] = "Tu nivel es demasiado bajo",
   ["expires in %s"] = "caduca en %s",
   ["Someone wants to join your group."] = "Alguien quiere unirse a tu grupo.",
+  ["New group (%s): %s - %s"] = "Nuevo grupo (%s): %s - %s",
 
   -- UI/ViewModelInstalls.lua, UI/Tabs/Installs.lua
   ["Installed check"] = "Comprobar instalación",

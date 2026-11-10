@@ -11,6 +11,7 @@ local function load_view_model(locale)
     "Domain/LayerModel",
     "UI/Kit/Theme",
     "UI/Kit/Util",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelLayers",
   }) do

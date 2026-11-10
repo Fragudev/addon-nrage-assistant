@@ -10,6 +10,7 @@ local function load_view_model(locale)
     "Domain/ModuleRegistry",
     "Domain/Settings",
     "Domain/ModuleService",
+    "Domain/Professions",
     "UI/ViewModel",
     "UI/ViewModelModules",
   }) do

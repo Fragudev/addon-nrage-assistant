@@ -313,7 +313,8 @@ function ViewModel.RuleFields(rule)
     buffs[#buffs + 1] = name
   end
   fields.buffs = table.concat(buffs, ", ")
-  fields.profession = rule.profession or ""
+  -- In the language of the addon, so it matches the picker even when the rule was saved in the other one.
+  fields.profession = rule.profession and ns.Professions.Name(rule.profession) or ""
   fields.field = rule.field or "role"
   return fields
 end

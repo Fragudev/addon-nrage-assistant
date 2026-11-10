@@ -904,7 +904,8 @@ function ViewModel.RuleSummary(rule)
   if check == "level" or check == "ilvl" then
     return L("%s %d or more"):format(check == "level" and L("level") or L("item level"), rule.min)
   elseif check == "profession" then
-    return rule.min and L("%s %d or more"):format(rule.profession, rule.min) or rule.profession
+    local name = ns.Professions.Name(rule.profession)
+    return rule.min and L("%s %d or more"):format(name, rule.min) or name
   elseif check == "enchants" then
     return L("enchanted slots: ") .. table.concat(rule.slots, ", ")
   elseif check == "buff" then
