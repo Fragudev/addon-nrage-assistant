@@ -9,7 +9,8 @@ local _, ns = ...
 --                 recipes = { [memberKey] = { [professionId] = { name, ids, rev, receivedAt } } },
 --                 pvpSeason = { seasons, activeId, missions, prizes, officers, grants, voids, rejects, queue, finals,
 --                               deliveries } (see PvPSeasonSync),
---                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory) }
+--                 installs = { [name] = { version, incompatible, seenAt } } (see InstallDirectory),
+--                 rankMaps = { [guildKey] = { rev, updatedAt, by, ranks } } (see RankMapModel) }
 --   db.chars[identityKey] = { profile = {}, readiness = {}, publish = {}, pvp = {}, recipes = {},
 --                             pvpSync = { rev }, pvpMissions = { seasonId, kills = {}, claims = {} } }
 local Store = {}
@@ -208,6 +209,11 @@ local MIGRATIONS = {
   -- tab. Nothing else is touched.
   [17] = function(db)
     ensureTable(ensureTable(db, "global"), "installs")
+  end,
+  -- v18: the rank map of each guild (rankMaps[guildKey] = { rev, updatedAt, by, ranks }, see RankMapModel). Empty until
+  -- a gm or cogm saves one: the roles keep coming from the rank names until then.
+  [18] = function(db)
+    ensureTable(ensureTable(db, "global"), "rankMaps")
   end,
 }
 

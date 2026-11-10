@@ -3,10 +3,11 @@ local _, ns = ...
 -- Who may do what (docs/NAV_PERMISSIONS_PLAN.md section 1). A message never gets to say what its sender is allowed to
 -- do: roles are worked out by the receiver from its own data.
 --
--- The role is the guild rank, matched by name through Constants.RANK_ROLES, in order of authority:
---   gm, cogm, officer, rl (raid leader), roster, member, alter.
--- The guild master is always `gm`, recognised by the rank index 0 and never by name. A rank that is not listed in
--- RANK_ROLES is an `alter` (least privilege). Nothing stored in the addon assigns a role.
+-- The role is the guild rank, in order of authority: gm, cogm, officer, rl (raid leader), roster, member, alter.
+-- The guild master is always `gm`, recognised by the rank index 0 and never by name. Other ranks get their role from
+-- the rank map of the guild when a gm or cogm saved one (RankMapModel, by rank index, so a rename keeps the role), and
+-- otherwise from the rank name through Constants.RANK_ROLES; a rank that is not listed is an `alter` (least
+-- privilege).
 --
 -- The rank says what a player can do, the roster (RosterService) says where. Each action gives, per role, a scope:
 --   "all": on every roster      "own": only on the roster of the player      absent: not allowed.
@@ -45,6 +46,8 @@ local ACTIONS = {
   -- Setting the readiness rules the roster is measured against.
   rules_edit = { gm = ALL, cogm = ALL, rl = OWN },
   pvp_admin = GLOBAL_ONLY,
+  -- The Ranks tab (rank mapping): the Admin group reads it, only gm and cogm change it (RankMapSync adds the guards).
+  ranks_manage = GLOBAL_ONLY,
   -- The Installed check tab: who runs the addon and which version.
   install_check = GLOBAL_ONLY,
 
@@ -100,27 +103,55 @@ function PermissionService.IsGuildMasterIndex(rankIndex)
   return rankIndex == ns.Constants.GUILD_MASTER_RANK_INDEX
 end
 
+-- The rank map of the guild the player is in (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, part D), or nil while the guild
+-- master has saved none. Init installs the provider `ns.rankMap`; without one every role comes from the rank name.
+local function currentRankMap()
+  return ns.rankMap and ns.rankMap() or nil
+end
+
+-- The role of a guild rank: index 0 is `gm`; an index the rank map covers gives its role, whatever the rank is called;
+-- anything else is looked up by name as always. `rankMap` defaults to the one of the current guild.
+function PermissionService.RoleFor(rankName, rankIndex, rankMap)
+  if PermissionService.IsGuildMasterIndex(rankIndex) then
+    return "gm"
+  end
+  rankMap = rankMap or currentRankMap()
+  if rankMap and ns.RankMapModel then
+    return ns.RankMapModel.Resolve(rankMap, rankName, rankIndex)
+  end
+  return PermissionService.RoleForRank(rankName)
+end
+
 -- Role of a guild roster entry ({ rankName, rankIndex }), or nil when it has no rank. The guild master is `gm`
--- whatever the rank is called.
-function PermissionService.RoleOfEntry(entry, mapping)
+-- whatever the rank is called. `mapping` (optional) is a table of rank names to roles that replaces the name lookup;
+-- `rankMap` (optional) the rank map to use instead of the one of the current guild.
+function PermissionService.RoleOfEntry(entry, mapping, rankMap)
   if type(entry) ~= "table" then
     return nil
   end
   if PermissionService.IsGuildMasterIndex(entry.rankIndex) then
     return "gm"
   end
-  return PermissionService.RoleForRank(entry.rankName, mapping)
+  if mapping then
+    return PermissionService.RoleForRank(entry.rankName, mapping)
+  end
+  return PermissionService.RoleFor(entry.rankName, entry.rankIndex, rankMap)
 end
 
 -- Role of `name` according to the local guild roster, or nil when the roster does not know them (not in the guild,
 -- or the roster has not loaded yet). nil never grants anything.
--- options (optional): { mapping = rank mapping }.
+-- options (optional): { mapping = rank names to roles, rankMap = rank map }.
 function PermissionService.RoleOf(guildRoster, name, options)
-  return PermissionService.RoleOfEntry(guildRoster:Lookup(name), options and options.mapping)
+  return PermissionService.RoleOfEntry(
+    guildRoster:Lookup(name),
+    options and options.mapping,
+    options and options.rankMap
+  )
 end
 
 -- Own role. Without a rank (not in a guild) there is no role. The guild master is recognised by the rank index of
--- GetGuildInfo or by IsGuildLeader, whichever the client gives; the other roles come from the rank name.
+-- GetGuildInfo or by IsGuildLeader, whichever the client gives; the other roles come from the rank map, else the
+-- rank name.
 function PermissionService.OwnRole(platform, options)
   local rankName, rankIndex = platform.GetOwnGuildRank()
   if type(rankName) ~= "string" or rankName == "" then
@@ -131,7 +162,10 @@ function PermissionService.OwnRole(platform, options)
   then
     return "gm"
   end
-  return PermissionService.RoleForRank(rankName, options and options.mapping)
+  if options and options.mapping then
+    return PermissionService.RoleForRank(rankName, options.mapping)
+  end
+  return PermissionService.RoleFor(rankName, rankIndex, options and options.rankMap)
 end
 
 -- Order of authority: 0 for gm up to 6 for alter, nil for anything else. For `Rank(role) <= Rank("rl")` checks.

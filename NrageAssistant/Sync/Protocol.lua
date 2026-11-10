@@ -562,6 +562,12 @@ local function validateRosterRules(payload)
   return { rosterId = payload.rosterId, rev = payload.rev, updatedAt = payload.updatedAt, rules = rules }
 end
 
+-- The rank map of the guild (protocol 1.13): which addon role each guild rank index has. Validated row by row by
+-- RankMapModel; who may send it is decided by the receiver (RankMapSync).
+local function validateRankMap(payload)
+  return (ns.RankMapModel.ValidateWire(payload))
+end
+
 -- Raid rosters and the roster assignments (protocol 1.5). Who may send them is decided by the receiver from its own
 -- guild roster (RosterSync).
 local function validateRosterUpsert(payload)
@@ -750,6 +756,7 @@ local VALIDATORS = {
   SIGNUP_UPSERT = validateSignupUpsert,
   ASSIGN_UPSERT = validateAssignUpsert,
   DELETE = validateDelete,
+  RANK_MAP = validateRankMap,
 }
 
 function Protocol.Build(messageType, payload, id)

@@ -92,6 +92,7 @@ describe("ViewModel misc", function()
       roster = true,
       pvpadmin = true,
       installs = true,
+      ranks = true,
     }, values)
   end)
 
@@ -116,11 +117,12 @@ describe("ViewModel misc", function()
       "roster",
       "pvpadmin",
       "installs",
+      "ranks",
     }, order)
     for _, value in ipairs({ "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" }) do
       assert.are.equal("guild", groups[value], value)
     end
-    for _, value in ipairs({ "raid", "rules", "roster", "pvpadmin", "installs" }) do
+    for _, value in ipairs({ "raid", "rules", "roster", "pvpadmin", "installs", "ranks" }) do
       assert.are.equal("admin", groups[value], value)
     end
     for _, value in ipairs({ "profile", "layers", "blacklist", "me" }) do
@@ -147,6 +149,7 @@ describe("ViewModel misc", function()
       roster = "Members",
       pvpadmin = "PvP",
       installs = "Installed check",
+      ranks = "Ranks",
     }, texts)
   end)
 
@@ -385,7 +388,7 @@ describe("ViewModel minimap helpers", function()
       assert.are_not.equal("sync", entry.action)
     end
     local admin = ViewModel.MinimapMenu("gm")
-    assert.are.equal("installs", admin[#admin - 2].value)
+    assert.are.equal("ranks", admin[#admin - 2].value)
     assert.are.equal("@intel", admin[#admin - 1].value)
     assert.are.equal("settings", admin[#admin].action)
     local roster = ViewModel.MinimapMenu("roster", "r1")
@@ -1203,17 +1206,17 @@ describe("ViewModel sidebar, user card and sync pill", function()
     local labels, values = navValues("gm")
     assert.are.same({ "Guild", "Admin" }, labels)
     assert.are.same(GUILD_ALL, values[1])
-    assert.are.same({ "raid", "rules", "roster", "pvpadmin", "installs" }, values[2])
+    assert.are.same({ "raid", "rules", "roster", "pvpadmin", "installs", "ranks" }, values[2])
     assert.are.equal("Raid", ViewModel.NavGroups("gm")[2].items[1].text)
     assert.is_truthy(ViewModel.NavGroups("gm")[2].items[1].icon)
   end)
 
   it("shows each rank the tabs of the matrix, with a roster", function()
     local expected = {
-      gm = { GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs" } },
-      cogm = { GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs" } },
-      officer = { GUILD_ALL, { "raid", "rules", "roster" } },
-      rl = { GUILD_ALL, { "raid", "rules", "roster" } },
+      gm = { GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs", "ranks" } },
+      cogm = { GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs", "ranks" } },
+      officer = { GUILD_ALL, { "raid", "rules", "roster", "ranks" } },
+      rl = { GUILD_ALL, { "raid", "rules", "roster", "ranks" } },
       roster = { GUILD_ALL },
       member = { { "home", "professions", "pvp", "groups", "modules" } },
       alter = { { "home", "professions", "pvp", "groups", "modules" } },
@@ -1231,14 +1234,15 @@ describe("ViewModel sidebar, user card and sync pill", function()
       assert.are.same({ "Guild" }, labels, role)
       assert.are.same(basics, values, role)
     end
-    -- The Admin group opens with admin_view, but its tabs follow their own scope: rl without a roster has none.
+    -- The Admin group opens with admin_view, but its tabs follow their own scope: rl without a roster has only the
+    -- Ranks tab, which every Admin rank reads.
     local _, rl = navValues("rl", nil)
-    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, {} }, { rl[1], rl[2] or {} })
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "ranks" } }, { rl[1], rl[2] or {} })
     -- gm, cogm and officer reach every roster, so a missing roster of their own changes nothing for them.
     local _, gm = navValues("gm", nil)
-    assert.are.same({ GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs" } }, gm)
+    assert.are.same({ GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs", "ranks" } }, gm)
     local _, officer = navValues("officer", nil)
-    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "rules", "roster" } }, officer)
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "rules", "roster", "ranks" } }, officer)
   end)
 
   it("keeps the Admin group away from roster, member and alter, and from a player without a rank", function()
@@ -1296,6 +1300,13 @@ describe("ViewModel sidebar, user card and sync pill", function()
     assert.is_true(ViewModel.TabVisible("installs", "cogm", nil))
     for _, role in ipairs({ "officer", "rl", "roster", "member", "alter" }) do
       assert.is_false(ViewModel.TabVisible("installs", role, "r1"), role)
+    end
+    -- Ranks: every Admin rank reads it; roster, member and alter do not see the Admin group at all.
+    for _, role in ipairs({ "gm", "cogm", "officer", "rl" }) do
+      assert.is_true(ViewModel.TabVisible("ranks", role, "r1"), role)
+    end
+    for _, role in ipairs({ "roster", "member", "alter" }) do
+      assert.is_false(ViewModel.TabVisible("ranks", role, "r1"), role)
     end
     assert.is_false(ViewModel.TabVisible("raid", "roster", "r1"))
     for _, value in ipairs({ "profile", "layers", "blacklist", "nowhere" }) do

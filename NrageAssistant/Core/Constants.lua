@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 17,
+  SCHEMA_VERSION = 18,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 12,
+  PROTOCOL_MINOR = 13,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
