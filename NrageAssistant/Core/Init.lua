@@ -35,6 +35,23 @@ function ns.IsDevBuild()
   return not version or version == "@project-version@"
 end
 
+-- The rank map of the current guild (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, part D) answers every role lookup through
+-- ns.rankMap. It is read lazily: while the guild or the realm is unknown, or nothing was saved, the roles come from the
+-- rank names as before.
+local function InstallRankMap()
+  ns.rankMapService = ns.RankMapService.New({
+    maps = ns.db.global.rankMaps,
+    guildKey = function()
+      -- A client call that raises (or is missing) only means "no map": the rank names answer instead.
+      local ok, guild, realm = pcall(function()
+        return ns.Platform.GetGuildName(), ns.Platform.GetRealmName()
+      end)
+      return ok and ns.RankMapService.GuildKey(guild, realm) or nil
+    end,
+  })
+  ns.rankMap = ns.rankMapService:Provider()
+end
+
 local function InitDatabase()
   -- A migration that raises must not leave the addon without a database or without a reason: the saved data stays
   -- as it was and the addon turns itself off with a notice.
@@ -45,6 +62,7 @@ local function InitDatabase()
   if db then
     NrageAssistantDB = db
     ns.db = db
+    InstallRankMap()
     -- The saved language is applied before anything is drawn, so every text is read in it.
     ns.Locale.UsePreference(ns.Settings.Language(db), ns.Platform.GetLocale())
   else
