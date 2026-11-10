@@ -426,6 +426,12 @@ function UI.RulesChanged()
   end
 end
 
+-- The rank map changed (saved here or received): the role of this player may have changed, so the sidebar is built
+-- again, and the Ranks tab, or any tab the role no longer reaches, is drawn again.
+function UI.RanksChanged()
+  UI.RostersChanged()
+end
+
 -- Rosters or roles arrived or changed: the role of this player may have changed, so the sidebar is built again too.
 local rostersRedraw = throttledRedraw(function()
   return true

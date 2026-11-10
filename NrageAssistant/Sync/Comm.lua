@@ -1321,7 +1321,8 @@ function Comm:SendAuthoredRankMap()
   return false, "not_author"
 end
 
--- Replaces the rank map of the guild with `ranks` ({ [index] = { role, name } }): the guild master or a co-guild master.
+-- Replaces the rank map of the guild with `ranks` ({ [index] = { role, name } }): the guild master or a co-guild
+-- master.
 -- It is validated and applied here first (own messages are never received), then told to the guild. Returns true, the
 -- revision used and whether it was queued; or false plus the reason (RankMapSync.Apply: "no_guild", "invalid",
 -- "forbidden", "self_row", "stale").

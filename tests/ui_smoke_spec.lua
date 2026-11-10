@@ -18,6 +18,7 @@ local ALL_TABS = {
   "roster",
   "pvpadmin",
   "installs",
+  "ranks",
 }
 -- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
 -- anyway.
@@ -36,6 +37,7 @@ local function load_window(locale)
     "Domain/PvPService",
     "Domain/PvPFeed",
     "Domain/PermissionService",
+    "Domain/RankMapModel",
     "Domain/PvPSeasonModel",
     "Domain/PvPSeasonService",
     "Sync/Protocol",
@@ -81,6 +83,7 @@ local function load_window(locale)
     "UI/ViewModelIntel",
     "UI/ViewModelGroups",
     "UI/ViewModelInstalls",
+    "UI/ViewModelRanks",
     "UI/MinimapButton",
     "Commands/RaidCommands",
     "Commands/LootCommands",
@@ -110,6 +113,7 @@ local function load_window(locale)
     "Domain/ModuleService",
     "UI/ViewModelModules",
     "UI/Tabs/Modules",
+    "UI/Tabs/Ranks",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -153,6 +157,10 @@ local function build(rank, locale)
       return true
     end,
     GetOwnGuildRank = Roles.ranking(rank == "Norost" and "Roster" or rank),
+    GetGuildRanks = function()
+      return env.guildRanks
+        or { [0] = "Emperador", [1] = "Comandante", [2] = "Oficial", [3] = "Raider", [5] = "Soldado" }
+    end,
     GetIdentityKey = function()
       return "Leader-Realm"
     end,
@@ -619,6 +627,7 @@ describe("Window smoke test", function()
       "roster",
       "pvpadmin",
       "installs",
+      "ranks",
     }
     local expected = {
       GM = all,
@@ -635,8 +644,22 @@ describe("Window smoke test", function()
         "raid",
         "rules",
         "roster",
+        "ranks",
       },
-      RL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules", "raid", "rules", "roster" },
+      RL = {
+        "home",
+        "professions",
+        "events",
+        "ready",
+        "loot",
+        "pvp",
+        "groups",
+        "modules",
+        "raid",
+        "rules",
+        "roster",
+        "ranks",
+      },
       Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "modules" },
       Member = { "home", "professions", "pvp", "groups", "modules" },
       Alter = { "home", "professions", "pvp", "groups", "modules" },
@@ -1126,6 +1149,94 @@ describe("Window smoke test", function()
         found = found or entry == "Bob-Realm=Outdated"
       end
       assert.is_true(found)
+    end)
+  end)
+
+  describe("Ranks", function()
+    local function saves(target)
+      target.ns.comm.SetRankMap = function(_, ranks)
+        target.saved = ranks
+        return true, 1, true
+      end
+    end
+
+    local function dropdowns()
+      local found = {}
+      for _, row in ipairs(env.tableRows()) do
+        found[#found + 1] = row.cells.role.widget == "dropdown" and row.cells.role or nil
+      end
+      return found
+    end
+
+    it("lets the guild master pick a role per rank, previews the change and saves every rank", function()
+      env = build("GM")
+      saves(env)
+      env.open("ranks")
+      assert.are.equal(5, #env.tableRows())
+      assert.are.equal("Guild master", env.tableRows()[1].cells.role.text)
+      assert.are.equal(4, #dropdowns())
+      -- Nothing saved yet: the first save pins today's roles, so it is enabled.
+      assert.is_truthy(env.text():find("No member changes role.", 1, true))
+      assert.is_falsy(env.find(env.page(), "Button", "Save mapping").opts.disabled)
+
+      dropdowns()[2].opts.onChange("member") -- rank 2, an Oficial
+      env.press("Save mapping")
+      assert.are.equal("member", env.saved[2].role)
+      assert.are.equal("cogm", env.saved[1].role)
+      assert.are.equal("Oficial", env.saved[2].name)
+      assert.is_nil(env.saved[0])
+      assert.are.equal("success", env.banner().opts.kind)
+    end)
+
+    it("shows why a save was refused", function()
+      env = build("GM")
+      env.ns.comm.SetRankMap = function()
+        return false, "stale"
+      end
+      env.open("ranks")
+      env.press("Save mapping")
+      assert.are.equal("danger", env.banner().opts.kind)
+    end)
+
+    it("gives an officer the mapping to read and no way to change it", function()
+      env = build("Council")
+      saves(env)
+      env.open("ranks")
+      assert.are.equal(0, #dropdowns())
+      assert.is_nil(env.find(env.page(), "Button", "Save mapping"))
+      assert.is_truthy(env.text():find("Only the guild master and the co-guild master", 1, true))
+    end)
+
+    it("keeps the row of their own rank read-only for a co-guild master", function()
+      env = build("CoGM")
+      saves(env)
+      env.open("ranks")
+      -- Rank 1 is theirs: text, not a dropdown; the other three ranks can be edited.
+      assert.are.equal(3, #dropdowns())
+      assert.is_nil(env.tableRows()[2].cells.role.widget)
+    end)
+
+    it("explains a renamed rank and a changed rank list", function()
+      env = build("GM")
+      env.ns.rankMapService = {
+        Current = function()
+          return {
+            rev = 1,
+            updatedAt = 5,
+            by = "Boss",
+            ranks = {
+              [1] = { role = "cogm", name = "Comandante" },
+              [2] = { role = "officer", name = "Oficial" },
+              [3] = { role = "roster", name = "Raid Lider" },
+              [8] = { role = "alter", name = "Gone" },
+            },
+          }
+        end,
+      }
+      env.open("ranks")
+      assert.is_truthy(env.text():find("Rank 3 was renamed from Raid Lider to Raider", 1, true))
+      assert.is_truthy(env.text():find("Guild ranks changed; review the mapping.", 1, true))
+      assert.is_truthy(env.text():find("Saved by Boss, date:5", 1, true))
     end)
   end)
 

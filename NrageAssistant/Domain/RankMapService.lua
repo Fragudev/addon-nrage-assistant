@@ -39,38 +39,14 @@ function RankMapService:Provider()
   end
 end
 
--- The rows an editor starts from: the saved ones, plus today's name lookup for every rank the map does not cover.
--- Returns { [index] = { role, name } } for the ranks of the game (index 1 and up).
+-- The rows an editor starts from (RankMapModel.Draft) for the saved map of the current guild.
 function RankMapService:Draft(currentRanks)
-  local draft = Model.Defaults(currentRanks)
-  local saved = self:Current()
-  if saved then
-    for index, row in pairs(saved.ranks) do
-      if draft[index] and type(row) == "table" and Model.IsAssignable(row.role) then
-        draft[index].role = row.role
-      end
-    end
-  end
-  return draft
+  return Model.Draft(self:Current(), currentRanks)
 end
 
--- Who changes role if `ranks` replaced the saved map: { name, rankName, from, to } for each guild member whose role
--- would differ, sorted by name. `guildRoster` needs Names() and Lookup(name); the members of rank 0 never change.
+-- Who changes role if `ranks` replaced the saved map (RankMapModel.Preview).
 function RankMapService:Preview(guildRoster, ranks)
-  local candidate = { ranks = ranks }
-  local saved = self:Current()
-  local changes = {}
-  for _, name in ipairs(guildRoster:Names()) do
-    local entry = guildRoster:Lookup(name)
-    if entry and entry.rankIndex ~= ns.Constants.GUILD_MASTER_RANK_INDEX then
-      local from = ns.PermissionService.RoleFor(entry.rankName, entry.rankIndex, saved)
-      local to = ns.PermissionService.RoleFor(entry.rankName, entry.rankIndex, candidate)
-      if from ~= to then
-        changes[#changes + 1] = { name = name, rankName = entry.rankName, from = from, to = to }
-      end
-    end
-  end
-  return changes
+  return Model.Preview(guildRoster, self:Current(), ranks)
 end
 
 ns.RankMapService = RankMapService

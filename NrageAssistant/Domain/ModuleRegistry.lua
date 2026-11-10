@@ -20,7 +20,7 @@ local MODULES = {
 }
 
 -- The tabs and the activation steps that no module owns: they are always on.
-local CORE_TABS = { home = true, modules = true, installs = true }
+local CORE_TABS = { home = true, modules = true, ranks = true, installs = true }
 local CORE_STEPS = {
   character = true,
   profile = true,

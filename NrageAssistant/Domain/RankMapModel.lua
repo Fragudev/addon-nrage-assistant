@@ -12,6 +12,7 @@ local RankMapModel = {}
 local V = ns.Validate
 local isInt, isText = V.Int, V.Text
 
+local NO_MAP = { ranks = {} }
 local MAX_REV = 2147483647
 local MAX_TIMESTAMP = 4102444800 -- 2100-01-01, as in Protocol
 
@@ -101,6 +102,38 @@ function RankMapModel.Defaults(currentRanks)
     end
   end
   return ranks
+end
+
+-- The rows an editor starts from: the saved ones where the game still has the rank, plus today's name lookup for every
+-- other rank. { [index] = { role, name } } for the ranks of the game, index 1 and up.
+function RankMapModel.Draft(rankMap, currentRanks)
+  local draft = RankMapModel.Defaults(currentRanks)
+  if type(rankMap) == "table" and type(rankMap.ranks) == "table" then
+    for index, row in pairs(rankMap.ranks) do
+      if draft[index] and type(row) == "table" and RankMapModel.IsAssignable(row.role) then
+        draft[index].role = row.role
+      end
+    end
+  end
+  return draft
+end
+
+-- Who changes role if `ranks` replaced `rankMap`: { name, rankName, from, to } for each guild member whose role would
+-- differ, sorted by name. `guildRoster` needs Names() and Lookup(name). The guild master never changes.
+function RankMapModel.Preview(guildRoster, rankMap, ranks)
+  local candidate = { ranks = ranks }
+  local changes = {}
+  for _, name in ipairs(guildRoster:Names()) do
+    local entry = guildRoster:Lookup(name)
+    if entry and entry.rankIndex ~= ns.Constants.GUILD_MASTER_RANK_INDEX then
+      local from = ns.PermissionService.RoleFor(entry.rankName, entry.rankIndex, rankMap or NO_MAP)
+      local to = ns.PermissionService.RoleFor(entry.rankName, entry.rankIndex, candidate)
+      if from ~= to then
+        changes[#changes + 1] = { name = name, rankName = entry.rankName, from = from, to = to }
+      end
+    end
+  end
+  return changes
 end
 
 -- A rank name as the wire carries it: no escape bars or control characters, at most MAX_NAME bytes, cut on a

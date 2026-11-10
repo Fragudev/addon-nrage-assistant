@@ -673,6 +673,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "roster", text = L("Members"), icon = "users", group = "admin" },
     { value = "pvpadmin", text = "PvP", icon = "swords", group = "admin" },
     { value = "installs", text = L("Installed check"), icon = "check", group = "admin" },
+    { value = "ranks", text = L("Ranks"), icon = "diamond", group = "admin" },
   }
 end)
 
@@ -686,6 +687,8 @@ local TAB_ACTIONS = {
   roster = "members_view",
   pvpadmin = "pvp_admin",
   installs = "install_check",
+  -- Every Admin rank reads the mapping of guild ranks to roles; ranks_manage (gm and cogm) edits it.
+  ranks = "admin_view",
 }
 
 -- Is the module that owns the tab `value` on for this player? A tab no module owns is always on, and so is every tab
