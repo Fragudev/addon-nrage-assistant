@@ -531,6 +531,61 @@ describe("Platform PvP mission readers", function()
     end)
   end)
 
+  it("reads the map id of the battleground instance, only inside a battleground", function()
+    local function instance(kind, mapId)
+      local result
+      with_globals({
+        IsInInstance = function()
+          return true, kind
+        end,
+        GetInstanceInfo = function()
+          return "Warsong Gulch", kind, 1, "", 10, 0, false, mapId
+        end,
+      }, function()
+        result = load_platform().GetBattlegroundInstance()
+      end)
+      return result
+    end
+    assert.are.equal(489, instance("pvp", 489))
+    assert.is_nil(instance("party", 489))
+    assert.is_nil(instance("pvp", nil))
+    assert.is_nil(instance("pvp", 0))
+    assert.is_nil(instance("pvp", "489"))
+    with_globals({ IsInInstance = false }, function()
+      assert.is_nil(load_platform().GetBattlegroundInstance())
+    end)
+    with_globals({
+      IsInInstance = function()
+        error("restricted")
+      end,
+      GetInstanceInfo = function() end,
+    }, function()
+      assert.is_nil(load_platform().GetBattlegroundInstance())
+    end)
+  end)
+
+  it("requests the battleground score only when the client has the call", function()
+    local calls = 0
+    with_globals({
+      RequestBattlefieldScoreData = function()
+        calls = calls + 1
+      end,
+    }, function()
+      assert.is_true(load_platform().RequestBattlegroundScore())
+    end)
+    assert.are.equal(1, calls)
+    with_globals({ RequestBattlefieldScoreData = false }, function()
+      assert.is_false(load_platform().RequestBattlegroundScore())
+    end)
+    with_globals({
+      RequestBattlefieldScoreData = function()
+        error("restricted")
+      end,
+    }, function()
+      assert.is_false(load_platform().RequestBattlegroundScore())
+    end)
+  end)
+
   it("reads the faction of the player", function()
     for faction, expected in pairs({ Alliance = "Alliance", Horde = "Horde", Neutral = false }) do
       with_globals({

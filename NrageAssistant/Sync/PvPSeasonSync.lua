@@ -16,6 +16,8 @@ local _, ns = ...
 --   PVP_VOID     void          admin       append-only by grant id
 --   PVP_DELIVERY delivery      admin       SyncRules.Wins per (season, player)
 --   PVP_FINAL    final         admin       the first one of a season wins and is authoritative
+--   PVP_PROGRESS progress      anyone      the player is the sender; only an approver keeps it (the last one per
+--                                          member, display only: a claim and its evidence decide)
 --
 -- Authority is never in the message. `by`, the author, is the sender of a guild message, or, inside the ledger
 -- catch-up of a relay (a leader, checked by Comm before anything is decoded) that is a gm or cogm, the author the item
@@ -36,8 +38,19 @@ local Rules = ns.SyncRules
 local Model = ns.PvPSeasonModel
 local countKeys, clampTimestamp = Rules.CountKeys, Rules.ClampTimestamp
 
-local TABLES =
-  { "seasons", "missions", "prizes", "officers", "grants", "voids", "rejects", "queue", "finals", "deliveries" }
+local TABLES = {
+  "seasons",
+  "missions",
+  "prizes",
+  "officers",
+  "grants",
+  "voids",
+  "rejects",
+  "queue",
+  "finals",
+  "deliveries",
+  "progress",
+}
 
 -- An empty ledger: what db.global.pvpSeason holds before anything arrives (Store migration 12 makes the same).
 function PvPSeasonSync.NewLedger()
@@ -130,6 +143,11 @@ local function cleanup(ledger, seasonId)
   for claimId, claim in pairs(ledger.queue) do
     if claim.seasonId == seasonId then
       ledger.queue[claimId] = nil
+    end
+  end
+  for player, held in pairs(ledger.progress) do
+    if held.seasonId == seasonId then
+      ledger.progress[player] = nil
     end
   end
 end
@@ -295,6 +313,35 @@ local function countQueue(ledger, player)
   return total, own
 end
 
+-- Has the player already completed the mission as many times as its goal allows in this season (`maxCompletions`)?
+-- Counts their approved claims (a voided grant does not count) and their other claims still waiting for a decision.
+local function completionsReached(ledger, mission, claim)
+  local max = mission.goal.maxCompletions
+  if not max or max < 1 then
+    return false
+  end
+  local used = 0
+  for grantId, grant in pairs(ledger.grants[claim.seasonId] or {}) do
+    if grant.player == claim.player and grant.missionId == claim.missionId and not ledger.voids[grantId] then
+      used = used + 1
+    end
+  end
+  local granted = ledger.grants[claim.seasonId] or {}
+  for id, queued in pairs(ledger.queue) do
+    if
+      id ~= claim.id
+      and queued.player == claim.player
+      and queued.missionId == claim.missionId
+      and queued.seasonId == claim.seasonId
+      and not granted[id]
+      and not ledger.rejects[id]
+    then
+      used = used + 1
+    end
+  end
+  return used >= max
+end
+
 -- A claim. It is only kept by a client that approves claims, and only when it fits the active season and a mission the
 -- client knows; a claim it cannot place yet is refused, and the claimant announces it again later.
 local function applyClaim(ctx, payload, by)
@@ -347,6 +394,9 @@ local function applyClaim(ctx, payload, by)
   if payload.periodKey ~= Model.PeriodKey(mission.repeatKind, payload.at) then
     return false, "bad_period"
   end
+  if completionsReached(ledger, mission, payload) then
+    return false, "limit"
+  end
 
   local grants = ledger.grants[payload.seasonId]
   if (grants and grants[payload.id]) or ledger.rejects[payload.id] then
@@ -381,6 +431,42 @@ local function applyClaim(ctx, payload, by)
     note = payload.note,
     receivedAt = ctx.now(),
   }
+  return true
+end
+
+-- A progress summary of the sender. Only a client that approves claims keeps it, only for the active season, and only
+-- the rows of missions it knows; the last summary of a member replaces the previous one.
+local function applyProgress(ctx, payload, by)
+  local role = roleOf(ctx, by)
+  if role == nil then
+    return false, "unknown_sender"
+  end
+  local denied = Rules.Authorize(role, "pvp_claim")
+  if denied then
+    return false, denied
+  end
+  if not (ctx.isApprover and ctx.isApprover()) then
+    return false, "not_approver"
+  end
+  local ledger = ledgerOf(ctx)
+  local season = ledger.seasons[payload.seasonId]
+  if not season then
+    return false, "unknown_season"
+  end
+  if season.state ~= "active" or ledger.activeId ~= season.id then
+    return false, "closed"
+  end
+  if not ledger.progress[by] and countKeys(ledger.progress) >= ns.Constants.PVP_PROGRESS_MEMBERS_MAX then
+    return false, "limit"
+  end
+  local rows = {}
+  for _, row in ipairs(payload.rows) do
+    local mission = ledger.missions[row.missionId]
+    if mission and mission.seasonId == payload.seasonId then
+      rows[#rows + 1] = row
+    end
+  end
+  ledger.progress[by] = { seasonId = payload.seasonId, rows = rows, at = ctx.now() }
   return true
 end
 
@@ -584,6 +670,7 @@ local APPLIERS = {
   PVP_VOID = applyVoid,
   PVP_DELIVERY = applyDelivery,
   PVP_FINAL = applyFinal,
+  PVP_PROGRESS = applyProgress,
 }
 
 -- The messages that change the ledger or the claim queue (not the catch-up pair).
@@ -614,7 +701,15 @@ end
 function PvPSeasonSync.ApplyItems(ctx, items, relay)
   local summary = { applied = 0, total = #items, forged = 0 }
   for _, entry in ipairs(items) do
-    if type(entry) == "table" and PvPSeasonSync.IsRecordMessage(entry.t) and entry.t ~= "PVP_CLAIM" then
+    local isClaim = type(entry) == "table" and entry.t == "PVP_CLAIM"
+    -- A claim of the queue travels between approvers only: a relay that is not a gm or cogm cannot hand one in, and a
+    -- progress summary is never part of a catch-up.
+    if
+      type(entry) == "table"
+      and PvPSeasonSync.IsRecordMessage(entry.t)
+      and entry.t ~= "PVP_PROGRESS"
+      and (not isClaim or (relay and relay.global))
+    then
       local message = ns.Protocol.Validate(ns.Protocol.Build(entry.t, entry.p, "ledger"))
       if message and Model.IsPlayer(entry.by) then
         if not (relay and (relay.global or entry.by == relay.sender)) then
@@ -635,7 +730,7 @@ end
 -- Everything the ledger holds about a season, as small strings: two clients with the same tokens hold the same ledger.
 -- The officers, the seasons, the finals and the deliveries are global; the rest belongs to `seasonId` (nil: nothing of
 -- any season).
-function PvPSeasonSync.Tokens(ledger, seasonId)
+function PvPSeasonSync.Tokens(ledger, seasonId, withQueue)
   local tokens = {}
   local function add(text)
     tokens[#tokens + 1] = text
@@ -678,25 +773,36 @@ function PvPSeasonSync.Tokens(ledger, seasonId)
         add(("r:%s:%d:%s"):format(id, reject.at, reject.by))
       end
     end
+    -- The claims waiting for a decision count only between approvers (`withQueue`): the others do not keep them.
+    if withQueue then
+      local granted = ledger.grants[seasonId] or {}
+      for id, claim in pairs(ledger.queue) do
+        -- Only the claims still undecided: those are the ones LedgerItems sends.
+        if claim.seasonId == seasonId and not granted[id] and not ledger.rejects[id] then
+          add("q:" .. id)
+        end
+      end
+    end
   end
   return tokens
 end
 
 -- { count, digest } of the ledger for a season, the pair a PVP_LEDGER_REQ carries.
-function PvPSeasonSync.Summary(ledger, seasonId)
-  local tokens = PvPSeasonSync.Tokens(ledger, seasonId)
+function PvPSeasonSync.Summary(ledger, seasonId, withQueue)
+  local tokens = PvPSeasonSync.Tokens(ledger, seasonId, withQueue)
   return { count = #tokens, digest = Model.Digest(tokens) }
 end
 
 -- The payload of a request for the catch-up of `seasonId` (nil: the client knows no season yet).
-function PvPSeasonSync.RequestPayload(ledger, seasonId)
-  local summary = PvPSeasonSync.Summary(ledger, seasonId)
-  return { seasonId = seasonId, count = summary.count, digest = summary.digest }
+-- `withQueue`: the requester approves claims, so the claims waiting in the queue are part of what is compared and sent.
+function PvPSeasonSync.RequestPayload(ledger, seasonId, withQueue)
+  local summary = PvPSeasonSync.Summary(ledger, seasonId, withQueue)
+  return { seasonId = seasonId, count = summary.count, digest = summary.digest, queue = withQueue or nil }
 end
 
 -- Does this ledger differ from the one the request describes?
 function PvPSeasonSync.Differs(ledger, request)
-  local summary = PvPSeasonSync.Summary(ledger, request.seasonId)
+  local summary = PvPSeasonSync.Summary(ledger, request.seasonId, request.queue == true)
   return summary.count ~= request.count or summary.digest ~= request.digest
 end
 
@@ -719,8 +825,10 @@ end
 
 -- The ledger as a list of { t, p, by } items in the order a receiver needs them: officers first (they decide who may
 -- author what), then seasons, missions, prizes and finals, then the grants, voids, rejections and deliveries of the
--- seasons in `seasonIds` that are still open. What does not validate is left out.
-function PvPSeasonSync.LedgerItems(ledger, seasonIds)
+-- seasons in `seasonIds` that are still open, and, with `withQueue` (the requester approves claims), the claims still
+-- waiting for a decision, last so that the grants and rejections that decide some of them arrive first. What does not
+-- validate is left out.
+function PvPSeasonSync.LedgerItems(ledger, seasonIds, withQueue)
   local items = {}
   local function add(entry)
     -- An item that does not validate is nil: it is left out.
@@ -845,6 +953,30 @@ function PvPSeasonSync.LedgerItems(ledger, seasonIds)
           rev = d.rev,
           updatedAt = d.updatedAt,
         }, d.updatedBy))
+      end
+    end
+  end
+  if withQueue then
+    for _, claimId in ipairs(sortedKeys(ledger.queue)) do
+      local claim = ledger.queue[claimId]
+      local granted = ledger.grants[claim.seasonId] or {}
+      if
+        wanted[claim.seasonId]
+        and not ledger.finals[claim.seasonId]
+        and not granted[claimId]
+        and not ledger.rejects[claimId]
+      then
+        add(item("PVP_CLAIM", {
+          id = claim.id,
+          missionId = claim.missionId,
+          seasonId = claim.seasonId,
+          periodKey = claim.periodKey,
+          player = claim.player,
+          at = claim.at,
+          summary = claim.summary,
+          evidence = claim.evidence,
+          note = claim.note,
+        }, claim.player))
       end
     end
   end

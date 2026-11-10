@@ -6,12 +6,14 @@ local _, ns = ...
 -- Records (all ids are `[A-Za-z0-9_-]{1,40}`; times are server time; a name is a character name as the guild roster
 -- writes it, possibly several words):
 --   season   { id, name, startsAt, endsAt, state = "active" | "closed", rev, updatedAt }
---   mission  { id, seasonId, title, desc, points, goal = { kind, count, zones, place, distinct, target? }, repeatKind,
---              perPlayer, active, rev, updatedAt }
+--   mission  { id, seasonId, title, desc, points, goal = { kind, count, zones, place, distinct, target?, bgs?,
+--              victimClasses?, victimRaces?, victimCapPerDay?, minGuildInGroup?, window?, maxCompletions?,
+--              autoClaim? }, repeatKind, perPlayer, active, rev, updatedAt }
 --   claim    { id, missionId, seasonId, periodKey, player, at, summary, evidence, note }
 --   grant    { id, seasonId, player, missionId, points, at }          (+ `by`, who authored it)
 --   void     { grantId, seasonId, reason, at }                        (+ `by`)
 --   reject   { claimId, seasonId, reason, at }                        (+ `by`)
+--   progress { seasonId, rows = { { missionId, count, goal } } }   (what a member says they have counted; display only)
 --   prizes   { seasonId, tiers = { ["1"] = rewards, ... }, rev, updatedAt }
 --   officer  { player, intervals = { { from, to? } ... }, rev, updatedAt }
 --   delivery { seasonId, player, tier, delivered, rev, updatedAt }
@@ -32,7 +34,9 @@ local MAX_ITEM_ID = 10000000
 local MAX_TOKEN = 20
 
 PvPSeasonModel.STATES = { active = true, closed = true }
-PvPSeasonModel.GOAL_KINDS = { kills = true, kos = true, bg_wins = true, manual = true }
+PvPSeasonModel.GOAL_KINDS = { kills = true, kos = true, bg_wins = true, manual = true, bg_played = true }
+-- The battleground tokens a `bgs` filter may hold (the values of PVP_BG_BY_MAP).
+PvPSeasonModel.BATTLEGROUNDS = { wsg = true, ab = true, av = true }
 PvPSeasonModel.PLACES = { any = true, world = true, bg = true }
 PvPSeasonModel.DISTINCT = { none = true, name = true, class = true, race = true, class_race = true }
 PvPSeasonModel.REPEAT_KINDS = { once = true, daily = true, weekly = true }
@@ -237,6 +241,91 @@ function PvPSeasonModel.ValidateSeason(fields)
   }
 end
 
+-- A list of up to `max` distinct values that satisfy `valid`, or nil when anything is wrong. An empty list is valid
+-- (no filter).
+local function cleanList(list, max, valid)
+  if type(list) ~= "table" or #list > max then
+    return nil
+  end
+  local clean, seen = {}, {}
+  for index, value in ipairs(list) do
+    if not valid(value) or seen[value] then
+      return nil
+    end
+    seen[value] = true
+    clean[index] = value
+  end
+  return clean
+end
+
+local function isBattleground(value)
+  return type(value) == "string" and PvPSeasonModel.BATTLEGROUNDS[value] == true
+end
+
+-- The optional fields of a goal that narrow what counts or change how it is claimed (they travel inside `goal`, so an
+-- older client that does not know them drops them). Returns false when one is present and invalid. A field that does
+-- not apply to the kind is dropped. Only fields that differ from their default are written.
+local function addOptionalGoal(goal, clean)
+  local constants = ns.Constants
+  local kind = goal.kind
+  local kills = kind == "kills" or kind == "kos"
+  local battlegrounds = kind == "bg_wins" or kind == "bg_played"
+  if battlegrounds and goal.bgs ~= nil then
+    local bgs = cleanList(goal.bgs, 3, isBattleground)
+    if not bgs then
+      return false
+    end
+    clean.bgs = #bgs > 0 and bgs or nil
+  end
+  if kills then
+    for _, field in ipairs({ "victimClasses", "victimRaces" }) do
+      if goal[field] ~= nil then
+        local list = cleanList(goal[field], constants.PVP_MISSION_FILTER_MAX, isToken)
+        if not list then
+          return false
+        end
+        clean[field] = #list > 0 and list or nil
+      end
+    end
+    if goal.victimCapPerDay ~= nil then
+      if not isInt(goal.victimCapPerDay, 0, constants.PVP_MISSION_VICTIM_CAP_MAX) then
+        return false
+      end
+      clean.victimCapPerDay = goal.victimCapPerDay
+    end
+    if goal.minGuildInGroup ~= nil then
+      if not isInt(goal.minGuildInGroup, 0, constants.PVP_MISSION_GUILD_GROUP_MAX) then
+        return false
+      end
+      clean.minGuildInGroup = goal.minGuildInGroup > 0 and goal.minGuildInGroup or nil
+    end
+  end
+  if kind ~= "manual" and goal.window ~= nil then
+    local window = goal.window
+    if
+      type(window) ~= "table"
+      or not (isTime(window.startsAt) and isTime(window.endsAt))
+      or window.startsAt >= window.endsAt
+    then
+      return false
+    end
+    clean.window = { startsAt = window.startsAt, endsAt = window.endsAt }
+  end
+  if goal.maxCompletions ~= nil then
+    if not isInt(goal.maxCompletions, 0, constants.PVP_MISSION_COMPLETIONS_MAX) then
+      return false
+    end
+    clean.maxCompletions = goal.maxCompletions > 0 and goal.maxCompletions or nil
+  end
+  if goal.autoClaim ~= nil then
+    if type(goal.autoClaim) ~= "boolean" then
+      return false
+    end
+    clean.autoClaim = goal.autoClaim or nil
+  end
+  return true
+end
+
 local function validateGoal(goal)
   local constants = ns.Constants
   if type(goal) ~= "table" then
@@ -283,7 +372,36 @@ local function validateGoal(goal)
     end
     clean.target = target
   end
+  if not addOptionalGoal(goal, clean) then
+    return nil
+  end
   return clean
+end
+
+-- Does this mission need a client that knows the optional goal fields or the battleground-played kind (protocol minor
+-- 13)? An older client drops the fields (and so counts more than the officer asked for) and refuses the kind.
+function PvPSeasonModel.UsesNewGoalFeatures(goal)
+  if type(goal) ~= "table" then
+    return false
+  end
+  if goal.kind == "bg_played" then
+    return true
+  end
+  for _, field in ipairs({
+    "bgs",
+    "victimClasses",
+    "victimRaces",
+    "victimCapPerDay",
+    "minGuildInGroup",
+    "window",
+    "maxCompletions",
+    "autoClaim",
+  }) do
+    if goal[field] ~= nil then
+      return true
+    end
+  end
+  return false
 end
 
 function PvPSeasonModel.ValidateMission(fields)
@@ -336,6 +454,35 @@ function PvPSeasonModel.ValidateMission(fields)
   }
 end
 
+-- A progress summary: how far the sender is in some missions of a season. Display only, nothing is granted by it.
+function PvPSeasonModel.ValidateProgress(fields)
+  local constants = ns.Constants
+  if type(fields) ~= "table" then
+    return bad("fields")
+  end
+  if not isId(fields.seasonId) then
+    return bad("seasonId")
+  end
+  if type(fields.rows) ~= "table" or #fields.rows > constants.PVP_MISSIONS_MAX then
+    return bad("rows")
+  end
+  local rows, seen = {}, {}
+  for index, row in ipairs(fields.rows) do
+    if
+      type(row) ~= "table"
+      or not isId(row.missionId)
+      or seen[row.missionId]
+      or not isInt(row.goal, 1, constants.PVP_MISSION_COUNT_MAX)
+      or not isInt(row.count, 0, row.goal)
+    then
+      return bad("rows")
+    end
+    seen[row.missionId] = true
+    rows[index] = { missionId = row.missionId, count = row.count, goal = row.goal }
+  end
+  return { seasonId = fields.seasonId, rows = rows }
+end
+
 local function validateSummary(summary)
   if summary == nil then
     return {}
@@ -365,10 +512,14 @@ local function validateEvidenceRow(row)
     return nil
   end
   if row.bgWin ~= nil then
-    if row.bgWin ~= true or row.victim ~= nil then
+    -- `bgWin = false` is a battleground that was lost (the "played" goal counts those too); `bg` says which one.
+    if type(row.bgWin) ~= "boolean" or row.victim ~= nil then
       return nil
     end
-    return { at = row.at, bgWin = true, mapId = mapId }
+    if row.bg ~= nil and not isBattleground(row.bg) then
+      return nil
+    end
+    return { at = row.at, bgWin = row.bgWin, mapId = mapId, bg = row.bg }
   end
   if row.kos ~= nil and row.kos ~= true then
     return nil
@@ -380,6 +531,12 @@ local function validateEvidenceRow(row)
     return nil
   end
   local clean = { at = row.at, victim = row.victim, mapId = mapId, place = row.place, kos = row.kos }
+  if row.guild ~= nil then
+    if not isInt(row.guild, 0, ns.Constants.PVP_MISSION_GUILD_GROUP_MAX) then
+      return nil
+    end
+    clean.guild = row.guild
+  end
   if row.class ~= nil then
     if not isToken(row.class) then
       return nil

@@ -236,6 +236,51 @@ function PvPSeasonService:Queue()
   return list
 end
 
+-- How far the members say they are, by mission, for the active season (an approver keeps the last summary of each
+-- member; other clients have none): { [missionId] = { { player, count, goal, ready, claimed, at } } }, each list
+-- ordered by progress (the closest to the goal first), then by name. `ready` is a member who reports the goal
+-- reached, `claimed` one that has a claim for the mission waiting for a decision. Display only: the claim and its
+-- evidence are what decide.
+function PvPSeasonService:ProgressBoard(seasonId)
+  local board = {}
+  local waiting = {}
+  for _, claim in ipairs(self:Queue()) do
+    waiting[claim.player .. "\n" .. claim.missionId] = true
+  end
+  for player, held in pairs(self.ledger.progress or {}) do
+    if held.seasonId == seasonId then
+      for _, row in ipairs(held.rows) do
+        local mission = self.ledger.missions[row.missionId]
+        if mission and mission.seasonId == seasonId then
+          local list = board[row.missionId] or {}
+          board[row.missionId] = list
+          list[#list + 1] = {
+            player = player,
+            count = row.count,
+            goal = row.goal,
+            ready = row.count >= row.goal,
+            claimed = waiting[player .. "\n" .. row.missionId] == true,
+            at = held.at,
+          }
+        end
+      end
+    end
+  end
+  for _, list in pairs(board) do
+    table.sort(list, function(a, b)
+      local left, right = a.count / a.goal, b.count / b.goal
+      if left ~= right then
+        return left > right
+      end
+      if a.count ~= b.count then
+        return a.count > b.count
+      end
+      return a.player < b.player
+    end)
+  end
+  return board
+end
+
 -- The claims an approver rejected and could still approve: each claim with `rejectedBy`, `rejectedAt` and `reason`.
 function PvPSeasonService:Rejected()
   local list = {}
@@ -811,15 +856,14 @@ function PvPSeasonService:MarkDelivery(seasonId, player, delivered)
   return self.ledger.deliveries[seasonId][player], queued
 end
 
--- Forgets the mission log of a season that closed, in the saved data of the local character (`missions` =
--- char.pvpMissions: the kills and the claims of the season). Returns true when something was dropped.
-function PvPSeasonService.ClearMissionLog(missions, seasonId)
-  if type(missions) ~= "table" or missions.seasonId ~= seasonId then
+-- Forgets the claims of a season that closed, in the saved data of the local character (`claims` = char.pvpClaims:
+-- { [seasonId] = { [claimId] = { claim, state } } }). The PvP log itself is not tied to a season and stays (it ages out
+-- by itself). Returns true when something was dropped.
+function PvPSeasonService.ClearClaims(claims, seasonId)
+  if type(claims) ~= "table" or claims[seasonId] == nil then
     return false
   end
-  missions.seasonId = nil
-  missions.kills = {}
-  missions.claims = {}
+  claims[seasonId] = nil
   return true
 end
 

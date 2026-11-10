@@ -886,6 +886,61 @@ describe("PvPSeasonService reading", function()
   end)
 end)
 
+describe("PvPSeasonService progress board", function()
+  local admin
+
+  local function summary(player, rows)
+    local message = assert(
+      Protocol.Validate(
+        Protocol.Build("PVP_PROGRESS", { seasonId = admin:ActiveSeason().id, rows = rows }, "p-" .. player)
+      )
+    )
+    return assert(Sync.Apply(admin:Context(), message, player))
+  end
+
+  before_each(function()
+    admin = admin_with_season(new_world())
+  end)
+
+  it("orders the members of a mission by how close they are, and says who reports the goal and who claimed", function()
+    summary("Ann", { { missionId = "m1", count = 2, goal = 5 } })
+    summary("Bob", { { missionId = "m1", count = 5, goal = 5 } })
+    summary("Cat", { { missionId = "m1", count = 4, goal = 5 } })
+    summary("Dan", { { missionId = "m1", count = 2, goal = 5 } })
+    local claim = {
+      id = "Bob:m1:" .. ns.PvPSeasonModel.PeriodKey("daily", T0 + 100) .. ":1",
+      missionId = "m1",
+      seasonId = admin:ActiveSeason().id,
+      periodKey = ns.PvPSeasonModel.PeriodKey("daily", T0 + 100),
+      player = "Bob",
+      at = T0 + 100,
+      evidence = {},
+    }
+    assert.is_true(admin:ReceiveClaim(claim, "Bob"))
+    local board = admin:ProgressBoard(admin:ActiveSeason().id)
+    local names, ready, claimed = {}, {}, {}
+    for _, row in ipairs(board.m1) do
+      names[#names + 1] = row.player
+      ready[#ready + 1] = row.ready
+      claimed[#claimed + 1] = row.claimed
+    end
+    assert.are.same({ "Bob", "Cat", "Ann", "Dan" }, names)
+    assert.are.same({ true, false, false, false }, ready)
+    assert.are.same({ true, false, false, false }, claimed)
+  end)
+
+  it("is empty for a client that holds no summaries, another season or a mission it does not know", function()
+    assert.are.same({}, admin:ProgressBoard(admin:ActiveSeason().id))
+    summary("Ann", { { missionId = "m1", count = 1, goal = 5 } })
+    assert.are.same({}, admin:ProgressBoard("other"))
+    admin.ledger.progress.Ann.rows[2] = { missionId = "ghost", count = 1, goal = 2 }
+    assert.are.equal(1, #admin:ProgressBoard(admin:ActiveSeason().id).m1)
+    assert.is_nil(admin:ProgressBoard(admin:ActiveSeason().id).ghost)
+    admin.ledger.progress = nil
+    assert.are.same({}, admin:ProgressBoard(admin:ActiveSeason().id))
+  end)
+end)
+
 describe("PvPSeasonService two clients", function()
   it("end up with the same standings whichever of them approved what", function()
     local world = new_world()

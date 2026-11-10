@@ -55,12 +55,13 @@ function ViewModel.PvPHistoryViews()
   }
 end
 
--- The sections of the Admin sub-tab. An admin (gm or cogm) sees all five.
+-- The sections of the Admin sub-tab. An admin (gm or cogm) sees all six.
 -- `options` = { manage = boolean (admin), pending = number of claims waiting }.
 function ViewModel.PvPAdminSections(options)
   local pending = options.pending or 0
   local sections = {
     { value = "approvals", text = pending > 0 and L("Approvals (%d)"):format(pending) or L("Approvals") },
+    { value = "progress", text = L("Progress") },
   }
   if options.manage then
     sections[#sections + 1] = { value = "missions", text = L("Missions") }
@@ -351,7 +352,12 @@ ViewModel.PVP_GOAL_KINDS = ns.Locale.Table(function()
     kos = L("Kill on Sight kills"),
     bg_wins = L("Battleground wins"),
     manual = L("Manual"),
+    bg_played = L("Battlegrounds played"),
   }
+end)
+
+ViewModel.PVP_BATTLEGROUNDS = ns.Locale.Table(function()
+  return { wsg = L("Warsong Gulch"), ab = L("Arathi Basin"), av = L("Alterac Valley") }
 end)
 
 ViewModel.PVP_PLACES = ns.Locale.Table(function()
@@ -372,7 +378,8 @@ ViewModel.PVP_REPEATS = ns.Locale.Table(function()
   return { once = L("Once"), daily = L("Daily"), weekly = L("Weekly") }
 end)
 
-local GOAL_ORDER = { "kills", "kos", "bg_wins", "manual" }
+local GOAL_ORDER = { "kills", "kos", "bg_wins", "manual", "bg_played" }
+local BG_ORDER = { "wsg", "ab", "av" }
 local PLACE_ORDER = { "any", "world", "bg" }
 local DISTINCT_ORDER = { "none", "name", "class", "race", "class_race" }
 local REPEAT_ORDER = { "once", "daily", "weekly" }
@@ -392,8 +399,31 @@ function ViewModel.PvPGoalChoices(availability)
   local skip = {}
   if availability and availability.bgWins == false then
     skip.bg_wins = true
+    skip.bg_played = true
   end
   return choices(GOAL_ORDER, ViewModel.PVP_GOAL_KINDS, skip)
+end
+
+-- The battlegrounds of the Advanced section as chip items.
+function ViewModel.PvPBattlegroundChoices()
+  local items = {}
+  for _, token in ipairs(BG_ORDER) do
+    items[#items + 1] = { value = token, text = ViewModel.PVP_BATTLEGROUNDS[token] }
+  end
+  return items
+end
+
+-- The enemy classes and races of the other side as chip items, for a player of `faction` (nil: an Alliance guild).
+function ViewModel.PvPEnemyChoices(faction)
+  local classTokens, raceTokens = ns.PvPMissionTracker.EnemySets(faction)
+  local classes, races = {}, {}
+  for _, token in ipairs(classTokens) do
+    classes[#classes + 1] = { value = token, text = ViewModel.ClassText(token) or token }
+  end
+  for _, token in ipairs(raceTokens) do
+    races[#races + 1] = { value = token, text = ViewModel.PvPRaceText(token) }
+  end
+  return classes, races
 end
 
 function ViewModel.PvPPlaceChoices()
@@ -433,9 +463,16 @@ function ViewModel.PvPCriteriaChips(mission, zoneName)
       end
       add((#names == 1 and L("Zone: %s") or L("Zones: %s")):format(table.concat(names, ", ")))
     end
-    if goal.kind == "bg_wins" then
+    if goal.kind == "bg_wins" or goal.kind == "bg_played" then
       add(L("Battleground"))
-      add(L("%d wins"):format(goal.count))
+      add((goal.kind == "bg_wins" and L("%d wins") or L("%d played")):format(goal.count))
+      if #(goal.bgs or {}) > 0 then
+        local names = {}
+        for _, token in ipairs(goal.bgs) do
+          names[#names + 1] = ViewModel.PVP_BATTLEGROUNDS[token] or token
+        end
+        add(table.concat(names, ", "))
+      end
     else
       if goal.kind == "kos" then
         add(goal.target and L("Bounty: %s"):format(Escape(goal.target)) or L("Kill on Sight"))
@@ -450,6 +487,38 @@ function ViewModel.PvPCriteriaChips(mission, zoneName)
       if goal.place == "world" or goal.place == "bg" then
         add(ViewModel.PVP_PLACES[goal.place])
       end
+      if #(goal.victimClasses or {}) > 0 then
+        local names = {}
+        for _, token in ipairs(goal.victimClasses) do
+          names[#names + 1] = Escape(ViewModel.ClassText(token) or token)
+        end
+        add(L("Classes: %s"):format(table.concat(names, ", ")))
+      end
+      if #(goal.victimRaces or {}) > 0 then
+        local names = {}
+        for _, token in ipairs(goal.victimRaces) do
+          names[#names + 1] = Escape(ViewModel.PvPRaceText(token))
+        end
+        add(L("Races: %s"):format(table.concat(names, ", ")))
+      end
+      if goal.victimCapPerDay ~= nil then
+        add(
+          goal.victimCapPerDay == 0 and L("No cap per victim")
+            or L("Max %d per victim per day"):format(goal.victimCapPerDay)
+        )
+      end
+      if (goal.minGuildInGroup or 0) > 0 then
+        add(L("%d+ guildmates in the group"):format(goal.minGuildInGroup))
+      end
+    end
+    if goal.window then
+      add(L("Event window"))
+    end
+    if goal.maxCompletions then
+      add(L("Max %d completions"):format(goal.maxCompletions))
+    end
+    if goal.autoClaim then
+      add(L("Auto-claim"))
     end
   end
   add(ViewModel.PVP_REPEATS[mission.repeatKind] or mission.repeatKind)
@@ -462,7 +531,7 @@ end
 -- Which detection the client needs for a mission goal: a list of availability keys.
 local function requirements(goal)
   local needs = {}
-  if goal.kind == "bg_wins" then
+  if goal.kind == "bg_wins" or goal.kind == "bg_played" then
     needs[#needs + 1] = "bgWins"
   elseif goal.kind == "kills" or goal.kind == "kos" then
     needs[#needs + 1] = "kills"
@@ -470,7 +539,13 @@ local function requirements(goal)
       needs[#needs + 1] = "zones"
     end
     local distinct = goal.distinct
-    if distinct == "class" or distinct == "race" or distinct == "class_race" then
+    if
+      distinct == "class"
+      or distinct == "race"
+      or distinct == "class_race"
+      or #(goal.victimClasses or {}) > 0
+      or #(goal.victimRaces or {}) > 0
+    then
       needs[#needs + 1] = "classRace"
     end
   end
@@ -490,13 +565,41 @@ function ViewModel.PvPGoalAvailable(goal, availability)
   return true
 end
 
+-- When the current period of a mission starts (UTC): the day, the ISO week or the season, and not before the start of
+-- its event window. Nil without a clock.
+function ViewModel.PvPCountsFrom(mission, now, season)
+  if type(now) ~= "number" then
+    return nil
+  end
+  local days = math.floor(now / DAY)
+  local start
+  if mission.repeatKind == "daily" then
+    start = days * DAY
+  elseif mission.repeatKind == "weekly" then
+    -- 1970-01-01 was a Thursday: (days + 3) % 7 is the number of days since Monday.
+    start = (days - (days + 3) % 7) * DAY
+  else
+    start = season and season.startsAt or nil
+  end
+  local window = mission.goal and mission.goal.window
+  if window and (not start or window.startsAt > start) then
+    start = window.startsAt
+  end
+  if not start then
+    return nil
+  end
+  return L("Counts from %s"):format(ViewModel.DateText(start) or tostring(start))
+end
+
 -- The cards of the Missions sub-tab. `options` = {
 --   tracker      true when the mission tracker exists on this client (false: no progress, no claims),
 --   progressOf   function(missionId) -> progress | nil,       claimStateOf function(missionId) -> state,
 --   availability the tracker's Availability() or nil,         ended true when the season date has passed,
 --   labelText    function(label) -> text (the tracker's translation of a bar label, optional),
---   zoneName     function(mapId) -> text | nil }
--- A card = { id, title, desc, points, chips, bars = { { label, text, ratio, complete } },
+--   zoneName     function(mapId) -> text | nil,
+--   now          the server time, and season the active season (both optional: with them a card says since when it
+--                counts) }
+-- A card = { id, title, desc, points, chips, rules, countsFrom, bars = { { label, text, ratio, complete } },
 -- status = { text, color } | nil, note, canClaim, noteRequired, unavailable }.
 function ViewModel.PvPMissionCards(missions, options)
   local cards = {}
@@ -524,6 +627,8 @@ function ViewModel.PvPMissionCards(missions, options)
       status = { text = L("Approved"), color = "success" }
     elseif state == "rejected" then
       status = { text = L("Rejected"), color = "danger" }
+    elseif progress and progress.complete and progress.claimable and goal.kind ~= "manual" then
+      status = { text = L("Ready to claim"), color = "accent" }
     elseif progress and #bars > 0 and not progress.complete then
       status = { text = L("In progress"), color = "muted" }
     end
@@ -547,6 +652,10 @@ function ViewModel.PvPMissionCards(missions, options)
       desc = Escape(mission.desc or ""),
       points = L("+%d pts"):format(mission.points),
       chips = ViewModel.PvPCriteriaChips(mission, options.zoneName),
+      rules = Escape(
+        ViewModel.PvPMissionSummary(mission, { zoneName = options.zoneName, dateText = ViewModel.DateText })
+      ),
+      countsFrom = ViewModel.PvPCountsFrom(mission, options.now, options.season),
       bars = bars,
       status = status,
       note = note,
@@ -604,6 +713,29 @@ function ViewModel.PvPParseZones(text)
   return zones
 end
 
+local function copyList(list)
+  local copy = {}
+  for index, value in ipairs(list or {}) do
+    copy[index] = value
+  end
+  return copy
+end
+
+-- Adds or takes out `token` of the list `draft[field]` (the chips of the advanced options). Returns the list.
+function ViewModel.PvPToggleToken(draft, field, token, on)
+  local kept = {}
+  for _, value in ipairs(draft[field] or {}) do
+    if value ~= token then
+      kept[#kept + 1] = value
+    end
+  end
+  if on then
+    kept[#kept + 1] = token
+  end
+  draft[field] = kept
+  return kept
+end
+
 -- The values the form starts with (a new mission), or those of `mission` (to edit it). Numbers are text, as typed.
 function ViewModel.PvPMissionDraft(mission)
   if not mission then
@@ -620,6 +752,16 @@ function ViewModel.PvPMissionDraft(mission)
       repeatKind = "once",
       perPlayer = "1",
       active = true,
+      bgs = {},
+      victimClasses = {},
+      victimRaces = {},
+      victimCap = "",
+      minGuild = "",
+      windowOn = false,
+      windowStart = nil,
+      windowEnd = nil,
+      maxCompletions = "",
+      autoClaim = false,
     }
   end
   local goal = mission.goal
@@ -637,7 +779,76 @@ function ViewModel.PvPMissionDraft(mission)
     repeatKind = mission.repeatKind,
     perPlayer = tostring(mission.perPlayer or 1),
     active = mission.active ~= false,
+    bgs = copyList(goal.bgs),
+    victimClasses = copyList(goal.victimClasses),
+    victimRaces = copyList(goal.victimRaces),
+    victimCap = goal.victimCapPerDay ~= nil and tostring(goal.victimCapPerDay) or "",
+    minGuild = goal.minGuildInGroup and tostring(goal.minGuildInGroup) or "",
+    windowOn = goal.window ~= nil,
+    windowStart = goal.window and goal.window.startsAt or nil,
+    windowEnd = goal.window and goal.window.endsAt or nil,
+    maxCompletions = goal.maxCompletions and tostring(goal.maxCompletions) or "",
+    autoClaim = goal.autoClaim == true,
   }
+end
+
+-- A number typed in an optional box: nil when it is empty, false when it is not a whole number.
+local function optionalNumber(text)
+  if trim(text) == "" then
+    return nil
+  end
+  return wholeNumber(text) or false
+end
+
+-- The optional goal fields of a draft (the Advanced section): only what the draft sets and what applies to its kind.
+-- Returns the table, or nil plus "invalid:<field>" for a number that is not one or a window that is incomplete.
+function ViewModel.PvPAdvancedFields(draft)
+  local fields = {}
+  local kind = draft.kind
+  local kills = kind == "kills" or kind == "kos"
+  local battlegrounds = kind == "bg_wins" or kind == "bg_played"
+  if battlegrounds and #(draft.bgs or {}) > 0 then
+    fields.bgs = copyList(draft.bgs)
+  end
+  if kills then
+    if #(draft.victimClasses or {}) > 0 then
+      fields.victimClasses = copyList(draft.victimClasses)
+    end
+    if #(draft.victimRaces or {}) > 0 then
+      fields.victimRaces = copyList(draft.victimRaces)
+    end
+    local cap = optionalNumber(draft.victimCap)
+    if cap == false then
+      return nil, "invalid:victimCapPerDay"
+    end
+    fields.victimCapPerDay = cap
+    local guild = optionalNumber(draft.minGuild)
+    if guild == false then
+      return nil, "invalid:minGuildInGroup"
+    end
+    fields.minGuildInGroup = guild
+  end
+  if kind ~= "manual" and draft.windowOn then
+    if not (draft.windowStart and draft.windowEnd) then
+      return nil, "invalid:window"
+    end
+    fields.window = { startsAt = draft.windowStart, endsAt = draft.windowEnd }
+  end
+  local completions = optionalNumber(draft.maxCompletions)
+  if completions == false then
+    return nil, "invalid:maxCompletions"
+  end
+  fields.maxCompletions = completions
+  if draft.autoClaim == true and kind ~= "manual" then
+    fields.autoClaim = true
+  end
+  return fields
+end
+
+-- Does the draft set anything of the Advanced section? (The form opens it then.)
+function ViewModel.PvPHasAdvanced(draft)
+  local fields = ViewModel.PvPAdvancedFields(draft)
+  return fields ~= nil and next(fields) ~= nil
 end
 
 -- The fields PvPSeasonService:UpsertMission takes, from a draft; or nil plus "invalid:<field>" for a number or a zone
@@ -674,6 +885,13 @@ function ViewModel.PvPMissionFields(draft)
       end
     end
   end
+  local advanced, reason = ViewModel.PvPAdvancedFields(draft)
+  if not advanced then
+    return nil, reason
+  end
+  for key, value in pairs(advanced) do
+    goal[key] = value
+  end
   return {
     id = draft.id,
     title = draft.title,
@@ -684,6 +902,224 @@ function ViewModel.PvPMissionFields(draft)
     perPlayer = perPlayer,
     active = draft.active ~= false,
   }
+end
+
+-- The built-in templates of the form: { id, name, set } where `set` gives the draft values that differ from a new
+-- mission. Every one is a mission the detection of this client can follow.
+local PRESETS = {
+  {
+    id = "weekly_wsg",
+    name = function()
+      return L("Weekly Warsong Gulch wins")
+    end,
+    set = function()
+      return {
+        title = L("Warsong Gulch wins"),
+        kind = "bg_wins",
+        count = "3",
+        points = "50",
+        repeatKind = "weekly",
+        bgs = { "wsg" },
+      }
+    end,
+  },
+  {
+    id = "daily_20",
+    name = function()
+      return L("Daily 20 kills")
+    end,
+    set = function()
+      return { title = L("Daily hunt"), kind = "kills", count = "20", points = "20", repeatKind = "daily" }
+    end,
+  },
+  {
+    id = "kos_bounty",
+    name = function()
+      return L("Kill on Sight bounty")
+    end,
+    set = function()
+      return { title = L("Kill on Sight bounty"), kind = "kos", count = "1", points = "30", repeatKind = "daily" }
+    end,
+  },
+  {
+    id = "group_up",
+    name = function()
+      return L("Group up: 5 kills with 3 guildmates")
+    end,
+    set = function()
+      return {
+        title = L("Group up"),
+        kind = "kills",
+        count = "5",
+        points = "30",
+        repeatKind = "daily",
+        minGuild = "3",
+      }
+    end,
+  },
+  {
+    id = "av_veteran",
+    name = function()
+      return L("Alterac Valley veteran")
+    end,
+    set = function()
+      return {
+        title = L("Alterac Valley veteran"),
+        kind = "bg_played",
+        count = "5",
+        points = "100",
+        repeatKind = "once",
+        bgs = { "av" },
+      }
+    end,
+  },
+}
+
+-- The templates as dropdown items.
+function ViewModel.PvPPresetChoices()
+  local items = {}
+  for _, preset in ipairs(PRESETS) do
+    items[#items + 1] = { value = preset.id, text = preset.name() }
+  end
+  return items
+end
+
+-- Fills `draft` (a new mission) from a template: it starts again from the blank form, so nothing of the previous
+-- choices is left behind. Returns true, or false for an unknown template.
+function ViewModel.PvPApplyPreset(draft, id)
+  for _, preset in ipairs(PRESETS) do
+    if preset.id == id then
+      local fresh = ViewModel.PvPMissionDraft(nil)
+      for key, value in pairs(preset.set()) do
+        fresh[key] = value
+      end
+      for key in pairs(draft) do
+        draft[key] = nil
+      end
+      for key, value in pairs(fresh) do
+        draft[key] = value
+      end
+      return true
+    end
+  end
+  return false
+end
+
+-- A sentence that says what the mission counts, from the fields PvPMissionFields gives (the live line under the form):
+-- "Counts honourable kills in Arathi Basin, 10 times, max 1 per victim per day, 50 points, weekly."
+-- `options` = { zoneName = function(mapId) -> text | nil, dateText = function(timestamp) -> text }.
+function ViewModel.PvPMissionSummary(fields, options)
+  options = options or {}
+  local goal = fields.goal
+  local parts = {}
+  local function add(text)
+    parts[#parts + 1] = text
+  end
+  if goal.kind == "manual" then
+    add(L("Counts nothing by itself: the member claims it with a note"))
+  else
+    local what = {
+      kills = L("Counts honourable kills"),
+      kos = L("Counts Kill on Sight kills"),
+      bg_wins = L("Counts battleground wins"),
+      bg_played = L("Counts battlegrounds played"),
+    }
+    local places = {}
+    for _, mapId in ipairs(goal.zones or {}) do
+      places[#places + 1] = options.zoneName and options.zoneName(mapId) or tostring(mapId)
+    end
+    for _, token in ipairs(goal.bgs or {}) do
+      places[#places + 1] = ViewModel.PVP_BATTLEGROUNDS[token] or token
+    end
+    if goal.place == "world" or goal.place == "bg" then
+      places[#places + 1] = ViewModel.PVP_PLACES[goal.place]
+    end
+    local first = what[goal.kind] or what.kills
+    if goal.target then
+      first = first .. " " .. L("of %s"):format(goal.target)
+    end
+    if #places > 0 then
+      first = first .. " " .. L("in %s"):format(table.concat(places, ", "))
+    end
+    add(first)
+    if goal.distinct and goal.distinct ~= "none" then
+      add(L("distinct by %s"):format(ViewModel.PVP_DISTINCT[goal.distinct]:lower()))
+    else
+      add(L("%d times"):format(goal.count))
+    end
+    if #(goal.victimClasses or {}) > 0 then
+      local names = {}
+      for _, token in ipairs(goal.victimClasses) do
+        names[#names + 1] = ViewModel.ClassText(token) or token
+      end
+      add(L("victims of class %s"):format(table.concat(names, ", ")))
+    end
+    if #(goal.victimRaces or {}) > 0 then
+      local names = {}
+      for _, token in ipairs(goal.victimRaces) do
+        names[#names + 1] = ViewModel.PvPRaceText(token)
+      end
+      add(L("victims of race %s"):format(table.concat(names, ", ")))
+    end
+    if goal.victimCapPerDay ~= nil then
+      add(
+        goal.victimCapPerDay == 0 and L("no cap per victim")
+          or L("max %d per victim per day"):format(goal.victimCapPerDay)
+      )
+    end
+    if (goal.minGuildInGroup or 0) > 0 then
+      add(L("with at least %d guildmates in the group"):format(goal.minGuildInGroup))
+    end
+    if goal.window and options.dateText then
+      add(L("only from %s to %s"):format(options.dateText(goal.window.startsAt), options.dateText(goal.window.endsAt)))
+    end
+  end
+  add(L("%d points"):format(fields.points))
+  add(ViewModel.PVP_REPEATS[fields.repeatKind]:lower())
+  if (fields.perPlayer or 1) > 1 then
+    add(L("%d times each"):format(fields.perPlayer))
+  end
+  if goal.maxCompletions then
+    add(L("at most %d completions per member"):format(goal.maxCompletions))
+  end
+  if goal.autoClaim then
+    add(L("claimed automatically"))
+  end
+  return table.concat(parts, ", ") .. "."
+end
+
+-- The Progress section of the admin: one block per mission with how far each member says they are.
+-- `board` = PvPSeasonService:ProgressBoard(seasonId), `missions` = the missions of the season, `options` = { now }.
+-- A block = { id, title, goal, rows = { { player, text, ratio, status = { text, color }, updated } } }, blocks by
+-- title;
+-- missions nobody reported on are left out.
+function ViewModel.PvPProgressBlocks(board, missions, options)
+  local blocks = {}
+  for _, mission in ipairs(missions) do
+    local list = board[mission.id]
+    if list and #list > 0 then
+      local rows = {}
+      for _, entry in ipairs(list) do
+        local status
+        if entry.claimed then
+          status = { text = L("Claimed"), color = "warning" }
+        elseif entry.ready then
+          status = { text = L("Ready to claim"), color = "accent" }
+        else
+          status = { text = L("In progress"), color = "muted" }
+        end
+        rows[#rows + 1] = {
+          player = Escape(entry.player),
+          text = ("%d / %d"):format(entry.count, entry.goal),
+          ratio = entry.goal > 0 and math.min(1, entry.count / entry.goal) or 0,
+          status = status,
+          updated = options and options.now and ViewModel.AgeText(math.max(0, options.now - entry.at)) or "",
+        }
+      end
+      blocks[#blocks + 1] = { id = mission.id, title = Escape(mission.title), goal = mission.goal, rows = rows }
+    end
+  end
+  return blocks
 end
 
 -- The keys (IntelModel.Key) of the players an open bounty names: the active missions of kind "kos" with a target.
@@ -733,9 +1169,25 @@ local RACE_NAMES = ns.Locale.Table(function()
   }
 end)
 
+-- The race file tokens the interface sees upper-cased (the log keeps them like that), as text.
+local RACE_NAMES_UPPER = ns.Locale.Table(function()
+  return {
+    HUMAN = L("Human"),
+    DWARF = L("Dwarf"),
+    NIGHTELF = L("Night Elf"),
+    GNOME = L("Gnome"),
+    DRAENEI = L("Draenei"),
+    ORC = L("Orc"),
+    SCOURGE = L("Undead"),
+    TAUREN = L("Tauren"),
+    TROLL = L("Troll"),
+    BLOODELF = L("Blood Elf"),
+  }
+end)
+
 -- A race file token as text (the token itself when it is not a known one).
 function ViewModel.PvPRaceText(token)
-  return RACE_NAMES[token] or tostring(token)
+  return RACE_NAMES[token] or RACE_NAMES_UPPER[token] or tostring(token)
 end
 
 local SUMMARY_PARTS = {
@@ -798,8 +1250,8 @@ local function evidenceRows(claim, options)
       or ViewModel.PVP_PLACES[entry.place or "any"]
       or "-"
     local info, unknown
-    if entry.bgWin then
-      info = L("Battleground win")
+    if entry.bgWin ~= nil then
+      info = entry.bgWin and L("Battleground win") or L("Battleground loss")
     elseif entry.class or entry.race then
       local parts = {}
       if entry.class then
@@ -814,7 +1266,7 @@ local function evidenceRows(claim, options)
     end
     rows[#rows + 1] = {
       time = options.formatClock and options.formatClock(entry.at) or tostring(entry.at),
-      victim = entry.bgWin and "-" or Escape(entry.victim or "?"),
+      victim = entry.bgWin ~= nil and "-" or Escape(entry.victim or "?"),
       zone = Escape(zone),
       info = Escape(info),
       unknown = unknown == true,

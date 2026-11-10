@@ -2,7 +2,7 @@ local _, ns = ...
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 19,
+  SCHEMA_VERSION = 20,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 14,
+  PROTOCOL_MINOR = 15,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -232,6 +232,14 @@ ns.Constants = {
   PVP_MISSION_COUNT_MAX = 500,
   PVP_MISSION_ZONES_MAX = 5,
   PVP_MISSION_PER_PLAYER_MAX = 10,
+  -- The optional goal fields (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.6): at most PVP_MISSION_FILTER_MAX classes or
+  -- races in a filter, a per-victim daily cap up to PVP_MISSION_VICTIM_CAP_MAX (0 = no cap), at most
+  -- PVP_MISSION_GUILD_GROUP_MAX guild members required in the group, at most PVP_MISSION_COMPLETIONS_MAX completions
+  -- per member in a season (0 = no limit).
+  PVP_MISSION_FILTER_MAX = 10,
+  PVP_MISSION_VICTIM_CAP_MAX = 20,
+  PVP_MISSION_GUILD_GROUP_MAX = 40,
+  PVP_MISSION_COMPLETIONS_MAX = 100,
   PVP_REASON_MAX = 100,
   PVP_NOTE_MAX = 100,
   PVP_PRIZE_ENTRIES_MAX = 5,
@@ -261,6 +269,13 @@ ns.Constants = {
   -- Ledger catch-up (PVP_LEDGER_REQ / PVP_LEDGER_DATA): a client asks after login and when a season becomes active;
   -- a trusted relay answers by whisper, at most once per requester per cooldown, in pages that fit the snapshot
   -- limit and hold at most PVP_LEDGER_PAGE_ITEMS items.
+  -- Progress summaries (PVP_PROGRESS): a member shares how far they are in each mission at most once per
+  -- PVP_PROGRESS_INTERVAL_SECONDS, and only when something changed. An approver keeps the last summary of at most
+  -- PVP_PROGRESS_MEMBERS_MAX members. A claimant sends its pending claims again when it hears a gm or cogm (a HELLO),
+  -- at most once per PVP_CLAIM_HELLO_COOLDOWN_SECONDS.
+  PVP_PROGRESS_INTERVAL_SECONDS = 120,
+  PVP_PROGRESS_MEMBERS_MAX = 1000,
+  PVP_CLAIM_HELLO_COOLDOWN_SECONDS = 120,
   PVP_LEDGER_REQUEST_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_SERVE_COOLDOWN_SECONDS = 60,
   PVP_LEDGER_PAGE_ITEMS = 400,
@@ -274,10 +289,13 @@ ns.Constants = {
   PVP_MIN_POINTS = 1,
 
   -- PvP missions: detection (docs/PVP_MISSIONS_PLAN.md, sections 2 and 5).
-  -- The own kill log of a character keeps at most PVP_MISSION_KILLS_MAX rows (oldest dropped first). A victim counts at
-  -- most PVP_VICTIM_DAILY_CAP times per server day across all missions. A battleground win is logged once per
-  -- instance (a marker saved with the log survives a reload and is cleared by the next real world entry).
-  PVP_MISSION_KILLS_MAX = 2000,
+  -- The own PvP log of a character (char.pvpLog.events: honour kills and battleground results) does not depend on
+  -- the season: it keeps the rows of the last PVP_LOG_RETENTION_DAYS days, at most PVP_LOG_EVENTS_MAX of them (oldest
+  -- dropped first). A victim counts at most PVP_VICTIM_DAILY_CAP times per server day across all missions that do not
+  -- set their own cap. A battleground result is logged once per instance (the record of the battleground is saved
+  -- with the log, so a reload does not log it again).
+  PVP_LOG_EVENTS_MAX = 3000,
+  PVP_LOG_RETENTION_DAYS = 45,
   PVP_VICTIM_DAILY_CAP = 3,
   -- The unit cache (victim class and race) lives in memory only: at most PVP_UNIT_CACHE_MAX names, least recently
   -- seen dropped first, and an entry older than PVP_UNIT_CACHE_TTL seconds is ignored.
@@ -287,6 +305,20 @@ ns.Constants = {
   -- tokens (the second return of UnitClass / UnitRace, upper-cased). The guild is Alliance (plan, section 7).
   PVP_ENEMY_CLASSES = { "DRUID", "HUNTER", "MAGE", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR" },
   PVP_ENEMY_RACES = { "ORC", "SCOURGE", "TAUREN", "TROLL" },
+  -- The same sets keyed by the faction of the PLAYER (the enemy sets of the other side), for a guild of either side.
+  -- Without a readable faction the lists above (the Horde side, an Alliance guild) apply.
+  PVP_ENEMY_CLASSES_BY_FACTION = {
+    Alliance = { "DRUID", "HUNTER", "MAGE", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR" },
+    Horde = { "DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE", "WARLOCK", "WARRIOR" },
+  },
+  PVP_ENEMY_RACES_BY_FACTION = {
+    Alliance = { "ORC", "SCOURGE", "TAUREN", "TROLL" },
+    Horde = { "DWARF", "GNOME", "HUMAN", "NIGHTELF" },
+  },
+  -- The battleground type by the map id of its instance (API_NOTES M9: not measured on Forever yet), and how often the
+  -- score data is requested while the player is inside one (the winner comes with it).
+  PVP_BG_BY_MAP = { [489] = "wsg", [529] = "ab", [30] = "av" },
+  PVP_BG_SCORE_POLL_SECONDS = 30,
   -- The zones an admin can pick for a mission: uiMapIds of the capitals and contested zones, with the English name
   -- (a key for L()). The ids are from the Classic map tables and are TO BE MEASURED on Forever (plan, M1); a zone
   -- whose id turns out wrong is fixed here, nothing else depends on the list.

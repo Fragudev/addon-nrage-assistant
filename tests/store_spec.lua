@@ -81,7 +81,7 @@ describe("Store.Load", function()
       local again = Store.Load(db)
       assert.is_nil(again.global.settings.intelShareNotice)
       assert.are.equal("Ann", again.global.intel.players.ann.name)
-      assert.are.equal(19, again.global.schemaVersion)
+      assert.are.equal(20, again.global.schemaVersion)
     end)
 
     it("repairs a damaged intel table without raising", function()
@@ -154,7 +154,7 @@ describe("Store.Load", function()
     assert.are.equal(raw, db)
     assert.are.equal("me", db.keep)
     assert.is_nil(db.schemaVersion)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
   end)
 
   it("is idempotent", function()
@@ -162,7 +162,7 @@ describe("Store.Load", function()
     db.global.roster["A-B"] = { level = 60 }
     local again = Store.Load(db)
     assert.are.equal(60, again.global.roster["A-B"].level)
-    assert.are.equal(19, again.global.schemaVersion)
+    assert.are.equal(20, again.global.schemaVersion)
   end)
 
   it("refuses data from a newer schema and leaves it untouched", function()
@@ -176,14 +176,14 @@ describe("Store.Load", function()
 
   it("recovers from corrupted values instead of raising", function()
     local db = Store.Load({ schemaVersion = "banana", global = "oops", chars = 5 })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.is_table(db.global.roster)
     assert.is_table(db.chars)
   end)
 
   it("treats a non-table saved variable as empty", function()
     local db = Store.Load("garbage")
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
   end)
 end)
 
@@ -218,7 +218,7 @@ describe("Store migration to schema 3", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.templates)
     assert.are.equal(60, db.global.roster["A-B"].level)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -246,7 +246,7 @@ describe("Store migration to schema 4", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({ minimap = {}, pvp = {}, intelShareNotice = true }, db.global.settings)
     assert.is_table(db.global.templates.Boss)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -273,7 +273,7 @@ describe("Store migration to schema 5", function()
     }
     local db = Store.Load(raw)
     assert.are.equal(raw, db)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.chars["Me-Realm"].pvp)
     assert.are.equal(60, db.chars["Me-Realm"].profile.level)
     assert.are.equal("oops", db.chars["Broken-Realm"])
@@ -333,7 +333,7 @@ describe("Store migration to schema 7", function()
   it("creates the PvP settings table and keeps the other settings", function()
     local raw = { global = { schemaVersion = 6, settings = { minimap = { angle = 90 }, pvp = nil } } }
     local db = Store.Load(raw)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.settings.pvp)
     assert.are.equal(90, db.global.settings.minimap.angle)
   end)
@@ -342,7 +342,7 @@ describe("Store migration to schema 7", function()
     local raw = { global = { schemaVersion = 6, settings = { pvp = { feedWorld = false, feedBg = true } } } }
     local db = Store.Load(raw)
     assert.are.same({ feedWorld = false, feedBg = true }, db.global.settings.pvp)
-    local again = Store.Load(db, 19)
+    local again = Store.Load(db, 20)
     assert.are.same({ feedWorld = false, feedBg = true }, again.global.settings.pvp)
     -- Running the migration again over an already migrated database changes nothing.
     db.global.schemaVersion = 6
@@ -362,7 +362,7 @@ describe("Store migration to schema 8", function()
     local raw =
       { global = { schemaVersion = 7, roster = { x = 1 }, sync = { tombstones = { ["B:x"] = { rev = 2 } } } } }
     local db = Store.Load(raw)
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.blacklist)
     assert.are.same({ x = 1 }, db.global.roster)
     assert.are.equal(2, db.global.sync.tombstones["B:x"].rev)
@@ -392,7 +392,7 @@ describe("Store migration to schema 9", function()
 
   it("adds an empty readinessRules table and keeps what is there", function()
     local db = Store.Load({ global = { schemaVersion = 8, blacklist = { x = { name = "X" } } } })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.readinessRules)
     assert.are.equal("X", db.global.blacklist.x.name)
   end)
@@ -409,7 +409,7 @@ describe("Store migration to schema 10", function()
 
   it("adds the empty rosters and members tables and keeps what is there", function()
     local db = Store.Load({ global = { schemaVersion = 9, events = { e = { title = "Raid" } } } })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.rosters)
     assert.are.same({}, db.global.members)
     assert.are.equal("Raid", db.global.events.e.title)
@@ -434,7 +434,7 @@ describe("Store migration to schema 11", function()
 
   it("adds the received recipes table and gives every saved character a recipes table", function()
     local db = Store.Load({ global = { schemaVersion = 10 }, chars = { ["Ann-Realm"] = { profile = {} } } })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     assert.are.same({}, db.global.recipes)
     assert.are.same({}, db.chars["Ann-Realm"].recipes)
   end)
@@ -456,7 +456,7 @@ describe("Store migration to schema 12", function()
 
   it("adds the empty PvP season ledger and gives every saved character a mission log", function()
     local db = Store.Load({ global = { schemaVersion = 11 }, chars = { ["Ann-Realm"] = { profile = {} } } })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     local season = db.global.pvpSeason
     for _, name in ipairs({
       "seasons",
@@ -473,7 +473,9 @@ describe("Store migration to schema 12", function()
       assert.are.same({}, season[name])
     end
     assert.is_nil(season.activeId)
-    assert.are.same({}, db.chars["Ann-Realm"].pvpMissions)
+    -- schema 18 moved the per-character log on: nothing of the old table is left
+    assert.is_nil(db.chars["Ann-Realm"].pvpMissions)
+    assert.are.same({}, db.chars["Ann-Realm"].pvpLog.events)
   end)
 
   it("is idempotent and keeps a ledger that was already saved", function()
@@ -486,11 +488,13 @@ describe("Store migration to schema 12", function()
     assert.are.equal("One", Store.Load(db).global.pvpSeason.seasons.s1.name)
   end)
 
-  it("creates the mission log of a new character", function()
+  it("creates the PvP log and the claims of a new character", function()
     local db = Store.Load({})
     local char = Store.GetChar(db, "New-Realm")
-    assert.are.same({}, char.pvpMissions.kills)
-    assert.are.same({}, char.pvpMissions.claims)
+    assert.are.same({}, char.pvpLog.events)
+    assert.are.equal(1, char.pvpLog.version)
+    assert.are.same({}, char.pvpClaims)
+    assert.is_nil(char.pvpMissions)
   end)
 end)
 
@@ -505,7 +509,7 @@ describe("Store migration to schema 13", function()
     local old =
       { rev = 4, updatedAt = 90, updatedBy = "Boss-Realm", rules = { { id = "level", check = "level", min = 60 } } }
     local db = Store.Load({ global = { schemaVersion = 12, rosters = rosters(), readinessRules = old } })
-    assert.are.equal(19, db.global.schemaVersion)
+    assert.are.equal(20, db.global.schemaVersion)
     for _, id in ipairs({ "r1", "r2" }) do
       local record = db.global.readinessRulesByRoster[id]
       assert.are.same({ 4, 90, "Boss-Realm" }, { record.rev, record.updatedAt, record.updatedBy })
@@ -537,5 +541,88 @@ describe("Store migration to schema 13", function()
     assert.is_table(db.global.readinessRulesByRoster.r2)
     db.global.schemaVersion = 12
     assert.are.equal(mine, Store.Load(db).global.readinessRulesByRoster.r1)
+  end)
+end)
+
+describe("Store migration to schema 18", function()
+  local Store, Constants = load_store()
+
+  local function old_char()
+    return {
+      pvpMissions = {
+        seasonId = "s1",
+        kills = {
+          { at = 300, victim = "Zed", place = "world", mapId = 1411, class = "MAGE", kos = true },
+          { at = 100, bgWin = true, mapId = 1411 },
+          { at = 200, victim = "Amy", place = "bg" },
+        },
+        claims = { ["Ann:m1:20261020:1"] = { claim = { id = "Ann:m1:20261020:1" }, state = "approved" } },
+      },
+    }
+  end
+
+  it("moves the kills and battleground wins into the log in time order, and the claims by season", function()
+    local db = Store.Load({ global = { schemaVersion = 19 }, chars = { ["Ann-Realm"] = old_char() } })
+    local char = db.chars["Ann-Realm"]
+    assert.is_nil(char.pvpMissions)
+    assert.are.equal(3, #char.pvpLog.events)
+    assert.are.same({ kind = "bg", result = "win", at = 100, mapId = 1411 }, char.pvpLog.events[1])
+    assert.are.same({ kind = "kill", honor = true, at = 200, victim = "Amy", place = "bg" }, char.pvpLog.events[2])
+    assert.are.same({
+      kind = "kill",
+      honor = true,
+      at = 300,
+      victim = "Zed",
+      place = "world",
+      mapId = 1411,
+      class = "MAGE",
+      kos = true,
+    }, char.pvpLog.events[3])
+    assert.are.equal("approved", char.pvpClaims.s1["Ann:m1:20261020:1"].state)
+  end)
+
+  it("keeps the newest rows when there are more than the log holds", function()
+    local kills = {}
+    for index = 1, Constants.PVP_LOG_EVENTS_MAX + 5 do
+      kills[index] = { at = index, victim = "V" .. index, place = "world" }
+    end
+    local db = Store.Load({
+      global = { schemaVersion = 19 },
+      chars = { ["Ann-Realm"] = { pvpMissions = { kills = kills, claims = {} } } },
+    })
+    local events = db.chars["Ann-Realm"].pvpLog.events
+    assert.are.equal(Constants.PVP_LOG_EVENTS_MAX, #events)
+    assert.are.equal("V6", events[1].victim)
+  end)
+
+  it("is idempotent: running it again changes nothing", function()
+    local db = Store.Load({ global = { schemaVersion = 19 }, chars = { ["Ann-Realm"] = old_char() } })
+    db.global.schemaVersion = 19
+    db = Store.Load(db)
+    assert.are.equal(3, #db.chars["Ann-Realm"].pvpLog.events)
+    assert.is_table(db.chars["Ann-Realm"].pvpClaims.s1)
+  end)
+
+  it("keeps rows and claims already held, and copes with a bare character", function()
+    local char = old_char()
+    char.pvpLog = { events = { { kind = "kill", at = 50, victim = "Old", place = "world" } }, version = 1 }
+    char.pvpClaims = { s1 = { ["Ann:m1:20261020:1"] = { state = "pending" } } }
+    local db = Store.Load({
+      global = { schemaVersion = 19 },
+      chars = { ["Ann-Realm"] = char, ["Bob-Realm"] = {} },
+    })
+    local saved = db.chars["Ann-Realm"]
+    assert.are.equal(4, #saved.pvpLog.events)
+    assert.are.equal("Old", saved.pvpLog.events[1].victim)
+    assert.are.equal("pending", saved.pvpClaims.s1["Ann:m1:20261020:1"].state)
+    assert.are.same({}, db.chars["Bob-Realm"].pvpLog.events)
+  end)
+
+  it("keeps the claims of a character whose old log had no kills", function()
+    local db = Store.Load({
+      global = { schemaVersion = 19 },
+      chars = { ["Ann-Realm"] = { pvpMissions = { seasonId = "s2", claims = { c = { state = "pending" } } } } },
+    })
+    assert.are.equal("pending", db.chars["Ann-Realm"].pvpClaims.s2.c.state)
   end)
 end)

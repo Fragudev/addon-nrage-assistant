@@ -76,14 +76,17 @@ end
 local MERGE = Constants.PVP_FEED_MERGE_SECONDS
 
 describe("PvPFeed own kills", function()
-  it("tells the listener once per honour kill, also when the killing blow came first", function()
+  it("tells the listener about every honour kill, also two of the same victim inside the merge window", function()
     local env = build()
     env.feed:OnHonorKill("Zed", "world")
     env.feed:OnHonorKill("zed", "world")
     env.feed:OnKillingBlow("Zed", "world")
-    assert.are.equal(1, #env.honor)
+    assert.are.equal(2, #env.honor)
     assert.are.equal("Zed", env.honor[1].victim)
+    assert.are.equal("zed", env.honor[2].victim)
     assert.are.equal(5100, env.honor[1].time)
+    -- the feed still shows and sends one merged entry
+    assert.are.equal(1, #env.feed:Entries())
 
     env = build()
     env.feed:OnKillingBlow("Zed", "world")

@@ -137,18 +137,12 @@ function PvPFeed:Own(victim, where, blow)
 end
 
 function PvPFeed:OnHonorKill(victim, where)
-  local started = self:Own(victim, where, false)
-  if self.deps.onHonorKill and type(victim) == "string" then
-    local key = victim:lower()
-    for _, entry in ipairs(self.own) do
-      if entry.key == key and not entry.honor then
-        entry.honor = true
-        pcall(self.deps.onHonorKill, entry)
-        break
-      end
-    end
+  -- The mission log hears every honour kill before the feed merges it with another one of the same victim: the merge
+  -- is for the display and the guild message only.
+  if self.deps.onHonorKill and validKill(victim, where) then
+    pcall(self.deps.onHonorKill, { victim = victim, where = where, time = self.deps.serverTime() })
   end
-  return started
+  return self:Own(victim, where, false)
 end
 
 function PvPFeed:OnKillingBlow(victim, where)

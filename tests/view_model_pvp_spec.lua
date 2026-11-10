@@ -13,6 +13,7 @@ local function load_view_model(locale)
     "Domain/Settings",
     "Domain/ModuleService",
     "Domain/PvPSeasonModel",
+    "Domain/PvPMissionTracker",
     "Domain/IntelModel",
     "Domain/RosterService",
     "Domain/RecipeService",
@@ -90,10 +91,10 @@ describe("ViewModel.PvPSubTabs", function()
 
   it("gives an admin all the admin sections and an officer only approvals and deliveries", function()
     local admin = ViewModel.PvPAdminSections({ manage = true, pending = 3 })
-    assert.are.same({ "approvals", "missions", "season", "prizes", "deliveries" }, values(admin))
+    assert.are.same({ "approvals", "progress", "missions", "season", "prizes", "deliveries" }, values(admin))
     assert.are.equal("Approvals (3)", admin[1].text)
     local officer = ViewModel.PvPAdminSections({ manage = false, pending = 0 })
-    assert.are.same({ "approvals", "deliveries" }, values(officer))
+    assert.are.same({ "approvals", "progress", "deliveries" }, values(officer))
     assert.are.equal("Approvals", officer[1].text)
   end)
 
@@ -416,7 +417,7 @@ describe("ViewModel mission criteria and cards", function()
       card.noteRequired,
     })
     assert.are.same({ label = "Kills", text = "10 / 10", ratio = 1, complete = true }, card.bars[1])
-    assert.is_nil(card.status)
+    assert.are.same({ text = "Ready to claim", color = "accent" }, card.status)
     assert.is_nil(card.note)
   end)
 
@@ -655,8 +656,11 @@ describe("ViewModel mission form", function()
   end)
 
   it("offers the goal kinds, hiding battleground wins when the client cannot read them", function()
-    assert.are.same({ "kills", "kos", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices(nil)))
-    assert.are.same({ "kills", "kos", "bg_wins", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = true })))
+    assert.are.same({ "kills", "kos", "bg_wins", "manual", "bg_played" }, values(ViewModel.PvPGoalChoices(nil)))
+    assert.are.same(
+      { "kills", "kos", "bg_wins", "manual", "bg_played" },
+      values(ViewModel.PvPGoalChoices({ bgWins = true }))
+    )
     assert.are.same({ "kills", "kos", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = false })))
     assert.are.same({ "any", "world", "bg" }, values(ViewModel.PvPPlaceChoices()))
     assert.are.same({ "none", "name", "class", "race", "class_race" }, values(ViewModel.PvPDistinctChoices()))
@@ -670,6 +674,353 @@ describe("ViewModel mission form", function()
       return id == "s2" and 4 or 0
     end)
     assert.are.same({ { value = "s2", text = "Summer (4)" } }, items)
+  end)
+end)
+
+describe("ViewModel mission options (Advanced section)", function()
+  local function draft(change)
+    local d = ViewModel.PvPMissionDraft(nil)
+    d.title = "Event"
+    for key, value in pairs(change or {}) do
+      d[key] = value
+    end
+    return d
+  end
+
+  local function validates(fields)
+    return ns.PvPSeasonModel.ValidateMission({
+      id = "m1",
+      seasonId = "s1",
+      title = fields.title,
+      points = fields.points,
+      goal = fields.goal,
+      repeatKind = fields.repeatKind,
+      rev = 1,
+      updatedAt = 1,
+    })
+  end
+
+  it("writes no optional field for a plain draft, so the goal stays as before", function()
+    local fields = assert(ViewModel.PvPMissionFields(draft()))
+    assert.are.same({ kind = "kills", count = 10, zones = {}, place = "any", distinct = "none" }, fields.goal)
+    assert.is_false(ViewModel.PvPHasAdvanced(draft()))
+  end)
+
+  it("turns the Advanced draft into goal fields", function()
+    local fields = assert(ViewModel.PvPMissionFields(draft({
+      victimClasses = { "MAGE" },
+      victimRaces = { "ORC", "TROLL" },
+      victimCap = "1",
+      minGuild = "3",
+      windowOn = true,
+      windowStart = 100,
+      windowEnd = 200,
+      maxCompletions = "2",
+      autoClaim = true,
+    })))
+    local goal = fields.goal
+    assert.are.same({ "MAGE" }, goal.victimClasses)
+    assert.are.same({ "ORC", "TROLL" }, goal.victimRaces)
+    assert.are.equal(1, goal.victimCapPerDay)
+    assert.are.equal(3, goal.minGuildInGroup)
+    assert.are.same({ startsAt = 100, endsAt = 200 }, goal.window)
+    assert.are.equal(2, goal.maxCompletions)
+    assert.is_true(goal.autoClaim)
+    assert.is_true(ViewModel.PvPHasAdvanced(draft({ autoClaim = true })))
+    -- the service accepts what the form writes
+    assert.is_truthy(validates(fields))
+  end)
+
+  it("keeps the cap 0 (no cap) and leaves an empty cap out", function()
+    assert.are.equal(0, assert(ViewModel.PvPMissionFields(draft({ victimCap = "0" }))).goal.victimCapPerDay)
+    assert.is_nil(assert(ViewModel.PvPMissionFields(draft({ victimCap = "  " }))).goal.victimCapPerDay)
+  end)
+
+  it("only writes the fields that apply to the kind", function()
+    local wins = assert(ViewModel.PvPMissionFields(draft({
+      kind = "bg_played",
+      bgs = { "wsg", "av" },
+      victimClasses = { "MAGE" },
+      minGuild = "3",
+      victimCap = "2",
+    })))
+    assert.are.same({ "wsg", "av" }, wins.goal.bgs)
+    assert.is_nil(wins.goal.victimClasses)
+    assert.is_nil(wins.goal.minGuildInGroup)
+    assert.is_nil(wins.goal.victimCapPerDay)
+    local manual = assert(ViewModel.PvPMissionFields(draft({ kind = "manual", autoClaim = true, windowOn = true })))
+    assert.is_nil(manual.goal.autoClaim)
+    assert.is_nil(manual.goal.window)
+  end)
+
+  it("refuses numbers that are not numbers and a window with a missing date", function()
+    assert.are.same({ nil, "invalid:victimCapPerDay" }, { ViewModel.PvPMissionFields(draft({ victimCap = "x" })) })
+    assert.are.same({ nil, "invalid:minGuildInGroup" }, { ViewModel.PvPMissionFields(draft({ minGuild = "1.5" })) })
+    assert.are.same({ nil, "invalid:maxCompletions" }, { ViewModel.PvPMissionFields(draft({ maxCompletions = "z" })) })
+    assert.are.same(
+      { nil, "invalid:window" },
+      { ViewModel.PvPMissionFields(draft({ windowOn = true, windowStart = 5 })) }
+    )
+  end)
+
+  it("edits a saved mission with its options and writes them back unchanged", function()
+    local mission = {
+      id = "m1",
+      title = "Event",
+      desc = "",
+      points = 20,
+      repeatKind = "weekly",
+      perPlayer = 1,
+      active = true,
+      goal = {
+        kind = "kills",
+        count = 4,
+        zones = {},
+        place = "any",
+        distinct = "none",
+        victimClasses = { "ROGUE" },
+        victimCapPerDay = 0,
+        minGuildInGroup = 2,
+        window = { startsAt = 10, endsAt = 20 },
+        maxCompletions = 3,
+        autoClaim = true,
+      },
+    }
+    local edited = ViewModel.PvPMissionDraft(mission)
+    assert.is_true(ViewModel.PvPHasAdvanced(edited))
+    assert.are.same(mission.goal, assert(ViewModel.PvPMissionFields(edited)).goal)
+  end)
+
+  it("toggles tokens in a draft list without repeats", function()
+    local d = draft()
+    ViewModel.PvPToggleToken(d, "victimClasses", "MAGE", true)
+    ViewModel.PvPToggleToken(d, "victimClasses", "ROGUE", true)
+    ViewModel.PvPToggleToken(d, "victimClasses", "MAGE", true)
+    assert.are.same({ "ROGUE", "MAGE" }, d.victimClasses)
+    ViewModel.PvPToggleToken(d, "victimClasses", "ROGUE", false)
+    assert.are.same({ "MAGE" }, d.victimClasses)
+  end)
+
+  it("offers the battlegrounds and the enemy classes and races of the other side", function()
+    assert.are.same({ "wsg", "ab", "av" }, values(ViewModel.PvPBattlegroundChoices()))
+    local classes, races = ViewModel.PvPEnemyChoices("Alliance")
+    assert.are.same(ns.Constants.PVP_ENEMY_CLASSES_BY_FACTION.Alliance, values(classes))
+    assert.are.same({ "ORC", "SCOURGE", "TAUREN", "TROLL" }, values(races))
+    assert.are.equal("Undead", races[2].text)
+    local _, hordeRaces = ViewModel.PvPEnemyChoices("Horde")
+    assert.are.equal("Night Elf", hordeRaces[4].text)
+  end)
+
+  it("fills the form from each template with a mission the service accepts", function()
+    local choices = ViewModel.PvPPresetChoices()
+    assert.are.equal(5, #choices)
+    for _, choice in ipairs(choices) do
+      local d = draft({ title = "old", victimClasses = { "MAGE" }, autoClaim = true })
+      assert.is_true(ViewModel.PvPApplyPreset(d, choice.value))
+      assert.are_not.equal("old", d.title)
+      assert.is_nil(d.id)
+      local fields = assert(ViewModel.PvPMissionFields(d))
+      assert.is_truthy(validates(fields), choice.value)
+      -- the template starts from the blank form: nothing of the previous choices is left
+      assert.is_nil(fields.goal.victimClasses)
+      assert.is_nil(fields.goal.autoClaim)
+    end
+    assert.is_false(ViewModel.PvPApplyPreset(draft(), "nope"))
+  end)
+
+  it("describes a mission in one sentence", function()
+    local wins = assert(ViewModel.PvPMissionFields(draft({
+      kind = "bg_wins",
+      count = "10",
+      bgs = { "ab" },
+      points = "50",
+      repeatKind = "weekly",
+    })))
+    assert.are.equal(
+      "Counts battleground wins in Arathi Basin, 10 times, 50 points, weekly.",
+      ViewModel.PvPMissionSummary(wins, {})
+    )
+    local kills = assert(ViewModel.PvPMissionFields(draft({
+      count = "5",
+      place = "world",
+      victimClasses = { "MAGE" },
+      victimCap = "1",
+      minGuild = "3",
+      maxCompletions = "2",
+      autoClaim = true,
+      repeatKind = "daily",
+    })))
+    assert.are.equal(
+      "Counts honourable kills in Open world, 5 times, victims of class Mage, max 1 per victim per day,"
+        .. " with at least 3 guildmates in the group, 10 points, daily, at most 2 completions per member,"
+        .. " claimed automatically.",
+      ViewModel.PvPMissionSummary(kills, {})
+    )
+    local manual = assert(ViewModel.PvPMissionFields(draft({ kind = "manual" })))
+    assert.is_truthy(ViewModel.PvPMissionSummary(manual, {}):find("claims it with a note", 1, true))
+    local windowed =
+      assert(ViewModel.PvPMissionFields(draft({ windowOn = true, windowStart = T0, windowEnd = T0 + DAY })))
+    local text = ViewModel.PvPMissionSummary(windowed, {
+      dateText = function(timestamp)
+        return "t" .. (timestamp - T0)
+      end,
+    })
+    assert.is_truthy(text:find("only from t0 to t86400", 1, true))
+  end)
+
+  it("shows the chips of the new options and the battleground kinds", function()
+    local mission = {
+      repeatKind = "weekly",
+      goal = {
+        kind = "kills",
+        count = 3,
+        zones = {},
+        victimClasses = { "MAGE" },
+        victimRaces = { "ORC" },
+        victimCapPerDay = 0,
+        minGuildInGroup = 2,
+        window = { startsAt = 1, endsAt = 2 },
+        maxCompletions = 2,
+        autoClaim = true,
+      },
+    }
+    local chips = table.concat(ViewModel.PvPCriteriaChips(mission), "|")
+    for _, part in ipairs({
+      "Classes: Mage",
+      "Races: Orc",
+      "No cap per victim",
+      "2+ guildmates",
+      "Event window",
+      "Max 2 completions",
+      "Auto-claim",
+    }) do
+      assert.is_truthy(chips:find(part, 1, true), part)
+    end
+    local played = table.concat(
+      ViewModel.PvPCriteriaChips({
+        repeatKind = "daily",
+        goal = { kind = "bg_played", count = 4, bgs = { "wsg", "av" } },
+      }),
+      "|"
+    )
+    assert.is_truthy(played:find("4 played", 1, true))
+    assert.is_truthy(played:find("Warsong Gulch, Alterac Valley", 1, true))
+  end)
+
+  it("needs the class and race detection for a filter, and the winner for battlegrounds played", function()
+    assert.is_false(ViewModel.PvPGoalAvailable({ kind = "kills", victimClasses = { "MAGE" } }, { classRace = false }))
+    assert.is_true(ViewModel.PvPGoalAvailable({ kind = "kills", victimClasses = {} }, { classRace = false }))
+    assert.is_false(ViewModel.PvPGoalAvailable({ kind = "bg_played" }, { bgWins = false }))
+  end)
+end)
+
+describe("ViewModel mission cards: rules, since when and state", function()
+  local mission = {
+    id = "m1",
+    title = "Hunt",
+    desc = "",
+    points = 20,
+    repeatKind = "weekly",
+    perPlayer = 1,
+    active = true,
+    goal = { kind = "kills", count = 5, zones = {}, place = "any", distinct = "none", victimCapPerDay = 1 },
+  }
+  local function card(progress, state, extra)
+    local options = {
+      tracker = true,
+      progressOf = function()
+        return progress
+      end,
+      claimStateOf = function()
+        return state or "none"
+      end,
+      now = T0 + 12 * 3600,
+      season = { startsAt = T0 - 10 * DAY },
+    }
+    for key, value in pairs(extra or {}) do
+      options[key] = value
+    end
+    return ViewModel.PvPMissionCards({ mission }, options)[1]
+  end
+
+  it("says the rules in plain words", function()
+    local c = card({ bars = {}, complete = false, claimable = false })
+    assert.are.equal("Counts honourable kills, 5 times, max 1 per victim per day, 20 points, weekly.", c.rules)
+  end)
+
+  it("says since when it counts: the day, the week (from Monday), the season or the event window", function()
+    -- 2026-10-20 is a Tuesday: the week counts from Monday the 19th at 00:00
+    local weekly = card({ bars = {}, complete = false, claimable = false }).countsFrom
+    assert.is_truthy(weekly:find("Counts from Mon 19 Oct", 1, true))
+    mission.repeatKind = "daily"
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Tue 20 Oct", 1, true))
+    mission.repeatKind = "once"
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Sat 10 Oct", 1, true))
+    mission.goal.window = { startsAt = T0 + 3600, endsAt = T0 + 7200 }
+    assert.is_truthy(card({ bars = {}, complete = false, claimable = false }).countsFrom:find("Tue 20 Oct", 1, true))
+    mission.goal.window = nil
+    mission.repeatKind = "weekly"
+    assert.is_nil(card({ bars = {}, complete = false, claimable = false }, "none", { now = "x" }).countsFrom)
+  end)
+
+  it("tells in progress, ready to claim, claimed (pending) and approved apart", function()
+    local progress = { bars = { { label = "Kills", done = 2, total = 5 } }, complete = false, claimable = false }
+    assert.are.equal("In progress", card(progress).status.text)
+    local ready = { bars = { { label = "Kills", done = 5, total = 5 } }, complete = true, claimable = true }
+    assert.are.equal("Ready to claim", card(ready).status.text)
+    assert.are.equal("Pending approval", card(ready, "pending").status.text)
+    assert.are.equal("Approved", card(ready, "approved").status.text)
+    -- a manual mission has no "ready": the member decides
+    mission.goal.kind = "manual"
+    assert.is_nil(card({ bars = {}, complete = true, claimable = true }).status)
+    mission.goal.kind = "kills"
+  end)
+end)
+
+describe("ViewModel.PvPProgressBlocks", function()
+  local missions = {
+    { id = "m1", title = "Hunt", goal = { kind = "kills" } },
+    { id = "m2", title = "Wins", goal = { kind = "bg_wins" } },
+  }
+
+  it("blocks the missions somebody reported on, with the closest member first and a state per member", function()
+    local board = {
+      m1 = {
+        { player = "Bob", count = 5, goal = 5, ready = true, claimed = true, at = T0 },
+        { player = "Ann", count = 5, goal = 5, ready = true, claimed = false, at = T0 - 600 },
+        { player = "Cat", count = 1, goal = 5, ready = false, claimed = false, at = T0 - 7200 },
+      },
+    }
+    local blocks = ViewModel.PvPProgressBlocks(board, missions, { now = T0 + 60 })
+    assert.are.equal(1, #blocks)
+    assert.are.equal("Hunt", blocks[1].title)
+    assert.are.same({ "Bob", "Ann", "Cat" }, {
+      blocks[1].rows[1].player,
+      blocks[1].rows[2].player,
+      blocks[1].rows[3].player,
+    })
+    assert.are.same({ "Claimed", "Ready to claim", "In progress" }, {
+      blocks[1].rows[1].status.text,
+      blocks[1].rows[2].status.text,
+      blocks[1].rows[3].status.text,
+    })
+    assert.are.same(
+      { "5 / 5", 1, "1 min ago" },
+      { blocks[1].rows[1].text, blocks[1].rows[1].ratio, blocks[1].rows[1].updated }
+    )
+    assert.are.equal("11 min ago", blocks[1].rows[2].updated)
+    assert.are.equal(0.2, blocks[1].rows[3].ratio)
+  end)
+
+  it("is empty when nobody reported, and escapes the names", function()
+    assert.are.same({}, ViewModel.PvPProgressBlocks({}, missions, {}))
+    local blocks = ViewModel.PvPProgressBlocks(
+      { m2 = { { player = "|cffff0000Eve", count = 0, goal = 2, ready = false, claimed = false, at = T0 } } },
+      missions,
+      {}
+    )
+    assert.are.equal("||cffff0000Eve", blocks[1].rows[1].player)
+    assert.are.equal("", blocks[1].rows[1].updated)
   end)
 end)
 

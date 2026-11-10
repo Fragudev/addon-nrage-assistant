@@ -111,6 +111,19 @@ local PVP_MISSION_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_U
 local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
 local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
 local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
+-- The score update brings the winner of a battleground too, and the end of a fight is a good moment to ask for it.
+local PVP_MISSION_SCORE_EVENT = "UPDATE_BATTLEFIELD_SCORE"
+local PVP_MISSION_REGEN_EVENT = "PLAYER_REGEN_ENABLED"
+
+-- Runs a handler of the PvP missions. One that raises never reaches the client: it is listed with the startup errors
+-- (ns.ReportStartupError, for /nrage debug) and costs nothing else.
+local function GuardedMissionCall(name, handler, ...)
+  local ok, err = pcall(handler, ...)
+  if not ok and ns.ReportStartupError then
+    ns.ReportStartupError(name, err)
+  end
+  return ok
+end
 
 -- Builds ns.pvpMissions (the kill log, progress and claims of the PvP missions) and its events. Returns the service,
 -- or nil when it cannot start. A failing handler never raises into the client.
@@ -121,7 +134,10 @@ local function StartPvPMissions(feed)
   local missions = ns.PvPMissionService.New({
     season = ns.pvpSeason,
     log = function()
-      return ns.character and ns.character.pvpMissions
+      return ns.character and ns.character.pvpLog
+    end,
+    claims = function()
+      return ns.character and ns.character.pvpClaims
     end,
     cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
     now = ns.Platform.ServerTime,
@@ -138,13 +154,57 @@ local function StartPvPMissions(feed)
       local guildKos = ns.db and ns.db.global and ns.db.global.guildKos
       return guildKos ~= nil and ns.GuildKosService.Find(guildKos, name) ~= nil
     end,
+    -- The guild members in the party or raid of the player, the player excluded (for the missions that ask for a
+    -- group). Names the client gives without the realm are matched with the guild roster.
+    guildInGroup = function()
+      local roster = ns.guildRoster
+      if not (roster and roster:IsReady() and ns.Platform.IsInGroup()) then
+        return 0
+      end
+      local own = ns.Platform.GetPlayerName()
+      local count = 0
+      for _, name in ipairs(ns.Platform.GetGroupMemberNames()) do
+        if name ~= own and roster:Canonical(name) then
+          count = count + 1
+        end
+      end
+      return count
+    end,
+    onAutoClaim = function(mission)
+      print(("%s %s"):format(PREFIX, L("Mission claimed automatically: %s"):format(mission.title)))
+    end,
     onChange = function()
       if ns.UI and ns.UI.PvPChanged then
         ns.UI.PvPChanged()
       end
+      if ns.pvpProgress then
+        ns.pvpProgress:Changed()
+      end
     end,
   })
   ns.pvpMissions = missions
+
+  -- The own progress goes to the approvers by itself (numbers only), and a gm or cogm coming online gets the claims
+  -- that nobody has decided yet.
+  if ns.PvPProgressPublisher and ns.comm then
+    ns.pvpProgress = ns.PvPProgressPublisher.New({
+      missions = missions,
+      season = ns.pvpSeason,
+      send = function(payload)
+        return ns.comm:SendPvPProgress(payload)
+      end,
+      now = ns.Platform.ServerTime,
+      schedule = C_Timer.After,
+      random = math.random,
+      isActive = function()
+        return ns.active == true
+      end,
+    })
+    ns.pvpProgress:SendAtLogin()
+    ns.comm.onApproverHello = function()
+      GuardedMissionCall("pvpMissions.approverSeen", missions.OnApproverSeen, missions)
+    end
+  end
 
   local frame = CreateFrame("Frame")
   for event in pairs(PVP_MISSION_UNITS) do
@@ -153,6 +213,8 @@ local function StartPvPMissions(feed)
   missions.unitSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_NAMEPLATE_EVENT) or missions.unitSource
   missions.winSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WIN_EVENT)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
+  ns.Platform.TryRegisterEvent(frame, PVP_MISSION_SCORE_EVENT)
+  ns.Platform.TryRegisterEvent(frame, PVP_MISSION_REGEN_EVENT)
   -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit.
   frame:SetScript("OnEvent", function(_, event, unit, isReloadingUi)
     if not ns.modules:IsEnabled("pvp") then
@@ -162,9 +224,13 @@ local function StartPvPMissions(feed)
       return
     end
     if event == PVP_MISSION_WIN_EVENT then
-      pcall(missions.OnBattlegroundStatus, missions)
+      GuardedMissionCall("pvpMissions.battlegroundStatus", missions.OnBattlegroundStatus, missions)
+    elseif event == PVP_MISSION_SCORE_EVENT then
+      GuardedMissionCall("pvpMissions.battlegroundScore", missions.OnBattlegroundScore, missions)
+    elseif event == PVP_MISSION_REGEN_EVENT then
+      GuardedMissionCall("pvpMissions.combatEnded", missions.OnCombatEnded, missions)
     elseif event == PVP_MISSION_WORLD_EVENT then
-      missions:OnWorldEntered(unit, isReloadingUi)
+      GuardedMissionCall("pvpMissions.worldEntered", missions.OnWorldEntered, missions, unit, isReloadingUi)
     else
       pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
     end
@@ -1275,6 +1341,10 @@ end
 -- A PvP season record changed here or arrived from the guild: the interface follows (the PvP tab, until it has its own
 -- sub-tabs, redraws like for any other PvP change).
 function ns.PvPSeasonChanged(messageType)
+  -- A season record changed (not a summary from another member): the own progress may have changed with it.
+  if messageType ~= "PVP_PROGRESS" and ns.pvpProgress then
+    ns.pvpProgress:Changed()
+  end
   if ns.UI and ns.UI.PvPSeasonChanged then
     ns.UI.PvPSeasonChanged(messageType)
   elseif ns.UI and ns.UI.PvPChanged then
@@ -1282,10 +1352,10 @@ function ns.PvPSeasonChanged(messageType)
   end
 end
 
--- A season closed: the detail of it that this character kept (kills and claims) is dropped; only the final standing
--- stays.
+-- A season closed: the claims this character kept for it are dropped; only the final standing stays. The PvP log is
+-- not tied to a season.
 function ns.PvPSeasonClosed(seasonId)
-  ns.PvPSeasonService.ClearMissionLog(ns.character and ns.character.pvpMissions, seasonId)
+  ns.PvPSeasonService.ClearClaims(ns.character and ns.character.pvpClaims, seasonId)
 end
 
 -- The PvP seasons (docs/PVP_MISSIONS_PLAN.md): the service the interface and the interim commands use. Runs once.
@@ -1521,6 +1591,13 @@ ns.modules = ns.ModuleService.New({
 ns.startupErrors = {}
 local STARTUP_ERRORS_MAX = 20
 
+-- Lists an error of `step` with the startup ones (a handler that runs after the activation, like the PvP missions').
+function ns.ReportStartupError(step, err)
+  if #ns.startupErrors < STARTUP_ERRORS_MAX then
+    ns.startupErrors[#ns.startupErrors + 1] = { step = step, error = tostring(err) }
+  end
+end
+
 local function ReportStartupFailures(failed)
   if startupFailureShown or #failed == 0 then
     return
@@ -1549,9 +1626,7 @@ local function Activate()
       local ok, err = pcall(step.run)
       if not ok then
         -- A core step is tried again on every guild event: the list keeps the first failures only.
-        if #ns.startupErrors < STARTUP_ERRORS_MAX then
-          ns.startupErrors[#ns.startupErrors + 1] = { step = step.name, error = tostring(err) }
-        end
+        ns.ReportStartupError(step.name, err)
         failed[#failed + 1] = step.name
         if step.core then
           ns.active = false

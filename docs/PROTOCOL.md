@@ -31,14 +31,15 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
 ```
 
 - `v` must equal the receiver's major version (currently 1); a different major is reported as an incompatible
-  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 11): a client
+  peer and the local data is left alone. `m` only adds optional fields and new message types (currently 13 in the PvP tracking branch; see the list below): a client
   that does not know a field drops it while validating, and a client that does not know a message type drops the
   message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
   below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`); minor 7 added the PvP season messages
   (`PVP_SEASON` and the others of the "PvP seasons" section); minor 8 added event sign-up (`SIGNUP_UPSERT`); minor 9
   replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`; minor 10 added the guild Kill on Sight messages
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
-  `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*).
+  `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
+  ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below.
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -79,7 +80,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `ROSTER_RULES` | guild | `rosterId`, `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Readiness rules per roster) | gm, cogm; rl for its own roster |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
-| `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct}`, `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
+| `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct, target?, bgs[]?, victimClasses[]?, victimRaces[]?, victimCapPerDay?, minGuildInGroup?, window{startsAt, endsAt}?, maxCompletions?, autoClaim?}` (kinds `kills`, `kos`, `bg_wins`, `bg_played`, `manual`), `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
 | `PVP_PRIZES` | guild | `seasonId`, `tiers{["1"], ["2"], ["3"], ["4-6"], ["7-10"]}` (up to 5 gold or item rewards each), `rev`, `updatedAt` | admin |
 | `PVP_OFFICER` | guild | `player`, `intervals[]` (`from`, optional `to`; up to 10), `rev`, `updatedAt` | admin |
 | `PVP_CLAIM` | guild | `id`, `missionId`, `seasonId`, `periodKey`, `player`, `at`, `summary{}`, `evidence[]` (up to 60 rows), optional `note` | anyone; `player` must be the sender |
@@ -88,8 +89,9 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_VOID` | guild | `grantId`, `seasonId`, optional `reason`, `at` | admin |
 | `PVP_DELIVERY` | guild | `seasonId`, `player`, `tier`, `delivered`, `rev`, `updatedAt` | admin, PvP officer |
 | `PVP_FINAL` | guild | `seasonId`, `name`, `startsAt`, `endsAt`, `closedAt`, `standings[]` (up to 100), `prizes` | admin |
-| `PVP_LEDGER_REQ` | guild | optional `seasonId`, `count`, `digest` | anyone |
-| `PVP_LEDGER_DATA` | whisper | optional `seasonId`, `page`, `pages`, `items[]` (`{ t, p, by }`) | rl, admin, PvP officer (checked before decoding) |
+| `PVP_PROGRESS` | guild | `seasonId`, `rows[]` (`missionId`, `count`, `goal`; up to 50), numbers only | anyone, for themselves; only an approver keeps it |
+| `PVP_LEDGER_REQ` | guild | optional `seasonId`, `count`, `digest`, optional `queue` (the requester approves claims) | anyone |
+| `PVP_LEDGER_DATA` | whisper | optional `seasonId`, `page`, `pages`, `items[]` (`{ t, p, by }`) | gm, cogm (checked before decoding) |
 | `RANK_MAP` | guild | `rev`, `updatedAt`, `ranks[]` (up to 9 rows `{ i, r, n }`: rank index 1 to 9, role, rank name 1 to 32 bytes; see *Rank mapping*) | the guild master (rank index 0) or a cogm by the map the receiver holds |
 | `SYNC_REQ` | guild | none | anyone |
 | `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules, roster or rank map messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
@@ -527,8 +529,19 @@ client, so nothing but the grants has to be trusted.
   encoded); there are at most 100 pages. The requester decodes a page only if the whisper comes from a raid leader,
   admin or PvP officer according to its own data, and applies every item as if its `by` had sent it, through the same
   validation, authority and conflict rules. Because `by` is read from the item, a relay is trusted to name the right
-  author, the same trust a `PVP_STATS` snapshot gives it. Pending claims are not relayed: they belong to their author,
-  who announces them again.
+  author, the same trust a `PVP_STATS` snapshot gives it. Claims still waiting for a decision travel in the
+  catch-up only between approvers: a request from a gm or cogm carries `queue = true`, the digest then also covers the
+  undecided claims, and the relay (a gm or cogm) adds them as `PVP_CLAIM` items, last, with the claimant as `by`. A
+  relay that is not a gm or cogm cannot hand claims in. The claimant also sends its pending claims again when it hears
+  a HELLO from a gm or cogm (at most every 2 minutes), so a claim is not stuck when its author is never online with an
+  approver.
+- **Progress summaries (`PVP_PROGRESS`):** a member shares, at most every 2 minutes and only when something changed,
+  how far they are in each mission of the active season (counts only, no evidence). Only a client that approves claims
+  keeps the last summary of each member (up to 1000, `db.global.pvpSeason.progress`, dropped when the season closes). It
+  is display only and not checked; the claim decides. It never travels in a catch-up.
+- **Older clients:** a client without these fields drops the optional goal fields while validating (so it would count
+  more than the officer asked) and refuses a mission of kind `bg_played` (`invalid:goal`); the admin form warns when a
+  mission uses them. `maxCompletions` is also enforced by approvers when a claim arrives (`limit`).
 - **Order:** a record that reaches a client before the one that authorises it (a grant of an officer before the officer
   record, a claim before its mission) is refused and comes back with the next catch-up. Records an admin wrote do not
   depend on any other and may arrive in any order (a void before its grant, a grant before its season).

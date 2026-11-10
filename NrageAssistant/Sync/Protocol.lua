@@ -680,7 +680,11 @@ local function validateLedgerReq(payload)
   then
     return nil
   end
-  return { seasonId = payload.seasonId, count = payload.count, digest = payload.digest }
+  if payload.queue ~= nil and type(payload.queue) ~= "boolean" then
+    return nil
+  end
+  -- `queue`: the requester approves claims and wants the claims still waiting in the queue too.
+  return { seasonId = payload.seasonId, count = payload.count, digest = payload.digest, queue = payload.queue or nil }
 end
 
 -- One page of a ledger catch-up. As with SYNC_DATA only the size is checked here: each item is validated by its own
@@ -768,6 +772,7 @@ local VALIDATORS = {
   PVP_VOID = seasonValidator("ValidateVoid"),
   PVP_DELIVERY = seasonValidator("ValidateDelivery"),
   PVP_FINAL = seasonValidator("ValidateFinal"),
+  PVP_PROGRESS = seasonValidator("ValidateProgress"),
   PVP_LEDGER_REQ = validateLedgerReq,
   PVP_LEDGER_DATA = validateLedgerData,
   ROSTER_UPSERT = validateRosterUpsert,

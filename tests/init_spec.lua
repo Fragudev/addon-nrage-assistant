@@ -810,6 +810,90 @@ describe("Init", function()
     end)
   end)
 
+  describe("PvP missions handlers", function()
+    it("builds the progress publisher and hooks the HELLO of a gm or cogm to the pending claims", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      assert.is_truthy(env.ns.pvpProgress)
+      assert.is_function(env.ns.comm.onApproverHello)
+      local seen = 0
+      env.ns.pvpMissions.OnApproverSeen = function()
+        seen = seen + 1
+      end
+      env.ns.comm.onApproverHello("Boss-Realm")
+      assert.are.equal(1, seen)
+      env.ns.pvpMissions.OnApproverSeen = function()
+        error("hello boom")
+      end
+      assert.has_no.errors(function()
+        env.ns.comm.onApproverHello("Boss-Realm")
+      end)
+      assert.is_truthy(env.ns.startupErrors[#env.ns.startupErrors].error:find("hello boom", 1, true))
+      -- a season record from the guild asks the publisher to look again, a summary from a member does not
+      local changes = 0
+      env.ns.pvpProgress.Changed = function()
+        changes = changes + 1
+      end
+      env.ns.PvPSeasonChanged("PVP_MISSION")
+      env.ns.PvPSeasonChanged("PVP_PROGRESS")
+      assert.are.equal(1, changes)
+    end)
+
+    it("listen to the score update and the end of combat, which feed the battleground result", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local frame
+      for _, candidate in ipairs(env.frames) do
+        if candidate.events.UPDATE_BATTLEFIELD_STATUS then
+          frame = candidate
+        end
+      end
+      assert.is_true(frame.events.UPDATE_BATTLEFIELD_SCORE)
+      assert.is_true(frame.events.PLAYER_REGEN_ENABLED)
+      local seen = {}
+      env.ns.pvpMissions.OnBattlegroundScore = function()
+        seen[#seen + 1] = "score"
+      end
+      env.ns.pvpMissions.OnCombatEnded = function()
+        seen[#seen + 1] = "combat"
+      end
+      frame.OnEvent(frame, "UPDATE_BATTLEFIELD_SCORE")
+      frame.OnEvent(frame, "PLAYER_REGEN_ENABLED")
+      assert.are.same({ "score", "combat" }, seen)
+    end)
+
+    local function missionsFrame()
+      for _, frame in ipairs(env.frames) do
+        if frame.events.UPDATE_BATTLEFIELD_STATUS then
+          return frame
+        end
+      end
+    end
+
+    it("report a failing world entry or battleground status instead of raising into the client", function()
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local frame = missionsFrame()
+      assert.is_truthy(frame)
+      env.ns.pvpMissions.OnWorldEntered = function()
+        error("world boom")
+      end
+      env.ns.pvpMissions.OnBattlegroundStatus = function()
+        error("status boom")
+      end
+      assert.has_no.errors(function()
+        frame.OnEvent(frame, "PLAYER_ENTERING_WORLD", false, false)
+        frame.OnEvent(frame, "UPDATE_BATTLEFIELD_STATUS")
+      end)
+      local steps = {}
+      for _, failure in ipairs(env.ns.startupErrors) do
+        steps[failure.step] = failure.error
+      end
+      assert.is_truthy(steps["pvpMissions.worldEntered"]:find("world boom", 1, true))
+      assert.is_truthy(steps["pvpMissions.battlegroundStatus"]:find("status boom", 1, true))
+    end)
+  end)
+
   describe("database", function()
     it("turns the addon off with a notice when a migration raises, and leaves the saved data alone", function()
       local raw = { global = { schemaVersion = 1 } }

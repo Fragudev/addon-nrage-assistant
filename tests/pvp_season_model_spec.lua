@@ -231,6 +231,159 @@ describe("PvPSeasonModel.ValidateMission", function()
   end)
 end)
 
+describe("PvPSeasonModel mission options", function()
+  local function mission(goal)
+    return {
+      id = "m-1",
+      seasonId = "s-1",
+      title = "Event",
+      points = 10,
+      goal = goal,
+      repeatKind = "weekly",
+      rev = 1,
+      updatedAt = 5,
+    }
+  end
+
+  local function clean(goal)
+    local record, why = Model.ValidateMission(mission(goal))
+    return record and record.goal, why
+  end
+
+  it("accepts the optional fields of a kill goal and writes only what differs from the default", function()
+    local goal = assert(clean({
+      kind = "kills",
+      count = 5,
+      victimClasses = { "MAGE", "ROGUE" },
+      victimRaces = { "ORC" },
+      victimCapPerDay = 1,
+      minGuildInGroup = 3,
+      window = { startsAt = 100, endsAt = 200 },
+      maxCompletions = 2,
+      autoClaim = true,
+    }))
+    assert.are.same({ "MAGE", "ROGUE" }, goal.victimClasses)
+    assert.are.same({ "ORC" }, goal.victimRaces)
+    assert.are.equal(1, goal.victimCapPerDay)
+    assert.are.equal(3, goal.minGuildInGroup)
+    assert.are.same({ startsAt = 100, endsAt = 200 }, goal.window)
+    assert.are.equal(2, goal.maxCompletions)
+    assert.is_true(goal.autoClaim)
+    -- the defaults are not written
+    local plain = assert(clean({
+      kind = "kills",
+      victimClasses = {},
+      minGuildInGroup = 0,
+      maxCompletions = 0,
+      autoClaim = false,
+      bgs = {},
+    }))
+    assert.is_nil(plain.victimClasses)
+    assert.is_nil(plain.minGuildInGroup)
+    assert.is_nil(plain.maxCompletions)
+    assert.is_nil(plain.autoClaim)
+    assert.is_nil(plain.bgs)
+    -- 0 is a real value for the cap: no cap
+    assert.are.equal(0, assert(clean({ kind = "kills", victimCapPerDay = 0 })).victimCapPerDay)
+  end)
+
+  it("leaves a goal without options exactly as before", function()
+    assert.are.same(
+      { kind = "kills", count = 3, zones = {}, place = "any", distinct = "none" },
+      assert(clean({ kind = "kills", count = 3 }))
+    )
+  end)
+
+  it("accepts the played kind and the battleground filter, for both battleground kinds", function()
+    local played = assert(clean({ kind = "bg_played", count = 3, bgs = { "wsg", "ab" } }))
+    assert.are.equal("bg_played", played.kind)
+    assert.are.same({ "wsg", "ab" }, played.bgs)
+    assert.are.same({ "av" }, assert(clean({ kind = "bg_wins", bgs = { "av" } })).bgs)
+  end)
+
+  it("drops the fields that do not apply to the kind", function()
+    local wins =
+      assert(clean({ kind = "bg_wins", victimClasses = { "MAGE" }, minGuildInGroup = 2, victimCapPerDay = 1 }))
+    assert.is_nil(wins.victimClasses)
+    assert.is_nil(wins.minGuildInGroup)
+    assert.is_nil(wins.victimCapPerDay)
+    local kills = assert(clean({ kind = "kills", bgs = { "wsg" } }))
+    assert.is_nil(kills.bgs)
+    local manual = assert(clean({ kind = "manual", window = { startsAt = 1, endsAt = 2 } }))
+    assert.is_nil(manual.window)
+  end)
+
+  it("refuses each option out of bounds", function()
+    local function bad(extra)
+      local goal = { kind = "kills", count = 1 }
+      for key, value in pairs(extra) do
+        goal[key] = value
+      end
+      local record, why = clean(goal)
+      assert.is_nil(record)
+      assert.are.equal("invalid:goal", why)
+    end
+    bad({ victimClasses = "MAGE" })
+    bad({ victimClasses = { "mage" } })
+    bad({ victimClasses = { "MAGE", "MAGE" } })
+    bad({ victimRaces = { 1 } })
+    bad({ victimClasses = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K" } })
+    bad({ victimCapPerDay = -1 })
+    bad({ victimCapPerDay = Constants.PVP_MISSION_VICTIM_CAP_MAX + 1 })
+    bad({ victimCapPerDay = 1.5 })
+    bad({ minGuildInGroup = -1 })
+    bad({ minGuildInGroup = Constants.PVP_MISSION_GUILD_GROUP_MAX + 1 })
+    bad({ window = { startsAt = 5, endsAt = 5 } })
+    bad({ window = { startsAt = 9, endsAt = 5 } })
+    bad({ window = { startsAt = 1 } })
+    bad({ window = 7 })
+    bad({ maxCompletions = Constants.PVP_MISSION_COMPLETIONS_MAX + 1 })
+    bad({ maxCompletions = -1 })
+    bad({ autoClaim = "yes" })
+    bad({ kind = "bg_wins", bgs = { "xx" } })
+    bad({ kind = "bg_wins", bgs = { "wsg", "wsg" } })
+    bad({ kind = "bg_wins", bgs = { "wsg", "ab", "av", "wsg" } })
+    bad({ kind = "bg_played", bgs = "wsg" })
+  end)
+
+  it("tells a mission that needs the new protocol from one that does not", function()
+    assert.is_false(Model.UsesNewGoalFeatures({ kind = "kills", count = 1 }))
+    assert.is_false(Model.UsesNewGoalFeatures(nil))
+    assert.is_true(Model.UsesNewGoalFeatures({ kind = "bg_played" }))
+    assert.is_true(Model.UsesNewGoalFeatures({ kind = "kills", autoClaim = true }))
+    assert.is_true(Model.UsesNewGoalFeatures({ kind = "kills", victimCapPerDay = 0 }))
+  end)
+
+  it("carries a lost battleground and the guild size as evidence", function()
+    local claim = {
+      id = "Ann:m-1:20261020:1",
+      missionId = "m-1",
+      seasonId = "s-1",
+      periodKey = "20261020",
+      player = "Ann",
+      at = 50,
+      evidence = {
+        { at = 10, bgWin = false, mapId = 1459, bg = "wsg" },
+        { at = 11, victim = "Grunt", place = "world", guild = 3 },
+      },
+    }
+    local clean_claim = assert(Model.ValidateClaim(claim))
+    assert.is_false(clean_claim.evidence[1].bgWin)
+    assert.are.equal("wsg", clean_claim.evidence[1].bg)
+    assert.are.equal(3, clean_claim.evidence[2].guild)
+    for _, row in ipairs({
+      { at = 10, bgWin = "no" },
+      { at = 10, bgWin = true, bg = "xx" },
+      { at = 11, victim = "Grunt", place = "world", guild = -1 },
+    }) do
+      claim.evidence = { row }
+      local record, why = Model.ValidateClaim(claim)
+      assert.is_nil(record)
+      assert.are.equal("invalid:evidence", why)
+    end
+  end)
+end)
+
 describe("PvPSeasonModel.ValidateClaim", function()
   local id = "Ann:m-1:20261020:1"
   local good = {
@@ -299,7 +452,7 @@ describe("PvPSeasonModel.ValidateClaim", function()
       row({ race = "Night Elf" }),
       row({ mapId = -1 }),
       row({ at = "x" }),
-      copy(good, { evidence = { { at = 1, bgWin = false } } }),
+      copy(good, { evidence = { { at = 1, bgWin = "no" } } }),
       copy(good, { evidence = { { at = 1, bgWin = true, victim = "Grunt" } } }),
     }) do
       assert.is_nil(Model.ValidateClaim(fields))
