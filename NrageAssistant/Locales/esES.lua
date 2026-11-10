@@ -1302,5 +1302,6 @@ ns.Locale.Register("es", {
   ["and turning a module off never deletes its data."] = "y desactivar un módulo nunca borra sus datos.",
   ["You will stop seeing its admin section too."] = "También dejarás de ver su sección de administración.",
   ["Type /reload to start %s."] = "Escribe /reload para activar %s.",
+  ["Reload the interface"] = "Recargar la interfaz",
   ["Turn all on"] = "Activar todos",
 })

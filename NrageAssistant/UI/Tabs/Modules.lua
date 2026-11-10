@@ -61,6 +61,18 @@ UI.Register("modules", function(page)
     })
     drawNotes(card, row)
   end
+  for _, row in ipairs(list) do
+    if row.needsReload then
+      Kit.Button(page, {
+        text = L("Reload the interface"),
+        layout = { width = 180, gap = 10 },
+        onClick = function()
+          ns.Platform.ReloadUI()
+        end,
+      })
+      break
+    end
+  end
   Kit.Button(page, {
     text = L("Turn all on"),
     layout = { width = 180, gap = 10 },
