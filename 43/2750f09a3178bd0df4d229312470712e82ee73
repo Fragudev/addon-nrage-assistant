@@ -1,0 +1,41 @@
+NrageAssistant/Core/Constants.lua
+  s_899db75e1dccbf::t_7f49c1c52d0752 383-384
+NrageAssistant/Core/Init.lua
+  s_899db75e1dccbf::t_c00e0529526515 649-652
+NrageAssistant/Core/Platform.lua
+  s_899db75e1dccbf::t_fe4d17a5fda8ec 1344-1351
+NrageAssistant/Domain/LfgService.lua
+  s_899db75e1dccbf::t_b7f897fcd45113 31-33,40,598,603-611
+NrageAssistant/Locales/esES.lua
+  s_899db75e1dccbf::t_24acaaf1c87962 1255
+NrageAssistant/UI/ViewModelGroups.lua
+  s_899db75e1dccbf::t_d9723e284bc20e 30-35
+README.md
+  s_899db75e1dccbf::t_c3d9923c5308f9 158-159
+docs/USER_GUIDE.md
+  s_899db75e1dccbf::t_3bc9ae2a181057 677-679
+tests/init_spec.lua
+  s_899db75e1dccbf::t_559e60bd12dba2 39-42
+tests/lfg_service_spec.lua
+  s_899db75e1dccbf::t_0a8bfd804b0b34 173-179,1415-1461
+tests/platform_intel_spec.lua
+  s_899db75e1dccbf::t_6d665f8162914e 471,484-498
+tests/view_model_groups_spec.lua
+  s_899db75e1dccbf::t_5bcdf58878efc0 16,88-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "432750f09a3178bd0df4d229312470712e82ee73",
+  "prompts": {},
+  "sessions": {
+    "s_899db75e1dccbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a8125f6-2e91-4c48-863f-ac26ed1464c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
