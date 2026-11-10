@@ -1237,20 +1237,12 @@ describe("ViewModel sidebar, user card and sync pill", function()
     -- The Admin group opens with admin_view, but its tabs follow their own scope: rl without a roster has only the
     -- Ranks tab, which every Admin rank reads.
     local _, rl = navValues("rl", nil)
-<<<<<<< HEAD
-    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, {} }, { rl[1], rl[2] or {} })
-=======
-    assert.are.same({ { "home", "professions", "pvp", "groups" }, { "ranks" } }, { rl[1], rl[2] or {} })
->>>>>>> 354eff7 (feat: add the Ranks admin tab to map guild ranks to addon roles)
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "ranks" } }, { rl[1], rl[2] or {} })
     -- gm, cogm and officer reach every roster, so a missing roster of their own changes nothing for them.
     local _, gm = navValues("gm", nil)
     assert.are.same({ GUILD_ALL, { "raid", "rules", "roster", "pvpadmin", "installs", "ranks" } }, gm)
     local _, officer = navValues("officer", nil)
-<<<<<<< HEAD
-    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "rules", "roster" } }, officer)
-=======
-    assert.are.same({ { "home", "professions", "pvp", "groups" }, { "rules", "roster", "ranks" } }, officer)
->>>>>>> 354eff7 (feat: add the Ranks admin tab to map guild ranks to addon roles)
+    assert.are.same({ { "home", "professions", "pvp", "groups", "modules" }, { "rules", "roster", "ranks" } }, officer)
   end)
 
   it("keeps the Admin group away from roster, member and alter, and from a player without a rank", function()
