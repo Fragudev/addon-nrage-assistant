@@ -355,7 +355,8 @@ end
 -- { total, applied, pvp (how many of those were PvP), blacklist (how many were blacklist), guildKos (how many were
 -- guild Kill On Sight), rules (how many roster rule sets were applied), rankMap (1 when the rank map was applied),
 -- announcements (how many were announcements, applied when `ctx.announcements` is there;
--- `ctx.onAnnouncement(announcement)` hears each stored one), skipped = { [reason] = count }, firstError (the first error an item raised, if any) }.
+-- `ctx.onAnnouncement(announcement)` hears each stored one), skipped = { [reason] = count }, firstError (the first
+-- error an item raised, if any) }.
 function Transfer.ApplyItems(items, ctx, sender, role)
   local summary = {
     total = #items,
