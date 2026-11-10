@@ -1,0 +1,25 @@
+.luacheckrc
+  s_0149a02cc6acee::t_32e05a161d2ef7 84
+NrageAssistant/Core/Platform.lua
+  s_0149a02cc6acee::t_7127c3bbc86e82 838-844
+NrageAssistant/Locales/esES.lua
+  s_0149a02cc6acee::t_1edc11ea29e379 1305
+NrageAssistant/UI/Tabs/Modules.lua
+  s_0149a02cc6acee::t_114ca963d457f5 64-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "86f4c503b6b9d6b872aee6b83dd0569da0acf788",
+  "prompts": {},
+  "sessions": {
+    "s_0149a02cc6acee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b796dec4-f9ca-45b0-8a84-cd821e2919f7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
