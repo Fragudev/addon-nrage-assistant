@@ -847,6 +847,19 @@ open bounty are marked with `!` in the Intel window, and their tooltip says so.
 - Addon messages are not encrypted. See the privacy notes.
 - Intel is not yet tested in the live game. The guild keeps Spy installed until the officers confirm that Intel works.
 
+## Modules
+
+Every player can turn the parts of the addon they do not use on or off: open **Modules** at the end of the Guild group
+and switch them one by one, or press **Turn all on**. The switches are yours only: nothing is shared, and nobody else
+sees a change. Turning a module off hides its tabs (and the admin section of a module, for gm and cogm) and stops its
+alerts, popups and pins on your client. Its data is kept, and what the guild sends you keeps arriving, so the state is
+current when you turn the module back on.
+
+- Some modules need others: turning off Raid also turns off Loot, and turning off PvP also turns off Intel. The switch
+  says so before you press it. Turning on Loot or Intel turns on the module they need as well.
+- A module that was off when the addon started needs a reload to run. The Modules tab says "Type /reload to start ..."
+  next to its switch.
+
 ## Sync
 
 The **Home** tab shows the sync state. While an encounter is in progress the game blocks addon messages, so
