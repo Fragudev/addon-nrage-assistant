@@ -77,6 +77,8 @@ Domain\LfgModel.lua
 Domain\LfgBoard.lua
 Domain\LfgService.lua
 Domain\InstallDirectory.lua
+Domain\RankMapModel.lua
+Domain\RankMapService.lua
 Sync\Codec.lua
 Sync\Protocol.lua
 Sync\Inbox.lua
