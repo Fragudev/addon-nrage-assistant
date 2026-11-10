@@ -667,11 +667,15 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
     { value = "groups", text = L("Groups"), icon = "users", group = "guild" },
+    { value = "announcements", text = L("Announcements"), icon = "send", group = "guild" },
+    { value = "modules", text = L("Modules"), icon = "gear", group = "guild" },
     { value = "raid", text = L("Raid"), icon = "calendar", group = "admin" },
     { value = "rules", text = L("Roster rules"), icon = "list", group = "admin" },
     { value = "roster", text = L("Members"), icon = "users", group = "admin" },
     { value = "pvpadmin", text = "PvP", icon = "swords", group = "admin" },
     { value = "installs", text = L("Installed check"), icon = "check", group = "admin" },
+    { value = "ranks", text = L("Ranks"), icon = "diamond", group = "admin" },
+    { value = "announceadmin", text = L("Announcements"), icon = "pencil", group = "admin" },
   }
 end)
 
@@ -685,10 +689,23 @@ local TAB_ACTIONS = {
   roster = "members_view",
   pvpadmin = "pvp_admin",
   installs = "install_check",
+  announceadmin = "announce_manage",
+  -- Every Admin rank reads the mapping of guild ranks to roles; ranks_manage (gm and cogm) edits it.
+  ranks = "admin_view",
 }
+
+-- Is the module that owns the tab `value` on for this player? A tab no module owns is always on, and so is every tab
+-- while the module service does not exist (the specs that load only part of the addon).
+local function moduleOn(value)
+  local id = ns.ModuleRegistry and ns.ModuleRegistry.ForTab(value)
+  return id == nil or not ns.modules or ns.modules:IsEnabled(id)
+end
 
 -- Does a player with `role` and the roster `rosterId` (nil without one) see `tab` (an entry of TABS)?
 local function tabVisible(tab, role, rosterId)
+  if not moduleOn(tab.value) then
+    return false
+  end
   local permission = ns.PermissionService
   if tab.group == "admin" and permission.Scope(role, "admin_view", rosterId) == "none" then
     return false
@@ -915,8 +932,9 @@ end
 
 -- The sidebar: the groups Guild and Admin, each with its { value, text, icon } items, for a player with `role` and the
 -- roster `rosterId`. A group without items is left out. `openGroups` (optional) is the number of open groups of the
--- board: the Groups item gets it as `badge`; no other item has one.
-function ViewModel.NavGroups(role, rosterId, openGroups)
+-- board: the Groups item gets it as `badge`. `unreadAnnouncements` (optional) is the number of announcements not read
+-- yet: the Announcements item gets it as `badge`; no other item has one.
+function ViewModel.NavGroups(role, rosterId, openGroups, unreadAnnouncements)
   local groups = {
     { label = L("Guild"), items = {} },
     { label = L("Admin"), items = {} },
@@ -927,6 +945,8 @@ function ViewModel.NavGroups(role, rosterId, openGroups)
     local item = { value = tab.value, text = tab.text, icon = tab.icon }
     if tab.value == "groups" then
       item.badge = ViewModel.GroupsBadge(openGroups)
+    elseif tab.value == "announcements" then
+      item.badge = ViewModel.GroupsBadge(unreadAnnouncements)
     end
     group.items[#group.items + 1] = item
   end

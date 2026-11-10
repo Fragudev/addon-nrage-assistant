@@ -11,10 +11,13 @@ local function load_addon()
     "Core/Locale",
     "Core/Validate",
     "Domain/PermissionService",
+    "Domain/RankMapModel",
     "Domain/RosterService",
     "Domain/PvPSeasonModel",
     "Domain/RecipeService",
     "Domain/EventModel",
+    "Domain/AnnouncementModel",
+    "Domain/AnnouncementService",
     "Domain/EventService",
     "Domain/LootModel",
     "Domain/LootService",
@@ -39,6 +42,8 @@ local function load_addon()
     "Sync/RecipeSync",
     "Sync/LayerSync",
     "Sync/LfgSync",
+    "Sync/RankMapSync",
+    "Sync/AnnouncementSync",
     "Sync/Transfer",
     "Sync/Comm",
   }) do
@@ -73,6 +78,9 @@ local function build_env()
     rulesChanges = {},
     ownResets = {},
     rosterChanges = {},
+    announcements = { items = {}, tombstones = {} },
+    announcementChanges = {},
+    announced = {},
     pvpSeason = ns.PvPSeasonSync.NewLedger(),
     seasonChanges = {},
     seasonClosed = {},
@@ -154,6 +162,13 @@ local function build_env()
     end,
     onPvPSeasonClosed = function(seasonId)
       env.seasonClosed[#env.seasonClosed + 1] = seasonId
+    end,
+    announcements = env.announcements,
+    onAnnouncement = function(announcement)
+      env.announced[#env.announced + 1] = announcement.id
+    end,
+    onAnnouncementChange = function(messageType)
+      env.announcementChanges[#env.announcementChanges + 1] = messageType
     end,
     rosters = env.rosters,
     members = env.members,
@@ -3208,6 +3223,7 @@ describe("Comm resilience", function()
         guildKos = 0,
         rules = 0,
         rosters = 0,
+        announcements = 0,
         skipped = { error = 1 },
         firstError = "boom",
       }
@@ -3226,5 +3242,199 @@ describe("Comm resilience", function()
     assert.is_true(env.comm:Send("HELLO", { version = "0.1.0" }, "HELLO"))
     assert.is_false(env.comm:Send("PROFILE", profile(1), "PROFILE"))
     assert.are.equal(1, env.comm:StatusInfo().dropped)
+  end)
+end)
+
+describe("Comm announcements", function()
+  local env, leader, joiner
+
+  local function announcement(overrides)
+    local a = {
+      id = "a-1",
+      title = "Raid night",
+      body = "Bring flasks",
+      author = "Gm-Realm",
+      createdAt = 4000,
+      updatedAt = 4000,
+      rev = 1,
+      popup = true,
+      popupRev = 1,
+      pinned = false,
+    }
+    for key, value in pairs(overrides or {}) do
+      a[key] = value
+    end
+    return a
+  end
+
+  before_each(function()
+    env = build_env()
+    env.roles["Gm-Realm"] = "gm"
+    env.roles["Co-Realm"] = "cogm"
+    env.roles["Off-Realm"] = "officer"
+    env.roles["Mem-Realm"] = "member"
+  end)
+
+  it("keeps an ANN from a gm or a cogm, tells the UI and asks for the popup", function()
+    for _, sender in ipairs({ "Gm-Realm", "Co-Realm" }) do
+      local text = env.wire("ANN", ns.AnnouncementSync.UpsertPayload(announcement({ id = "from-" .. sender })), sender)
+      assert.is_true(env.comm:HandleMessage(text, sender, "GUILD"))
+      assert.are.equal(sender, env.announcements.items["from-" .. sender].author)
+    end
+    assert.are.same({ "ANN", "ANN" }, env.announcementChanges)
+    assert.are.same({ "from-Gm-Realm", "from-Co-Realm" }, env.announced)
+  end)
+
+  it("drops an ANN and an ANN_DEL from an officer, a member and a stranger", function()
+    env.comm.announcements.items["a-1"] = announcement()
+    for _, sender in ipairs({ "Off-Realm", "Mem-Realm", "Stranger-Realm" }) do
+      local text = env.wire("ANN", ns.AnnouncementSync.UpsertPayload(announcement({ id = "x-" .. sender })), sender)
+      local ok = env.comm:HandleMessage(text, sender, "GUILD")
+      assert.is_false(ok)
+      assert.is_nil(env.announcements.items["x-" .. sender])
+      text = env.wire("ANN_DEL", { id = "a-1", rev = 9, updatedAt = 4000 }, "d-" .. sender)
+      ok = env.comm:HandleMessage(text, sender, "GUILD")
+      assert.is_false(ok)
+      assert.is_truthy(env.announcements.items["a-1"])
+    end
+    assert.are.same({}, env.announcementChanges)
+    assert.are.same({}, env.announced)
+  end)
+
+  it("removes an announcement on ANN_DEL from a gm", function()
+    env.announcements.items["a-1"] = announcement()
+    local text = env.wire("ANN_DEL", { id = "a-1", rev = 2, updatedAt = 4100 })
+    assert.is_true(env.comm:HandleMessage(text, "Gm-Realm", "GUILD"))
+    assert.is_nil(env.announcements.items["a-1"])
+    assert.are.same({ "ANN_DEL" }, env.announcementChanges)
+  end)
+
+  it("sends an announcement and its removal as guild messages that fit the limits", function()
+    local long = announcement({ title = ("\195\177"):rep(60), body = ("\195\177"):rep(600) })
+    assert.is_true(env.comm:SendAnnouncement(long))
+    assert.are.equal(1, #env.sent)
+    local decoded = assert(env.codec:Decode(env.sent[1]))
+    assert.are.equal("ANN", decoded.t)
+    assert.are.equal(long.body, decoded.p.body)
+    assert.is_nil(decoded.p.author)
+    assert.are.equal("no_tombstone", select(2, env.comm:SendAnnouncementDelete("a-1")))
+    env.announcements.tombstones["a-1"] = { at = 4100, rev = 2 }
+    assert.is_true(env.comm:SendAnnouncementDelete("a-1"))
+    assert.are.equal("ANN_DEL", assert(env.codec:Decode(env.sent[2])).t)
+  end)
+
+  describe("after login", function()
+    it("repeats the own live announcements of a gm, each at a moment of its own", function()
+      env.ownRole = "gm"
+      env.announcements.items["mine"] = announcement({ id = "mine", author = "Me-Realm" })
+      env.announcements.items["theirs"] = announcement({ id = "theirs", author = "Co-Realm" })
+      env.announcements.items["old"] = announcement({ id = "old", author = "Me-Realm", expiresAt = 4000 })
+      assert.are.equal(1, env.comm:SendOwnAnnouncements())
+      assert.are.equal(0, #env.sent)
+      assert.are.equal(1, #env.scheduled)
+      assert.is_true(env.scheduled[1].delay >= ns.Constants.ANNOUNCE_RESEND_DELAY_MIN)
+      env.scheduled[1].fn()
+      assert.are.equal(1, #env.sent)
+      assert.are.equal("mine", assert(env.codec:Decode(env.sent[1])).p.id)
+    end)
+
+    it("does not send what was deleted meanwhile", function()
+      env.ownRole = "cogm"
+      env.announcements.items["mine"] = announcement({ id = "mine", author = "Me-Realm" })
+      env.comm:SendOwnAnnouncements()
+      env.announcements.items["mine"] = nil
+      env.scheduled[1].fn()
+      assert.are.equal(0, #env.sent)
+    end)
+
+    it("sends nothing for an officer, a member or no rank", function()
+      env.announcements.items["mine"] = announcement({ id = "mine", author = "Me-Realm" })
+      for _, role in ipairs({ "officer", "rl", "member" }) do
+        env.ownRole = role
+        assert.are.equal(0, env.comm:SendOwnAnnouncements())
+      end
+      env.ownRole = nil
+      assert.are.equal(0, env.comm:SendOwnAnnouncements())
+      assert.are.equal(0, #env.scheduled)
+    end)
+  end)
+
+  describe("in a snapshot", function()
+    before_each(function()
+      leader, joiner = build_env(), build_env()
+      leader.announcements.items["a-1"] = announcement({ author = "Co-Realm", createdAt = 4000 })
+      leader.announcements.items["a-2"] = announcement({ id = "a-2", title = "Second", createdAt = 4500 })
+      leader.announcements.tombstones["gone"] = { at = 4200, rev = 3 }
+      joiner.roles["Lead-Realm"] = "gm"
+      joiner.roles["Co-Realm"] = "cogm"
+      joiner.roles["Off-Realm"] = "officer"
+    end)
+
+    local function items_of(source)
+      local decoded = assert(source.codec:Decode(source.sent[1], {
+        encoded = ns.Constants.SYNC_MAX_ENCODED_BYTES,
+        decompressed = ns.Constants.SYNC_MAX_DECOMPRESSED_BYTES,
+      }))
+      return decoded.p.items
+    end
+
+    it("goes from a gm or a cogm to a late joiner, with the author each announcement names", function()
+      for _, role in ipairs({ "gm", "cogm" }) do
+        leader.ownRole = role
+        leader.sent = {}
+        assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+        local found = {}
+        for _, item in ipairs(items_of(leader)) do
+          if item.t:find("^ANN") then
+            found[#found + 1] = item.t .. ":" .. item.p.id
+          end
+        end
+        assert.are.same({ "ANN:a-2", "ANN:a-1", "ANN_DEL:gone" }, found, role)
+      end
+      joiner.roles["Lead-Realm"] = "gm"
+      assert.is_true(joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      assert.are.equal("Second", joiner.announcements.items["a-2"].title)
+      assert.are.equal("Co-Realm", joiner.announcements.items["a-1"].author)
+      assert.are.equal("Lead-Realm", joiner.announcements.items["a-2"].author)
+      assert.are.equal(3, joiner.announcements.tombstones["gone"].rev)
+      assert.are.same({ "SYNC_DATA" }, joiner.announcementChanges)
+      assert.are.equal(2, #joiner.announced)
+    end)
+
+    it("does not carry announcements when the sender cannot manage them", function()
+      leader.ownRole = "rl"
+      leader.events["ev-1"] = {
+        eventId = "ev-1",
+        rosterId = "r1",
+        title = "MC",
+        status = "planned",
+        startAt = 100,
+        rev = 1,
+        updatedAt = 10,
+        attendance = {},
+        assignments = {},
+      }
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      for _, item in ipairs(items_of(leader)) do
+        assert.is_nil(item.t:find("^ANN"), item.t)
+      end
+    end)
+
+    it("is ignored when the relay is a leader without announce_manage, even if it was forged", function()
+      joiner.roles["Lead-Realm"] = "rl"
+      leader.ownRole = "gm"
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER")
+      assert.is_nil(next(joiner.announcements.items))
+      assert.are.same({}, joiner.announcementChanges)
+    end)
+
+    it("believes the author an item names only when the roster says that member may publish", function()
+      leader.announcements.items["a-1"].author = "Off-Realm"
+      leader.ownRole = "gm"
+      assert.is_true(leader.comm:SendSnapshot("Joiner-Realm"))
+      assert.is_true(joiner.comm:HandleMessage(leader.sent[1], "Lead-Realm", "WHISPER"))
+      assert.are.equal("Lead-Realm", joiner.announcements.items["a-1"].author)
+    end)
   end)
 end)

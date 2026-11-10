@@ -178,6 +178,22 @@ unit seen on `target`, `mouseover` and nameplates (`unit` lines, with `UnitIsPla
 
 Until M3, M4 and M6 pass in game, do not tell the guild that Spy can be removed.
 
+## Rank mapping (not measured yet)
+
+The rank mapping (`docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md`, part D) keys addon roles by the guild rank index. The plan
+calls this measurement M10 (phase D0); the number is already used by the Intel table above, so it is written here as
+**D0 / M10 (rank mapping)**.
+
+| # | Question | API (through `Platform`) | Assumption in the code | Result |
+|---|---|---|---|---|
+| D0 / M10 | Do `GuildControlGetNumRanks()` and `GuildControlGetRankName(i)` (1-based) match the 0-based `rankIndex` of `GetGuildRosterInfo` / `GetGuildInfo` as `i - 1`? | `Platform.GetGuildRanks` | yes: position `i` is rank index `i - 1`, and rank index 0 is the guild master | not measured yet. If the index is shifted, the Ranks tab would show the wrong name next to a role; the stored map itself is unaffected, because members are matched by the index they report |
+
+```text
+/dump GuildControlGetNumRanks()
+/dump GuildControlGetRankName(1), GuildControlGetRankName(2)
+/dump GetGuildInfo("player")   -- the third value is the own rank index; compare it with the position above minus 1
+```
+
 ## Group names for the blacklist alert (to be measured)
 
 The blacklist alert compares the members of the party or raid with the blacklist. Nothing about group names has

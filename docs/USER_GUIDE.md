@@ -30,6 +30,7 @@ The **Guild** group is for everybody, though what you see depends on your guild 
   Roster rank up, with a roster.
 - **Raid check** is your own checklist, measured with the rules of your roster. From the Roster rank up, with a roster.
 - **Loot**: from the Roster rank up, with a roster. Guild and co-guild masters see every roster.
+- **Announcements** is the board of guild announcements, read only, open to every rank (see *Announcements* below).
 
 The **Admin** group appears from the Officer and RL ranks up:
 
@@ -39,9 +40,11 @@ The **Admin** group appears from the Officer and RL ranks up:
 - **Roster rules** and **Members** (Officer and RL, GM and CoGM).
 - **PvP** holds the season admin: approvals, missions, season, prizes and deliveries (GM and CoGM only).
 - **Installed check** lists who runs the addon and which version (GM and CoGM only; see *Installed check* below).
+- **Announcements** is the editor of the board: publish, change and delete announcements (GM and CoGM only; see
+  *Announcements* below).
 
 A tab you cannot see, or one that no longer exists in the sidebar (Profile, Layers and Blacklist are hidden for now),
-opens Home instead. A player without a roster only sees Home, Professions and PvP.
+opens Home instead. A player without a roster only sees Home, Professions, PvP, Groups and Announcements.
 
 The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
 
@@ -86,15 +89,15 @@ client checks the sender against its own copy of the guild roster.
 
 | Rank | Role | Can (so far) |
 |---|---|---|
-| Emperador, Comandante | gm, cogm | everything, for every roster: events, loot, rosters and members, the readiness rules, moderation, removing players from the blacklist and all of the PvP seasons |
+| Emperador, Comandante | gm, cogm | everything, for every roster: events, loot, rosters and members, the readiness rules, moderation, removing players from the blacklist, all of the PvP seasons and publishing announcements |
 | Oficial | officer | events and loot of their own roster, plus everything a member can |
 | Raid Lider | rl | events and loot of their own roster, plus everything a member can |
 | Raider | roster | put yourself forward for loot (in your roster), plus everything a member can |
 | Soldado | member | see shared data, edit and publish your own sheet, add players to the blacklist |
 | Alter | alter | the same as a member, except putting yourself forward for loot |
 
-A rank with any other name counts as **Alter**. **If you rename a rank in the game without updating the addon, everybody
-in that rank becomes an Alter** until the addon knows the new name (`RANK_ROLES` in `Core/Constants.lua`).
+A rank with any other name counts as **Alter**, until the guild master or a co-guild master saves a rank mapping (see
+*If you rename a guild rank* below), which follows the rank position instead of its name.
 
 The PvP officer flag is gone: approving claims, marking deliveries and the rest of the PvP administration are for GM
 and CoGM only. Rosters and assignments can only be changed by GM and CoGM for now; the readiness rules of a roster by GM, CoGM and the RL of that roster.
@@ -599,6 +602,23 @@ only* keeps the members connected now. **Ask online members** makes everyone onl
 with their version again, at most once a minute; the answers arrive over a few seconds. The tab only knows about members
 heard from since you installed this version: *Never seen* may just mean "not logged in since".
 
+## Ranks
+
+The **Ranks** tab of the Admin group (every Admin rank can read it; only GM and CoGM can change it) maps each guild rank
+to an addon role. One row per rank in the game: the position, its current name, how many members it has and the addon
+role. The guild master's row is fixed. **Until a mapping is saved, the roles come from the rank names**, exactly as before.
+
+**If you rename a guild rank.** Open **Ranks** and press **Save mapping** once (the dropdowns start from today's roles, so
+saving changes nobody). From then on the roles follow the rank position: renaming a rank in the game keeps the role of
+its members, and the tab shows a note such as "Rank 2 was renamed from Comandante to X; its role is kept". If ranks are
+added or removed in the game, positions below them shift, so the tab warns in red ("Guild ranks changed; review the
+mapping") and the mapping should be reviewed and saved again.
+
+Change a role with its dropdown. Below the table a preview lists who changes role ("3 members change role: Name (Officer
+-> Member), ..."), and **Save mapping** sends the mapping to the guild; every client checks that the sender is the guild
+master or a co-guild master by the roles it already holds. A co-guild master can not change the role of their own rank, and
+nobody can give the guild master's role to a rank. The footer shows who saved the mapping and when.
+
 ## Blacklist
 
 The **Blacklist** tab is a guild-wide list of players the guild wants to be warned about. It is shared with every
@@ -690,6 +710,39 @@ nothing about it. Whether the game does this on Forever has not been checked yet
 **Groups and layer swaps exclude each other.** While you have an open post or an application that has not ended, you
 cannot request a layer swap or answer one, and the Layers tab says why. While a swap runs, Groups refuses to post or
 to apply.
+
+## Announcements
+
+The **Announcements** tab in the Guild group is the board of guild announcements. Every rank reads it; nobody edits it
+there. Pinned announcements come first, then the newest. Each card shows the title, who published it, when, the text
+and, if it has one, when it expires. An expired announcement is not shown. The Announcements item of the sidebar shows
+how many announcements are new since you last opened the board. The newest pinned announcement also appears as a line on
+Home, with a button to the board.
+
+**Who can publish.** Only the guild master and the co-guild master (rank Emperador and Comandante). Officers and every
+other rank have no editor, and an announcement that comes from anyone else is dropped by every client.
+
+**Publishing.** In the Admin group, the **Announcements** tab has a form: a title (up to 60 characters), the text (up to
+600 characters, line breaks allowed), a **Send popup** switch (on by default), a **Pin** switch and an expiry (never, 1
+day, 7 days or 30 days). **Publish** sends it to the guild. Below the form is the list of the existing announcements with
+**Edit**, **Delete** (click twice to confirm) and **Send popup again**, and the counter "N of 30": the board holds 30
+announcements, so delete one to publish another. An edit does not show the popup again; **Send popup again** does, even
+for members who already closed it, and turns the popup on if it was off.
+
+**The popup.** When an announcement with **Send popup** on reaches a member, a card opens with the title, the author, the
+date and the text, and plays the raid warning sound once. **Got it** closes it, and **Open board** goes to the tab. When
+several arrive, the card shows "1 of N" with arrows. It is never shown in combat or during an encounter: it waits and
+appears when it is over. A member who logs in later sees the popup at login, at most the three newest ones that are less
+than 7 days old; older ones are only unread on the board. Every member sees each popup once, however many characters they
+play.
+
+**Limits.** Only members running the addon get announcements. A member who was offline gets them when they log in: from a
+leader's catch-up or when the guild master or the co-guild master who published them logs in again.
+
+**To check in the game** (not verified yet): the guild master or a co-guild master publishes with the popup on and an
+officer has no editor; an online member sees the popup once; a member who logs in later sees it at login; **Send popup
+again** shows it again; with **Send popup** off only the board and the sidebar count change; a pinned announcement shows
+on Home; a popup that arrives in combat waits for the end of combat.
 
 ## Guild map
 
@@ -857,6 +910,19 @@ open bounty are marked with `!` in the Intel window, and their tooltip says so.
 - A sighting reveals your position to the guild.
 - Addon messages are not encrypted. See the privacy notes.
 - Intel is not yet tested in the live game. The guild keeps Spy installed until the officers confirm that Intel works.
+
+## Modules
+
+Every player can turn the parts of the addon they do not use on or off: open **Modules** at the end of the Guild group
+and switch them one by one, or press **Turn all on**. The switches are yours only: nothing is shared, and nobody else
+sees a change. Turning a module off hides its tabs (and the admin section of a module, for gm and cogm) and stops its
+alerts, popups and pins on your client. Its data is kept, and what the guild sends you keeps arriving, so the state is
+current when you turn the module back on.
+
+- Some modules need others: turning off Raid also turns off Loot, and turning off PvP also turns off Intel. The switch
+  says so before you press it. Turning on Loot or Intel turns on the module they need as well.
+- A module that was off when the addon started needs a reload to run. The Modules tab says "Type /reload to start ..."
+  next to its switch.
 
 ## Sync
 

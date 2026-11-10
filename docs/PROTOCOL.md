@@ -38,9 +38,8 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   (`PVP_SEASON` and the others of the "PvP seasons" section); minor 8 added event sign-up (`SIGNUP_UPSERT`); minor 9
   replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`; minor 10 added the guild Kill on Sight messages
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
-  `party` of an open `LFG_POST`; the PvP tracking branch (numbered 13 here, renumbered on merge) added `PVP_PROGRESS`, the
-  optional `queue` of `PVP_LEDGER_REQ`, claims in the ledger catch-up between approvers, the `bg_played` goal kind and
-  the optional goal fields below.
+  `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
+  ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below.
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -93,8 +92,9 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `PVP_PROGRESS` | guild | `seasonId`, `rows[]` (`missionId`, `count`, `goal`; up to 50), numbers only | anyone, for themselves; only an approver keeps it |
 | `PVP_LEDGER_REQ` | guild | optional `seasonId`, `count`, `digest`, optional `queue` (the requester approves claims) | anyone |
 | `PVP_LEDGER_DATA` | whisper | optional `seasonId`, `page`, `pages`, `items[]` (`{ t, p, by }`) | gm, cogm (checked before decoding) |
+| `RANK_MAP` | guild | `rev`, `updatedAt`, `ranks[]` (up to 9 rows `{ i, r, n }`: rank index 1 to 9, role, rank name 1 to 32 bytes; see *Rank mapping*) | the guild master (rank index 0) or a cogm by the map the receiver holds |
 | `SYNC_REQ` | guild | none | anyone |
-| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules or roster messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
+| `SYNC_DATA` | whisper | `items[]`, a list of `{ t, p }` raid, loot, PvP, blacklist, readiness rules, roster or rank map messages (a `PVP_STATS` item also carries `owner`, a `BLACKLIST_UPSERT` item `addedBy` and `addedAt`) | rl, admin (checked before decoding) |
 
 `guid` is deliberately never sent. Intel sightings are not in this table: they use their own prefix, see *Enemy sightings* below.
 
@@ -224,6 +224,44 @@ kept. Older clients drop it as an unknown field.
 
 A leader keeps at most 10 pending applicants per post. A repeated `apply` refreshes its row. The applicant's level is
 never sent: a minimum level is checked by the applicant's own client.
+
+## Announcements
+
+Protocol minor version 13. Older clients drop both types with `unknown_type`, so a member without this version sees
+no announcements. Both are **guild channel** messages and go through the normal outbound queue (held back during an
+encounter lockdown). The sender must be a known guild member whose role has `announce_manage`, which is only `gm` and
+`cogm` (rank Emperador and Comandante): an `ANN` or `ANN_DEL` from any other role, or from a sender the receiver's guild
+roster does not know, is dropped as `forbidden` or `unknown_sender`. The role is read from the receiver's own roster,
+never from the message, and the author is always the sender: the payload has no field for it.
+
+`ANN` is a whole announcement (an upsert, like `EVENT_UPSERT`): `id` (a message id, 1 to 40 characters from
+`[A-Za-z0-9_-]`), `title` (1 to 60 characters), `body` (0 to 600 characters, may be left out; newlines are allowed, `|`
+and the other control characters are not), `createdAt`, `updatedAt`, `rev` (from 1), `popup` (boolean), `popupRev` (from
+1), `pinned` (boolean) and `expiresAt` (optional, a server-time timestamp: left out means it never expires). Characters
+are counted, not bytes, so accented text keeps its full length. Unknown fields are dropped.
+
+`ANN_DEL` removes one: `id`, `rev` (above the last one the sender saw) and `updatedAt`.
+
+Rules on the receiver:
+
+- The higher `rev` wins, then the later `updatedAt` (clamped to five minutes ahead of the local clock), then the larger
+  sender. An identical message is a no-op. `createdAt` is kept from the first copy.
+- A removal leaves a tombstone (`{ at, rev }`, kept 30 days, at most 200 of them), and an `ANN` whose `rev` does not
+  exceed it is dropped as `tombstoned`, so an old copy cannot bring a deleted announcement back.
+- A new announcement that already expired is dropped (`expired`).
+- At most 30 live announcements are kept. When it is full, the oldest unpinned one is dropped (and remembered as a
+  tombstone) to take a newer one, or a pinned one; an older announcement never pushes out newer ones, and a pinned one is
+  never pushed out (`limit`).
+- A member shows the popup once per `popupRev`: `popupRev` starts at 1 and "Send popup again" raises it. The popup is
+  only shown for an announcement touched in the last 7 days; older ones only count as unread on the board. What was
+  seen is kept per account (`announcementsSeen[id] = popupRev`), so alts do not get the same popup twice.
+
+**Catch-up.** A snapshot (`SYNC_DATA`, see below) carries the newest live announcements and the removals when its
+sender is a `gm` or a `cogm`; an item is applied under the role of the sender. Each `ANN` item may name its original
+`author` (the one documented exception to "the author is the sender", only inside a snapshot), and it is believed only
+when the receiver's own guild roster says that member has `announce_manage` too; otherwise the sender stays the author.
+The text export never includes announcements. As the snapshot only comes from a leader who happens to be online, a
+`gm` or `cogm` also repeats their own live announcements once after login, each at a random moment of 5 to 40 seconds.
 
 ## Guild map positions
 
@@ -386,6 +424,33 @@ version was raised to 9 for it: the guild-wide `READINESS_RULES` (minor 4) is go
   one of its own roster, for the members who were not online. Existing rosters start with a copy of the former
   guild-wide set (schema 13); a new roster starts with none.
 
+## Rank mapping
+
+`RANK_MAP { rev, updatedAt, ranks = { { i = 3, r = "officer", n = "Oficial" }, ... } }` replaces the whole rank map of
+the guild of the receiver: which addon role each guild rank index has, so renaming a rank in the game keeps the role of
+its members. Rank index 0 is the guild master and is never in the map; the role is one of `cogm`, `officer`, `rl`,
+`roster`, `member`, `alter` (`gm` is never assignable). `n` is the rank name when the map was saved, used for display
+and to detect a rename; it decides nothing. The validator refuses a duplicate index, an index outside 1 to 9, a role
+outside that set and a name with escape sequences.
+
+Authority is worked out by the receiver, never read from the message, against the map it holds **before** applying the
+incoming one:
+
+- the sender is the guild master: their guild roster entry has rank index 0 (a rank that is merely called like the guild
+  master's does not count); or
+- the sender's role is `cogm` according to the map the receiver holds. The incoming map never authorizes itself.
+- A `cogm` sender is also held to one guard: the row of their own rank must keep resolving to `cogm` (no
+  self-promotion or demotion). The receiver drops the whole message on a violation. A cogm can still change the other
+  rows, even make another rank `cogm`; the guild master's role never depends on the map and can undo it.
+
+A newer map wins by `rev`, then `updatedAt`, then the sender (see *Conflict resolution*), per guild; maps are stored under
+`<guild name>-<realm>`, so a character in another guild never shares one. Until a map is saved, every role comes from
+the rank name as before. A sender whose rank is not in the receiver's roster yet is dropped as unknown. The author is the
+sender. A client older than minor 13 drops the type and keeps using rank names.
+
+The map is also in the snapshot (`SYNC_DATA`) of a sender who may author it, and whoever saved the map in force sends it
+once after login (jittered with the other login resends).
+
 ## Rosters and assigned roles
 
 Raid rosters (teams) and the addon role of each member are set by the guild master inside the addon (protocol
@@ -541,7 +606,9 @@ are bounded (500) and expire after 30 days.
 1. Roughly 8 to 20 seconds after login (once the guild roster had time to load) the client sends `SYNC_REQ`.
 2. A raid leader or admin answers, after a random 1 to 10 second delay and at most once a minute per requester,
    by whispering `SYNC_DATA`: the 20 most recent events with their attendance, assignments and loot sessions or
-   awards, plus every tombstone. If it does not fit, the number of events is halved until it does.
+   awards, plus every tombstone. If it does not fit, the number of events is halved until it does. When the answering
+   leader is a `gm` or `cogm`, the snapshot also carries the newest announcements and their removals (see *Announcements*),
+   which shrink with the events.
 3. The requester decodes it only if the whisper comes from someone whose role allows managing events, and applies
    every item as if that leader had sent it, through the same validation, authority and conflict rules.
 
@@ -561,7 +628,7 @@ text export.
 
 ## Limits on stored data
 
-20 rosters, 1000 role and roster assignments, 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
+30 announcements (and 200 announcement tombstones), 20 rosters, 1000 role and roster assignments, 100 events, 60 attendance rows and 50 assignments per event, 40 loot sessions per event with at most 40 candidates
 and 30 votes each, 500 received profiles, 1000 PvP records and 1000 reset floors, 200 blacklist entries, 20 templates.
 PvP seasons: 60 seasons, 50 missions per season, 3000 grants per season (never evicted), 3000 voids, 3000 rejections,
 300 queued claims (20 per player), 50 finals, 20 officers with 10 intervals each, 10 deliveries per season. Events are purged 90 days after their start.

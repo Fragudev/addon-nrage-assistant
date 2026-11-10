@@ -28,6 +28,14 @@ function ViewModel.PvPSubTabs()
     { value = "history", text = L("History") },
     { value = "intel", text = L("Intel") },
   }
+  -- The Intel sub-tab belongs to the intel module (Domain/ModuleRegistry); without the module it is not offered.
+  if ns.modules and not ns.modules:IsEnabled("intel") then
+    for index, tab in ipairs(tabs) do
+      if tab.value == "intel" then
+        table.remove(tabs, index)
+      end
+    end
+  end
   return tabs
 end
 
