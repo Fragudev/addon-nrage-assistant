@@ -106,6 +106,10 @@ local function load_window(locale)
     "UI/Tabs/Layers",
     "UI/Tabs/Groups",
     "UI/Tabs/Installs",
+    "Domain/ModuleRegistry",
+    "Domain/ModuleService",
+    "UI/ViewModelModules",
+    "UI/Tabs/Modules",
   }) do
     if path == "UI/ViewModel" then
       ns.Kit = FakeKit.new(ns.Kit)
@@ -4742,5 +4746,102 @@ describe("Window smoke test: Intel", function()
         ns.UI.IntelHide()
       end)
     end)
+  end)
+end)
+
+describe("Window smoke test: Modules", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  -- The window with the module service wired as Core/Init.lua wires it.
+  local function openModules(rank)
+    env = build(rank)
+    env.ns.modules = env.ns.ModuleService.New({
+      db = function()
+        return env.ns.db
+      end,
+      onChange = function()
+        env.ns.UI.ModulesChanged()
+      end,
+    })
+    env.open("modules")
+  end
+
+  local function sidebarValues()
+    local sidebar
+    for _, node in ipairs(env.ns.Kit.fake.nodes) do
+      if node.kind == "Sidebar" then
+        sidebar = node
+      end
+    end
+    local values = {}
+    for _, group in ipairs(sidebar.opts.groups) do
+      for _, item in ipairs(group.items) do
+        values[#values + 1] = item.value
+      end
+    end
+    return values
+  end
+
+  it("draws one switch per module, checked while the module is on", function()
+    openModules("Member")
+    assert.is_truthy(env.text():find("Your modules", 1, true))
+    assert.is_true(FakeKit.find(env.page(), "Switch", "Professions").opts.checked)
+    assert.is_true(FakeKit.find(env.page(), "Switch", "PvP").opts.checked)
+    assert.is_truthy(FakeKit.find(env.page(), "Button", "Turn all on"))
+  end)
+
+  it("turning a module off hides its tabs in the sidebar at once, and its switch says what else goes", function()
+    openModules("GM")
+    assert.is_truthy(FakeKit.find(env.page(), "Label", "Turning it off also turns off: Intel."))
+    FakeKit.find(env.page(), "Switch", "PvP").opts.onChange(false)
+    assert.is_false(env.ns.modules:IsEnabled("intel"))
+    local values = sidebarValues()
+    for _, value in ipairs(values) do
+      assert.is_true(value ~= "pvp" and value ~= "pvpadmin", value)
+    end
+    assert.is_false(FakeKit.find(env.page(), "Switch", "PvP").opts.checked)
+  end)
+
+  it("turn all on switches every module on again", function()
+    openModules("Member")
+    FakeKit.find(env.page(), "Switch", "PvP").opts.onChange(false)
+    FakeKit.find(env.page(), "Button", "Turn all on").opts.onClick()
+    assert.is_true(env.ns.modules:IsEnabled("pvp"))
+    assert.is_true(env.ns.modules:IsEnabled("intel"))
+  end)
+end)
+
+describe("Window smoke test: Home and modules", function()
+  local env
+
+  after_each(function()
+    pcall(env.close)
+  end)
+
+  it("leaves the Layers and Groups cards out while their modules are off", function()
+    env = build("Member")
+    env.ns.modules = env.ns.ModuleService.New({
+      db = function()
+        return env.ns.db
+      end,
+    })
+    env.ns.lfgBoard = {
+      OpenCount = function()
+        return 2
+      end,
+    }
+    env.open("home")
+    assert.is_truthy(FakeKit.find(env.page(), "Button", "Open Groups"))
+    assert.is_truthy(FakeKit.find(env.page(), "Card", "Groups"))
+    env.ns.modules:SetEnabled("groups", false)
+    env.ns.modules:SetEnabled("layers", false)
+    env.open("home")
+    assert.is_nil(FakeKit.find(env.page(), "Button", "Open Groups"))
+    assert.is_nil(FakeKit.find(env.page(), "Card", "Groups"))
+    assert.is_nil(FakeKit.find(env.page(), "Card", "Your layer"))
   end)
 end)

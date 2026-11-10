@@ -554,6 +554,13 @@ function UI.SelectTab(tab)
   UI.Redraw()
 end
 
+-- A module was switched on or off (ns.modules): the sidebar is built again, so a tab that is hidden now gives way to
+-- Home (BuildSidebar), and the open tab is drawn again.
+function UI.ModulesChanged()
+  UI.BuildSidebar()
+  UI.Redraw()
+end
+
 -- The language was changed in the settings: every text is read again.
 function UI.LanguageChanged()
   UI.BuildSidebar()
