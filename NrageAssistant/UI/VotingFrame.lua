@@ -395,6 +395,9 @@ function VotingFrame.Show()
 end
 
 function VotingFrame.Refresh()
+  if ns.modules and not ns.modules:IsEnabled("loot") then
+    return
+  end
   if controller and ns.active and ns.db and ns.character then
     controller:Refresh()
   end
