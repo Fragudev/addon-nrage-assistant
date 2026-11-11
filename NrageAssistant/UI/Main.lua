@@ -322,6 +322,9 @@ end, ns.Constants.LFG_REDRAW_SECONDS)
 function UI.LfgChanged()
   UI.RefreshGroupsBadge()
   groupsRedraw()
+  if ns.GroupsMinimapIcon then
+    ns.GroupsMinimapIcon.Refresh()
+  end
 end
 
 -- The announcements not read yet: the count of the Announcements item of the sidebar.
@@ -593,6 +596,9 @@ end
 function UI.ModulesChanged()
   UI.BuildSidebar()
   UI.Redraw()
+  if ns.GroupsMinimapIcon then
+    ns.GroupsMinimapIcon.Refresh()
+  end
 end
 
 -- The language was changed in the settings: every text is read again.

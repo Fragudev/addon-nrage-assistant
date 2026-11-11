@@ -144,6 +144,7 @@ ns.Constants = {
   LOGO_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\nrage_logo",
   MINIMAP_DEFAULT_ANGLE = 225,
   MINIMAP_RADIUS_MARGIN = 5,
+  MINIMAP_GROUPS_DEFAULT_ANGLE = 160,
 
   -- Assignment templates, kept on this client only.
   TEMPLATES_MAX = 20,

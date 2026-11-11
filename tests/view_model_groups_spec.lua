@@ -572,3 +572,150 @@ describe("ViewModel groups in Spanish", function()
     assert.are.equal("Nuevo grupo", es.GroupFormView(es.GroupFormNew(1), {}).heading)
   end)
 end)
+
+describe("ViewModel groups minimap icon", function()
+  local function minimap(overrides)
+    local state = {
+      enabled = true,
+      posts = { entry({ owner = "Kaelis", pid = "a" }) },
+      ownName = "Me",
+      canApply = function()
+        return true
+      end,
+    }
+    for k, v in pairs(overrides or {}) do
+      state[k] = v
+    end
+    return ViewModel.GroupsMinimapView(state)
+  end
+
+  local function posts_of(count)
+    local list = {}
+    for index = 1, count do
+      list[#list + 1] = entry({ owner = "P" .. index, pid = "p" .. index })
+    end
+    return list
+  end
+
+  it("is hidden while the module is disabled", function()
+    local icon = minimap({ enabled = false })
+    assert.is_false(icon.shown)
+    assert.are.equal(1, icon.count)
+  end)
+
+  it("is hidden when the only open post is the player's own", function()
+    local icon = minimap({ posts = { entry({ owner = "Me" }) } })
+    assert.is_false(icon.shown)
+    assert.are.equal(0, icon.count)
+    assert.is_nil(icon.countText)
+    assert.are.same({}, icon.lines)
+  end)
+
+  it("is shown with the posts of other members, in the board order", function()
+    local icon = minimap({
+      posts = {
+        entry({ owner = "Kaelis", pid = "a" }),
+        entry({ owner = "Me", pid = "m" }),
+        entry({ owner = "Ana", pid = "b" }),
+      },
+    })
+    assert.is_true(icon.shown)
+    assert.are.equal(2, icon.count)
+    assert.are.equal("2", icon.countText)
+    assert.are.equal("Open groups (2)", icon.title)
+    assert.are.equal("Click to open Groups", icon.hint)
+    assert.are.equal(2, #icon.lines)
+    assert.is_truthy(icon.lines[1].text:find("Kaelis", 1, true))
+    assert.is_truthy(icon.lines[2].text:find("Ana", 1, true))
+    assert.is_nil(icon.more)
+  end)
+
+  it("lists at most five posts and says how many more there are", function()
+    local icon = minimap({ posts = posts_of(7) })
+    assert.are.equal(7, icon.count)
+    assert.are.equal(5, #icon.lines)
+    assert.is_truthy(icon.lines[5].text:find("P5", 1, true))
+    assert.are.equal("and 2 more", icon.more)
+  end)
+
+  it("writes the count badge as nothing, the number, or 9+", function()
+    assert.is_nil(minimap({ posts = posts_of(1) }).countText)
+    assert.are.equal("2", minimap({ posts = posts_of(2) }).countText)
+    assert.are.equal("9", minimap({ posts = posts_of(9) }).countText)
+    assert.are.equal("9+", minimap({ posts = posts_of(10) }).countText)
+    assert.are.equal("Open groups (10)", minimap({ posts = posts_of(10) }).title)
+  end)
+
+  it("lists the roles still needed only", function()
+    local icon = minimap({ posts = { entry({ owner = "Kaelis", needs = { tank = 1, heal = 0, dps = 2 } }) } })
+    assert.are.equal("Dungeon: Scarlet Monastery - Kaelis (Tank, DPS)", icon.lines[1].text)
+    local none = minimap({ posts = { entry({ owner = "Kaelis", needs = { tank = 0, heal = 0, dps = 0 } }) } })
+    assert.are.equal("Dungeon: Scarlet Monastery - Kaelis", none.lines[1].text)
+  end)
+
+  it("uses the Other label for an unknown kind", function()
+    local icon =
+      minimap({ posts = { entry({ owner = "Kaelis", kind = "raid", needs = { tank = 0, heal = 0, dps = 0 } }) } })
+    assert.are.equal("Other: Scarlet Monastery - Kaelis", icon.lines[1].text)
+  end)
+
+  it("marks a post joinable only when canApply says yes", function()
+    local asked = {}
+    local icon = minimap({
+      posts = { entry({ owner = "Kaelis", pid = "yes" }), entry({ owner = "Ana", pid = "no" }) },
+      canApply = function(pid)
+        asked[#asked + 1] = pid
+        return pid == "yes"
+      end,
+    })
+    assert.is_true(icon.lines[1].joinable)
+    assert.is_false(icon.lines[2].joinable)
+    assert.are.same({ "yes", "no" }, asked)
+  end)
+
+  it("is not joinable when canApply is missing, fails or returns nothing", function()
+    local posts = { entry({ owner = "Kaelis", pid = "a" }) }
+    local missing = ViewModel.GroupsMinimapView({ enabled = true, posts = posts, ownName = "Me" })
+    assert.is_false(missing.lines[1].joinable)
+    local failing = minimap({
+      canApply = function()
+        error("boom")
+      end,
+    })
+    assert.is_false(failing.lines[1].joinable)
+    local nothing = minimap({
+      canApply = function()
+        return nil
+      end,
+    })
+    assert.is_false(nothing.lines[1].joinable)
+  end)
+
+  it("escapes the title and the leader", function()
+    local icon = minimap({ posts = { entry({ owner = "Ka|elis", title = "Fire|Ice" }) } })
+    assert.are.equal("Dungeon: Fire||Ice - Ka||elis (Tank, Heal)", icon.lines[1].text)
+  end)
+
+  it("never raises on missing posts, own name or canApply", function()
+    local bare = ViewModel.GroupsMinimapView({ enabled = true })
+    assert.is_false(bare.shown)
+    assert.are.equal(0, bare.count)
+    local no_name = ViewModel.GroupsMinimapView({ enabled = true, posts = { entry({ owner = "Kaelis" }) } })
+    assert.is_true(no_name.shown)
+    assert.is_false(no_name.lines[1].joinable)
+  end)
+
+  it("writes the texts in Spanish", function()
+    local es = load_view_model("esES")
+    local icon = es.GroupsMinimapView({
+      enabled = true,
+      posts = { entry({ owner = "Kaelis", pid = "a" }), entry({ owner = "Ana", pid = "b" }) },
+      ownName = "Me",
+    })
+    assert.are.equal("Grupos abiertos (2)", icon.title)
+    assert.are.equal("Clic para abrir Grupos", icon.hint)
+    assert.is_truthy(icon.lines[1].text:find("Mazmorra: Scarlet Monastery - Kaelis", 1, true))
+    local many = es.GroupsMinimapView({ enabled = true, posts = posts_of(6), ownName = "Me" })
+    assert.are.equal("y 1 más", many.more)
+  end)
+end)
