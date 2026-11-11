@@ -158,7 +158,7 @@ UI\LfgPopup.lua
 UI\AnnouncementPopup.lua
 UI\VotingFrame.lua
 UI\MinimapButton.lua
-UI\GroupsMinimapIcon.lua
+UI\GroupsIcon.lua
 UI\MapPins.lua
 UI\IntelWindow.lua
 UI\IntelTargetButton.lua

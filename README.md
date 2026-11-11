@@ -156,7 +156,7 @@ The addon is published on CurseForge, but it only works for Nrage:
   diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
 - **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. Each post shows its
   seats with the class and role of who is in. The leader invites with a click. A new group shows a short line at the
-  top of the screen for everyone else, and a Groups icon on the minimap while one is open. Only members with the
+  top of the screen for everyone else, and a Groups icon you can drag anywhere on the screen while one is open. Only members with the
   addon see the board.
 
 ### Sync

@@ -2,51 +2,48 @@ local function load_icon()
   local ns = {}
   assert(loadfile("NrageAssistant/Core/Constants.lua"))("NrageAssistant", ns)
   assert(loadfile("NrageAssistant/Core/Locale.lua"))("NrageAssistant", ns)
-  assert(loadfile("NrageAssistant/UI/MinimapButton.lua"))("NrageAssistant", ns)
-  assert(loadfile("NrageAssistant/UI/GroupsMinimapIcon.lua"))("NrageAssistant", ns)
+  assert(loadfile("NrageAssistant/UI/GroupsIcon.lua"))("NrageAssistant", ns)
   return ns
 end
 
 local ns = load_icon()
-local Icon = ns.GroupsMinimapIcon
+local Icon = ns.GroupsIcon
 
 local function newDb()
   return { global = { settings = {} } }
 end
 
-describe("GroupsMinimapIcon.Settings", function()
-  it("creates the table with the default angle", function()
+describe("GroupsIcon.Settings", function()
+  it("creates the table with the default place, on the top right of the screen", function()
     local db = newDb()
     local settings = Icon.Settings(db)
-    assert.are.equal(160, ns.Constants.MINIMAP_GROUPS_DEFAULT_ANGLE)
-    assert.are.equal(160, settings.angle)
-    assert.are.equal(settings, db.global.settings.minimapGroups)
+    assert.are.equal(-250, settings.x)
+    assert.are.equal(-30, settings.y)
+    assert.are.equal(settings, db.global.settings.groupsIcon)
   end)
 
-  it("keeps a valid angle", function()
+  it("keeps a saved place", function()
     local db = newDb()
-    db.global.settings.minimapGroups = { angle = 90 }
-    assert.are.equal(90, Icon.Settings(db).angle)
+    db.global.settings.groupsIcon = { x = -600, y = -400 }
+    local settings = Icon.Settings(db)
+    assert.are.equal(-600, settings.x)
+    assert.are.equal(-400, settings.y)
   end)
 
-  it("repairs an invalid angle to the groups default", function()
+  it("repairs an unusable place to the default", function()
     for _, value in ipairs({ "90", true, {}, 0 / 0, math.huge }) do
       local db = newDb()
-      db.global.settings.minimapGroups = { angle = value }
-      assert.are.equal(160, Icon.Settings(db).angle, tostring(value))
+      db.global.settings.groupsIcon = { x = value, y = -10 }
+      local settings = Icon.Settings(db)
+      assert.are.equal(-250, settings.x, tostring(value))
+      assert.are.equal(-30, settings.y, tostring(value))
     end
     local db = newDb()
-    db.global.settings.minimapGroups = "broken"
-    assert.are.equal(160, Icon.Settings(db).angle)
+    db.global.settings.groupsIcon = "broken"
+    assert.are.equal(-250, Icon.Settings(db).x)
   end)
 
-  it("normalises an angle out of range", function()
-    local db = newDb()
-    db.global.settings.minimapGroups = { angle = 400 }
-    assert.are.equal(40, Icon.Settings(db).angle)
-  end)
-
-  it("never touches the addon button settings", function()
+  it("never touches the minimap button settings", function()
     local db = newDb()
     db.global.settings.minimap = { angle = 10, hide = true }
     Icon.Settings(db)
@@ -57,7 +54,14 @@ describe("GroupsMinimapIcon.Settings", function()
   end)
 end)
 
-describe("GroupsMinimapIcon.State", function()
+describe("GroupsIcon.Offsets", function()
+  it("measures the dropped corner from the top right of the screen, rounded", function()
+    assert.are.same({ -300, -120 }, { Icon.Offsets(1620.4, 960.2, 1920, 1080) })
+    assert.are.same({ 0, 0 }, { Icon.Offsets(1920, 1080, 1920, 1080) })
+  end)
+end)
+
+describe("GroupsIcon.State", function()
   local function env(overrides)
     local e = {
       modules = {
@@ -128,7 +132,7 @@ describe("GroupsMinimapIcon.State", function()
   end)
 end)
 
-describe("GroupsMinimapIcon.Refresh", function()
+describe("GroupsIcon.Refresh", function()
   it("does nothing before Create", function()
     assert.has_no.errors(function()
       Icon.Refresh()

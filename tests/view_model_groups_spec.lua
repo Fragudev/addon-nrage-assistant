@@ -573,7 +573,7 @@ describe("ViewModel groups in Spanish", function()
   end)
 end)
 
-describe("ViewModel groups minimap icon", function()
+describe("ViewModel groups icon", function()
   local function minimap(overrides)
     local state = {
       enabled = true,
@@ -586,7 +586,7 @@ describe("ViewModel groups minimap icon", function()
     for k, v in pairs(overrides or {}) do
       state[k] = v
     end
-    return ViewModel.GroupsMinimapView(state)
+    return ViewModel.GroupsIconView(state)
   end
 
   local function posts_of(count)
@@ -675,7 +675,7 @@ describe("ViewModel groups minimap icon", function()
 
   it("is not joinable when canApply is missing, fails or returns nothing", function()
     local posts = { entry({ owner = "Kaelis", pid = "a" }) }
-    local missing = ViewModel.GroupsMinimapView({ enabled = true, posts = posts, ownName = "Me" })
+    local missing = ViewModel.GroupsIconView({ enabled = true, posts = posts, ownName = "Me" })
     assert.is_false(missing.lines[1].joinable)
     local failing = minimap({
       canApply = function()
@@ -697,17 +697,17 @@ describe("ViewModel groups minimap icon", function()
   end)
 
   it("never raises on missing posts, own name or canApply", function()
-    local bare = ViewModel.GroupsMinimapView({ enabled = true })
+    local bare = ViewModel.GroupsIconView({ enabled = true })
     assert.is_false(bare.shown)
     assert.are.equal(0, bare.count)
-    local no_name = ViewModel.GroupsMinimapView({ enabled = true, posts = { entry({ owner = "Kaelis" }) } })
+    local no_name = ViewModel.GroupsIconView({ enabled = true, posts = { entry({ owner = "Kaelis" }) } })
     assert.is_true(no_name.shown)
     assert.is_false(no_name.lines[1].joinable)
   end)
 
   it("writes the texts in Spanish", function()
     local es = load_view_model("esES")
-    local icon = es.GroupsMinimapView({
+    local icon = es.GroupsIconView({
       enabled = true,
       posts = { entry({ owner = "Kaelis", pid = "a" }), entry({ owner = "Ana", pid = "b" }) },
       ownName = "Me",
@@ -715,7 +715,7 @@ describe("ViewModel groups minimap icon", function()
     assert.are.equal("Grupos abiertos (2)", icon.title)
     assert.are.equal("Clic para abrir Grupos", icon.hint)
     assert.is_truthy(icon.lines[1].text:find("Mazmorra: Scarlet Monastery - Kaelis", 1, true))
-    local many = es.GroupsMinimapView({ enabled = true, posts = posts_of(6), ownName = "Me" })
+    local many = es.GroupsIconView({ enabled = true, posts = posts_of(6), ownName = "Me" })
     assert.are.equal("y 1 más", many.more)
   end)
 end)
