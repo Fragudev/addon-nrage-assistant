@@ -1,0 +1,57 @@
+NrageAssistant/Core/Constants.lua
+  s_899db75e1dccbf::t_3e0de4dea9be59 147
+NrageAssistant/Core/Init.lua
+  s_899db75e1dccbf::t_753aeec7a68155 1550
+NrageAssistant/NrageAssistant.toc
+  s_899db75e1dccbf::t_f95a4f35f44e3d 161
+NrageAssistant/UI/GroupsMinimapIcon.lua
+  s_899db75e1dccbf::t_cdf71a03a85f63 1-197
+NrageAssistant/UI/Main.lua
+  s_899db75e1dccbf::t_cfd89e9d62cc21 325-327,599-601
+NrageAssistant/UI/ViewModelGroups.lua
+  s_32978aaf7efee9::t_03bccbd4b5958e 529-605
+README.md
+  s_899db75e1dccbf::t_918f7c2fee1051 159-160
+docs/GROUPS_MINIMAP_ICON_PLAN.md
+  s_899db75e1dccbf::t_53a7908e93504b 1-78
+docs/USER_GUIDE.md
+  s_899db75e1dccbf::t_ab018278cbb264 681-684
+tests/groups_minimap_icon_spec.lua
+  s_899db75e1dccbf::t_8d74d5e97cf580 1-137
+tests/view_model_groups_spec.lua
+  s_899db75e1dccbf::t_2d7aed06fe4802 575-721
+NrageAssistant/Locales/esES.lua
+  s_62f3810f9032ef::t_b241478b2f2433 1256-1258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "b636607d73be80daebac7472251bdf6932259f57",
+  "prompts": {},
+  "sessions": {
+    "s_32978aaf7efee9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37e5c844-e38a-4f46-ba40-0ea2890d9363",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_62f3810f9032ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ac1a62849f1c26561",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    },
+    "s_899db75e1dccbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a8125f6-2e91-4c48-863f-ac26ed1464c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
