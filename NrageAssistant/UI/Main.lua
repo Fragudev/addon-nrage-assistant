@@ -322,8 +322,8 @@ end, ns.Constants.LFG_REDRAW_SECONDS)
 function UI.LfgChanged()
   UI.RefreshGroupsBadge()
   groupsRedraw()
-  if ns.GroupsMinimapIcon then
-    ns.GroupsMinimapIcon.Refresh()
+  if ns.GroupsIcon then
+    ns.GroupsIcon.Refresh()
   end
 end
 
@@ -596,8 +596,8 @@ end
 function UI.ModulesChanged()
   UI.BuildSidebar()
   UI.Redraw()
-  if ns.GroupsMinimapIcon then
-    ns.GroupsMinimapIcon.Refresh()
+  if ns.GroupsIcon then
+    ns.GroupsIcon.Refresh()
   end
 end
 

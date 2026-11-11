@@ -1547,7 +1547,7 @@ local ACTIVATION_STEPS = {
     name = "minimap",
     run = function()
       ns.MinimapButton.Create()
-      ns.GroupsMinimapIcon.Create()
+      ns.GroupsIcon.Create()
     end,
   },
   { name = "roster", run = StartGuildRoster },

@@ -76,3 +76,8 @@ Writer trigger: two independent units with disjoint edit surfaces, launched toge
   of another member shows the icon, joinable ones are highlighted in the tooltip.
 - L4 (2026-11-11): T1 (Haiku) and T2 (Sonnet) done; parent review found no blockers. Full suite 3824 successes,
   luacheck 0/0, stylua clean. The frame, drag, tooltip and click are not verified in game.
+- L5 (2026-11-11, user): "no veo nada en el minimapa, podriamos hacer que no depende del minimapa por la gente que
+  utiliza uis completas como el ellesmere ui, podriamos hacer que salga anclado a algún sitio". S2 and S3 change: the
+  icon is now `UI/GroupsIcon.lua`, a child of UIParent anchored by its top right corner to the top right of the screen
+  (default offsets -250, -30), draggable anywhere and clamped to the screen; offsets saved in
+  `db.global.settings.groupsIcon = { x, y }`. The old `minimapGroups` key is ignored.

@@ -528,10 +528,10 @@ function ViewModel.LfgPopupView(status)
 end
 
 ---------------------------------------------------------------------------------------------------------------------
--- The minimap icon
+-- The Groups icon
 ---------------------------------------------------------------------------------------------------------------------
 
-local MINIMAP_LINES = 5
+local ICON_LINES = 5
 
 -- The roles a post still needs as labels in display order, e.g. "Tank, DPS". Empty when nothing is needed.
 local function neededRoleText(needs)
@@ -563,11 +563,11 @@ local function canJoin(canApply, pid)
   return ok and result and true or false
 end
 
--- The minimap icon of the Groups module. `state` = { enabled (module on and board present), posts = LfgBoard:Query()
+-- The floating icon of the Groups module. `state` = { enabled (module on and board present), posts = LfgBoard:Query()
 -- result (may be nil), ownName, canApply = function(pid) -> boolean (may be nil) }. Only the posts of other members
 -- count and are listed, in the order the board gives them. Returns { shown, count, countText, title, lines =
 -- { { text, joinable } } (at most five), more, hint }.
-function ViewModel.GroupsMinimapView(state)
+function ViewModel.GroupsIconView(state)
   state = state or {}
   local others = {}
   for _, post in ipairs(type(state.posts) == "table" and state.posts or {}) do
@@ -578,7 +578,7 @@ function ViewModel.GroupsMinimapView(state)
 
   local count = #others
   local lines = {}
-  for index = 1, math.min(count, MINIMAP_LINES) do
+  for index = 1, math.min(count, ICON_LINES) do
     local post = others[index]
     local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
     local text = L("%s: %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(post.owner or "")))
@@ -590,8 +590,8 @@ function ViewModel.GroupsMinimapView(state)
   end
 
   local more = nil
-  if count > MINIMAP_LINES then
-    more = L("and %d more"):format(count - MINIMAP_LINES)
+  if count > ICON_LINES then
+    more = L("and %d more"):format(count - ICON_LINES)
   end
   return {
     shown = state.enabled == true and count > 0,

@@ -144,7 +144,9 @@ ns.Constants = {
   LOGO_TEXTURE = "Interface\\AddOns\\NrageAssistant\\Media\\nrage_logo",
   MINIMAP_DEFAULT_ANGLE = 225,
   MINIMAP_RADIUS_MARGIN = 5,
-  MINIMAP_GROUPS_DEFAULT_ANGLE = 160,
+  -- The Groups icon floats on the screen, anchored by its top right corner to the top right of the screen.
+  GROUPS_ICON_DEFAULT_X = -250,
+  GROUPS_ICON_DEFAULT_Y = -30,
 
   -- Assignment templates, kept on this client only.
   TEMPLATES_MAX = 20,

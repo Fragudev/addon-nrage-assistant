@@ -1,36 +1,40 @@
 local _, ns = ...
 
--- The Groups icon on the edge of the minimap, like the unread mail icon: it shows while another member has an open
--- group. Hovering lists the groups, a left click opens the Groups tab, and it can be dragged around the edge. Its
--- angle is saved account-wide (db.global.settings.minimapGroups). The settings and the state for the view model are
--- plain functions and are tested; Create/Refresh build and update the real frame and only run in the client.
-local GroupsMinimapIcon = {}
+-- The Groups icon, like the unread mail icon but floating on the screen instead of on the minimap, so it also works
+-- with UIs that replace or reshape the minimap: it shows while another member has an open group. Hovering lists the
+-- groups, a left click opens the Groups tab, and it can be dragged anywhere. Its position (offsets of its top right
+-- corner from the top right of the screen) is saved account-wide (db.global.settings.groupsIcon). The settings, the
+-- offset maths and the state for the view model are plain functions and are tested; Create/Refresh build and update
+-- the real frame and only run in the client.
+local GroupsIcon = {}
 
-local MinimapButton = ns.MinimapButton
-
--- Degrees in [0, 360). Anything that is not a usable number falls back to the groups default, not to the one of the
--- addon button.
-local function normalize(angle)
-  if type(angle) ~= "number" or angle ~= angle or angle == math.huge or angle == -math.huge then
-    return ns.Constants.MINIMAP_GROUPS_DEFAULT_ANGLE
-  end
-  return MinimapButton.NormalizeAngle(angle)
+local function finite(value)
+  return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
 
--- The saved settings, created and repaired as needed: { angle = degrees }.
--- Returns the table stored in `db`, so changes to it are saved.
-function GroupsMinimapIcon.Settings(db)
+-- The saved settings, created and repaired as needed: { x = offset, y = offset }. An unusable pair falls back to the
+-- default place. Returns the table stored in `db`, so changes to it are saved.
+function GroupsIcon.Settings(db)
   db.global.settings = type(db.global.settings) == "table" and db.global.settings or {}
   local settings = db.global.settings
-  settings.minimapGroups = type(settings.minimapGroups) == "table" and settings.minimapGroups or {}
-  local saved = settings.minimapGroups
-  saved.angle = normalize(saved.angle)
+  settings.groupsIcon = type(settings.groupsIcon) == "table" and settings.groupsIcon or {}
+  local saved = settings.groupsIcon
+  if not (finite(saved.x) and finite(saved.y)) then
+    saved.x = ns.Constants.GROUPS_ICON_DEFAULT_X
+    saved.y = ns.Constants.GROUPS_ICON_DEFAULT_Y
+  end
   return saved
+end
+
+-- The offsets to save after a drag: where the icon's top right corner ended, relative to the top right of the screen.
+-- Both pairs must be in the same coordinates (the icon is a child of UIParent at scale 1, so its own are fine).
+function GroupsIcon.Offsets(right, top, screenRight, screenTop)
+  return math.floor(right - screenRight + 0.5), math.floor(top - screenTop + 0.5)
 end
 
 -- The state the view model reads. env = { modules, lfgBoard, lfgService, identity = function() -> own name }.
 -- Every piece may be missing; nothing here raises.
-function GroupsMinimapIcon.State(env)
+function GroupsIcon.State(env)
   local modules = env.modules
   local board = env.lfgBoard
   local service = env.lfgService
@@ -67,20 +71,19 @@ local function place()
   if not button then
     return
   end
-  local settings = GroupsMinimapIcon.Settings(ns.db)
-  local radius = Minimap:GetWidth() / 2 + ns.Constants.MINIMAP_RADIUS_MARGIN
-  local x, y = MinimapButton.Position(settings.angle, radius)
+  local settings = GroupsIcon.Settings(ns.db)
   button:ClearAllPoints()
-  button:SetPoint("CENTER", Minimap, "CENTER", x, y)
+  button:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", settings.x, settings.y)
 end
 
--- While dragging: follow the cursor around the minimap.
-local function follow()
-  local centerX, centerY = Minimap:GetCenter()
-  local cursorX, cursorY = GetCursorPosition()
-  local scale = Minimap:GetEffectiveScale()
-  GroupsMinimapIcon.Settings(ns.db).angle =
-    MinimapButton.AngleFromCursor(centerX, centerY, cursorX / scale, cursorY / scale)
+-- After a drag: keep where it was dropped, anchored again to the top right so it stays put when the screen changes.
+local function save()
+  local right, top = button:GetRight(), button:GetTop()
+  local screenRight, screenTop = UIParent:GetRight(), UIParent:GetTop()
+  if right and top and screenRight and screenTop then
+    local settings = GroupsIcon.Settings(ns.db)
+    settings.x, settings.y = GroupsIcon.Offsets(right, top, screenRight, screenTop)
+  end
   place()
 end
 
@@ -105,18 +108,20 @@ local function showTooltip(self)
   GameTooltip:Show()
 end
 
--- Builds the icon once, with the layout of the addon button: a dark disc, the icon and the gold ring on top.
-function GroupsMinimapIcon.Create()
-  if button or not Minimap then
+-- Builds the icon once, with the layout of the minimap button: a dark disc, the icon and the gold ring on top.
+function GroupsIcon.Create()
+  if button or not UIParent then
     return
   end
 
-  button = CreateFrame("Button", "NrageAssistantGroupsMinimapButton", Minimap)
+  button = CreateFrame("Button", "NrageAssistantGroupsButton", UIParent)
   button:SetFrameStrata("MEDIUM")
   button:SetFrameLevel(8)
   button:SetSize(31, 31)
   button:RegisterForClicks("anyUp")
   button:RegisterForDrag("LeftButton")
+  button:SetMovable(true)
+  button:SetClampedToScreen(true)
   button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
   local background = button:CreateTexture(nil, "BACKGROUND")
@@ -146,11 +151,12 @@ function GroupsMinimapIcon.Create()
     end
   end)
   button:SetScript("OnDragStart", function(self)
-    self:SetScript("OnUpdate", follow)
     GameTooltip:Hide()
+    self:StartMoving()
   end)
   button:SetScript("OnDragStop", function(self)
-    self:SetScript("OnUpdate", nil)
+    self:StopMovingOrSizing()
+    save()
   end)
   button:SetScript("OnEnter", showTooltip)
   button:SetScript("OnLeave", function()
@@ -158,14 +164,14 @@ function GroupsMinimapIcon.Create()
   end)
   button:Hide()
 
-  GroupsMinimapIcon.Refresh()
+  GroupsIcon.Refresh()
 end
 
 local function refresh()
-  if not button or not (ns.ViewModel and ns.ViewModel.GroupsMinimapView) then
+  if not button or not (ns.ViewModel and ns.ViewModel.GroupsIconView) then
     return
   end
-  local view = ns.ViewModel.GroupsMinimapView(GroupsMinimapIcon.State({
+  local view = ns.ViewModel.GroupsIconView(GroupsIcon.State({
     modules = ns.modules,
     lfgBoard = ns.lfgBoard,
     lfgService = ns.lfgService,
@@ -190,8 +196,8 @@ local function refresh()
 end
 
 -- Shows or hides the icon and updates its count and tooltip. Does nothing before Create, and never raises.
-function GroupsMinimapIcon.Refresh()
+function GroupsIcon.Refresh()
   pcall(refresh)
 end
 
-ns.GroupsMinimapIcon = GroupsMinimapIcon
+ns.GroupsIcon = GroupsIcon
