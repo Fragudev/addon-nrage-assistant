@@ -1,0 +1,41 @@
+NrageAssistant/Core/Constants.lua
+  s_899db75e1dccbf::t_ef01977a3cba97 147-149
+NrageAssistant/Core/Init.lua
+  s_899db75e1dccbf::t_396e304d6ec318 1550
+NrageAssistant/NrageAssistant.toc
+  s_899db75e1dccbf::t_f9a669c2e908b1 161
+NrageAssistant/UI/GroupsIcon.lua
+  s_899db75e1dccbf::t_ec2bdcf91200af 3-12,15-17,20-25,29-34,37,74,76,79-86,111-113,117,123-124,155,158-159,167,171,174,199,203
+NrageAssistant/UI/Main.lua
+  s_899db75e1dccbf::t_7a586d1093fee4 325-326,599-600
+NrageAssistant/UI/ViewModelGroups.lua
+  s_899db75e1dccbf::t_60e0891f64afb8 531,534,566,570,581,593-594
+README.md
+  s_899db75e1dccbf::t_0fbf3a124ce50b 159
+docs/GROUPS_MINIMAP_ICON_PLAN.md
+  s_899db75e1dccbf::t_149dc238dc9875 79-83
+docs/USER_GUIDE.md
+  s_899db75e1dccbf::t_2ac647417596a7 681-684
+release-notes/v1.11.1.md
+  s_899db75e1dccbf::t_2b30eb1576cfed 1-16
+tests/groups_icon_spec.lua
+  s_899db75e1dccbf::t_d70926c75cfa53 5,10,16-17,20-22,25,27-30,33,36-39,42-43,46,57-64,135
+tests/view_model_groups_spec.lua
+  s_899db75e1dccbf::t_4967dc8e812c80 576,589,678,700,703,710,718
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a2be788133676325dfe0a8061bd260cb3faef580",
+  "prompts": {},
+  "sessions": {
+    "s_899db75e1dccbf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a8125f6-2e91-4c48-863f-ac26ed1464c1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
