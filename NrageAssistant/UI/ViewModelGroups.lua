@@ -526,3 +526,80 @@ function ViewModel.LfgPopupView(status)
   end
   return nil
 end
+
+---------------------------------------------------------------------------------------------------------------------
+-- The minimap icon
+---------------------------------------------------------------------------------------------------------------------
+
+local MINIMAP_LINES = 5
+
+-- The roles a post still needs as labels in display order, e.g. "Tank, DPS". Empty when nothing is needed.
+local function neededRoleText(needs)
+  local labels = {}
+  for _, role in ipairs(ROLE_ORDER) do
+    if ((needs or {})[role] or 0) > 0 then
+      labels[#labels + 1] = ViewModel.GROUP_ROLES[role]
+    end
+  end
+  return table.concat(labels, ", ")
+end
+
+-- The badge on the icon: nothing for fewer than two groups, the number up to nine, then "9+".
+local function badgeCount(count)
+  if count < 2 then
+    return nil
+  elseif count > 9 then
+    return "9+"
+  end
+  return tostring(count)
+end
+
+-- Whether the player can join `pid`. A missing or failing canApply means no.
+local function canJoin(canApply, pid)
+  if type(canApply) ~= "function" then
+    return false
+  end
+  local ok, result = pcall(canApply, pid)
+  return ok and result and true or false
+end
+
+-- The minimap icon of the Groups module. `state` = { enabled (module on and board present), posts = LfgBoard:Query()
+-- result (may be nil), ownName, canApply = function(pid) -> boolean (may be nil) }. Only the posts of other members
+-- count and are listed, in the order the board gives them. Returns { shown, count, countText, title, lines =
+-- { { text, joinable } } (at most five), more, hint }.
+function ViewModel.GroupsMinimapView(state)
+  state = state or {}
+  local others = {}
+  for _, post in ipairs(type(state.posts) == "table" and state.posts or {}) do
+    if type(post) == "table" and not sameName(post.owner, state.ownName) then
+      others[#others + 1] = post
+    end
+  end
+
+  local count = #others
+  local lines = {}
+  for index = 1, math.min(count, MINIMAP_LINES) do
+    local post = others[index]
+    local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
+    local text = L("%s: %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(post.owner or "")))
+    local roles = neededRoleText(post.needs)
+    if roles ~= "" then
+      text = text .. " (" .. roles .. ")"
+    end
+    lines[#lines + 1] = { text = text, joinable = canJoin(state.canApply, post.pid) }
+  end
+
+  local more = nil
+  if count > MINIMAP_LINES then
+    more = L("and %d more"):format(count - MINIMAP_LINES)
+  end
+  return {
+    shown = state.enabled == true and count > 0,
+    count = count,
+    countText = badgeCount(count),
+    title = L("Open groups (%d)"):format(count),
+    lines = lines,
+    more = more,
+    hint = L("Click to open Groups"),
+  }
+end

@@ -1253,6 +1253,9 @@ ns.Locale.Register("es", {
   ["expires in %s"] = "caduca en %s",
   ["Someone wants to join your group."] = "Alguien quiere unirse a tu grupo.",
   ["New group (%s): %s - %s"] = "Nuevo grupo (%s): %s - %s",
+  ["Open groups (%d)"] = "Grupos abiertos (%d)",
+  ["%s: %s - %s"] = "%s: %s - %s",
+  ["Click to open Groups"] = "Clic para abrir Grupos",
 
   -- UI/ViewModelInstalls.lua, UI/Tabs/Installs.lua
   ["Installed check"] = "Comprobar instalación",

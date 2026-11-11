@@ -678,6 +678,10 @@ When another member opens a new group, a short gold line appears at the top of t
 leader (for example "New group (Dungeon): Deadmines - Ann"). There is no line for the groups that were already open
 when you logged in: the first two minutes after login stay quiet.
 
+While another member has an open group, a small Groups icon appears on the edge of the minimap, like the mail icon,
+with the number of open groups when there are two or more. Hover it to see the groups; the ones you can join are
+green. Click it to open the Groups tab, or drag it to move it around the minimap. Your own group never shows it.
+
 **Limits.** Read these before you rely on it:
 
 - Only members running the addon see the board.
