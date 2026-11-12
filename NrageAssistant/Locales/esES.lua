@@ -321,6 +321,7 @@ ns.Locale.Register("es", {
   -- UI/MinimapButton.lua
   ["Left click: open the window"] = "Clic izquierdo: abrir la ventana",
   ["Drag: move this button"] = "Arrastrar: mover este botón",
+  ["Drag to resize the menu. Double-click to reset its width."] = "Arrastra para cambiar el ancho del menú. Doble clic para restablecerlo.",
 
   -- Commands/RaidCommands.lua
   ["not allowed: your guild rank gives the role '%s', which cannot do this."] = "no permitido: tu rango en la guild te da el rol '%s', que no puede hacer esto.",

@@ -147,6 +147,12 @@ ns.Constants = {
   -- The Groups icon floats on the screen, anchored by its top right corner to the top right of the screen.
   GROUPS_ICON_DEFAULT_X = -250,
   GROUPS_ICON_DEFAULT_Y = -30,
+  -- The sidebar of the main window can be dragged wider or narrower, between these widths, and always leaves the
+  -- page at least SIDEBAR_CONTENT_MIN_WIDTH wide.
+  SIDEBAR_DEFAULT_WIDTH = 200,
+  SIDEBAR_MIN_WIDTH = 160,
+  SIDEBAR_MAX_WIDTH = 360,
+  SIDEBAR_CONTENT_MIN_WIDTH = 440,
 
   -- Assignment templates, kept on this client only.
   TEMPLATES_MAX = 20,

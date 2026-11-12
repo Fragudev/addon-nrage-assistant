@@ -35,12 +35,20 @@ function UI.LootChanged()
   lootThrottle:Call()
 end
 
-local SIDEBAR_WIDTH = 200
 local PAGE_PAD = { 30, 26, 30, 26 }
+-- The drag handle of the sidebar: how wide it is, and how much of it sits inside the sidebar (the rest overlaps the
+-- padding of the page, so it never covers the scroll bar of the menu).
+local SIDEBAR_EDGE_WIDTH = 8
+local SIDEBAR_EDGE_INSIDE = 2
 
 local window
 local sidebar
 local content
+-- The width of the sidebar on screen, and the one the player chose (saved account-wide, see ns.SidebarWidth). They
+-- differ only while the window is too narrow for the chosen one.
+local sidebarWidth
+local preferredSidebarWidth
+local sidebarEdge
 local page
 local currentTab = "home"
 local banner
@@ -569,7 +577,7 @@ function UI.BuildSidebar()
     translucent = window.scene,
     scroll = navScroll,
   })
-  sidebar:Layout(SIDEBAR_WIDTH, contentHeight)
+  sidebar:Layout(sidebarWidth, contentHeight)
   Kit.Place(sidebar, window.body, 0, 0)
 end
 
@@ -581,15 +589,119 @@ function UI.UpdatePill()
   end
 end
 
+-- Moves the page and the drag handle to the edge of the sidebar.
+local function placeSidebarEdge()
+  if content then
+    content:ClearAllPoints()
+    content:SetPoint("TOPLEFT", window.body, "TOPLEFT", sidebarWidth, 0)
+    content:SetPoint("BOTTOMRIGHT", window.body, "BOTTOMRIGHT", 0, 0)
+  end
+  if sidebarEdge then
+    sidebarEdge:ClearAllPoints()
+    sidebarEdge:SetPoint("TOPLEFT", window.body, "TOPLEFT", sidebarWidth - SIDEBAR_EDGE_INSIDE, 0)
+    sidebarEdge:SetPoint("BOTTOMLEFT", window.body, "BOTTOMLEFT", sidebarWidth - SIDEBAR_EDGE_INSIDE, 0)
+  end
+end
+
 local function onResize(width, height)
-  contentWidth, contentHeight = width - SIDEBAR_WIDTH, height
+  -- A narrow window takes from the sidebar first, down to its minimum, so the page keeps its own minimum.
+  sidebarWidth = ns.SidebarWidth.Clamp(preferredSidebarWidth, width)
+  placeSidebarEdge()
+  contentWidth, contentHeight = width - sidebarWidth, height
   if content then
     content:SetSize(contentWidth, contentHeight)
   end
   if sidebar then
-    sidebar:Layout(SIDEBAR_WIDTH, height)
+    sidebar:Layout(sidebarWidth, height)
   end
   UI.Relayout()
+end
+
+-- The handle on the right edge of the sidebar: dragging it makes the sidebar wider or narrower (so long menu labels
+-- are not cut off), and a double click puts back the default width. The page follows while dragging, and the width is
+-- saved when the button is let go.
+local function sidebarEdgeTooltip(frame)
+  if GameTooltip then
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L("Drag to resize the menu. Double-click to reset its width."), 1, 1, 1, 1, true)
+    GameTooltip:Show()
+  end
+end
+
+local function setSidebarEdgeLit(lit)
+  if sidebarEdge then
+    sidebarEdge.line:SetAlpha(lit and 1 or 0)
+  end
+end
+
+local function stopSidebarDrag()
+  if not (sidebarEdge and sidebarEdge.drag) then
+    return
+  end
+  sidebarEdge.drag = nil
+  sidebarEdge:SetScript("OnUpdate", nil)
+  setSidebarEdgeLit(sidebarEdge:IsMouseOver())
+  preferredSidebarWidth = ns.SidebarWidth.Set(ns.db, sidebarWidth)
+  window:NotifyResize()
+end
+
+local function cursorX()
+  local x = GetCursorPosition()
+  return x / window.frame:GetEffectiveScale()
+end
+
+local function buildSidebarEdge()
+  local edge = CreateFrame("Button", nil, window.body)
+  edge:SetWidth(SIDEBAR_EDGE_WIDTH)
+  edge:SetFrameLevel(edge:GetFrameLevel() + 20)
+  edge:RegisterForClicks("LeftButtonUp")
+  edge.line = edge:CreateTexture(nil, "OVERLAY")
+  edge.line:SetPoint("TOPLEFT", edge, "TOPLEFT", SIDEBAR_EDGE_INSIDE - 1, 0)
+  edge.line:SetPoint("BOTTOMLEFT", edge, "BOTTOMLEFT", SIDEBAR_EDGE_INSIDE - 1, 0)
+  edge.line:SetWidth(2)
+  edge.line:SetColorTexture(Kit.Theme.Color("accent", 0.8))
+  edge.line:SetAlpha(0)
+  edge:SetScript("OnEnter", function(self)
+    setSidebarEdgeLit(true)
+    if not self.drag then
+      sidebarEdgeTooltip(self)
+    end
+  end)
+  edge:SetScript("OnLeave", function(self)
+    if not self.drag then
+      setSidebarEdgeLit(false)
+    end
+    if GameTooltip and GameTooltip:GetOwner() == self then
+      GameTooltip:Hide()
+    end
+  end)
+  edge:SetScript("OnMouseDown", function(self, button)
+    if button ~= "LeftButton" then
+      return
+    end
+    -- The pointer is on the handle, so the tooltip on screen is its own.
+    if GameTooltip then
+      GameTooltip:Hide()
+    end
+    self.drag = { x = cursorX(), width = sidebarWidth }
+    setSidebarEdgeLit(true)
+    self:SetScript("OnUpdate", function()
+      local width = ns.SidebarWidth.Drag(self.drag.width, cursorX() - self.drag.x, window.frame:GetWidth())
+      if width ~= sidebarWidth then
+        preferredSidebarWidth = width
+        sidebarWidth = width
+        placeSidebarEdge()
+        window:ScheduleResize()
+      end
+    end)
+  end)
+  edge:SetScript("OnMouseUp", stopSidebarDrag)
+  edge:SetScript("OnHide", stopSidebarDrag)
+  edge:SetScript("OnDoubleClick", function()
+    preferredSidebarWidth = ns.SidebarWidth.Set(ns.db, ns.Constants.SIDEBAR_DEFAULT_WIDTH)
+    window:NotifyResize()
+  end)
+  sidebarEdge = edge
 end
 
 function UI.SelectTab(tab)
@@ -740,6 +852,8 @@ function UI.WindowClosed()
 end
 
 local function buildWindow()
+  preferredSidebarWidth = ns.SidebarWidth.Get(ns.db)
+  sidebarWidth = preferredSidebarWidth
   -- An unpackaged checkout reports "dev": the header shows no badge for it, while the minimap and the login line do.
   local version = ns.GetVersion()
   window = Kit.Window.New({
@@ -764,8 +878,8 @@ local function buildWindow()
   })
   UI.ApplyWindowStatus(window, "mainWindow", 1000, 640)
   content = CreateFrame("Frame", nil, window.body)
-  content:SetPoint("TOPLEFT", window.body, "TOPLEFT", SIDEBAR_WIDTH, 0)
-  content:SetPoint("BOTTOMRIGHT", window.body, "BOTTOMRIGHT", 0, 0)
+  buildSidebarEdge()
+  placeSidebarEdge()
   page = Kit.ScrollArea(content, { gap = Kit.Theme.metrics.blockGap, pad = PAGE_PAD })
   Kit.Place(page, content, 0, 0)
 end

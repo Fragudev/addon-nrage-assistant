@@ -129,6 +129,7 @@ UI\ViewModelInstalls.lua
 UI\ViewModelModules.lua
 UI\ViewModelRanks.lua
 UI\ViewModelAnnouncements.lua
+UI\SidebarWidth.lua
 UI\Main.lua
 UI\Cards.lua
 UI\Tabs\Home.lua
