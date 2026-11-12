@@ -524,12 +524,12 @@ end
 -- ---------------------------------------------------------------------------------------------------------------
 -- The tabs of the section of `value` (ViewModel.SectionTabs), drawn at the top of each of its pages; nothing when the
 -- player sees only one of them.
-function UI.DrawSectionTabs(page, value)
+function UI.DrawSectionTabs(parent, value)
   local tabs = ns.ViewModel.SectionTabs(value, UI.Role(), UI.OwnRosterId())
   if #tabs < 2 then
     return
   end
-  Kit.Segmented(page, {
+  Kit.Segmented(parent, {
     items = tabs,
     value = value,
     onChange = function(selected)
