@@ -663,8 +663,10 @@ id; your own layer is marked "(you)". Layers are shown only for your continent.
 - If nobody answers (60 seconds), the helper does not invite you (90 seconds) or the move cannot be confirmed
   (120 seconds), the popup says so. **Cancel** works at any step.
 
-To help: the popup appears only if you are on the requested layer, not in combat or an instance, and either alone
-or leading a party that is not full.
+To help: the popup appears only if you are on the requested layer, not in an instance, and either alone or leading a
+party that is not full. In combat it does not pop up: a small icon appears next to the Groups icon (near the
+minimap), and the popup opens with its sound when combat ends. Hover the icon to see the request, or click it to open
+the popup at once; **Help** and **Invite** still wait for the end of combat.
 
 The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
 on Forever is still being checked (see `docs/API_NOTES.md`).

@@ -1,8 +1,10 @@
 local _, ns = ...
 
 -- The popup of a layer swap, for both sides: the requester follows the request step by step, a helper is asked to
--- help and, when picked, to invite. It never appears during an encounter lockdown (it waits and tries again) and it
--- only ever prompts: every action that invites or leaves a group is a button the player clicks.
+-- help and, when picked, to invite. It never appears during an encounter lockdown (it waits and tries again). In
+-- combat it does not pop up either: a small icon next to the Groups icon holds it until combat ends (or the icon is
+-- clicked), and then it opens with its alert. It only ever prompts: every action that invites or leaves a group is a
+-- button the player clicks.
 -- What to show comes from ViewModel.LayerSwapView; this file only builds the frame with the kit. Client only.
 local LayerPopup = {}
 
@@ -13,7 +15,8 @@ local WIDTH = 380
 -- The decisions, apart from the frame so they can be tested with fakes.
 --   deps: status() -> LayerSwap:Status() or nil, isLockedDown() -> boolean, after(seconds, fn), show(view),
 --         hide(), view(status) -> the view (default ViewModel.LayerSwapView); optional: alert() when a helper is
---         asked for help, countdown(text) to show the time left
+--         asked for help, countdown(text) to show the time left, inCombat() -> boolean and waiting(view or nil) to
+--         show or hide the icon that holds a new popup back during combat (both or neither)
 local Controller = {}
 Controller.__index = Controller
 
@@ -25,6 +28,8 @@ function Controller.New(deps)
     retryScheduled = false,
     ticking = false,
     alerted = {},
+    waitingKey = nil,
+    openNowKey = nil,
   }, Controller)
 end
 
@@ -39,7 +44,16 @@ local function keyOf(status)
   }, "|")
 end
 
+-- Hides the icon that holds the popup back, if it is shown.
+function Controller:StopWaiting()
+  if self.waitingKey then
+    self.waitingKey = nil
+    self.deps.waiting(nil)
+  end
+end
+
 function Controller:Hide()
+  self:StopWaiting()
   if self.shownKey then
     self.shownKey = nil
     self.deps.hide()
@@ -51,6 +65,23 @@ function Controller:Closed()
   local status = self.deps.status()
   self.shownKey = nil
   self.closedKey = status and keyOf(status) or nil
+end
+
+-- The player clicked the icon: the popup opens now, even in combat.
+function Controller:OpenNow()
+  local status = self.deps.status()
+  self.openNowKey = status and keyOf(status) or nil
+  self:Refresh()
+end
+
+-- A new popup waits behind the icon while the player fights. A popup already on screen keeps following the swap.
+function Controller:HoldsBack(key)
+  local deps = self.deps
+  return self.shownKey == nil
+    and key ~= self.openNowKey
+    and deps.waiting ~= nil
+    and deps.inCombat ~= nil
+    and deps.inCombat() == true
 end
 
 -- Shows, updates or closes the popup to match the swap. Called whenever the swap changes.
@@ -87,7 +118,11 @@ function Controller:Refresh()
     self:Hide()
     return
   end
-  if key ~= self.shownKey then
+  if key ~= self.shownKey and self:HoldsBack(key) then
+    self.waitingKey = key
+    deps.waiting(view)
+  elseif key ~= self.shownKey then
+    self:StopWaiting()
     self.shownKey = key
     deps.show(view)
     if view.alert and not self.alerted[status.rid] then
@@ -115,6 +150,7 @@ local frame
 local content
 local countdownLabel
 local controller
+local waitIcon, waitView
 
 local function close()
   if frame then
@@ -210,6 +246,58 @@ local function build(view)
   ns.PopupFrame.Fit(frame, content, WIDTH)
 end
 
+-- The icon that holds the popup back in combat: on the left of the Groups icon when that one shows, otherwise in its
+-- place. Hovering tells what the swap asks; a click opens the popup at once.
+local function showWaitTooltip(self)
+  if not waitView then
+    return
+  end
+  GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+  GameTooltip:AddLine(waitView.title)
+  GameTooltip:AddLine(waitView.text, 1, 1, 1, true)
+  if waitView.countdown then
+    GameTooltip:AddLine(waitView.countdown, 1, 1, 1)
+  end
+  GameTooltip:AddLine(L("It opens when combat ends. Click to open it now."), 0.6, 0.6, 0.6, true)
+  GameTooltip:Show()
+end
+
+local function placeWaitIcon()
+  waitIcon:ClearAllPoints()
+  local groups = ns.GroupsIcon.Frame()
+  if groups and groups:IsShown() then
+    waitIcon:SetPoint("TOPRIGHT", groups, "TOPLEFT", -4, 0)
+  else
+    waitIcon:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", ns.GroupsIcon.Place())
+  end
+end
+
+local function waiting(view)
+  waitView = view
+  if not view then
+    if waitIcon then
+      waitIcon:Hide()
+    end
+    return
+  end
+  if not waitIcon then
+    waitIcon = ns.GroupsIcon.RoundButton("NrageAssistantLayerWaitButton", "Interface\\Icons\\INV_Misc_Map_01")
+    waitIcon:SetScript("OnClick", function()
+      GameTooltip:Hide()
+      controller:OpenNow()
+    end)
+    waitIcon:SetScript("OnEnter", showWaitTooltip)
+    waitIcon:SetScript("OnLeave", function()
+      GameTooltip:Hide()
+    end)
+  end
+  placeWaitIcon()
+  waitIcon:Show()
+  if GameTooltip:IsShown() and GameTooltip:GetOwner() == waitIcon then
+    showWaitTooltip(waitIcon)
+  end
+end
+
 function LayerPopup.Refresh()
   if ns.modules and not ns.modules:IsEnabled("layers") then
     return
@@ -226,6 +314,10 @@ function LayerPopup.Start()
       return ns.layerSwap and ns.layerSwap:Status() or nil
     end,
     isLockedDown = ns.Platform.IsChatMessagingLockedDown,
+    inCombat = ns.Platform.IsInCombat,
+    waiting = function(view)
+      pcall(waiting, view)
+    end,
     after = C_Timer.After,
     show = build,
     hide = close,
@@ -239,6 +331,10 @@ function LayerPopup.Start()
       end
     end,
   })
+  -- A popup held back in combat opens when combat ends.
+  local events = CreateFrame("Frame")
+  ns.Platform.TryRegisterEvent(events, "PLAYER_REGEN_ENABLED")
+  events:SetScript("OnEvent", LayerPopup.Refresh)
 end
 
 ns.LayerPopup = LayerPopup

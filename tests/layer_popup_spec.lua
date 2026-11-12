@@ -210,6 +210,71 @@ describe("LayerPopup controller", function()
     assert.are.equal(0, #env.shown)
   end)
 
+  describe("in combat", function()
+    local function combat_env(status)
+      local env
+      env = build(status, {
+        inCombat = function()
+          return env.combat
+        end,
+        waiting = function(view)
+          env.waiting[#env.waiting + 1] = view or false
+        end,
+      })
+      env.combat, env.waiting = true, {}
+      return env
+    end
+
+    it("holds the popup and its alert back behind the icon", function()
+      local env = combat_env(helper_status())
+      env.controller:Refresh()
+      assert.are.equal(0, #env.shown)
+      assert.are.equal(0, env.alerts)
+      assert.are.equal(1, #env.waiting)
+      assert.is_truthy(env.waiting[1].text:find("Ann wants to join your layer", 1, true))
+    end)
+
+    it("opens the popup with its alert when combat ends, and hides the icon", function()
+      local env = combat_env(helper_status())
+      env.controller:Refresh()
+      env.combat = false
+      env.controller:Refresh()
+      assert.are.equal(1, #env.shown)
+      assert.are.equal(1, env.alerts)
+      assert.is_false(env.waiting[#env.waiting])
+    end)
+
+    it("opens the popup at once when the icon is clicked", function()
+      local env = combat_env(helper_status())
+      env.controller:Refresh()
+      env.controller:OpenNow()
+      assert.are.equal(1, #env.shown)
+      assert.is_false(env.waiting[#env.waiting])
+      env.controller:Refresh()
+      assert.are.equal(1, #env.shown)
+    end)
+
+    it("keeps updating a popup that was already open when combat started", function()
+      local env = combat_env(helper_status())
+      env.combat = false
+      env.controller:Refresh()
+      env.combat = true
+      env.status = helper_status({ stage = "assigned" })
+      env.controller:Refresh()
+      assert.are.equal(2, #env.shown)
+      assert.are.equal(0, #env.waiting)
+    end)
+
+    it("hides the icon when the swap ends before combat does", function()
+      local env = combat_env(helper_status())
+      env.controller:Refresh()
+      env.status = nil
+      env.controller:Refresh()
+      assert.is_false(env.waiting[#env.waiting])
+      assert.are.equal(0, env.hidden)
+    end)
+  end)
+
   it("uses the view model by default", function()
     local env = build(helper_status())
     env.controller:Refresh()

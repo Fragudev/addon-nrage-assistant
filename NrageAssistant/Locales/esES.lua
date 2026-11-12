@@ -711,6 +711,7 @@ ns.Locale.Register("es", {
   ["A swap needs a guildmate on that layer and in your zone to invite you."] = "Un cambio necesita que un compañero de esa capa y de tu zona te invite.",
   ["Leaving the group afterwards is your choice."] = "Salir del grupo después es decisión tuya.",
   ["A guildmate wants to join your layer."] = "Un compañero de la guild quiere unirse a tu capa.",
+  ["It opens when combat ends. Click to open it now."] = "Se abrirá al salir de combate. Haz clic para abrirla ya.",
 
   -- Guild map (UI/MapPins.lua, UI/Main.lua)
   ["Level %d"] = "Nivel %d",
