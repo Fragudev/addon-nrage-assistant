@@ -1,0 +1,69 @@
+NrageAssistant/Core/Constants.lua
+  s_aebb6339776325::t_17b3b82a2b423c 24,362-365,368-369
+NrageAssistant/Core/Init.lua
+  s_aebb6339776325::t_f4ab25c3086631 466,506
+NrageAssistant/Core/Platform.lua
+  s_aebb6339776325::t_181a4c07ee4911 717,720-722,726,733-734,745-761
+NrageAssistant/Domain/LayerDirectory.lua
+  s_aebb6339776325::t_e595869c3ef93a 6-7,45-49,85,94-97,100
+NrageAssistant/Domain/LayerPublisher.lua
+  s_aebb6339776325::t_641874bd49b4fd 8,35
+NrageAssistant/Domain/LayerSwap.lua
+  s_aebb6339776325::t_c31117aef6aa42 16-17,22-24,126,145,171,184-191,194,198,299,339,377,388,476-478,501,506-508
+NrageAssistant/Domain/LayerTracker.lua
+  s_aebb6339776325::t_a835b0c9357d2d 11-12,15,30,35-44,46-52,54,56,71-79,110,119,126
+NrageAssistant/Locales/esES.lua
+  s_aebb6339776325::t_133f34088d9a10 661-662,678-679,705-706,711-712
+NrageAssistant/Sync/LayerSync.lua
+  s_aebb6339776325::t_21bf99d8debc6e 54,59
+NrageAssistant/Sync/Protocol.lua
+  s_aebb6339776325::t_550b1820db0849 419-426,432-436,450-454
+NrageAssistant/UI/Tabs/Layers.lua
+  s_aebb6339776325::t_f176786cdacc12 4,15-16,26-27,46,110,131-133
+NrageAssistant/UI/ViewModelLayers.lua
+  s_aebb6339776325::t_23c3ac06219a89 4,19-20,71-74,130-133,137-141
+README.md
+  s_aebb6339776325::t_096e0dad9cdf88 154-155
+docs/API_NOTES.md
+  s_aebb6339776325::t_b231153c18352e 62,68-69
+docs/CURSEFORGE_DESCRIPTION.md
+  s_aebb6339776325::t_52e8499be0635b 33-34
+docs/LAYER_SWAP_PLAN.md
+  s_aebb6339776325::t_d79664ef3cf5aa 22-28,140,312
+docs/PRIVACY.md
+  s_aebb6339776325::t_13f4845fd87337 148-149
+docs/PROTOCOL.md
+  s_aebb6339776325::t_d97486a27565e2 42-43,79-80,182-186
+tests/layer_directory_spec.lua
+  s_aebb6339776325::t_15732d64b703e6 96-110
+tests/layer_publisher_spec.lua
+  s_aebb6339776325::t_6e9ea392b29b9f 61-66
+tests/layer_swap_spec.lua
+  s_aebb6339776325::t_bd566c6250bac1 119-122,784-890
+tests/layer_tracker_spec.lua
+  s_aebb6339776325::t_b184afbc31341c 16-17,28-33,177-229
+tests/platform_intel_spec.lua
+  s_aebb6339776325::t_ae4fe053f2c149 413-473
+tests/protocol_spec.lua
+  s_aebb6339776325::t_c198b3b9e5f4dd 755-763,791-800
+tests/ui_smoke_spec.lua
+  s_aebb6339776325::t_9761e819270e43 219,3591-3597,3604-3605,3609,3667-3669
+tests/view_model_layers_spec.lua
+  s_aebb6339776325::t_97e61249c85b30 80-90,116-123,193-199,212-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e472786d0c51cb6d81f7a80c0a9abf7afb2e42e1",
+  "prompts": {},
+  "sessions": {
+    "s_aebb6339776325": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51cd19ef-7df4-48b6-8582-e1da0581a39d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
