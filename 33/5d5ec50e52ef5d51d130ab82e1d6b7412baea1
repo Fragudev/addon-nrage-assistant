@@ -1,0 +1,35 @@
+NrageAssistant/Locales/esES.lua
+  s_ce0e55cf5f48df::t_3e47275b8a6af4 324
+NrageAssistant/NrageAssistant.toc
+  s_ce0e55cf5f48df::t_808196da217587 132
+NrageAssistant/UI/Main.lua
+  s_ce0e55cf5f48df::t_fbe72ae5032c1c 39-42,47-51,580,592-605,607-610,615,620-706,855-856,881-882
+NrageAssistant/UI/SidebarWidth.lua
+  s_ce0e55cf5f48df::t_9ef67f05fa4b1f 1-62
+docs/USER_GUIDE.md
+  s_ce0e55cf5f48df::t_b27376243d14c1 26-29
+tests/support/fake_kit.lua
+  s_ce0e55cf5f48df::t_6c4344a0f14b89 304-319
+tests/ui_smoke_spec.lua
+  s_ce0e55cf5f48df::t_cda5d4db85c647 101,146,640-740
+NrageAssistant/Core/Constants.lua
+  s_ce0e55cf5f48df::t_bcbeabd6ca4c21 150-155
+tests/sidebar_width_spec.lua
+  s_ce0e55cf5f48df::t_95fd72bb29316a 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "335d5ec50e52ef5d51d130ab82e1d6b7412baea1",
+  "prompts": {},
+  "sessions": {
+    "s_ce0e55cf5f48df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1b8cb7-a0f6-4dd4-9cfe-86cd57716bc9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
