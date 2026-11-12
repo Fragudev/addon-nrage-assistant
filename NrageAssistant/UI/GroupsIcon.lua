@@ -71,9 +71,8 @@ local function place()
   if not button then
     return
   end
-  local settings = GroupsIcon.Settings(ns.db)
   button:ClearAllPoints()
-  button:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", settings.x, settings.y)
+  button:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", GroupsIcon.Place())
 end
 
 -- After a drag: keep where it was dropped, anchored again to the top right so it stays put when the screen changes.
@@ -108,37 +107,56 @@ local function showTooltip(self)
   GameTooltip:Show()
 end
 
--- Builds the icon once, with the layout of the minimap button: a dark disc, the icon and the gold ring on top.
+-- A round button with the layout of the minimap button: a dark disc, `texture` and the gold ring on top. Hidden,
+-- not placed and with no scripts. The layer swap uses it too, for the icon that holds its popup back in combat.
+function GroupsIcon.RoundButton(name, texture)
+  local round = CreateFrame("Button", name, UIParent)
+  round:SetFrameStrata("MEDIUM")
+  round:SetFrameLevel(8)
+  round:SetSize(31, 31)
+  round:RegisterForClicks("anyUp")
+  round:SetClampedToScreen(true)
+  round:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+
+  local background = round:CreateTexture(nil, "BACKGROUND")
+  background:SetSize(20, 20)
+  background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+  background:SetPoint("TOPLEFT", 7, -5)
+
+  local icon = round:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(20, 20)
+  icon:SetTexture(texture)
+  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  icon:SetPoint("CENTER", background, "CENTER", 0, 0)
+
+  local ring = round:CreateTexture(nil, "OVERLAY")
+  ring:SetSize(53, 53)
+  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  ring:SetPoint("TOPLEFT")
+  round:Hide()
+  return round
+end
+
+-- The frame of the Groups icon, or nil before Create: the layer swap icon sits next to it.
+function GroupsIcon.Frame()
+  return button
+end
+
+-- Where the Groups icon sits when nobody dragged it, or where it was dropped: offsets from the top right of the screen.
+function GroupsIcon.Place()
+  local settings = GroupsIcon.Settings(ns.db)
+  return settings.x, settings.y
+end
+
+-- Builds the icon once.
 function GroupsIcon.Create()
   if button or not UIParent then
     return
   end
 
-  button = CreateFrame("Button", "NrageAssistantGroupsButton", UIParent)
-  button:SetFrameStrata("MEDIUM")
-  button:SetFrameLevel(8)
-  button:SetSize(31, 31)
-  button:RegisterForClicks("anyUp")
+  button = GroupsIcon.RoundButton("NrageAssistantGroupsButton", "Interface\\Icons\\INV_Misc_GroupNeedMore")
   button:RegisterForDrag("LeftButton")
   button:SetMovable(true)
-  button:SetClampedToScreen(true)
-  button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-
-  local background = button:CreateTexture(nil, "BACKGROUND")
-  background:SetSize(20, 20)
-  background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-  background:SetPoint("TOPLEFT", 7, -5)
-
-  local icon = button:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(20, 20)
-  icon:SetTexture("Interface\\Icons\\INV_Misc_GroupNeedMore")
-  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  icon:SetPoint("CENTER", background, "CENTER", 0, 0)
-
-  local ring = button:CreateTexture(nil, "OVERLAY")
-  ring:SetSize(53, 53)
-  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-  ring:SetPoint("TOPLEFT")
 
   -- The count of open groups, on the bottom right corner, above the ring.
   countText = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
@@ -162,7 +180,6 @@ function GroupsIcon.Create()
   button:SetScript("OnLeave", function()
     GameTooltip:Hide()
   end)
-  button:Hide()
 
   GroupsIcon.Refresh()
 end

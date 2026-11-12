@@ -720,8 +720,6 @@ describe("LayerSwap eligibility", function()
     local unknown = new_client(world, "Unknown", nil)
     local instance = new_client(world, "Instance", TARGET)
     instance.inInstance = true
-    local combat = new_client(world, "Combat", TARGET)
-    combat.inCombat = true
     local raid = new_client(world, "Raid", TARGET)
     raid.grouped, raid.raid, raid.leader, raid.size = true, true, true, 10
     local follower = new_client(world, "Follower", TARGET)
@@ -729,9 +727,20 @@ describe("LayerSwap eligibility", function()
     local full = new_client(world, "Full", TARGET)
     full.grouped, full.leader, full.size = true, true, 5
     requester.swap:Request(TARGET.map, TARGET.layer)
-    for _, client in ipairs({ far, unknown, instance, combat, raid, follower, full }) do
+    for _, client in ipairs({ far, unknown, instance, raid, follower, full }) do
       assert.is_nil(client.swap:Status(), client.name)
     end
+  end)
+
+  it("asks a member in combat, who can only help once combat ends", function()
+    helper.inCombat = true
+    requester.swap:Request(TARGET.map, TARGET.layer)
+    assert.are.equal("request", helper.swap:Status().stage)
+    local ok, reason = helper.swap:Offer()
+    assert.is_false(ok)
+    assert.are.equal("in_combat", reason)
+    helper.inCombat = false
+    assert.is_true(helper.swap:Offer())
   end)
 
   it("asks a leader of a party with a free slot", function()

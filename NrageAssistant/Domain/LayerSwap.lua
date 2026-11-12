@@ -374,7 +374,8 @@ local function onRequest(self, sender, payload)
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.helper, payload.map, payload.layer, payload.zone)
+  -- A member in combat is still asked: the popup waits for the end of combat, and Offer checks combat again.
+  local ok, reason = eligible(self.deps.eligibility.helper, payload.map, payload.layer, payload.zone, true)
   if not ok then
     return false, reason
   end
@@ -475,17 +476,17 @@ end
 --   platform: IsInGroup, IsInRaid, IsInInstance, IsInCombat, IsGroupLeader, GetGroupSize
 --   ownLayer: function() -> { map, layer, zone } or nil     isLocked: function() -> boolean
 -- The helper rule takes the zone of the request: nil (an older requester) is not checked; otherwise the helper must
--- have read their layer in that same zone.
+-- have read their layer in that same zone, and `allowCombat` (true when a request arrives) skips the combat check.
 -- Each rule returns true, or false plus a reason.
 function LayerSwap.Eligibility(platform, ownLayer, isLocked)
-  local function common()
+  local function common(allowCombat)
     if isLocked() then
       return false, "locked"
     end
     if platform.IsInInstance() then
       return false, "in_instance"
     end
-    if platform.IsInCombat() then
+    if not allowCombat and platform.IsInCombat() then
       return false, "in_combat"
     end
     return true
@@ -498,7 +499,7 @@ function LayerSwap.Eligibility(platform, ownLayer, isLocked)
       end
       return common()
     end,
-    helper = function(map, layer, zone)
+    helper = function(map, layer, zone, allowCombat)
       local current = ownLayer()
       if not current then
         return false, "unknown_layer"
@@ -509,7 +510,7 @@ function LayerSwap.Eligibility(platform, ownLayer, isLocked)
       if not ns.LayerModel.SameLayer(current, { map = map, layer = layer }) then
         return false, "other_layer"
       end
-      local ok, reason = common()
+      local ok, reason = common(allowCombat)
       if not ok then
         return false, reason
       end
