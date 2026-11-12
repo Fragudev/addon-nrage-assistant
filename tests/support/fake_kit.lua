@@ -301,7 +301,22 @@ function M.new(real)
       window.SetTitle = function() end
       window.SetVersion = function() end
       window.body = {}
-      window.frame = {}
+      -- The frame answers what the drag of the sidebar edge asks: its width (window.frameWidth, 1000 by default)
+      -- and its scale.
+      window.frame = {
+        GetWidth = function()
+          return window.frameWidth or 1000
+        end,
+        GetEffectiveScale = function()
+          return 1
+        end,
+      }
+      window.NotifyResize = function()
+        if opts.onResize then
+          opts.onResize(window.frameWidth or 1000, 588)
+        end
+      end
+      window.ScheduleResize = window.NotifyResize
       return window
     end,
   }

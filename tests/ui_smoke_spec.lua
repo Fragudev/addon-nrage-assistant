@@ -98,6 +98,7 @@ local function load_window(locale)
     "Commands/BlacklistCommands",
     "Commands/RosterCommands",
     "Commands/IntelCommands",
+    "UI/SidebarWidth",
     "UI/Main",
     "UI/Cards",
     "UI/Tabs/Home",
@@ -142,7 +143,7 @@ local function build(rank, locale)
   local ns = load_window(locale)
   local fake = FakeKit
   local env = { ns = ns, sent = {}, messages = {}, counter = 0, registered = {}, timers = {}, fake = fake }
-  FakeFrames.install()
+  env.frames = FakeFrames.install()
   -- The real gate, and one that lets the hidden tabs through so the specs of their views can open them. A spec that
   -- sets `env.forceTabs` opens any tab for any rank, to check what a tab draws for a player who cannot reach it.
   env.realTabVisible = ns.ViewModel.TabVisible
@@ -634,6 +635,107 @@ describe("Window smoke test", function()
     env.ns.db.global.members["Leader-Realm"].rosterId = nil
     env.ns.UI.RostersChanged()
     assert.are.equal("home", env.ns.UI.CurrentTab())
+  end)
+
+  describe("the sidebar edge", function()
+    local cursor = 0
+    local savedCursor
+
+    before_each(function()
+      savedCursor = _G.GetCursorPosition
+      _G.GetCursorPosition = function()
+        return cursor, 0
+      end
+    end)
+
+    after_each(function()
+      _G.GetCursorPosition = savedCursor
+    end)
+
+    local function open()
+      env = build("Member")
+      local window
+      local New = env.ns.Kit.Window.New
+      env.ns.Kit.Window.New = function(given)
+        window = New(given)
+        return window
+      end
+      env.ns.UI.Toggle()
+      local edge, content
+      for _, frame in ipairs(env.frames) do
+        if frame.parent == window.body and frame.scripts.OnDoubleClick then
+          edge = frame
+        elseif frame.parent == window.body and frame.kind == "Frame" and not content then
+          content = frame
+        end
+      end
+      return window, assert(edge, "no sidebar edge"), assert(content, "no content frame")
+    end
+
+    -- The x offset of the last TOPLEFT point of a frame.
+    local function left(frame)
+      for index = #frame.points, 1, -1 do
+        if frame.points[index][1] == "TOPLEFT" then
+          return frame.points[index][4]
+        end
+      end
+    end
+
+    local function drag(edge, from, to)
+      cursor = from
+      edge.scripts.OnMouseDown(edge, "LeftButton")
+      cursor = to
+      edge.scripts.OnUpdate(edge)
+      edge.scripts.OnMouseUp(edge)
+    end
+
+    it("starts at the saved width, or the default one", function()
+      local _, edge, content = open()
+      assert.are.equal(200, left(content))
+      assert.are.equal(198, left(edge))
+      assert.are.equal(200, env.ns.db.global.settings.sidebarWidth)
+    end)
+
+    it("moves the page with the edge and saves the width when let go", function()
+      local _, edge, content = open()
+      drag(edge, 500, 580)
+      assert.are.equal(280, left(content))
+      assert.are.equal(278, left(edge))
+      assert.are.equal(280, env.ns.db.global.settings.sidebarWidth)
+      assert.is_nil(edge.scripts.OnUpdate)
+    end)
+
+    it("stops at the edges of the range", function()
+      local _, edge, content = open()
+      drag(edge, 500, 0)
+      assert.are.equal(160, left(content))
+      drag(edge, 0, 900)
+      assert.are.equal(360, left(content))
+      assert.are.equal(360, env.ns.db.global.settings.sidebarWidth)
+    end)
+
+    it("gives way in a narrow window but keeps the chosen width for a wider one", function()
+      local window, edge, content = open()
+      drag(edge, 0, 160)
+      window.frameWidth = 760
+      window:NotifyResize()
+      assert.are.equal(320, left(content))
+      assert.are.equal(360, env.ns.db.global.settings.sidebarWidth)
+      window.frameWidth = 1200
+      window:NotifyResize()
+      assert.are.equal(360, left(content))
+    end)
+
+    it("ignores the right button, and a double click puts back the default width", function()
+      local _, edge, content = open()
+      edge.scripts.OnMouseDown(edge, "RightButton")
+      assert.is_nil(edge.scripts.OnUpdate)
+      drag(edge, 0, 60)
+      assert.are.equal(260, left(content))
+      edge.scripts.OnDoubleClick(edge)
+      assert.are.equal(200, left(content))
+      assert.are.equal(200, env.ns.db.global.settings.sidebarWidth)
+    end)
   end)
 
   local function sidebarGroups(e)

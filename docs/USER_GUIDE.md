@@ -23,6 +23,10 @@ The window has a header (logo, version, a pill that shows the sync state, the ge
 with one entry per tab, in two groups, and your character card at the bottom, and the page of the selected tab. Drag
 the header to move it and the corner to resize it; the size and position are remembered.
 
+If a menu label is cut off, drag the right edge of the sidebar (it lights up under the pointer) to make it wider, from
+160 to 360 units; a double click on the edge puts back the default width. The width is saved for your whole account.
+In a narrow window the sidebar gives way so the page keeps its room, and gets your width back when the window grows.
+
 The **Guild** group is for everybody, though what you see depends on your guild rank and your roster:
 
 - **Home** and **Professions**, and **PvP** (the player views), are open to every rank.
