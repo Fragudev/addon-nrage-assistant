@@ -1,0 +1,45 @@
+NrageAssistant/Locales/esES.lua
+  s_aebb6339776325::t_b7ea1ed1c26bdd 1419
+NrageAssistant/UI/Main.lua
+  s_aebb6339776325::t_5be16841a6359e 525-540,564
+NrageAssistant/UI/Tabs/Announcements.lua
+  s_aebb6339776325::t_016da4c6d64872 30
+NrageAssistant/UI/Tabs/AnnouncementsAdmin.lua
+  s_aebb6339776325::t_531d88c29e2c46 235
+NrageAssistant/UI/Tabs/Events.lua
+  s_aebb6339776325::t_678b4d65439a5c 47
+NrageAssistant/UI/Tabs/Loot.lua
+  s_aebb6339776325::t_4b59eba1b69d35 407,410
+NrageAssistant/UI/Tabs/Readiness.lua
+  s_aebb6339776325::t_20d9c526b497b8 29,33
+NrageAssistant/UI/ViewModel.lua
+  s_aebb6339776325::t_959dee4c346fd0 381-385,661-662,669-671,674,682,942-978,985,987-1000
+NrageAssistant/UI/ViewModelModules.lua
+  s_aebb6339776325::t_1d7308c6d1c35d 48
+README.md
+  s_aebb6339776325::t_20afdd65556bad 118
+docs/CURSEFORGE_DESCRIPTION.md
+  s_aebb6339776325::t_91685a94f3654d 35,42-45,49,54,113
+docs/USER_GUIDE.md
+  s_aebb6339776325::t_6958ca560d21c9 29-33,43,47
+tests/ui_smoke_spec.lua
+  s_aebb6339776325::t_24c7b9f0e547a1 701,890,894-913
+tests/view_model_spec.lua
+  s_aebb6339776325::t_597a237cf61173 161,168,417,419-421,1238,1249-1282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "8b76cee0bbb8e2f37646ab7b777f31a590b6bfc5",
+  "prompts": {},
+  "sessions": {
+    "s_aebb6339776325": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51cd19ef-7df4-48b6-8582-e1da0581a39d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
