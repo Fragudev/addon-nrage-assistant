@@ -463,6 +463,7 @@ local function StartLayer()
   local tracker = ns.LayerTracker.New({
     now = platform.Now,
     isInInstance = platform.IsInInstance,
+    zone = platform.GetPlayerZoneId,
     onChange = function(current)
       publisher:Changed()
       swap:OnLayerConfirmed(current)
@@ -502,6 +503,7 @@ local function StartLayer()
       return ns.comm:NextId()
     end,
     ownLayer = ownLayer,
+    ownZone = platform.GetPlayerZoneId,
     eligibility = ExcludeLfg(ns.LayerSwap.Eligibility(platform, ownLayer, isLocked)),
     invite = function(name)
       local ok, reason = platform.InviteByName(name)

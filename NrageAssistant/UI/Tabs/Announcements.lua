@@ -27,7 +27,7 @@ end
 
 UI.Register("announcements", function(page)
   Kit.PageHeader(page, {
-    title = L("Announcements"),
+    title = L("Notice board"),
     description = L("News from the guild leaders."),
   })
   local service = ns.announcements

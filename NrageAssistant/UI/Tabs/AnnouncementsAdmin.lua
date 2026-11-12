@@ -232,7 +232,7 @@ end
 
 UI.Register("announceadmin", function(page)
   Kit.PageHeader(page, {
-    title = L("Announcements"),
+    title = L("Notice board"),
     description = L("Publish news for the whole guild. Only the guild master and the co-guild master can."),
   })
   local lines = service()

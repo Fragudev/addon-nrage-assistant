@@ -51,12 +51,12 @@ function LayerSync.Apply(ctx, message, sender, role)
   return applier(ctx, message.p, sender, role)
 end
 
--- The payload of the own layer ({ map, layer } as the tracker gives it), or nil when it is not known.
+-- The payload of the own layer ({ map, layer, zone } as the tracker gives it), or nil when it is not known.
 function LayerSync.StatePayload(current)
   if type(current) ~= "table" then
     return nil
   end
-  return { map = current.map, layer = current.layer }
+  return { map = current.map, layer = current.layer, zone = current.zone }
 end
 
 -- "Forget me": sent when the player stops sharing.

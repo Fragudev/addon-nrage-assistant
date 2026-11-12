@@ -13,12 +13,15 @@ local _, ns = ...
 --     exception is `close declined` from the assigned helper), checked against the sender, never against a name in
 --     the payload. A swap whose `close` was lost is dropped after Constants.LAYER_SWAP_MAX_AGE without activity.
 --   Every action that invites or leaves a group is a method for a button the user clicks.
+--   Layers are per zone on Forever and the game only moves an invited player who is in the same zone as the one who
+--   invites, so a request names the zone of the requester and only a member in that zone can help.
 --
 -- deps = { now = function() -> seconds (monotonic), schedule = function(delay, fn),
 --          send = function(payload) -> ok, reason (live only: refuses during the lockdown),
 --          isLocked = function() -> boolean, ownName = function() -> string, newId = function() -> rid,
---          ownLayer = function() -> { map, layer } or nil,
---          eligibility = { requester = function() -> ok, reason, helper = function(map, layer) -> ok, reason },
+--          ownLayer = function() -> { map, layer, zone } or nil,
+--          ownZone = function() -> zone uiMapId or nil (optional: without it requests carry no zone),
+--          eligibility = { requester = function() -> ok, reason, helper = function(map, layer, zone) -> ok, reason },
 --          invite = function(name) -> ok, reason, leave = function() -> ok, reason,
 --          onJoined = function(t) (the requester joined a group at time t), onChange = function() (optional) }
 local LayerSwap = {}
@@ -120,7 +123,7 @@ local function drop(self)
 end
 
 -- The swap as the popup and the tab show it, or nil: { rid, role, stage, outcome, requester, helper, map, layer,
--- joined, offered, hidden, left }. `left` is the seconds until the current step times out, when it does.
+-- zone, joined, offered, hidden, left }. `left` is the seconds until the current step times out, when it does.
 function LayerSwap:Status()
   local swap = self.swap
   if not swap then
@@ -139,6 +142,7 @@ function LayerSwap:Status()
     helper = swap.helper,
     map = swap.map,
     layer = swap.layer,
+    zone = swap.zone,
     joined = swap.joined == true,
     offered = swap.offered == true,
     hidden = swap.hidden == true,
@@ -164,7 +168,7 @@ function LayerSwap:CanRequest()
   return eligible(self.deps.eligibility.requester)
 end
 
--- Requester: asks for the layer (map, layer). Returns true, or false plus the reason.
+-- Requester: asks for the layer (map, layer) of the zone the requester is in. Returns true, or false plus the reason.
 function LayerSwap:Request(map, layer)
   local constants = ns.Constants
   if not (ns.Validate.Int(map, 0, constants.LAYER_MAP_MAX) and ns.Validate.Int(layer, 1, constants.LAYER_ID_MAX)) then
@@ -177,13 +181,21 @@ function LayerSwap:Request(map, layer)
   if ns.LayerModel.SameLayer(self.deps.ownLayer(), { map = map, layer = layer }) then
     return false, "same_layer"
   end
+  local zone
+  if self.deps.ownZone then
+    local known, value = pcall(self.deps.ownZone)
+    zone = known and ns.Validate.Int(value, 1, constants.LAYER_ZONE_MAX) and value or nil
+    if not zone then
+      return false, "unknown_zone"
+    end
+  end
 
   local rid = self.deps.newId()
-  local sent, why = transmit(self, { rid = rid, s = "request", map = map, layer = layer })
+  local sent, why = transmit(self, { rid = rid, s = "request", map = map, layer = layer, zone = zone })
   if not sent then
     return false, why or "error"
   end
-  local swap = { rid = rid, role = "requester", stage = "request", map = map, layer = layer }
+  local swap = { rid = rid, role = "requester", stage = "request", map = map, layer = layer, zone = zone }
   begin(self, swap)
   after(self, swap, constants.LAYER_REQUEST_TIMEOUT, function()
     if swap.stage == "request" then
@@ -284,7 +296,7 @@ function LayerSwap:Offer()
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.helper, swap.map, swap.layer)
+  local ok, reason = eligible(self.deps.eligibility.helper, swap.map, swap.layer, swap.zone)
   if not ok then
     return false, reason
   end
@@ -324,7 +336,7 @@ function LayerSwap:Invite()
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.helper, swap.map, swap.layer)
+  local ok, reason = eligible(self.deps.eligibility.helper, swap.map, swap.layer, swap.zone)
   if not ok then
     return false, reason
   end
@@ -362,7 +374,7 @@ local function onRequest(self, sender, payload)
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.helper, payload.map, payload.layer)
+  local ok, reason = eligible(self.deps.eligibility.helper, payload.map, payload.layer, payload.zone)
   if not ok then
     return false, reason
   end
@@ -373,6 +385,7 @@ local function onRequest(self, sender, payload)
     requester = sender,
     map = payload.map,
     layer = payload.layer,
+    zone = payload.zone,
     offered = false,
   })
   changed(self)
@@ -460,7 +473,9 @@ end
 
 -- The eligibility rules (plan section 3.3) over a platform-like object.
 --   platform: IsInGroup, IsInRaid, IsInInstance, IsInCombat, IsGroupLeader, GetGroupSize
---   ownLayer: function() -> { map, layer } or nil     isLocked: function() -> boolean
+--   ownLayer: function() -> { map, layer, zone } or nil     isLocked: function() -> boolean
+-- The helper rule takes the zone of the request: nil (an older requester) is not checked; otherwise the helper must
+-- have read their layer in that same zone.
 -- Each rule returns true, or false plus a reason.
 function LayerSwap.Eligibility(platform, ownLayer, isLocked)
   local function common()
@@ -483,10 +498,13 @@ function LayerSwap.Eligibility(platform, ownLayer, isLocked)
       end
       return common()
     end,
-    helper = function(map, layer)
+    helper = function(map, layer, zone)
       local current = ownLayer()
       if not current then
         return false, "unknown_layer"
+      end
+      if zone ~= nil and current.zone ~= zone then
+        return false, "other_zone"
       end
       if not ns.LayerModel.SameLayer(current, { map = map, layer = layer }) then
         return false, "other_layer"

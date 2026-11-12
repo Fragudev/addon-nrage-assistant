@@ -115,7 +115,7 @@ The addon is published on CurseForge, but it only works for Nrage:
   battleground, victim class or race, guildmates in the group, time window) and limits (per victim per day, total
   completions). Kills are logged even before the season reaches you, and approvers see each member's progress.
 
-### Announcements
+### Notice board (announcements)
 
 - A read-only **board** for every member and an **editor** for the Emperador and Comandante, with pin, expiry and an
   optional **popup** that reaches every member (after combat, or at login for the ones missed).
@@ -151,7 +151,8 @@ The addon is published on CurseForge, but it only works for Nrage:
 
 - **Professions:** "who can craft this?" with online members first and a one-click whisper.
 - **Blacklist:** a guild-wide list of players to be warned about.
-- **Layers:** your current layer, the layers guildmates have shared, and layer swap requests.
+- **Layers:** your current layer, the layers guildmates in your zone have shared, and layer swap requests (layers are
+  per zone, so the helper must be in your zone; press **Refresh Now** when the game offers it).
 - **Guild map:** guildmates who share their position, on the minimap and the world map, each as a class icon inside a
   diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
 - **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. Each post shows its

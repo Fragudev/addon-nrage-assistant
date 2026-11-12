@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 15,
+  PROTOCOL_MINOR = 16,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -359,11 +359,14 @@ ns.Constants = {
   LAYER_PUBLISH_MIN_SECONDS = 30,
   LAYER_MAP_MAX = 9999,
   LAYER_ID_MAX = 2147483647,
-  -- Swap flow timeouts (seconds) and the age after which a swap whose close message was lost is dropped.
+  -- The zone (a uiMapId at zone level) a layer was read in. Layers are per zone on Forever.
+  LAYER_ZONE_MAX = 99999,
+  -- Swap flow timeouts (seconds) and the age after which a swap whose close message was lost is dropped. The confirm
+  -- step waits for the player to press "Refresh Now" in the game's prompt, so it is long; the age stays above it.
   LAYER_REQUEST_TIMEOUT = 60,
   LAYER_ASSIGN_TIMEOUT = 90,
-  LAYER_CONFIRM_TIMEOUT = 120,
-  LAYER_SWAP_MAX_AGE = 300,
+  LAYER_CONFIRM_TIMEOUT = 300,
+  LAYER_SWAP_MAX_AGE = 600,
   -- A swap popup that cannot be shown during a lockdown tries again after this long.
   LAYER_POPUP_RETRY_SECONDS = 5,
   -- A redraw of the Layers tab because of a received state waits at least this long after the previous one.

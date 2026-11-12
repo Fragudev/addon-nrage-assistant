@@ -13,8 +13,8 @@ local function guid(layer, spawn, map)
   return ("Creature-0-3134-%d-%d-6491-%08X"):format(map or 0, layer, spawn)
 end
 
-local function build()
-  local env = { clock = 100, instance = false, changes = {} }
+local function build(withZone)
+  local env = { clock = 100, instance = false, changes = {}, withZone = withZone, zone = 1429 }
   env.tracker = ns.LayerTracker.New({
     now = function()
       return env.clock
@@ -25,6 +25,12 @@ local function build()
       end
       return env.instance
     end,
+    zone = env.withZone and function()
+      if env.zoneFails then
+        error("secret")
+      end
+      return env.zone
+    end or nil,
     onChange = function(current)
       env.changes[#env.changes + 1] = current
     end,
@@ -166,5 +172,58 @@ describe("LayerTracker", function()
       env.tracker:ResetSince(env.clock - 5)
       assert.is_truthy(env.tracker:Current())
     end)
+  end)
+end)
+
+describe("LayerTracker zones (layers are per zone on Forever)", function()
+  local env
+
+  before_each(function()
+    env = build(true)
+  end)
+
+  local function confirm(layer, first)
+    env.tracker:Observe(guid(layer, first))
+    env.tracker:Observe(guid(layer, first + 1))
+  end
+
+  it("keeps the zone the layer was confirmed in", function()
+    confirm(10, 1)
+    assert.are.equal(1429, env.tracker:Current().zone)
+    assert.are.equal(1429, env.changes[1].zone)
+  end)
+
+  it("forgets the layer when the player is in another zone, and confirms the new one there", function()
+    confirm(10, 1)
+    env.zone = 1436
+    assert.is_nil(env.tracker:Current())
+    assert.is_false(env.tracker:Expire())
+    confirm(20, 3)
+    assert.are.same({ map = 0, layer = 20, zone = 1436 }, {
+      map = env.tracker:Current().map,
+      layer = env.tracker:Current().layer,
+      zone = env.tracker:Current().zone,
+    })
+  end)
+
+  it("says when Expire dropped the layer", function()
+    confirm(10, 1)
+    env.zone = 1436
+    assert.is_true(env.tracker:Expire())
+  end)
+
+  it("does not mix readings of two zones to confirm a layer", function()
+    env.tracker:Observe(guid(10, 1))
+    env.zone = 1436
+    env.tracker:Observe(guid(10, 2))
+    assert.is_nil(env.tracker:Current())
+    env.tracker:Observe(guid(10, 3))
+    assert.are.equal(1436, env.tracker:Current().zone)
+  end)
+
+  it("forgets the layer when the zone cannot be read any more", function()
+    confirm(10, 1)
+    env.zoneFails = true
+    assert.is_nil(env.tracker:Current())
   end)
 end)

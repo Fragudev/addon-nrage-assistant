@@ -404,9 +404,10 @@ UI.Register("loot", function(page)
   end
 
   Kit.PageHeader(page, {
-    title = L("Loot"),
+    title = L("Raid"),
     description = L("Open a session after an encounter, answer for the items and let the council decide."),
   })
+  UI.DrawSectionTabs(page, "loot")
   if viewer.mode == "blocked" then
     Kit.EmptyState(page, { icon = "users", title = NO_ROSTER.title, hint = NO_ROSTER.hint })
     return

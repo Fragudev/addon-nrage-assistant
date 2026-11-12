@@ -216,6 +216,7 @@ local function build(rank, locale)
     IsInInstance = function()
       return false
     end,
+    GetPlayerZoneId = function() end,
     GetItemIcon = function(itemId)
       return "icon:" .. tostring(itemId)
     end,
@@ -657,8 +658,6 @@ describe("Window smoke test", function()
       "home",
       "professions",
       "events",
-      "ready",
-      "loot",
       "pvp",
       "groups",
       "announcements",
@@ -678,8 +677,6 @@ describe("Window smoke test", function()
         "home",
         "professions",
         "events",
-        "ready",
-        "loot",
         "pvp",
         "groups",
         "announcements",
@@ -693,8 +690,6 @@ describe("Window smoke test", function()
         "home",
         "professions",
         "events",
-        "ready",
-        "loot",
         "pvp",
         "groups",
         "announcements",
@@ -704,7 +699,7 @@ describe("Window smoke test", function()
         "roster",
         "ranks",
       },
-      Roster = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "announcements", "modules" },
+      Roster = { "home", "professions", "events", "pvp", "groups", "announcements", "modules" },
       Member = { "home", "professions", "pvp", "groups", "announcements", "modules" },
       Alter = { "home", "professions", "pvp", "groups", "announcements", "modules" },
       Norost = { "home", "professions", "pvp", "groups", "announcements", "modules" },
@@ -893,8 +888,28 @@ describe("Window smoke test", function()
       env = build("Roster")
       local ready = env.open("ready")
       local header = env.find(ready, "PageHeader")
-      assert.are.equal("Raid check", header.opts.title)
+      assert.are.equal("Raid", header.opts.title)
       assert.is_truthy(header.opts.badge.text:find("met", 1, true))
+    end)
+
+    it("is a tab of the Raid section, next to Raid and Loot, and the sidebar keeps the Raid item selected", function()
+      env = build("Roster")
+      for _, value in ipairs({ "events", "ready", "loot" }) do
+        local page = env.open(value)
+        local strip = env.find(page, "Segmented")
+        assert.is_truthy(strip, value)
+        local values = {}
+        for _, item in ipairs(strip.opts.items) do
+          values[#values + 1] = item.value
+        end
+        assert.are.same({ "events", "ready", "loot" }, values, value)
+        assert.are.equal(value, strip.opts.value, value)
+        assert.are.equal("Raid", env.find(page, "PageHeader").opts.title, value)
+      end
+      local strip = env.find(env.open("events"), "Segmented")
+      strip.opts.onChange("loot")
+      assert.is_truthy(env.find(env.page(), "Segmented"))
+      assert.are.equal("loot", env.find(env.page(), "Segmented").opts.value)
     end)
 
     local function with_second_roster(target, rules)
@@ -3573,16 +3588,25 @@ describe("Window smoke test: Layers", function()
 
   local function install(options)
     options = options or {}
+    local zones = {}
+    env.ns.Platform.GetPlayerZoneId = function()
+      return 1429
+    end
+    env.ns.Platform.GetMapName = function(map)
+      return map == 1429 and "Elwynn Forest" or nil
+    end
     env.ns.layerTracker = {
       Current = function()
         return options.own
       end,
     }
     env.ns.layerDirectory = {
-      Groups = function()
+      Groups = function(_, map, zone)
+        zones[#zones + 1] = { map, zone }
         return { { map = 0, layer = 5678, members = { "Ann-Realm" }, count = 1 } }
       end,
     }
+    env.layerZones = zones
     env.ns.layerSwap = {
       CanRequest = function()
         return options.canRequest ~= false, options.reason
@@ -3640,6 +3664,9 @@ describe("Window smoke test: Layers", function()
     local text = env.text()
     assert.is_truthy(text:find("Your layer: #1234", 1, true))
     assert.is_truthy(text:find("#5678", 1, true))
+    -- Only the layers of the zone the player is in: a swap only works there.
+    assert.is_truthy(text:find("Layers in Elwynn Forest", 1, true))
+    assert.are.same({ 0, 1429 }, env.layerZones[#env.layerZones])
     assert.is_truthy(text:find("Ann-Realm", 1, true))
     button(env.page(), "Request swap").onClick()
     assert.are.same({ 0, 5678 }, requested)

@@ -752,6 +752,15 @@ describe("Protocol.Validate LAYER_STATE", function()
     assert.is_truthy(validate({ map = 0, layer = 0 }))
   end)
 
+  it("carries the zone the layer was read in, and accepts a state without one from an older client", function()
+    assert.are.same({ map = 1, layer = 4321, zone = 1429 }, validate({ map = 1, layer = 4321, zone = 1429 }).p)
+    assert.are.same({ map = 1, layer = 4321 }, validate({ map = 1, layer = 4321 }).p)
+    for _, zone in ipairs({ 0, -1, 100000, 1.5, "1429" }) do
+      local _, reason = validate({ map = 1, layer = 4321, zone = zone })
+      assert.are.equal("bad_payload", reason, tostring(zone))
+    end
+  end)
+
   it("rejects values out of range or not whole numbers", function()
     for _, bad in ipairs({
       { map = -1, layer = 5 },
@@ -777,6 +786,16 @@ describe("Protocol.Validate LAYER_SWAP", function()
   it("accepts a request for a layer", function()
     local m = validate({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222, extra = 1 })
     assert.are.same({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222 }, m.p)
+  end)
+
+  it("carries the zone of the requester in a request, and accepts a request without one", function()
+    assert.are.same(
+      { rid = "a1", s = "request", map = 0, layer = 222, zone = 1429 },
+      validate({ rid = "a1", s = "request", map = 0, layer = 222, zone = 1429 }).p
+    )
+    local _, reason = validate({ rid = "a1", s = "request", map = 0, layer = 222, zone = 0 })
+    assert.are.equal("bad_payload", reason)
+    assert.are.same({ rid = "a1", s = "offer" }, validate({ rid = "a1", s = "offer", zone = 1429 }).p)
   end)
 
   it("accepts an offer without anything else", function()

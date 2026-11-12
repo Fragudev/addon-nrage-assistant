@@ -714,22 +714,24 @@ function Platform.GroupDistribution()
 end
 
 local CONTINENT_MAP_TYPE = 2
+local ZONE_MAP_TYPE = 3
 local MAP_PARENT_STEPS = 10
 
--- The uiMapId of the continent that holds `mapId`, found through the parents of the map, or nil.
-function Platform.GetContinentMapId(mapId)
+-- The uiMapId of `mapId` or of its closest parent of the map type `mapType` (the value of `enumName` in
+-- Enum.UIMapType, else `fallback`), or nil.
+local function ancestorOfType(mapId, enumName, fallback)
   if type(mapId) ~= "number" or not (C_Map and C_Map.GetMapInfo) then
     return nil
   end
-  local ok, continent = pcall(function()
+  local ok, found = pcall(function()
     local current = mapId
     for _ = 1, MAP_PARENT_STEPS do
       local info = C_Map.GetMapInfo(current)
       if type(info) ~= "table" then
         return nil
       end
-      local continentType = Enum and Enum.UIMapType and Enum.UIMapType.Continent or CONTINENT_MAP_TYPE
-      if info.mapType == continentType then
+      local wanted = Enum and Enum.UIMapType and Enum.UIMapType[enumName] or fallback
+      if info.mapType == wanted then
         return current
       end
       local parent = info.parentMapID
@@ -740,7 +742,23 @@ function Platform.GetContinentMapId(mapId)
     end
     return nil
   end)
-  return ok and continent or nil
+  return ok and found or nil
+end
+
+-- The uiMapId of the continent that holds `mapId`, found through the parents of the map, or nil.
+function Platform.GetContinentMapId(mapId)
+  return ancestorOfType(mapId, "Continent", CONTINENT_MAP_TYPE)
+end
+
+-- The uiMapId of the zone that holds `mapId` (the map itself when it is a zone; a city is a zone too), or nil.
+function Platform.GetZoneMapId(mapId)
+  return ancestorOfType(mapId, "Zone", ZONE_MAP_TYPE)
+end
+
+-- The uiMapId of the zone the player is in, at zone level (never a sub-zone or a micro-dungeon), or nil. Layers are
+-- per zone on Forever, and a swap only works between players in the same zone (docs/LAYER_SWAP_PLAN.md 0.1).
+function Platform.GetPlayerZoneId()
+  return Platform.GetZoneMapId(Platform.GetPlayerMapId())
 end
 
 -- Can this client say who won a battleground?

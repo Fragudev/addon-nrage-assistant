@@ -416,12 +416,24 @@ end
 local SWAP_STEPS = { request = true, offer = true, assign = true, close = true }
 local SWAP_OUTCOMES = { done = true, expired = true, cancelled = true, declined = true, unconfirmed = true }
 
+-- The optional `zone` of a layer message (older clients send none): nil when absent, false when malformed.
+local function layerZone(payload)
+  if payload.zone == nil then
+    return nil
+  end
+  return isInt(payload.zone, 1, ns.Constants.LAYER_ZONE_MAX) and payload.zone or false
+end
+
 local function validateLayerState(payload)
   local constants = ns.Constants
   if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 0, constants.LAYER_ID_MAX)) then
     return nil
   end
-  return { map = payload.map, layer = payload.layer }
+  local zone = layerZone(payload)
+  if zone == false then
+    return nil
+  end
+  return { map = payload.map, layer = payload.layer, zone = zone }
 end
 
 local function validateLayerSwap(payload)
@@ -435,7 +447,11 @@ local function validateLayerSwap(payload)
     if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 1, constants.LAYER_ID_MAX)) then
       return nil
     end
-    clean.map, clean.layer = payload.map, payload.layer
+    local zone = layerZone(payload)
+    if zone == false then
+      return nil
+    end
+    clean.map, clean.layer, clean.zone = payload.map, payload.layer, zone
   elseif step == "assign" then
     if not ns.EventModel.IsCharacterKey(payload.helper) then
       return nil

@@ -410,6 +410,67 @@ describe("Platform.GetContinentMapId", function()
   end)
 end)
 
+describe("Platform.GetZoneMapId and GetPlayerZoneId", function()
+  local maps = {
+    [1] = { mapType = 2, parentMapID = 0 },
+    [10] = { mapType = 3, parentMapID = 1 },
+    [11] = { mapType = 5, parentMapID = 10 },
+    [12] = { mapType = 6, parentMapID = 11 },
+  }
+
+  local function run(fn, best)
+    local result
+    with_globals({
+      C_Map = {
+        GetMapInfo = function(id)
+          return maps[id]
+        end,
+        GetBestMapForUnit = function()
+          return best
+        end,
+      },
+    }, function()
+      result = fn(load_platform())
+    end)
+    return result
+  end
+
+  it("walks a sub-zone or a micro-dungeon up to its zone, and keeps a zone as it is", function()
+    for _, mapId in ipairs({ 10, 11, 12 }) do
+      assert.are.equal(
+        10,
+        run(function(platform)
+          return platform.GetZoneMapId(mapId)
+        end),
+        mapId
+      )
+    end
+  end)
+
+  it("gives nil for a continent, an unknown map or a value that is not a map", function()
+    for _, mapId in ipairs({ 1, 99, "x" }) do
+      assert.is_nil(run(function(platform)
+        return platform.GetZoneMapId(mapId)
+      end))
+    end
+  end)
+
+  it("gives the zone of the player, or nil when the client does not know where the player is", function()
+    assert.are.equal(
+      10,
+      run(function(platform)
+        return platform.GetPlayerZoneId()
+      end, 12)
+    )
+    assert.is_nil(run(function(platform)
+      return platform.GetPlayerZoneId()
+    end, nil))
+    with_globals({ C_Map = false }, function()
+      assert.is_nil(load_platform().GetPlayerZoneId())
+    end)
+  end)
+end)
+
 describe("Platform.GroupDistribution", function()
   local function channel(state)
     local result

@@ -26,10 +26,11 @@ UI.Register("ready", function(page)
   local data = ViewModel.ReadinessRows(rules, results, summary)
 
   Kit.PageHeader(page, {
-    title = L("Raid check"),
+    title = L("Raid"),
     description = L("The checklist of the roster, measured on your own character."),
     badge = data.badge,
   })
+  UI.DrawSectionTabs(page, "ready")
   UI.DrawRosterSelector(page, "ready", selection)
   if selection.selected == nil then
     Kit.EmptyState(page, {

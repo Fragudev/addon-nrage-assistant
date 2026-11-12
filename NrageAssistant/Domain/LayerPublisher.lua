@@ -5,7 +5,7 @@ local _, ns = ...
 -- sends one `layer = 0` ("forget me"). Nothing here touches the client; everything is injected.
 --
 -- deps = { now = function() -> seconds (monotonic), schedule = function(delay, fn),
---          send = function(payload) -> ok, current = function() -> { map, layer } or nil,
+--          send = function(payload) -> ok, current = function() -> { map, layer, zone } or nil,
 --          enabled = function() -> boolean (the "Share my layer" setting) }
 local LayerPublisher = {}
 LayerPublisher.__index = LayerPublisher
@@ -32,7 +32,7 @@ function LayerPublisher:Flush()
   if self.lastSentAt and now - self.lastSentAt < ns.Constants.LAYER_PUBLISH_MIN_SECONDS then
     return false
   end
-  if not sendPayload(self, { map = current.map, layer = current.layer }) then
+  if not sendPayload(self, { map = current.map, layer = current.layer, zone = current.zone }) then
     return false
   end
   self.lastSentAt = now

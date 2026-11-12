@@ -378,8 +378,11 @@ end
 -- Right-click menu of the minimap button: a shortcut to each tab. There is no sync entry: sync is automatic.
 function ViewModel.MinimapMenu(role, rosterId)
   local entries = {}
-  for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
-    entries[#entries + 1] = { text = tab.text, icon = tab.icon, action = "tab", value = tab.value }
+  -- The same entries as the sidebar: a section is one entry.
+  for _, group in ipairs(ViewModel.NavGroups(role, rosterId)) do
+    for _, item in ipairs(group.items) do
+      entries[#entries + 1] = { text = item.text, icon = item.icon, action = "tab", value = item.value }
+    end
   end
   entries[#entries + 1] = { text = L("Intel"), icon = "search", action = "intel", value = "@intel" }
   entries[#entries + 1] = { text = L("Settings"), icon = "gear", action = "settings", value = "@settings" }
@@ -655,19 +658,20 @@ function ViewModel.BlacklistAlertLine(match)
   return L("%s is on the blacklist: %s"):format(ViewModel.Escape(match.entry.name), reason)
 end
 
--- The tabs of the window with the icon and the sidebar group of each ("guild" or "admin"). Profile, Layers and
--- Blacklist are not listed: their files and services stay, they only left the sidebar (plan 0.1). The text is
+-- The tabs of the window with the icon and the sidebar group of each ("guild" or "admin"). The tabs of one `section`
+-- share a single sidebar item, and the page of each shows the others as tabs (ViewModel.SectionTabs). Profile, Layers
+-- and Blacklist are not listed: their files and services stay, they only left the sidebar (plan 0.1). The text is
 -- translated again when the language changes (Locale.Table).
 ViewModel.TABS = ns.Locale.Table(function()
   return {
     { value = "home", text = L("Home"), icon = "home", group = "guild" },
     { value = "professions", text = L("Professions"), icon = "book", group = "guild" },
-    { value = "events", text = L("Raid"), icon = "calendar", group = "guild" },
-    { value = "ready", text = L("Raid check"), icon = "check-circle", group = "guild" },
-    { value = "loot", text = L("Loot"), icon = "gem", group = "guild" },
+    { value = "events", text = L("Raid"), icon = "calendar", group = "guild", section = "raid" },
+    { value = "ready", text = L("Raid check"), icon = "check-circle", group = "guild", section = "raid" },
+    { value = "loot", text = L("Loot"), icon = "gem", group = "guild", section = "raid" },
     { value = "pvp", text = "PvP", icon = "swords", group = "guild" },
     { value = "groups", text = L("Groups"), icon = "users", group = "guild" },
-    { value = "announcements", text = L("Announcements"), icon = "send", group = "guild" },
+    { value = "announcements", text = L("Notice board"), icon = "send", group = "guild" },
     { value = "modules", text = L("Modules"), icon = "gear", group = "guild" },
     { value = "raid", text = L("Raid"), icon = "calendar", group = "admin" },
     { value = "rules", text = L("Roster rules"), icon = "list", group = "admin" },
@@ -675,7 +679,7 @@ ViewModel.TABS = ns.Locale.Table(function()
     { value = "pvpadmin", text = "PvP", icon = "swords", group = "admin" },
     { value = "installs", text = L("Installed check"), icon = "check", group = "admin" },
     { value = "ranks", text = L("Ranks"), icon = "diamond", group = "admin" },
-    { value = "announceadmin", text = L("Announcements"), icon = "pencil", group = "admin" },
+    { value = "announceadmin", text = L("Notice board"), icon = "pencil", group = "admin" },
   }
 end)
 
@@ -935,21 +939,66 @@ end
 -- roster `rosterId`. A group without items is left out. `openGroups` (optional) is the number of open groups of the
 -- board: the Groups item gets it as `badge`. `unreadAnnouncements` (optional) is the number of announcements not read
 -- yet: the Announcements item gets it as `badge`; no other item has one.
+-- The sections whose tabs share one sidebar item: the text and icon of that item.
+local SECTIONS = ns.Locale.Table(function()
+  return {
+    raid = { text = L("Raid"), icon = "calendar" },
+  }
+end)
+
+local function sectionOf(value)
+  for _, tab in ipairs(ViewModel.TABS) do
+    if tab.value == value then
+      return tab.section
+    end
+  end
+  return nil
+end
+
+-- The visible tabs of the section of `value`, in order, as { value, text }; empty when `value` is in no section.
+function ViewModel.SectionTabs(value, role, rosterId)
+  local section = sectionOf(value)
+  local list = {}
+  if not section then
+    return list
+  end
+  for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
+    if tab.section == section then
+      list[#list + 1] = { value = tab.value, text = tab.text }
+    end
+  end
+  return list
+end
+
+-- The value of the sidebar item that holds the tab `value`: the first visible tab of its section, or `value` itself.
+function ViewModel.NavValue(value, role, rosterId)
+  local first = ViewModel.SectionTabs(value, role, rosterId)[1]
+  return first and first.value or value
+end
+
 function ViewModel.NavGroups(role, rosterId, openGroups, unreadAnnouncements)
   local groups = {
     { label = L("Guild"), items = {} },
     { label = L("Admin"), items = {} },
   }
   local index = { guild = 1, admin = 2 }
+  local listed = {}
   for _, tab in ipairs(ViewModel.TabsFor(role, rosterId)) do
-    local group = groups[index[tab.group] or 1]
-    local item = { value = tab.value, text = tab.text, icon = tab.icon }
-    if tab.value == "groups" then
-      item.badge = ViewModel.GroupsBadge(openGroups)
-    elseif tab.value == "announcements" then
-      item.badge = ViewModel.GroupsBadge(unreadAnnouncements)
+    -- A section is one item, on its first visible tab.
+    if not (tab.section and listed[tab.section]) then
+      local item = { value = tab.value, text = tab.text, icon = tab.icon }
+      if tab.section then
+        listed[tab.section] = true
+        item.text, item.icon = SECTIONS[tab.section].text, SECTIONS[tab.section].icon
+      end
+      if tab.value == "groups" then
+        item.badge = ViewModel.GroupsBadge(openGroups)
+      elseif tab.value == "announcements" then
+        item.badge = ViewModel.GroupsBadge(unreadAnnouncements)
+      end
+      local group = groups[index[tab.group] or 1]
+      group.items[#group.items + 1] = item
     end
-    group.items[#group.items + 1] = item
   end
   local result = {}
   for _, group in ipairs(groups) do

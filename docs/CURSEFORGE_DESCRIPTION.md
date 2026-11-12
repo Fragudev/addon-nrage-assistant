@@ -30,24 +30,29 @@ the game, typed by the player or received from someone else, and what the game c
 ### Home
 
 Your character at a glance: name, class, level and item level, your main and secondary spec, and your **layer**. You
-also see the layers your guildmates have shared, and you can ask to swap layers.
+also see the layers your guildmates in your zone have shared, and you can ask to swap layers: a guildmate on that
+layer **in the same zone** invites you, and you press **Refresh Now** when the game offers it.
 
-### Announcements
+### Notice board
 
 The guild's announcements, pinned ones first. When a new one arrives you may get a **popup** with it, which waits until
 you leave combat; the ones you missed show at login. The newest pinned announcement also shows on Home.
 
 ### Raid
 
+One section with three tabs: **Raid**, **Raid check** and **Loot**.
+
+#### Raid
+
 The upcoming events of your roster and guild-wide events, with date, time and how many have signed up. Answer
 **going** or **not going** with one click. Everything else is read-only.
 
-### Raid check
+#### Raid check
 
 Your checklist against your roster's raid requirements. It shows how many requirements you meet, and unknown is never
 counted as met (`1/3 met, 2 unknown`). Available to ranks Raider and above.
 
-### Loot
+#### Loot
 
 A loot council per roster. When a session opens, a **popup** asks you to put yourself forward (main spec, off spec or
 other) or to pass. Leaders vote and award from the Loot tab, and every closed session keeps its reason as the minutes.
@@ -106,7 +111,7 @@ affected, and turning a module off never deletes its data.
 | **Roster rules** | Emperador, Comandante, Raid Lider (Oficial reads) | The raid requirements of each roster, the rules Raid check uses. |
 | **Members** | Emperador, Comandante, Raid Lider (Oficial reads) | The rosters and who belongs to each. A Raid Lider adds and removes players in their own roster. |
 | **PvP** | Emperador, Comandante | Approve missions and claims, run the season, prizes and deliveries, and follow each member's mission progress. |
-| **Announcements** | Emperador, Comandante | Publish, pin, edit and delete announcements, choose whether each one sends a popup, and send it again. |
+| **Notice board** | Emperador, Comandante | Publish, pin, edit and delete announcements, choose whether each one sends a popup, and send it again. |
 | **Ranks** | Emperador, Comandante (Oficial and Raid Lider read) | Tie each guild rank to an addon role, with a preview of who changes role. A Comandante cannot change their own rank. |
 | **Installed check** | Emperador, Comandante | Every member with whether they run the addon and which version: up to date, outdated, not installed or never seen. Ask the members online to answer again. |
 
