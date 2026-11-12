@@ -522,6 +522,22 @@ function UI.WatchReadiness(watch)
 end
 
 -- ---------------------------------------------------------------------------------------------------------------
+-- The tabs of the section of `value` (ViewModel.SectionTabs), drawn at the top of each of its pages; nothing when the
+-- player sees only one of them.
+function UI.DrawSectionTabs(page, value)
+  local tabs = ns.ViewModel.SectionTabs(value, UI.Role(), UI.OwnRosterId())
+  if #tabs < 2 then
+    return
+  end
+  Kit.Segmented(page, {
+    items = tabs,
+    value = value,
+    onChange = function(selected)
+      UI.SelectTab(selected)
+    end,
+  })
+end
+
 -- The shell
 
 -- The sidebar again, after a tab or the language changed: the selection and the texts follow.
@@ -545,7 +561,7 @@ function UI.BuildSidebar()
   end
   sidebar = Kit.Sidebar(window.body, {
     groups = ns.ViewModel.NavGroups(role, UI.OwnRosterId(), openGroups(), unreadAnnouncements()),
-    value = currentTab,
+    value = ns.ViewModel.NavValue(currentTab, role, UI.OwnRosterId()),
     onSelect = function(value)
       UI.SelectTab(value)
     end,

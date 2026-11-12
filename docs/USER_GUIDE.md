@@ -26,11 +26,11 @@ the header to move it and the corner to resize it; the size and position are rem
 The **Guild** group is for everybody, though what you see depends on your guild rank and your roster:
 
 - **Home** and **Professions**, and **PvP** (the player views), are open to every rank.
-- **Raid** lists the upcoming events of your roster (and the guild-wide ones), soonest first, read-only. From the
-  Roster rank up, with a roster.
-- **Raid check** is your own checklist, measured with the rules of your roster. From the Roster rank up, with a roster.
-- **Loot**: from the Roster rank up, with a roster. Guild and co-guild masters see every roster.
-- **Announcements** is the board of guild announcements, read only, open to every rank (see *Announcements* below).
+- **Raid** is one sidebar item with three tabs at the top of the page. From the Roster rank up, with a roster:
+  - **Raid** lists the upcoming events of your roster (and the guild-wide ones), soonest first, read-only.
+  - **Raid check** is your own checklist, measured with the rules of your roster.
+  - **Loot**: guild and co-guild masters see every roster.
+- **Notice board** is the board of guild announcements, read only, open to every rank (see *Announcements* below).
 
 The **Admin** group appears from the Officer and RL ranks up:
 
@@ -40,11 +40,11 @@ The **Admin** group appears from the Officer and RL ranks up:
 - **Roster rules** and **Members** (Officer and RL, GM and CoGM).
 - **PvP** holds the season admin: approvals, missions, season, prizes and deliveries (GM and CoGM only).
 - **Installed check** lists who runs the addon and which version (GM and CoGM only; see *Installed check* below).
-- **Announcements** is the editor of the board: publish, change and delete announcements (GM and CoGM only; see
+- **Notice board** is the editor of the board: publish, change and delete announcements (GM and CoGM only; see
   *Announcements* below).
 
 A tab you cannot see, or one that no longer exists in the sidebar (Profile, Layers and Blacklist are hidden for now),
-opens Home instead. A player without a roster only sees Home, Professions, PvP, Groups and Announcements.
+opens Home instead. A player without a roster only sees Home, Professions, PvP, Groups and Notice board.
 
 The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
 

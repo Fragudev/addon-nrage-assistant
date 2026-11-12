@@ -1416,7 +1416,7 @@ ns.Locale.Register("es", {
   ["The guild leaders post news here."] = "Los líderes de la hermandad publican aquí sus noticias.",
   ["Announcements are not available"] = "Los anuncios no están disponibles",
   ["They start with the addon. Try /reload."] = "Se inician con el addon. Prueba con /reload.",
-  ["Announcements"] = "Anuncios",
+  ["Notice board"] = "Tablón de anuncios",
   ["Announcement published."] = "Anuncio publicado.",
   ["Announcement saved."] = "Anuncio guardado.",
   ["Announcement deleted."] = "Anuncio eliminado.",

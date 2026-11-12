@@ -158,14 +158,14 @@ describe("ViewModel misc", function()
       loot = "Loot",
       pvp = "PvP",
       groups = "Groups",
-      announcements = "Announcements",
+      announcements = "Notice board",
       modules = "Modules",
       raid = "Raid",
       rules = "Roster rules",
       roster = "Members",
       pvpadmin = "PvP",
       installs = "Installed check",
-      announceadmin = "Announcements",
+      announceadmin = "Notice board",
       ranks = "Ranks",
     }, texts)
   end)
@@ -414,9 +414,11 @@ describe("ViewModel minimap helpers", function()
     assert.are.equal("announceadmin", admin[#admin - 2].value)
     assert.are.equal("@intel", admin[#admin - 1].value)
     assert.are.equal("settings", admin[#admin].action)
+    -- The Raid section is one entry, like in the sidebar.
     local roster = ViewModel.MinimapMenu("roster", "r1")
-    assert.are.equal("ready", roster[4].value)
-    assert.are.equal(#ViewModel.TabsFor("roster", "r1") + 2, #roster)
+    assert.are.same({ text = "Raid", icon = "calendar", action = "tab", value = "events" }, roster[3])
+    assert.are.equal("pvp", roster[4].value)
+    assert.are.equal(#ViewModel.TabsFor("roster", "r1") + 2 - 2, #roster)
     assert.are.equal("@intel", roster[#roster - 1].value)
   end)
 
@@ -1233,7 +1235,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
     return labels, values
   end
 
-  local GUILD_ALL = { "home", "professions", "events", "ready", "loot", "pvp", "groups", "announcements", "modules" }
+  local GUILD_ALL = { "home", "professions", "events", "pvp", "groups", "announcements", "modules" }
 
   it("groups the tabs in Guild and Admin, with no unlabeled group", function()
     local labels, values = navValues("gm")
@@ -1242,6 +1244,40 @@ describe("ViewModel sidebar, user card and sync pill", function()
     assert.are.same({ "raid", "rules", "roster", "pvpadmin", "installs", "ranks", "announceadmin" }, values[2])
     assert.are.equal("Raid", ViewModel.NavGroups("gm")[2].items[1].text)
     assert.is_truthy(ViewModel.NavGroups("gm")[2].items[1].icon)
+  end)
+
+  it("lists Raid, Raid check and Loot as one Raid item, on the first of them the player sees", function()
+    local guild = ViewModel.NavGroups("gm", "r1")[1].items
+    assert.are.same({ value = "events", text = "Raid", icon = "calendar" }, guild[3])
+    viewNs.modules = nil
+    local saved = ViewModel.TabsFor
+    ViewModel.TabsFor = function(role, rosterId)
+      local list = {}
+      for _, tab in ipairs(saved(role, rosterId)) do
+        if tab.value ~= "events" then
+          list[#list + 1] = tab
+        end
+      end
+      return list
+    end
+    local items = ViewModel.NavGroups("gm", "r1")[1].items
+    ViewModel.TabsFor = saved
+    assert.are.same({ value = "ready", text = "Raid", icon = "calendar" }, items[3])
+    assert.are.equal("pvp", items[4].value)
+  end)
+
+  it("gives the tabs of a section and the sidebar item that holds a tab", function()
+    local values = {}
+    for _, tab in ipairs(ViewModel.SectionTabs("loot", "gm", "r1")) do
+      values[#values + 1] = tab.value
+    end
+    assert.are.same({ "events", "ready", "loot" }, values)
+    assert.are.same({}, ViewModel.SectionTabs("pvp", "gm", "r1"))
+    assert.are.same({}, ViewModel.SectionTabs("home", "member", "r1"))
+    assert.are.equal("events", ViewModel.NavValue("loot", "gm", "r1"))
+    assert.are.equal("events", ViewModel.NavValue("ready", "roster", "r1"))
+    assert.are.equal("pvp", ViewModel.NavValue("pvp", "gm", "r1"))
+    assert.are.equal("home", ViewModel.NavValue("home", "member", "r1"))
   end)
 
   it("shows each rank the tabs of the matrix, with a roster", function()

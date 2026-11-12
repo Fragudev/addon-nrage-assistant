@@ -44,6 +44,7 @@ UI.Register("events", function(page)
     title = L("Raid"),
     description = L("The upcoming raid events of your roster."),
   })
+  UI.DrawSectionTabs(page, "events")
   local viewer = UI.Viewer()
   local events = ns.RosterService.FilterEvents(global.events, viewer)
   local own = { key = ns.Platform.GetIdentityKey(), role = UI.Role(), rosterId = UI.OwnRosterId() }

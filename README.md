@@ -115,7 +115,7 @@ The addon is published on CurseForge, but it only works for Nrage:
   battleground, victim class or race, guildmates in the group, time window) and limits (per victim per day, total
   completions). Kills are logged even before the season reaches you, and approvers see each member's progress.
 
-### Announcements
+### Notice board (announcements)
 
 - A read-only **board** for every member and an **editor** for the Emperador and Comandante, with pin, expiry and an
   optional **popup** that reaches every member (after combat, or at login for the ones missed).
