@@ -216,6 +216,7 @@ local function build(rank, locale)
     IsInInstance = function()
       return false
     end,
+    GetPlayerZoneId = function() end,
     GetItemIcon = function(itemId)
       return "icon:" .. tostring(itemId)
     end,
@@ -3587,16 +3588,25 @@ describe("Window smoke test: Layers", function()
 
   local function install(options)
     options = options or {}
+    local zones = {}
+    env.ns.Platform.GetPlayerZoneId = function()
+      return 1429
+    end
+    env.ns.Platform.GetMapName = function(map)
+      return map == 1429 and "Elwynn Forest" or nil
+    end
     env.ns.layerTracker = {
       Current = function()
         return options.own
       end,
     }
     env.ns.layerDirectory = {
-      Groups = function()
+      Groups = function(_, map, zone)
+        zones[#zones + 1] = { map, zone }
         return { { map = 0, layer = 5678, members = { "Ann-Realm" }, count = 1 } }
       end,
     }
+    env.layerZones = zones
     env.ns.layerSwap = {
       CanRequest = function()
         return options.canRequest ~= false, options.reason
@@ -3654,6 +3664,9 @@ describe("Window smoke test: Layers", function()
     local text = env.text()
     assert.is_truthy(text:find("Your layer: #1234", 1, true))
     assert.is_truthy(text:find("#5678", 1, true))
+    -- Only the layers of the zone the player is in: a swap only works there.
+    assert.is_truthy(text:find("Layers in Elwynn Forest", 1, true))
+    assert.are.same({ 0, 1429 }, env.layerZones[#env.layerZones])
     assert.is_truthy(text:find("Ann-Realm", 1, true))
     button(env.page(), "Request swap").onClick()
     assert.are.same({ 0, 5678 }, requested)

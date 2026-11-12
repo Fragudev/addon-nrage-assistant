@@ -58,6 +58,12 @@ describe("LayerPublisher", function()
     assert.are.same({ { map = 0, layer = 10 } }, env.sent)
   end)
 
+  it("sends the zone the layer was read in", function()
+    env.layer = { map = 0, layer = 10, zone = 1429 }
+    env.publisher:Changed()
+    assert.are.same({ { map = 0, layer = 10, zone = 1429 } }, env.sent)
+  end)
+
   it("sends nothing while the layer is unknown or sharing is off", function()
     env.layer = nil
     env.publisher:Changed()

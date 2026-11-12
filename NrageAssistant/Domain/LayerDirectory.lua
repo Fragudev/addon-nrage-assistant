@@ -3,8 +3,8 @@ local _, ns = ...
 -- The layers the guild members said they are on. In memory only; nothing is saved or put in a snapshot. Nothing
 -- here touches the client: the clock and the guild membership are injected.
 --
---   * Apply(sender, state) keeps { map, layer, at } per member, replacing the older one. `layer = 0` means "forget
---     me" (a member who stopped sharing).
+--   * Apply(sender, state) keeps { map, layer, zone, at } per member, replacing the older one. `layer = 0` means
+--     "forget me" (a member who stopped sharing). `zone` is nil for a member on an older version.
 --   * An entry older than Constants.LAYER_STATE_TTL, or of someone who left the guild roster, is not listed.
 --
 -- deps = { now = function() -> seconds (monotonic), isMember = function(name) -> boolean (optional: everyone) }
@@ -42,7 +42,11 @@ function LayerDirectory:Apply(sender, state)
     end
     self.count = self.count + 1
   end
-  self.entries[sender] = { map = state.map, layer = state.layer, at = self.deps.now() }
+  local zone = state.zone
+  if zone ~= nil and not ns.Validate.Int(zone, 1, constants.LAYER_ZONE_MAX) then
+    return false, "bad_state"
+  end
+  self.entries[sender] = { map = state.map, layer = state.layer, zone = zone, at = self.deps.now() }
   return true
 end
 
@@ -78,7 +82,7 @@ function LayerDirectory:Fresh()
       member = ok and result == true
     end
     if member and now - entry.at <= ns.Constants.LAYER_STATE_TTL then
-      list[#list + 1] = { name = name, map = entry.map, layer = entry.layer }
+      list[#list + 1] = { name = name, map = entry.map, layer = entry.layer, zone = entry.zone }
     end
   end
   table.sort(list, function(a, b)
@@ -87,12 +91,13 @@ function LayerDirectory:Fresh()
   return list
 end
 
--- The layers of the continent `map` (every continent when nil), each as { map, layer, members = {names}, count },
--- the most crowded first.
-function LayerDirectory:Groups(map)
+-- The layers of the continent `map` (every continent when nil) and of the zone `zone` (every zone when nil; with a
+-- zone, members that did not say theirs are left out), each as { map, layer, members = {names}, count }, the most
+-- crowded first.
+function LayerDirectory:Groups(map, zone)
   local byKey, groups = {}, {}
   for _, entry in ipairs(self:Fresh()) do
-    if map == nil or entry.map == map then
+    if (map == nil or entry.map == map) and (zone == nil or entry.zone == zone) then
       local key = ns.LayerModel.Key(entry.map, entry.layer)
       local group = byKey[key]
       if not group then

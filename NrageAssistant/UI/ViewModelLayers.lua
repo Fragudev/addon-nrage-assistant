@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- Rows for the Layers tab and the text of the swap popup (docs/LAYER_SWAP_PLAN.md, section 4): the own layer, the
--- layers of the continent with the guildmates on each, and the swap that is running.
+-- layers of the zone with the guildmates on each, and the swap that is running.
 local ViewModel = ns.ViewModel
 local L = ns.L
 
@@ -16,6 +16,8 @@ ViewModel.LAYER_REASONS = ns.Locale.Table(function()
     same_layer = L("you are already on that layer."),
     unknown_layer = L("your layer is not known yet."),
     other_layer = L("you are no longer on that layer."),
+    unknown_zone = L("your zone is not known yet."),
+    other_zone = L("you are not in the zone of the request."),
     in_raid = L("you are in a raid."),
     not_leader = L("you are in a group you do not lead."),
     group_full = L("your group is full."),
@@ -66,7 +68,10 @@ local function requesterView(status, target)
   elseif stage == "assign" then
     return L("%s will invite you."):format(ViewModel.Escape(status.helper or "?")), buttons("cancel")
   elseif stage == "joined" then
-    return L("Target or mouse over any NPC to confirm the move."), buttons("leave", "cancel")
+    local text = L('Press "Refresh Now" when the game offers it (out of combat).')
+      .. " "
+      .. L("Then target or mouse over any NPC to confirm the move.")
+    return text, buttons("leave", "cancel")
   elseif stage == "done" then
     return L("Layer changed."), buttons("leave")
   end
@@ -122,13 +127,18 @@ function ViewModel.LayerSwapView(status)
   return view
 end
 
--- The Layers tab. `state` = { own = { map, layer } or nil, inInstance, share, ownName, groups = the layers of the
--- continent (LayerDirectory:Groups), swap = LayerSwap:Status() or nil, canRequest, reason, available }.
--- Returns { yourLayer, share, rows, hint, swapLine, cancelText } where each row is { key, label, count, names, isOwn,
--- map, layer, button = boolean, enabled, reason }.
+-- The Layers tab. `state` = { own = { map, layer, zone } or nil, inInstance, share, ownName, zoneName (or nil),
+-- groups = the layers of the zone (LayerDirectory:Groups), swap = LayerSwap:Status() or nil, canRequest, reason,
+-- available }. Returns { yourLayer, share, listTitle, rows, hint, swapLine, cancelText } where each row is { key,
+-- label, count, names, isOwn, map, layer, button = boolean, enabled, reason }.
 function ViewModel.LayersView(state)
   local own = state.own
   local view = { share = state.share == true, rows = {} }
+  if state.zoneName then
+    view.listTitle = L("Layers in %s"):format(ViewModel.Escape(state.zoneName))
+  else
+    view.listTitle = L("Layers in this zone")
+  end
   if state.inInstance then
     view.yourLayer = L("Your layer: you are in an instance.")
   elseif own then

@@ -1,7 +1,7 @@
 local _, ns = ...
 
 -- Layers (docs/LAYER_SWAP_PLAN.md, section 4.1): the own layer, the "Share my layer" switch, the layers of this
--- continent with the guildmates on each and a button to ask for a swap, and the swap that is running. What to show
+-- zone with the guildmates on each and a button to ask for a swap, and the swap that is running. What to show
 -- (and the reason behind a disabled button) comes from ViewModel.LayersView; the request itself is LayerSwap:Request,
 -- which checks the rules again. Open to every role: the layer is shared with the guild only.
 local UI = ns.UI
@@ -12,6 +12,8 @@ local ViewModel = ns.ViewModel
 local function viewOf()
   local tracker, directory, swap = ns.layerTracker, ns.layerDirectory, ns.layerSwap
   local own = tracker and tracker:Current() or nil
+  -- Layers are per zone: only the guildmates in this zone can move the player.
+  local zone = own and own.zone or ns.Platform.GetPlayerZoneId()
   local canRequest, reason
   if swap then
     canRequest, reason = swap:CanRequest()
@@ -21,7 +23,8 @@ local function viewOf()
     inInstance = ns.Platform.IsInInstance() == true,
     share = ns.LayerModel.Settings(ns.db).share,
     ownName = ns.Platform.GetIdentityKey(),
-    groups = directory and directory:Groups(own and own.map or nil) or {},
+    zoneName = zone and ns.Platform.GetMapName(zone) or nil,
+    groups = directory and zone and directory:Groups(own and own.map or nil, zone) or {},
     swap = swap and swap:Status() or nil,
     canRequest = canRequest,
     reason = reason,
@@ -40,7 +43,7 @@ local function request(row)
 end
 
 local function layersCard(page, view)
-  local card = Kit.Card(page, { title = L("Layers on this continent") })
+  local card = Kit.Card(page, { title = view.listTitle })
   if #view.rows == 0 then
     Kit.EmptyState(card, { icon = "disc", title = view.hint })
     return
@@ -104,7 +107,7 @@ local function swapCard(page, view, swap)
 end
 
 -- The sections of the layers, drawn into `parent` (the Layers tab and the Home tab): your layer, the layers of the
--- continent, the running swap and the note on how the layer is read.
+-- zone, the running swap and the note on how the layer is read.
 function UI.DrawLayers(parent)
   local view, swap = viewOf()
 
@@ -125,7 +128,9 @@ function UI.DrawLayers(parent)
   Kit.Label(parent, {
     text = L("The layer is read from the creatures you target or mouse over, and shared with the guild only.")
       .. " "
-      .. L("A swap needs a guildmate on that layer to invite you; leaving the group afterwards is your choice."),
+      .. L("A swap needs a guildmate on that layer and in your zone to invite you.")
+      .. " "
+      .. L("Leaving the group afterwards is your choice."),
     style = "small",
     color = "muted",
     wrap = true,

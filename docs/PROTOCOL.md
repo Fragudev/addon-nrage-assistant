@@ -39,7 +39,8 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`; minor 10 added the guild Kill on Sight messages
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
   `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
-  ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below.
+  ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below; minor 16 added the
+  optional `zone` of `LAYER_STATE` and of a `LAYER_SWAP` request (layers are per zone, see *Layers*).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -75,8 +76,8 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `ROSTER_DELETE` | guild | `rosterId`, `rev` | admin |
 | `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), optional `rosterId`, `rev`, `updatedAt` (older clients also sent a `role`: it is tolerated and ignored) | gm, cogm; rl, only into or out of its own roster, for a member in no roster or in its own |
 | `MEMBER_DELETE` | guild | `key`, `rev` | gm, cogm; rl, only for a member of its own roster |
-| `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me") | anyone, for themselves; the layer belongs to the sender |
-| `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
+| `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me"), optional `zone` (1 to 99999) | anyone, for themselves; the layer belongs to the sender |
+| `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` + optional `zone` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `ROSTER_RULES` | guild | `rosterId`, `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Readiness rules per roster) | gm, cogm; rl for its own roster |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
@@ -177,6 +178,11 @@ player turns "Share my layer" off. The receiver keeps it in memory for 15 minute
 
 `LAYER_SWAP` is one step of a swap, tied together by `rid`, which the requester makes. The actor is always the
 **sender**; a name in the payload is only data.
+
+Since minor 16 both carry the optional `zone`: the uiMapId, at zone level, of the zone the layer was read in (state)
+or the requester is in (request). On Forever each zone has its own layers and the game only moves an invited player
+who is in the same zone as the member who invites, so a helper only answers a request of its own zone. A request
+without `zone` (an older client) is answered as before, and a state without `zone` is not listed in the zone view.
 
 | Step | Sent by | Meaning |
 |---|---|---|

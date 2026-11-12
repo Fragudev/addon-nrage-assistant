@@ -77,7 +77,17 @@ describe("ViewModel layers", function()
   end)
 
   it("has a text for every reason the swap rules and the Groups exclusion can give", function()
-    for _, reason in ipairs({ "busy", "locked", "unsupported", "lfg", "in_group", "in_instance", "in_combat" }) do
+    for _, reason in ipairs({
+      "busy",
+      "locked",
+      "unsupported",
+      "lfg",
+      "in_group",
+      "in_instance",
+      "in_combat",
+      "unknown_zone",
+      "other_zone",
+    }) do
       assert.is_truthy(ViewModel.LAYER_REASONS[reason], reason)
     end
   end)
@@ -101,6 +111,14 @@ describe("ViewModel layers", function()
     local view = ViewModel.LayersView({ groups = { { map = 1, layer = 9, members = { "Eve" }, count = 1 } } })
     assert.are.equal("#0009 (map 1)", view.rows[1].label)
     assert.is_true(view.rows[1].button)
+  end)
+
+  it("names the zone the list is about, escaped, or says this zone when its name is not known", function()
+    assert.are.equal(
+      "Layers in Elwynn||Forest",
+      ViewModel.LayersView({ own = OWN, zoneName = "Elwynn|Forest" }).listTitle
+    )
+    assert.are.equal("Layers in this zone", ViewModel.LayersView({ own = OWN }).listTitle)
   end)
 
   it("has a hint when nobody shared a layer, or when layers are not available", function()
@@ -172,6 +190,13 @@ describe("ViewModel.LayerSwapView", function()
     assert.are.equal("decline", ids(helper("invited")))
   end)
 
+  it("tells the requester who joined to press Refresh Now in the game's prompt, out of combat", function()
+    local view = ViewModel.LayerSwapView(requester({ stage = "joined", joined = true }))
+    assert.is_truthy(view.text:find('Press "Refresh Now"', 1, true))
+    assert.is_truthy(view.text:find("out of combat", 1, true))
+    assert.are.equal("leave,cancel", ids(view))
+  end)
+
   it("shows the countdown only when there is one", function()
     assert.are.equal("31 s left", ViewModel.LayerSwapView(requester({ left = 30.4 })).countdown)
     assert.is_nil(ViewModel.LayerSwapView(requester()).countdown)
@@ -184,5 +209,8 @@ describe("ViewModel layers in Spanish", function()
     local view = Spanish.LayerSwapView({ role = "helper", stage = "request", requester = "Ann" })
     assert.is_truthy(view.text:find("quiere unirse a tu capa", 1, true))
     assert.are.equal("Ayudar", view.buttons[1].text)
+    assert.are.equal("Capas en Elwynn", Spanish.LayersView({ zoneName = "Elwynn" }).listTitle)
+    local joined = Spanish.LayerSwapView({ role = "requester", stage = "joined", map = 0, layer = 1 })
+    assert.is_truthy(joined.text:find('Pulsa "Actualizar ahora"', 1, true))
   end)
 end)

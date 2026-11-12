@@ -116,6 +116,10 @@ local function new_client(world, name, layer)
       return "rid-" .. world.counter
     end,
     ownLayer = ownLayer,
+    -- Only the zone specs give the flow the zone of the player; the others run as an older client.
+    ownZone = world.withZones and function()
+      return c.zone
+    end or nil,
     eligibility = ns.LayerSwap.Eligibility(platform, ownLayer, isLocked),
     invite = function(who)
       c.invites[#c.invites + 1] = who
@@ -775,5 +779,112 @@ describe("LayerSwap:IsActive", function()
     -- The requester keeps the finished swap on screen, but it no longer holds the flow.
     assert.is_false(requester.swap:IsActive())
     assert.is_false(helper.swap:IsActive())
+  end)
+end)
+
+describe("LayerSwap zones (layers are per zone; the game only moves a player invited from the same zone)", function()
+  local ELWYNN, WESTFALL = 1429, 1436
+  local world, requester, helper
+
+  local function on(zone, layer)
+    return { map = layer.map, layer = layer.layer, zone = zone }
+  end
+
+  before_each(function()
+    world = new_world()
+    world.withZones = true
+    requester = new_client(world, "Req", on(ELWYNN, OTHER))
+    requester.zone = ELWYNN
+    helper = new_client(world, "Help", on(ELWYNN, TARGET))
+    helper.zone = ELWYNN
+  end)
+
+  it("sends the zone of the requester in the request and keeps it in the swap of both sides", function()
+    assert.is_true(requester.swap:Request(TARGET.map, TARGET.layer))
+    assert.are.equal(ELWYNN, world.sent[1].payload.zone)
+    assert.are.equal(ELWYNN, requester.swap:Status().zone)
+    assert.are.equal(ELWYNN, helper.swap:Status().zone)
+    assert.is_true(helper.swap:Offer())
+    assert.is_true(helper.swap:Invite())
+    assert.are.same({ "Req" }, helper.invites)
+  end)
+
+  it("refuses a request while the zone of the requester is not known", function()
+    requester.zone = nil
+    local ok, why = requester.swap:Request(TARGET.map, TARGET.layer)
+    assert.is_false(ok)
+    assert.are.equal("unknown_zone", why)
+    assert.is_nil(requester.swap:Status())
+    assert.are.same({}, world.sent)
+  end)
+
+  it("does not ask a member on that layer in another zone", function()
+    helper.layer = on(WESTFALL, TARGET)
+    helper.zone = WESTFALL
+    assert.is_true(requester.swap:Request(TARGET.map, TARGET.layer))
+    assert.is_nil(helper.swap:Status())
+  end)
+
+  it("refuses an offer or an invite from a helper who left the zone of the request", function()
+    assert.is_true(requester.swap:Request(TARGET.map, TARGET.layer))
+    helper.layer = on(WESTFALL, TARGET)
+    local ok, why = helper.swap:Offer()
+    assert.is_false(ok)
+    assert.are.equal("other_zone", why)
+    helper.layer = on(ELWYNN, TARGET)
+    assert.is_true(helper.swap:Offer())
+    helper.layer = on(WESTFALL, TARGET)
+    ok, why = helper.swap:Invite()
+    assert.is_false(ok)
+    assert.are.equal("other_zone", why)
+    assert.are.same({}, helper.invites)
+  end)
+
+  it("still answers a request without a zone from an older requester", function()
+    -- A request as an older client sends it: no zone.
+    helper.swap:OnMessage("Old", { rid = "r-old", s = "request", map = TARGET.map, layer = TARGET.layer })
+    local status = helper.swap:Status()
+    assert.are.equal("Old", status.requester)
+    assert.is_nil(status.zone)
+    assert.is_true(helper.swap:Offer())
+  end)
+end)
+
+describe("LayerSwap.Eligibility helper zone rule", function()
+  local platform = {
+    IsInGroup = function()
+      return false
+    end,
+    IsInRaid = function()
+      return false
+    end,
+    IsInInstance = function()
+      return false
+    end,
+    IsInCombat = function()
+      return false
+    end,
+    IsGroupLeader = function()
+      return false
+    end,
+    GetGroupSize = function()
+      return 0
+    end,
+  }
+
+  local function helperRule(own)
+    return ns.LayerSwap.Eligibility(platform, function()
+      return own
+    end, function()
+      return false
+    end).helper
+  end
+
+  it("needs the layer read in the zone of the request, and skips the check for a request without a zone", function()
+    assert.is_true(helperRule({ map = 0, layer = 222, zone = 1429 })(0, 222, 1429))
+    assert.are.same({ false, "other_zone" }, { helperRule({ map = 0, layer = 222, zone = 1436 })(0, 222, 1429) })
+    assert.are.same({ false, "other_zone" }, { helperRule({ map = 0, layer = 222 })(0, 222, 1429) })
+    assert.is_true(helperRule({ map = 0, layer = 222, zone = 1436 })(0, 222, nil))
+    assert.are.same({ false, "unknown_layer" }, { helperRule(nil)(0, 222, 1429) })
   end)
 end)

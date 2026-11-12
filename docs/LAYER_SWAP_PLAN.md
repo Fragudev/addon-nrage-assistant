@@ -19,6 +19,13 @@ without the in-game measurement; see the decisions log. Everything unmeasured is
 
 ### 0.1 How a swap works in game (assumed, measured in P0)
 
+**Changed 2026-11-12 (Forever launch, per community guides; not measured):** each zone (or a small set of joined
+zones) has its own layers. A player invited to a group is moved to the layer of the member who invited them only if
+both are **in the same zone**; the game shows a "refresh world" prompt with a countdown and a **Refresh Now** button,
+which cannot be accepted in combat. Since 2026-10-01 the leader is no longer moved to the invited player. The addon
+therefore sends the zone with the layer and the request, only a member in the requester's zone can help, and the
+requester is told to press Refresh Now. The text below is the original assumption.
+
 On a layered realm, a player who joins a group is moved to the layer of the group leader after a short delay, as
 long as they are out of combat and not in an instance. Layer hopping has a cooldown. The addon never moves anyone
 itself: it only finds a helper, lets the helper invite with a click, detects that the move happened and offers a
@@ -130,7 +137,7 @@ The requester is the only arbiter, so two helpers clicking at the same time cann
 - No offer within `LAYER_REQUEST_TIMEOUT` (60 s): `close outcome=expired`; the requester sees "Nobody on that layer
   answered".
 - Assigned, but no group joined within `LAYER_ASSIGN_TIMEOUT` (90 s): `close outcome=expired`.
-- Joined, but no confirmed target layer within `LAYER_CONFIRM_TIMEOUT` (120 s): the popup says "Could not confirm
+- Joined, but no confirmed target layer within `LAYER_CONFIRM_TIMEOUT` (300 s since 2026-11-12, for the Refresh Now prompt): the popup says "Could not confirm
   the move" and still offers "Leave group"; `close outcome=unconfirmed`.
 - Requester clicks "Cancel" at any step: `close outcome=cancelled`.
 - A helper who closes the popup only stops showing it. If an assigned helper declines, the requester gets
@@ -302,4 +309,5 @@ stop and report instead of improvising.
 | 2026-10-20 | Leaving the group after the move is a button, never automatic |
 | 2026-10-20 | UI: a new Layers tab plus a popup, also added to the redesign plan |
 | 2026-10-20 | Plan only; implementation by a Sonnet 5.5 subagent once this plan is approved |
+| 2026-11-12 | Blizzard changed layering on Forever: each zone has its own layers, and a group invite only moves the invited player when both are in the same zone; the move waits for the player to press "Refresh Now" (not in combat), and the leader is no longer moved. The layer state and the request carry the zone (protocol minor 16); a helper answers only a request of its own zone; the tracker forgets the layer when the zone changes; the Layers list shows only the current zone; the confirm step waits 300 s |
 | 2026-10-20 | Build P1-P4 now on the assumptions of 1.1; P0's in-game measurement becomes a must-verify before release. Every unmeasured API is under "Assumed, not measured yet" in `docs/API_NOTES.md`, and every client call is guarded so a wrong assumption disables the feature quietly |
