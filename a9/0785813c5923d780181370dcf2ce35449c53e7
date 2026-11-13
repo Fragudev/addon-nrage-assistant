@@ -1,0 +1,23 @@
+NrageAssistant/UI/IntelWindow.lua
+  s_359e870b5722f5::t_316417036406e1 815-816,822
+tests/intel_window_spec.lua
+  s_359e870b5722f5::t_68606990f15d23 935-942
+tests/support/fake_frames.lua
+  s_359e870b5722f5::t_097d2d41409b98 30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a90785813c5923d780181370dcf2ce35449c53e7",
+  "prompts": {},
+  "sessions": {
+    "s_359e870b5722f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64381fe1-369a-44f5-8c9b-d3f8778c1b3a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <francisge@ext.inditex.com>"
+    }
+  }
+}
