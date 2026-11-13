@@ -812,13 +812,14 @@ local warning, warningGeneration = nil, 0
 local function buildWarning()
   local Kit = ns.Kit
   warning = CreateFrame("Frame", "NrageAssistantIntelWarning", UIParent)
-  warning:SetFrameStrata("FULLSCREEN_DIALOG")
+  -- Below the DIALOG strata of the client popups (Release Spirit, invites), so the warning never covers their buttons.
+  warning:SetFrameStrata("HIGH")
   warning:SetClampedToScreen(true)
   warning:SetMovable(true)
   warning:EnableMouse(true)
   warning:RegisterForDrag("LeftButton")
   warning:SetSize(WARNING_WIDTH, WARNING_HEIGHT)
-  warning:SetPoint("TOP", UIParent, "TOP", 0, -170)
+  warning:SetPoint("TOP", UIParent, "TOP", 0, -300)
   warning.shape = Kit.Shape.New(warning, { cut = "md" })
   warning.shape:SetFill("bg")
   warning.text = warning:CreateFontString(nil, "OVERLAY")

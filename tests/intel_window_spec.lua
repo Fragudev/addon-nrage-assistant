@@ -932,6 +932,14 @@ describe("IntelWindow on fake frames", function()
       assert.is_false(warning:IsShown())
     end)
 
+    it("stays below the client popups so Release Spirit can still be clicked", function()
+      env.status = { intelWarning = { width = 400 } } -- never dragged: the default spot applies
+      IntelWindow.Warn("Kill on Sight: Ann", "kos")
+      local warning = IntelWindow.WarningFrame()
+      assert.are.equal("HIGH", warning.strata)
+      assert.are.same({ "TOP", _G.UIParent, "TOP", 0, -300 }, warning.points[1])
+    end)
+
     it("tints the class name with the class colour and escapes the rest", function()
       IntelWindow.Warn("Kill on Sight: Mage|x (Mage, level 60) <G>", "kos", "MAGE")
       assert.are.equal("Kill on Sight: Mage||x (|cff3fc7ebMage|r, level 60) <G>", IntelWindow.WarningFrame().text.text)

@@ -27,6 +27,9 @@ local function make_region(kind, parent)
   function methods.SetPoint(self, ...)
     self.points[#self.points + 1] = { ... }
   end
+  function methods.SetFrameStrata(self, strata)
+    self.strata = strata
+  end
   function methods.ClearAllPoints(self)
     self.points = {}
   end
