@@ -1,0 +1,25 @@
+.github/CODEOWNERS
+  s_802cae5b9db215::t_0513aa71de0e95 1-2
+.github/workflows/ci.yml
+  s_802cae5b9db215::t_6986f9c0714a10 6
+.github/workflows/release.yml
+  s_802cae5b9db215::t_769d4f45486efc 39-52
+README.md
+  s_802cae5b9db215::t_d67e57c5b17ac4 29,218,254-259,262-265,268-271,274-277
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "052736016b9f30ba526e4d2aac849f76587a2a9c",
+  "prompts": {},
+  "sessions": {
+    "s_802cae5b9db215": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4e21a150-25e8-43ee-b92d-411b3f0d7b4c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
