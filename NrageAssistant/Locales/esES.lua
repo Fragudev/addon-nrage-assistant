@@ -1276,6 +1276,7 @@ ns.Locale.Register("es", {
   ["Open groups (%d)"] = "Grupos abiertos (%d)",
   ["%s: %s - %s"] = "%s: %s - %s",
   ["Click to open Groups"] = "Clic para abrir Grupos",
+  ["Right click to change the icon"] = "Clic derecho para cambiar el icono",
 
   -- UI/ViewModelInstalls.lua, UI/Tabs/Installs.lua
   ["Installed check"] = "Comprobar instalación",

@@ -150,6 +150,7 @@ local function showTooltip(self)
     GameTooltip:AddLine(view.more, 1, 1, 1)
   end
   GameTooltip:AddLine(view.hint, 0.6, 0.6, 0.6)
+  GameTooltip:AddLine(view.rightClickHint, 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end
 

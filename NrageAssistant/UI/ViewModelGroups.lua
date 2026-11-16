@@ -544,7 +544,7 @@ local function neededRoleText(needs)
   return table.concat(labels, ", ")
 end
 
--- The badge on the icon: nothing for fewer than two groups, the number up to nine, then "9+".
+-- The badge on the icon: hidden for zero groups, the count from one to nine, then "9+".
 local function badgeCount(count)
   if count <= 0 then
     return nil
@@ -566,36 +566,48 @@ local function canJoin(canApply, pid)
   return ok and result and true or false
 end
 
--- The floating icon of the Groups module. `state` = { enabled (module on and board present), posts = LfgBoard:Query()
--- result (may be nil), ownName, canApply = function(pid) -> boolean (may be nil) }. Only the posts of other members
--- count and are listed, in the order the board gives them. Returns { shown, count, countText, title, lines =
--- { { text, joinable } } (at most five), more, hint }.
+
+-- The floating icon of the Groups module. `state` = { enabled (module on and board present),
+-- posts = LfgBoard:Query() result (may be nil), ownName, canApply = function(pid) -> boolean }.
+-- All open groups, including the player's own post, contribute to the badge and tooltip.
+-- Returns { shown, count, countText, title, lines = { { text, joinable } } (at most five), more, hint }.
 function ViewModel.GroupsIconView(state)
   state = state or {}
-  local others = {}
+  local posts = {}
+
+  -- Include every valid post so the badge reflects all open guild groups.
   for _, post in ipairs(type(state.posts) == "table" and state.posts or {}) do
-    if type(post) == "table" and not sameName(post.owner, state.ownName) then
-      others[#others + 1] = post
+    if type(post) == "table" then
+      posts[#posts + 1] = post
     end
   end
 
-  local count = #others
+  local count = #posts
   local lines = {}
+
   for index = 1, math.min(count, ICON_LINES) do
-    local post = others[index]
+    local post = posts[index]
     local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
     local text = L("%s: %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(post.owner or "")))
     local roles = neededRoleText(post.needs)
+
     if roles ~= "" then
       text = text .. " (" .. roles .. ")"
     end
-    lines[#lines + 1] = { text = text, joinable = canJoin(state.canApply, post.pid) }
+
+    -- Own posts are listed but cannot be joined by their creator.
+    local ownPost = sameName(post.owner, state.ownName)
+    lines[#lines + 1] = {
+      text = text,
+      joinable = not ownPost and canJoin(state.canApply, post.pid),
+    }
   end
 
   local more = nil
   if count > ICON_LINES then
     more = L("and %d more"):format(count - ICON_LINES)
   end
+
   return {
     shown = state.enabled == true and count > 0,
     count = count,
@@ -604,5 +616,7 @@ function ViewModel.GroupsIconView(state)
     lines = lines,
     more = more,
     hint = L("Click to open Groups"),
+    rightClickHint = L("Right click to change the icon"),
   }
 end
+

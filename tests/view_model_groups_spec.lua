@@ -603,15 +603,19 @@ describe("ViewModel groups icon", function()
     assert.are.equal(1, icon.count)
   end)
 
-  it("is hidden when the only open post is the player's own", function()
-    local icon = minimap({ posts = { entry({ owner = "Me" }) } })
-    assert.is_false(icon.shown)
-    assert.are.equal(0, icon.count)
-    assert.is_nil(icon.countText)
-    assert.are.same({}, icon.lines)
+  it("shows the player's own open group in the count badge", function()
+    local iconView = minimap({
+      posts = posts_of(1, "Me-Realm"),
+    })
+
+    -- Own posts count towards the badge and keep the icon visible.
+    assert.is_true(iconView.shown)
+    assert.are.equal(1, iconView.count)
+    assert.are.equal("1", iconView.countText)
   end)
 
-  it("is shown with the posts of other members, in the board order", function()
+
+  it("shows all open groups, including the player's own, in board order", function()
     local icon = minimap({
       posts = {
         entry({ owner = "Kaelis", pid = "a" }),
@@ -619,16 +623,28 @@ describe("ViewModel groups icon", function()
         entry({ owner = "Ana", pid = "b" }),
       },
     })
+
+    -- All open groups contribute to the badge, including the player's own post.
     assert.is_true(icon.shown)
-    assert.are.equal(2, icon.count)
-    assert.are.equal("2", icon.countText)
-    assert.are.equal("Open groups (2)", icon.title)
+    assert.are.equal(3, icon.count)
+    assert.are.equal("3", icon.countText)
+    assert.are.equal("Open groups (3)", icon.title)
     assert.are.equal("Click to open Groups", icon.hint)
-    assert.are.equal(2, #icon.lines)
+    assert.are.equal("Right click to change the icon", icon.rightClickHint)
+
+    -- Preserve the board order in the tooltip, including the player's own group.
+    assert.are.equal(3, #icon.lines)
     assert.is_truthy(icon.lines[1].text:find("Kaelis", 1, true))
-    assert.is_truthy(icon.lines[2].text:find("Ana", 1, true))
+    assert.is_truthy(icon.lines[2].text:find("Me", 1, true))
+    assert.is_truthy(icon.lines[3].text:find("Ana", 1, true))
+
+    -- The player's own group cannot be joined.
+    assert.is_false(icon.lines[2].joinable)
+
+    -- All groups fit within the tooltip limit.
     assert.is_nil(icon.more)
   end)
+
 
   it("lists at most five posts and says how many more there are", function()
     local icon = minimap({ posts = posts_of(7) })
@@ -738,4 +754,28 @@ describe("ViewModel groups icon", function()
     assert.are.equal(1, iconView.count)
     assert.are.equal("1", iconView.countText)
   end)
+
+  it("counts the player's own open group without making it joinable", function()
+  local iconView = ViewModel.GroupsIconView({
+    enabled = true,
+    ownName = "Me-Realm",
+    posts = {
+      {
+        pid = "own-1",
+        owner = "Me-Realm",
+        title = "Deadmines",
+        kind = "dungeon",
+      },
+    },
+    canApply = function()
+      return true
+    end,
+  })
+
+  -- Own posts contribute to the badge but cannot be joined.
+  assert.is_true(iconView.shown)
+  assert.are.equal(1, iconView.count)
+  assert.are.equal("1", iconView.countText)
+  assert.is_false(iconView.lines[1].joinable)
+end)
 end)
