@@ -639,7 +639,8 @@ describe("ViewModel groups icon", function()
   end)
 
   it("writes the count badge as nothing, the number, or 9+", function()
-    assert.is_nil(minimap({ posts = posts_of(1) }).countText)
+    assert.is_nil(minimap({ posts = posts_of(0) }).countText)
+    assert.are.equal("1", minimap({ posts = posts_of(1) }).countText)
     assert.are.equal("2", minimap({ posts = posts_of(2) }).countText)
     assert.are.equal("9", minimap({ posts = posts_of(9) }).countText)
     assert.are.equal("9+", minimap({ posts = posts_of(10) }).countText)
@@ -717,5 +718,24 @@ describe("ViewModel groups icon", function()
     assert.is_truthy(icon.lines[1].text:find("Mazmorra: Scarlet Monastery - Kaelis", 1, true))
     local many = es.GroupsIconView({ enabled = true, posts = posts_of(6), ownName = "Me" })
     assert.are.equal("y 1 más", many.more)
+  end)
+
+  it("shows the count for a single open group", function()
+    local iconView = ViewModel.GroupsIconView({
+      enabled = true,
+      ownName = "Me-Realm",
+      posts = {
+        {
+          pid = "test-1",
+          owner = "Other-Realm",
+          title = "Deadmines",
+          kind = "dungeon",
+        },
+      },
+    })
+
+    assert.is_true(iconView.shown)
+    assert.are.equal(1, iconView.count)
+    assert.are.equal("1", iconView.countText)
   end)
 end)

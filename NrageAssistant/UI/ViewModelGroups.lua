@@ -546,11 +546,14 @@ end
 
 -- The badge on the icon: nothing for fewer than two groups, the number up to nine, then "9+".
 local function badgeCount(count)
-  if count < 2 then
+  if count <= 0 then
     return nil
-  elseif count > 9 then
+  end
+
+  if count > 9 then
     return "9+"
   end
+
   return tostring(count)
 end
 

@@ -1173,6 +1173,11 @@ ns.Locale.Register("es", {
   ["that value is not valid."] = "ese valor no es válido.",
   ["the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings."] = "los jugadores enemigos que encuentras ahora se comparten con la guild. Puedes desactivarlo en los ajustes de Intel.",
   ["The Intel window will change when combat ends."] = "La ventana de Intel cambiará al terminar el combate.",
+    -- Commands/LfgCommands.lua
+  ["/nrage lfg icon show | hide | toggle  test the LFG icon locally"] =
+    "/nrage lfg icon show | hide | toggle  probar el icono LFG localmente",
+  ["Groups icon is not available."] = "El icono de grupos no está disponible.",
+  ["Groups icon preview: %s"] = "Vista previa del icono de grupos: %s",
   -- Groups (docs/LFG_PLAN.md)
   ["1 open group"] = "1 grupo abierto",
   ["%d open groups"] = "%d grupos abiertos",

@@ -682,7 +682,14 @@ local function StartLfg()
       service:Sweep()
     end
   end)
+
+  -- Register the slash commands
+  ns.lfgCommands = ns.LfgCommands.New({
+    groupsIcon = ns.GroupsIcon,
+  })
 end
+
+
 
 local positionStarted = false
 

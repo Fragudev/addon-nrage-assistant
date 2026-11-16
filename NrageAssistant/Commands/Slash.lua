@@ -103,11 +103,23 @@ local function IntelCommand(rest)
   end
 end
 
+local function LfgCommand(rest)
+  if not (ns.active and ns.lfgCommands) then
+    say("LFG commands are not available.")
+    return
+  end
+
+  for _, line in ipairs(ns.lfgCommands:Run(rest)) do
+    print(line)
+  end
+end
+
 local COMMANDS = {
   help = HelpCommand,
   pvp = PvPCommand,
   intel = IntelCommand,
   spy = IntelCommand,
+  lfg = LfgCommand,
   debug = function(rest)
     local sub, action = rest:match("^(%S*)%s*(%S*)")
     sub, action = sub:lower(), action:lower()
@@ -149,8 +161,8 @@ local COMMANDS = {
       end
     else
       say(
-        "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
-          .. " | pvp <action> | layer <action>"
+          "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
+            .. " | pvp <action> | layer <action>"
       )
     end
   end,
