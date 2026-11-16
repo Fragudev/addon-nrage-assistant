@@ -22,11 +22,11 @@ describe("LfgCommands", function()
     visible = false
 
     icon = {
-      SetDebugVisible = function(value)
+      SetAlwaysShow = function(value)
         visible = value
       end,
 
-      IsDebugVisible = function()
+      AlwaysShow = function()
         return visible
       end,
     }
@@ -36,14 +36,14 @@ describe("LfgCommands", function()
     })
   end)
 
-  it("shows the icon preview", function()
+  it("enables persistent icon visibility", function()
     local lines = commands:Run("icon show")
 
     assert.is_true(visible)
     assert.matches("ON", lines[1])
   end)
 
-  it("hides the icon preview", function()
+  it("disables persistent icon visibility", function()
     commands:Run("icon show")
     local lines = commands:Run("icon hide")
 
@@ -51,7 +51,7 @@ describe("LfgCommands", function()
     assert.matches("OFF", lines[1])
   end)
 
-  it("toggles the icon preview", function()
+  it("toggles persistent icon visibility", function()
     commands:Run("icon toggle")
     assert.is_true(visible)
 

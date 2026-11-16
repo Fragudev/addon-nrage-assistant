@@ -140,57 +140,207 @@ describe("GroupsIcon.Refresh", function()
   end)
 end)
 
-describe("GroupsIcon.DebugPreview", function()
+describe("GroupsIcon.Size", function()
+  it("uses 52 as the default size", function()
+    local db = newDb()
+
+    assert.are.equal(52, Icon.Settings(db).size)
+  end)
+
+  it("keeps a saved size", function()
+    local db = newDb()
+    db.global.settings.groupsIcon = {
+      x = -250,
+      y = -30,
+      size = 64,
+    }
+
+    assert.are.equal(64, Icon.Settings(db).size)
+  end)
+
+  it("clamps sizes to the allowed range", function()
+    assert.are.equal(32, Icon.NormalizeSize(10))
+    assert.are.equal(80, Icon.NormalizeSize(120))
+    assert.are.equal(32, Icon.NormalizeSize(32))
+    assert.are.equal(80, Icon.NormalizeSize(80))
+  end)
+
+  it("repairs invalid sizes", function()
+    assert.are.equal(52, Icon.NormalizeSize(nil))
+    assert.are.equal(52, Icon.NormalizeSize("large"))
+    assert.are.equal(52, Icon.NormalizeSize(math.huge))
+    assert.are.equal(52, Icon.NormalizeSize(0 / 0))
+  end)
+
+  it("rounds sizes to whole pixels", function()
+    assert.are.equal(45, Icon.NormalizeSize(44.6))
+    assert.are.equal(44, Icon.NormalizeSize(44.4))
+  end)
+
+  it("keeps the saved position when repairing the size", function()
+    local db = newDb()
+    db.global.settings.groupsIcon = {
+      x = -400,
+      y = -200,
+      size = 200,
+    }
+
+    local settings = Icon.Settings(db)
+
+    assert.are.equal(-400, settings.x)
+    assert.are.equal(-200, settings.y)
+    assert.are.equal(80, settings.size)
+  end)
+end)
+
+
+describe("GroupsIcon.Visibility", function()
+  it("defaults to an always-visible icon", function()
+    local db = newDb()
+
+    assert.is_true(Icon.Settings(db).alwaysShow)
+  end)
+
+  it("keeps the saved always-visible preference", function()
+    local db = newDb()
+    db.global.settings.groupsIcon = {
+      x = -250,
+      y = -30,
+      alwaysShow = true,
+    }
+
+    assert.is_true(Icon.Settings(db).alwaysShow)
+  end)
+
+  it("keeps automatic visibility when explicitly disabled", function()
+    local db = newDb()
+    db.global.settings.groupsIcon = {
+      x = -250,
+      y = -30,
+      alwaysShow = false,
+    }
+
+    -- An explicit false preserves automatic visibility across sessions.
+    assert.is_false(Icon.Settings(db).alwaysShow)
+  end)
+
+  it("defaults invalid visibility preferences to always visible", function()
+    for _, value in ipairs({ "true", "false", 0, 1, {} }) do
+      local db = newDb()
+      db.global.settings.groupsIcon = {
+        alwaysShow = value,
+      }
+
+      assert.is_true(Icon.Settings(db).alwaysShow)
+    end
+  end)
+
+  it("preserves the icon position and size when changing visibility", function()
+    local db = newDb()
+    db.global.settings.groupsIcon = {
+      x = -400,
+      y = -200,
+      size = 64,
+      alwaysShow = false,
+    }
+
+    local settings = Icon.Settings(db)
+
+    -- Changing visibility must not reset the saved layout.
+    settings.alwaysShow = true
+
+    assert.is_true(Icon.Settings(db).alwaysShow)
+    assert.are.equal(-400, settings.x)
+    assert.are.equal(-200, settings.y)
+    assert.are.equal(64, settings.size)
+  end)
+end)
+
+
+describe("GroupsIcon.SetAlwaysShow", function()
   local icon
+  local db
 
   before_each(function()
-    -- Each test gets a fresh module with preview disabled.
-    icon = load_icon().GroupsIcon
+    local freshNs = load_icon()
+    icon = freshNs.GroupsIcon
+    db = newDb()
+
+    -- Provide the saved database used by the visibility setter.
+    freshNs.db = db
   end)
 
-  it("starts with the preview disabled", function()
-    assert.is_false(icon.IsDebugVisible())
+  it("disables persistent visibility", function()
+    local enabled = icon.SetAlwaysShow(false)
+
+    assert.is_false(enabled)
+    assert.is_false(db.global.settings.groupsIcon.alwaysShow)
   end)
 
-  it("enables the preview", function()
-    icon.SetDebugVisible(true)
-    assert.is_true(icon.IsDebugVisible())
+  it("enables persistent visibility", function()
+    icon.SetAlwaysShow(false)
+
+    local enabled = icon.SetAlwaysShow(true)
+
+    assert.is_true(enabled)
+    assert.is_true(db.global.settings.groupsIcon.alwaysShow)
   end)
 
-  it("disables the preview", function()
-    icon.SetDebugVisible(true)
-    icon.SetDebugVisible(false)
-    assert.is_false(icon.IsDebugVisible())
+  it("only accepts true to enable persistent visibility", function()
+    icon.SetAlwaysShow("true")
+
+    assert.is_false(icon.AlwaysShow())
   end)
 
-  it("only enables the preview for true", function()
-    for _, value in ipairs({ false, 0, 1, "true", {} }) do
-      icon.SetDebugVisible(value)
-      assert.is_false(icon.IsDebugVisible())
-    end
-
-    icon.SetDebugVisible(nil)
-    assert.is_false(icon.IsDebugVisible())
-  end)
-
-  it("refreshes the icon when the preview changes", function()
+  it("refreshes the icon after changing visibility", function()
     local calls = 0
 
+    -- Replace the client refresh with a counter.
     icon.Refresh = function()
       calls = calls + 1
     end
 
-    icon.SetDebugVisible(true)
-    assert.are.equal(1, calls)
+    icon.SetAlwaysShow(false)
+    icon.SetAlwaysShow(true)
 
-    icon.SetDebugVisible(false)
     assert.are.equal(2, calls)
   end)
+end)
 
-  it("does not require the WoW client to toggle the preview", function()
-    assert.has_no.errors(function()
-      icon.SetDebugVisible(true)
-      icon.SetDebugVisible(false)
-    end)
+
+describe("GroupsIcon.CountLayout", function()
+  it("uses the original badge layout at the default icon size", function()
+    assert.are.same({
+      fontSize = 20,
+      x = 14,
+      y = -5,
+    }, Icon.CountLayout(52))
+  end)
+
+  it("scales the badge down for a small icon", function()
+    assert.are.same({
+      fontSize = 12,
+      x = 9,
+      y = -3,
+    }, Icon.CountLayout(32))
+  end)
+
+  it("scales the badge up for a large icon", function()
+    assert.are.same({
+      fontSize = 31,
+      x = 22,
+      y = -8,
+    }, Icon.CountLayout(80))
+  end)
+
+  it("uses the default layout for invalid sizes", function()
+    assert.are.same(Icon.CountLayout(52), Icon.CountLayout(nil))
+    assert.are.same(Icon.CountLayout(52), Icon.CountLayout("large"))
+  end)
+
+  it("clamps out-of-range sizes before calculating the layout", function()
+    assert.are.same(Icon.CountLayout(32), Icon.CountLayout(10))
+    assert.are.same(Icon.CountLayout(80), Icon.CountLayout(120))
   end)
 end)
+
