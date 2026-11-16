@@ -139,3 +139,58 @@ describe("GroupsIcon.Refresh", function()
     end)
   end)
 end)
+
+describe("GroupsIcon.DebugPreview", function()
+  local icon
+
+  before_each(function()
+    -- Each test gets a fresh module with preview disabled.
+    icon = load_icon().GroupsIcon
+  end)
+
+  it("starts with the preview disabled", function()
+    assert.is_false(icon.IsDebugVisible())
+  end)
+
+  it("enables the preview", function()
+    icon.SetDebugVisible(true)
+    assert.is_true(icon.IsDebugVisible())
+  end)
+
+  it("disables the preview", function()
+    icon.SetDebugVisible(true)
+    icon.SetDebugVisible(false)
+    assert.is_false(icon.IsDebugVisible())
+  end)
+
+  it("only enables the preview for true", function()
+    for _, value in ipairs({ false, 0, 1, "true", {} }) do
+      icon.SetDebugVisible(value)
+      assert.is_false(icon.IsDebugVisible())
+    end
+
+    icon.SetDebugVisible(nil)
+    assert.is_false(icon.IsDebugVisible())
+  end)
+
+  it("refreshes the icon when the preview changes", function()
+    local calls = 0
+
+    icon.Refresh = function()
+      calls = calls + 1
+    end
+
+    icon.SetDebugVisible(true)
+    assert.are.equal(1, calls)
+
+    icon.SetDebugVisible(false)
+    assert.are.equal(2, calls)
+  end)
+
+  it("does not require the WoW client to toggle the preview", function()
+    assert.has_no.errors(function()
+      icon.SetDebugVisible(true)
+      icon.SetDebugVisible(false)
+    end)
+  end)
+end)

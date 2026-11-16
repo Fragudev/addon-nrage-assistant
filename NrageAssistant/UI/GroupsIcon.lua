@@ -66,6 +66,7 @@ function GroupsIcon.State(env)
 end
 
 local button, countText, lastView
+local debugForceShow = false
 
 local function place()
   if not button then
@@ -107,32 +108,31 @@ local function showTooltip(self)
   GameTooltip:Show()
 end
 
--- A round button with the layout of the minimap button: a dark disc, `texture` and the gold ring on top. Hidden,
--- not placed and with no scripts. The layer swap uses it too, for the icon that holds its popup back in combat.
-function GroupsIcon.RoundButton(name, texture)
+-- A button with the looks of a floating button: guild logo with stone border.
+-- Hidden, not placed and with no scripts.
+function GroupsIcon.Button(name, texture)
   local round = CreateFrame("Button", name, UIParent)
+
   round:SetFrameStrata("MEDIUM")
   round:SetFrameLevel(8)
-  round:SetSize(31, 31)
-  round:RegisterForClicks("anyUp")
+  round:SetSize(52, 52)
+  round:RegisterForClicks("AnyUp")
   round:SetClampedToScreen(true)
-  round:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
-  local background = round:CreateTexture(nil, "BACKGROUND")
-  background:SetSize(20, 20)
-  background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-  background:SetPoint("TOPLEFT", 7, -5)
-
+  -- Background / main icon
   local icon = round:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(20, 20)
+  icon:SetAllPoints(round)
   icon:SetTexture(texture)
-  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  icon:SetPoint("CENTER", background, "CENTER", 0, 0)
+  icon:SetTexCoord(0, 1, 0, 1)
 
-  local ring = round:CreateTexture(nil, "OVERLAY")
-  ring:SetSize(53, 53)
-  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-  ring:SetPoint("TOPLEFT")
+  -- Mouseover highlight
+  local highlight = round:CreateTexture(nil, "HIGHLIGHT")
+  highlight:SetAllPoints(round)
+  highlight:SetTexture(
+    "Interface\\Buttons\\ButtonHilight-Square"
+  )
+  highlight:SetBlendMode("ADD")
+
   round:Hide()
   return round
 end
@@ -154,15 +154,20 @@ function GroupsIcon.Create()
     return
   end
 
-  button = GroupsIcon.RoundButton("NrageAssistantGroupsButton", "Interface\\Icons\\INV_Misc_GroupNeedMore")
+  button = GroupsIcon.Button(
+  "NrageAssistantGroupsButton",
+  "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\groups-icon.tga")
   button:RegisterForDrag("LeftButton")
   button:SetMovable(true)
 
-  -- The count of open groups, on the bottom right corner, above the ring.
-  countText = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-  countText:SetPoint("BOTTOMRIGHT", 2, 2)
+  -- The count of open groups, on the upper left corner.
+  countText = button:CreateFontString(nil, "OVERLAY")
+  countText:SetFont("Fonts\\FRIZQT__.TTF", 17, "OUTLINE")
+  countText:SetTextColor(1, 0.85, 0.2)
+  countText:SetShadowColor(0, 0, 0, 1)
+  countText:SetShadowOffset(1, -1)
+  countText:SetPoint("TOPLEFT", button, "TOPLEFT", -3, -3)
   countText:Hide()
-
   button:SetScript("OnClick", function(_, mouseButton)
     if mouseButton == "LeftButton" then
       ns.UI.OpenTab("groups")
@@ -196,13 +201,18 @@ local function refresh()
   }))
   lastView = view
   place()
-  if view.countText then
+  if debugForceShow then
+    -- Shows the count with 3 groups for testing.
+    countText:SetText("3")
+    countText:Show()
+  elseif view.countText then
     countText:SetText(view.countText)
     countText:Show()
   else
     countText:Hide()
   end
-  if view.shown then
+  -- Show or hide the button based on the view's `shown` and the debug override command
+  if view.shown or debugForceShow then
     button:Show()
   else
     button:Hide()
@@ -215,6 +225,15 @@ end
 -- Shows or hides the icon and updates its count and tooltip. Does nothing before Create, and never raises.
 function GroupsIcon.Refresh()
   pcall(refresh)
+end
+
+function GroupsIcon.SetDebugVisible(enabled)
+  debugForceShow = enabled == true
+  GroupsIcon.Refresh()
+end
+
+function GroupsIcon.IsDebugVisible()
+  return debugForceShow
 end
 
 ns.GroupsIcon = GroupsIcon
