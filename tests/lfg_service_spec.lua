@@ -177,6 +177,10 @@ local function new_client(world, name)
         error("alert")
       end
     end,
+    -- Records successful local group publications for notification tests.
+    onOwnPost = function()
+      c.ownPostNotifications = (c.ownPostNotifications or 0) + 1
+    end,
   })
   world.clients[#world.clients + 1] = c
   return c
@@ -407,6 +411,21 @@ describe("LfgService posting", function()
   it("survives a UI that raises", function()
     lead.changeFails = true
     assert.is_true(lead.service:Post(fields()))
+  end)
+
+  it("notifies only when the player successfully creates a group", function()
+    assert.is_true(lead.service:Post(fields()))
+    assert.are.equal(1, lead.ownPostNotifications)
+
+    -- Editing and republishing must not play the creation sound again.
+    assert.is_true(lead.service:Update({ title = "Updated group" }))
+    assert.is_true(lead.service:Republish())
+    assert.are.equal(1, lead.ownPostNotifications)
+
+    -- A failed publication must not trigger another notification.
+    lead.sendFails = true
+    assert.is_false(lead.service:Post(fields()))
+    assert.are.equal(1, lead.ownPostNotifications)
   end)
 end)
 

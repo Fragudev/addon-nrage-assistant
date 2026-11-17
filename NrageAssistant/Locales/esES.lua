@@ -1173,6 +1173,17 @@ ns.Locale.Register("es", {
   ["that value is not valid."] = "ese valor no es válido.",
   ["the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings."] = "los jugadores enemigos que encuentras ahora se comparten con la guild. Puedes desactivarlo en los ajustes de Intel.",
   ["The Intel window will change when combat ends."] = "La ventana de Intel cambiará al terminar el combate.",
+  -- UI/Tabs/Groups.lua
+  ["Keep the Groups icon visible even when no groups are open."] = "Mantener visible el icono de Grupos aunque no haya grupos abiertos.",
+  -- UI/GroupsIcon.lua
+  ["Groups icon"] = "Icono de Grupos",
+  ["Groups icon size"] = "Tamaño del icono",
+  ["Always show the Groups icon"] = "Mostrar icono siempre",
+  ["Reset icon size"] = "Reiniciar tamaño",
+  -- Commands/LfgCommands.lua
+  ["/nrage lfg icon show | hide | toggle  control the Groups icon visibility"] = "/nrage lfg icon show | hide | toggle  controla la visibilidad del icono de Grupos",
+  ["Groups icon is not available."] = "El icono de grupos no está disponible.",
+  ["Groups icon preview: %s"] = "Vista previa del icono de grupos: %s",
   -- Groups (docs/LFG_PLAN.md)
   ["1 open group"] = "1 grupo abierto",
   ["%d open groups"] = "%d grupos abiertos",
@@ -1263,6 +1274,7 @@ ns.Locale.Register("es", {
   ["Open groups (%d)"] = "Grupos abiertos (%d)",
   ["%s: %s - %s"] = "%s: %s - %s",
   ["Click to open Groups"] = "Clic para abrir Grupos",
+  ["Right click to change the icon"] = "Clic derecho para cambiar el icono",
 
   -- UI/ViewModelInstalls.lua, UI/Tabs/Installs.lua
   ["Installed check"] = "Comprobar instalación",
