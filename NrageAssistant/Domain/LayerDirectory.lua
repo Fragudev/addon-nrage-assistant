@@ -23,7 +23,8 @@ function LayerDirectory:Apply(sender, state)
   end
   if
     not (
-      ns.Validate.Int(state.map, 0, constants.LAYER_MAP_MAX) and ns.Validate.Int(state.layer, 0, constants.LAYER_ID_MAX)
+      ns.Validate.Int(state.map, 0, constants.LAYER_MAP_MAX)
+      and ns.Validate.Int(state.layer, 0, constants.LAYER_ID_MAX)
     )
   then
     return false, "bad_state"

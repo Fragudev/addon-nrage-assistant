@@ -130,6 +130,51 @@ describe("GroupsIcon.State", function()
     }))
     assert.is_nil(state.ownName)
   end)
+
+  it("marks successful board queries as ready", function()
+    local state = Icon.State(env())
+
+    assert.is_true(state.boardReady)
+  end)
+
+  it("does not mark a missing board as ready", function()
+    local state = Icon.State(env({ lfgBoard = false }))
+
+    assert.is_false(state.boardReady)
+  end)
+
+  it("does not treat failed board queries as an empty successful snapshot", function()
+    local state = Icon.State(env({
+      lfgBoard = {
+        Query = function()
+          error("board unavailable")
+        end,
+      },
+    }))
+
+    -- A failed query must preserve the notification baseline.
+    assert.is_false(state.boardReady)
+    assert.are.same({}, state.posts)
+  end)
+
+  it("checks module availability only once per state snapshot", function()
+    local calls = 0
+
+    local state = Icon.State(env({
+      modules = {
+        IsEnabled = function(_, module)
+          -- Each state snapshot should resolve the module once.
+          calls = calls + 1
+          assert.are.equal("groups", module)
+          return true
+        end,
+      },
+    }))
+
+    assert.are.equal(1, calls)
+    assert.is_true(state.moduleEnabled)
+    assert.is_true(state.enabled)
+  end)
 end)
 
 describe("GroupsIcon.Refresh", function()
@@ -338,5 +383,48 @@ describe("GroupsIcon.CountLayout", function()
   it("clamps out-of-range sizes before calculating the layout", function()
     assert.are.same(Icon.CountLayout(32), Icon.CountLayout(10))
     assert.are.same(Icon.CountLayout(80), Icon.CountLayout(120))
+  end)
+end)
+
+describe("GroupsIcon.NextGlowState", function()
+  it("starts without a pending notification", function()
+    assert.is_false(Icon.NextGlowState(false, false, true, 0, false))
+  end)
+
+  it("activates a notification for a new group", function()
+    assert.is_true(Icon.NextGlowState(false, true, true, 1, false))
+  end)
+
+  it("keeps a pending notification during refresh", function()
+    assert.is_true(Icon.NextGlowState(true, false, true, 1, false))
+  end)
+
+  it("clears the notification when acknowledged", function()
+    assert.is_false(Icon.NextGlowState(true, false, true, 1, true))
+  end)
+
+  it("does not reactivate an acknowledged notification", function()
+    local pending = Icon.NextGlowState(true, false, true, 1, true)
+
+    -- Refreshing the same board cannot reactivate a dismissed notification.
+    assert.is_false(Icon.NextGlowState(pending, false, true, 1, false))
+  end)
+
+  it("reactivates when another new group arrives", function()
+    local pending = Icon.NextGlowState(true, false, true, 1, true)
+
+    assert.is_true(Icon.NextGlowState(pending, true, true, 2, false))
+  end)
+
+  it("clears the notification when all groups close", function()
+    assert.is_false(Icon.NextGlowState(true, false, true, 0, false))
+  end)
+
+  it("preserves pending notifications during board failures", function()
+    assert.is_true(Icon.NextGlowState(true, false, false, 0, false))
+  end)
+
+  it("does not activate notifications while the board is open", function()
+    assert.is_false(Icon.NextGlowState(false, true, true, 1, true))
   end)
 end)

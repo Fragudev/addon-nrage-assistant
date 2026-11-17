@@ -50,29 +50,40 @@ function GroupsIcon.State(env)
   local modules = env.modules
   local board = env.lfgBoard
   local service = env.lfgService
+
+  -- Resolve module availability once to keep the state snapshot consistent.
+  local moduleEnabled = not modules or modules:IsEnabled("groups")
+
   local ownName
   if env.identity then
     local ok, name = pcall(env.identity)
     ownName = ok and name or nil
   end
+  -- A failed board query must not be treated as an empty snapshot.
+  -- Otherwise old posts could be reported as new after a temporary failure.
   local posts = {}
+  local boardReady = false
+
   if board then
     local ok, found = pcall(function()
       return board:Query()
     end)
+
     if ok and type(found) == "table" then
       posts = found
+      boardReady = true
     end
   end
   return {
     -- The Groups module can be enabled before the LFG board is initialized.
-    moduleEnabled = not modules or modules:IsEnabled("groups"),
+    moduleEnabled = moduleEnabled,
 
     -- Group data is available only after the LFG board is initialized.
-    enabled = (not modules or modules:IsEnabled("groups")) and board ~= nil and board ~= false,
+    enabled = moduleEnabled and board ~= nil and board ~= false,
 
     posts = posts,
     ownName = ownName,
+    boardReady = boardReady,
     canApply = function(pid)
       local ok, yes = pcall(function()
         return service and service:CanApply(pid)
@@ -86,6 +97,11 @@ local button, countText, lastView
 local sizePanel, sizeSlider, sizeValue, alwaysShowSwitch
 -- Unsaved settings edited in the panel until the user applies them.
 local pendingSize, pendingAlwaysShow
+
+-- Tracks an unacknowledged new-group notification during this session.
+-- LfgService decides which incoming posts are new and suppresses startup alerts.
+local groupGlow
+local glowPending = false
 
 -- Calculates the count badge font size and offsets relative to the icon size.
 -- The default 52px icon uses a 20px font with offsets of 14 and -5.
@@ -246,6 +262,19 @@ local function cancelSizeChanges()
   pendingSize = size
   pendingAlwaysShow = GroupsIcon.AlwaysShow()
 
+  -- Keep the panel controls synchronized with the restored preferences.
+  if sizeSlider then
+    sizeSlider:SetValue(size)
+  end
+
+  if sizeValue then
+    sizeValue:SetText(size .. " px")
+  end
+
+  if alwaysShowSwitch then
+    alwaysShowSwitch:SetChecked(pendingAlwaysShow)
+  end
+
   if button then
     -- Restore the saved dimensions of the icon and its count badge.
     button:SetSize(size, size)
@@ -270,9 +299,11 @@ local function createSizePanel()
   sizePanel:SetClampedToScreen(true)
   sizePanel:EnableMouse(true)
 
-  -- Reevaluate the icon visibility whenever the settings panel closes.
-  -- This applies automatic hiding only after the user finishes configuring it.
+  -- Restore the saved settings whenever the panel closes.
+  -- Applied changes remain because they are saved before hiding the panel.
+  -- Refresh also restores automatic visibility after the panel disappears.
   sizePanel:SetScript("OnHide", function()
+    cancelSizeChanges()
     GroupsIcon.Refresh()
   end)
 
@@ -404,12 +435,11 @@ local function createSizePanel()
   apply:Layout(100)
   apply.frame:SetPoint("BOTTOMRIGHT", sizePanel, "BOTTOMRIGHT", -16, 12)
 
-  -- Restore the saved settings without committing pending changes.
+  -- Closing the panel automatically discards any unsaved changes.
   local cancel = Kit.Button(sizePanel, {
     text = ns.L("Cancel"),
     variant = "secondary",
     onClick = function()
-      cancelSizeChanges()
       sizePanel:Hide()
     end,
   })
@@ -427,9 +457,8 @@ function GroupsIcon.ToggleSizeMenu()
 
   createSizePanel()
 
-  -- Right-clicking again cancels the current editing session.
+  -- Closing the panel discards pending changes through its OnHide handler.
   if sizePanel:IsShown() then
-    cancelSizeChanges()
     sizePanel:Hide()
     return
   end
@@ -450,6 +479,74 @@ function GroupsIcon.ToggleSizeMenu()
   sizePanel:Show()
 end
 
+-- Creates a soft red aura around the Groups icon using a dedicated texture.
+-- The transparent center keeps the guild logo visible.
+-- The aura follows the icon when its size changes.
+local function createGroupGlow(parent)
+  local glow = parent:CreateTexture(nil, "OVERLAY")
+
+  glow:SetTexture("Interface\\AddOns\\NrageAssistant\\Media\\Icons\\groups-glow.tga")
+  glow:SetBlendMode("ADD")
+  glow:SetVertexColor(1, 1, 1, 0.85)
+
+  -- Extend the aura beyond the icon to create a soft outer halo.
+  glow:SetPoint("TOPLEFT", parent, "TOPLEFT", -12, 12)
+  glow:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 12, -12)
+
+  glow:Hide()
+  return glow
+end
+
+-- Computes whether a new-group notification should remain pending.
+-- New posts activate it, while acknowledgement or an empty board clears it.
+-- An unavailable board preserves the current notification state.
+function GroupsIcon.NextGlowState(pending, hasNew, boardReady, count, acknowledged)
+  if acknowledged then
+    return false
+  end
+
+  if not boardReady then
+    return pending == true
+  end
+
+  if count == 0 then
+    return false
+  end
+
+  return pending == true or hasNew == true
+end
+
+-- Records a new remote group notification from LfgService.
+-- The following board refresh updates the glow using the real group count.
+-- This method never modifies the LFG board or sends guild messages.
+function GroupsIcon.NotifyNewGroup()
+  glowPending = true
+end
+
+-- Acknowledges pending notifications without changing the LFG board.
+-- Another new group can activate the glow again.
+function GroupsIcon.AcknowledgeGlow()
+  glowPending = false
+
+  if groupGlow then
+    groupGlow:Hide()
+  end
+end
+
+-- Simulates a new-group notification locally for visual testing.
+-- Does not publish a group or modify the guild LFG board.
+function GroupsIcon.TestNotification()
+  GroupsIcon.NotifyNewGroup()
+
+  -- Show the texture directly so the test also works with an empty board.
+  -- Normal Refresh still uses the real count and may hide this test glow.
+  if groupGlow then
+    groupGlow:Show()
+  end
+
+  return groupGlow ~= nil
+end
+
 -- Builds the icon once and restores the saved size, drag handlers, tooltip and mouse actions.
 function GroupsIcon.Create()
   if button or not UIParent then
@@ -463,24 +560,26 @@ function GroupsIcon.Create()
   button:RegisterForDrag("LeftButton")
   button:SetMovable(true)
 
+  -- Create the glow once; Refresh controls its visibility.
+  groupGlow = createGroupGlow(button)
+
   -- Display the group count outside the icon's upper-left corner.
   -- A larger yellow font with a thick black outline keeps small counts readable.
   countText = button:CreateFontString(nil, "OVERLAY")
-  countText:SetFont("Fonts\\FRIZQT__.TTF", 20, "THICKOUTLINE")
   countText:SetTextColor(1, 0.82, 0.05, 1)
   countText:SetShadowColor(0, 0, 0, 1)
   countText:SetShadowOffset(1, -1)
   -- Anchor the group count to the icon's upper-left corner.
   -- Keep a slight overlap so the badge looks attached to the icon.
-  countText:SetPoint("TOPRIGHT", button, "TOPLEFT", 10, -3)
-  countText:Hide()
-
   -- Match the badge dimensions to the saved icon size on startup.
   updateCountSize(GroupsIcon.Size())
+  countText:Hide()
 
   -- Left click opens Groups; right click opens the local size panel.
   button:SetScript("OnClick", function(_, mouseButton)
     if mouseButton == "LeftButton" then
+      -- Opening Groups acknowledges pending notifications.
+      GroupsIcon.AcknowledgeGlow()
       if sizePanel then
         sizePanel:Hide()
       end
@@ -502,7 +601,11 @@ function GroupsIcon.Create()
     self:StopMovingOrSizing()
     save()
   end)
-  button:SetScript("OnEnter", showTooltip)
+  -- Hovering the icon acknowledges pending groups and still shows the tooltip.
+  button:SetScript("OnEnter", function(self)
+    GroupsIcon.AcknowledgeGlow()
+    showTooltip(self)
+  end)
   button:SetScript("OnLeave", function()
     GameTooltip:Hide()
   end)
@@ -523,6 +626,25 @@ local function refresh()
   local view = ns.ViewModel.GroupsIconView(state)
   lastView = view
   place()
+
+  -- A notification is acknowledged only while the Groups tab is actually visible.
+  -- CurrentTab alone is insufficient because the last selected tab is remembered.
+  local acknowledged = ns.UI and ns.UI.IsOpen and ns.UI.IsOpen() and ns.UI.CurrentTab and ns.UI.CurrentTab() == "groups"
+
+  -- Update the pending notification using the current board state.
+  -- New notifications arrive through LfgService.onNewPost, not board comparisons.
+  glowPending =
+    GroupsIcon.NextGlowState(glowPending, false, state.enabled and state.boardReady, view.count, acknowledged)
+
+  -- Show the glow only while an unacknowledged notification is pending.
+  -- Refreshing the icon must not reactivate an already acknowledged glow.
+  if groupGlow then
+    if glowPending and state.enabled and view.count > 0 then
+      groupGlow:Show()
+    else
+      groupGlow:Hide()
+    end
+  end
 
   -- Display only the real number of open groups.
   -- The badge stays hidden when there are no groups.
@@ -554,3 +676,8 @@ function GroupsIcon.Refresh()
 end
 
 ns.GroupsIcon = GroupsIcon
+
+-- Temporary development hook. Remove before the pull request.
+_G.NrageTestGlow = function()
+  return GroupsIcon.TestNotification()
+end

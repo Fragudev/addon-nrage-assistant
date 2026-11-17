@@ -478,6 +478,11 @@ local function drawBoard(page, view)
 end
 
 UI.Register("groups", function(page)
+  -- Visiting the Groups tab acknowledges pending icon notifications.
+  if ns.GroupsIcon then
+    ns.GroupsIcon.AcknowledgeGlow()
+  end
+
   local view = viewOf()
   if view.locked then
     Kit.Banner(page, { kind = "warning", text = L("Encounter in progress: nothing is sent until it ends.") })
