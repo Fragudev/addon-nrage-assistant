@@ -1174,16 +1174,14 @@ ns.Locale.Register("es", {
   ["the enemy players you meet are now shared with the guild. You can turn it off in the Intel settings."] = "los jugadores enemigos que encuentras ahora se comparten con la guild. Puedes desactivarlo en los ajustes de Intel.",
   ["The Intel window will change when combat ends."] = "La ventana de Intel cambiará al terminar el combate.",
   -- UI/Tabs/Groups.lua
-  ["Keep the Groups icon visible even when no groups are open."] =
-  "Mantener visible el icono de Grupos aunque no haya grupos abiertos.",
+  ["Keep the Groups icon visible even when no groups are open."] = "Mantener visible el icono de Grupos aunque no haya grupos abiertos.",
   -- UI/GroupsIcon.lua
   ["Groups icon"] = "Icono de Grupos",
   ["Groups icon size"] = "Tamaño del icono",
   ["Always show the Groups icon"] = "Mostrar icono siempre",
   ["Reset icon size"] = "Reiniciar tamaño",
-    -- Commands/LfgCommands.lua
-  ["/nrage lfg icon show | hide | toggle  control the Groups icon visibility"] =
-    "/nrage lfg icon show | hide | toggle  controla la visibilidad del icono de Grupos",
+  -- Commands/LfgCommands.lua
+  ["/nrage lfg icon show | hide | toggle  control the Groups icon visibility"] = "/nrage lfg icon show | hide | toggle  controla la visibilidad del icono de Grupos",
   ["Groups icon is not available."] = "El icono de grupos no está disponible.",
   ["Groups icon preview: %s"] = "Vista previa del icono de grupos: %s",
   -- Groups (docs/LFG_PLAN.md)

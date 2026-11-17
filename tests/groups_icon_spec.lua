@@ -193,7 +193,6 @@ describe("GroupsIcon.Size", function()
   end)
 end)
 
-
 describe("GroupsIcon.Visibility", function()
   it("defaults to an always-visible icon", function()
     local db = newDb()
@@ -256,7 +255,6 @@ describe("GroupsIcon.Visibility", function()
   end)
 end)
 
-
 describe("GroupsIcon.SetAlwaysShow", function()
   local icon
   local db
@@ -307,7 +305,6 @@ describe("GroupsIcon.SetAlwaysShow", function()
   end)
 end)
 
-
 describe("GroupsIcon.CountLayout", function()
   it("uses the original badge layout at the default icon size", function()
     assert.are.same({
@@ -343,4 +340,3 @@ describe("GroupsIcon.CountLayout", function()
     assert.are.same(Icon.CountLayout(80), Icon.CountLayout(120))
   end)
 end)
-

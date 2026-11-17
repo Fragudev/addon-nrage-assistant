@@ -161,8 +161,8 @@ local COMMANDS = {
       end
     else
       say(
-          "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
-            .. " | pvp <action> | layer <action>"
+        "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
+          .. " | pvp <action> | layer <action>"
       )
     end
   end,

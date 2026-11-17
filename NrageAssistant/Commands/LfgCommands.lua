@@ -59,9 +59,7 @@ function LfgCommands:Run(text)
   end
 
   return {
-    L("Groups icon preview: %s"):format(
-      icon.AlwaysShow() and "ON" or "OFF"
-    ),
+    L("Groups icon preview: %s"):format(icon.AlwaysShow() and "ON" or "OFF"),
   }
 end
 

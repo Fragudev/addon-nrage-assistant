@@ -566,7 +566,6 @@ local function canJoin(canApply, pid)
   return ok and result and true or false
 end
 
-
 -- The floating icon of the Groups module. `state` = { enabled (module on and board present),
 -- posts = LfgBoard:Query() result (may be nil), ownName, canApply = function(pid) -> boolean }.
 -- All open groups, including the player's own post, contribute to the badge and tooltip.
@@ -619,4 +618,3 @@ function ViewModel.GroupsIconView(state)
     rightClickHint = L("Right click to change the icon"),
   }
 end
-

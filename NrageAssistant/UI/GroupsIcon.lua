@@ -456,10 +456,8 @@ function GroupsIcon.Create()
     return
   end
 
-  button = GroupsIcon.Button(
-    "NrageAssistantGroupsButton",
-    "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\groups-icon.tga"
-  )
+  button =
+    GroupsIcon.Button("NrageAssistantGroupsButton", "Interface\\AddOns\\NrageAssistant\\Media\\Icons\\groups-icon.tga")
   local size = GroupsIcon.Size()
   button:SetSize(size, size)
   button:RegisterForDrag("LeftButton")

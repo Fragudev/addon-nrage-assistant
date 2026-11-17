@@ -279,7 +279,6 @@ local function openApply(row)
   })
 end
 
-
 ---------------------------------------------------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------------------------------------------------
@@ -302,7 +301,6 @@ local function drawSettings(page)
     end,
   })
 end
-
 
 ---------------------------------------------------------------------------------------------------------------------
 -- The board
@@ -428,7 +426,6 @@ local function postCard(page, post)
     Kit.Label(action, { text = post.reason, style = "tiny", color = "muted", align = "RIGHT", wrap = true })
   end
 end
-
 
 local function drawBoard(page, view)
   local head = Kit.Row(page, { gap = 12, align = "center" })

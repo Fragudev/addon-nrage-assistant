@@ -689,8 +689,6 @@ local function StartLfg()
   })
 end
 
-
-
 local positionStarted = false
 
 -- The "Share my position" switch: on publishes the position at once, off tells the guild to forget it.

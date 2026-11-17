@@ -1,4 +1,3 @@
-
 local function load_commands()
   local ns = {}
 
