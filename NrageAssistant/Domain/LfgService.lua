@@ -249,6 +249,11 @@ function LfgService:Post(fields)
   end
   self.post = post
   self.closed = nil
+  -- Notify the local client only after its group was published successfully.
+  -- This does not run for edits, republications or failed posts.
+  if self.deps.onOwnPost then
+    pcall(self.deps.onOwnPost, post)
+  end
   after(self, ns.Constants.LFG_POST_MAX_AGE, function()
     if self.post == post then
       closePost(self, "expired", false)

@@ -648,19 +648,53 @@ local function StartLfg()
       ns.UI.LfgChanged()
       ns.LfgPopup.Refresh()
     end,
-    -- Another member opened a group: a short line at the top of the screen, like the Intel warnings.
+    -- Notify the player when another guild member opens a new group.
+    -- LfgService already suppresses startup alerts and repeated publications.
     onNewPost = function(sender, post)
       platform.ShowNoticeText(ns.ViewModel.GroupAlertText(sender, post))
+
+      -- Notify only when the player is not already viewing the Groups tab.
+      local viewingGroups = ns.UI
+        and ns.UI.IsOpen
+        and ns.UI.IsOpen()
+        and ns.UI.CurrentTab
+        and ns.UI.CurrentTab() == "groups"
+
+      if not viewingGroups then
+        -- Activate the visual notification.
+        if ns.GroupsIcon then
+          ns.GroupsIcon.NotifyNewGroup()
+        end
+
+        -- Play Blizzard's battleground queue sound locally.
+        -- A missing sound API must not interrupt LFG processing.
+        if type(PlaySound) == "function" then
+          pcall(PlaySound, 8458, "SFX")
+        end
+      end
+    end,
+    -- Play the queue sound when the player successfully creates a group.
+    -- Own publications do not pass through onNewPost.
+    onOwnPost = function()
+      if type(PlaySound) == "function" then
+        pcall(PlaySound, 8458, "SFX")
+      end
     end,
   })
   ns.lfgBoard, ns.lfgService = board, service
   ns.comm.lfgService = service
-  -- A received post or step changes the board (the count of the sidebar) and may bring an applicant to the popup.
+  -- A received post or step updates the board and its notifications.
   ns.comm.onLfgChange = function()
     ns.UI.LfgChanged()
     ns.LfgPopup.Refresh()
   end
   ns.LfgPopup.Start()
+
+  -- Establish the initial icon state after the LFG board becomes available.
+  -- Existing posts form the notification baseline and must not trigger a glow.
+  if ns.GroupsIcon then
+    ns.GroupsIcon.Refresh()
+  end
 
   local lfgFrame = CreateFrame("Frame")
   platform.TryRegisterEvent(lfgFrame, "GROUP_ROSTER_UPDATE")
@@ -682,6 +716,11 @@ local function StartLfg()
       service:Sweep()
     end
   end)
+
+  -- Register the slash commands
+  ns.lfgCommands = ns.LfgCommands.New({
+    groupsIcon = ns.GroupsIcon,
+  })
 end
 
 local positionStarted = false

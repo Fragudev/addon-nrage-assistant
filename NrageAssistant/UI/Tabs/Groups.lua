@@ -9,8 +9,15 @@ local Kit = ns.Kit
 local L = ns.L
 local ViewModel = ns.ViewModel
 
--- What the tab remembers while the addon runs: the filters, the page (board or form) and the draft of the form.
-local state = { kind = "all", role = "all", page = "board", edit = false, form = nil }
+-- What the tab remembers while the addon runs: filters, page, form draft and settings panel visibility.
+local state = {
+  kind = "all",
+  role = "all",
+  page = "board",
+  edit = false,
+  form = nil,
+  settingsOpen = false,
+}
 
 local function service()
   return ns.lfgService
@@ -273,6 +280,29 @@ local function openApply(row)
 end
 
 ---------------------------------------------------------------------------------------------------------------------
+-- Settings
+---------------------------------------------------------------------------------------------------------------------
+
+-- Draws the floating Groups icon preferences using the same controls as the rest of the addon.
+-- The visibility preference is shared with the icon's right-click panel and slash commands.
+local function drawSettings(page)
+  local card = Kit.Card(page, {
+    title = L("Groups icon"),
+    gap = 10,
+  })
+
+  Kit.Switch(card, {
+    label = L("Always show the Groups icon"),
+    description = L("Keep the Groups icon visible even when no groups are open."),
+    checked = ns.GroupsIcon.AlwaysShow(),
+    onChange = function(enabled)
+      ns.GroupsIcon.SetAlwaysShow(enabled)
+      UI.Redraw()
+    end,
+  })
+end
+
+---------------------------------------------------------------------------------------------------------------------
 -- The board
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -399,14 +429,35 @@ end
 
 local function drawBoard(page, view)
   local head = Kit.Row(page, { gap = 12, align = "center" })
+
   Kit.PageHeader(head, {
     title = L("Groups"),
     description = L("Put together dungeons and quests with guild members."),
     layout = { weight = 1 },
   })
+
+  -- Toggle the settings card without leaving the Groups board.
+  Kit.Button(head, {
+    text = state.settingsOpen and L("Hide settings") or L("Settings"),
+    layout = { width = "auto" },
+    onClick = function()
+      state.settingsOpen = not state.settingsOpen
+      UI.Redraw()
+    end,
+  })
+
   labelButton(head, L("New group"), function()
     openForm(false)
-  end, { variant = "primary", disabled = not view.newGroup.enabled, tooltip = view.newGroup.reason })
+  end, {
+    variant = "primary",
+    disabled = not view.newGroup.enabled,
+    tooltip = view.newGroup.reason,
+  })
+
+  -- Keep the icon settings above the board content, like PvP Intel.
+  if state.settingsOpen then
+    drawSettings(page)
+  end
 
   if view.own then
     ownCard(page, view.own)
@@ -427,6 +478,11 @@ local function drawBoard(page, view)
 end
 
 UI.Register("groups", function(page)
+  -- Visiting the Groups tab acknowledges pending icon notifications.
+  if ns.GroupsIcon then
+    ns.GroupsIcon.AcknowledgeGlow()
+  end
+
   local view = viewOf()
   if view.locked then
     Kit.Banner(page, { kind = "warning", text = L("Encounter in progress: nothing is sent until it ends.") })
