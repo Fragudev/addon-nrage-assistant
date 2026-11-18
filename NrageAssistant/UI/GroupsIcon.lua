@@ -676,8 +676,3 @@ function GroupsIcon.Refresh()
 end
 
 ns.GroupsIcon = GroupsIcon
-
--- Temporary development hook. Remove before the pull request.
-_G.NrageTestGlow = function()
-  return GroupsIcon.TestNotification()
-end
