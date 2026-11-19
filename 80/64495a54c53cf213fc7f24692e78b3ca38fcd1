@@ -1,0 +1,19 @@
+docs/PVP_DUELS_ZONES_PLAN.md
+  s_906f4e34c204f1::t_2511f5151d36e2 1-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "8064495a54c53cf213fc7f24692e78b3ca38fcd1",
+  "prompts": {},
+  "sessions": {
+    "s_906f4e34c204f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c696518-5152-49ff-9b6d-ec6de89a55b7",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
