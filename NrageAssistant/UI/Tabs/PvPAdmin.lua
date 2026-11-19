@@ -458,6 +458,21 @@ local function advancedSection(card, draft)
   if kind == "bg_wins" or kind == "bg_played" then
     tokenChips(card, L("Battlegrounds (none = any)"), draft, "bgs", ViewModel.PvPBattlegroundChoices())
   end
+  if kind == "duel_wins" then
+    -- A duel mission takes the per-opponent daily cap and no other kill filter (no class, race, group or place).
+    fieldRow(card, L("Max duels won against one opponent per day"), function(field)
+      Kit.EditBox(field, {
+        text = draft.victimCap,
+        placeholder = L("Default: %d, 0 = no cap"):format(ns.Constants.PVP_VICTIM_DAILY_CAP),
+        numeric = true,
+        maxLetters = 2,
+        onChange = function(text)
+          draft.victimCap = text
+        end,
+        onEnter = UI.Redraw,
+      })
+    end, { weight = 1 })
+  end
   if kills then
     local faction = type(ns.Platform.GetPlayerFaction) == "function" and ns.Platform.GetPlayerFaction() or nil
     local classes, races = ViewModel.PvPEnemyChoices(faction)
@@ -650,6 +665,18 @@ local function missionForm(page)
         })
       end)
     end
+  end
+
+  if draft.kind == "duel_wins" then
+    fieldRow(card, L("Distinct by"), function(field)
+      Kit.Dropdown(field, {
+        items = ViewModel.PvPDuelDistinctChoices(),
+        value = draft.distinct == "name" and "name" or "none",
+        onChange = function(value)
+          draft.distinct = value
+        end,
+      })
+    end, { weight = 1 })
   end
 
   local when = Kit.Row(card, { gap = 16 })

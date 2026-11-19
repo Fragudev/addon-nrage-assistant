@@ -114,6 +114,8 @@ local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
 -- The score update brings the winner of a battleground too, and the end of a fight is a good moment to ask for it.
 local PVP_MISSION_SCORE_EVENT = "UPDATE_BATTLEFIELD_SCORE"
 local PVP_MISSION_REGEN_EVENT = "PLAYER_REGEN_ENABLED"
+-- The duel result is a system message (the client has no duel-winner event; API_NOTES M10).
+local PVP_MISSION_SYSTEM_EVENT = "CHAT_MSG_SYSTEM"
 
 -- Runs a handler of the PvP missions. One that raises never reaches the client: it is listed with the startup errors
 -- (ns.ReportStartupError, for /nrage debug) and costs nothing else.
@@ -215,7 +217,9 @@ local function StartPvPMissions(feed)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_WORLD_EVENT)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_SCORE_EVENT)
   ns.Platform.TryRegisterEvent(frame, PVP_MISSION_REGEN_EVENT)
-  -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit.
+  missions.duelSource = ns.Platform.TryRegisterEvent(frame, PVP_MISSION_SYSTEM_EVENT)
+  -- For PLAYER_ENTERING_WORLD the two arguments are isInitialLogin and isReloadingUi; for the unit events, the unit;
+  -- for the system message, the text.
   frame:SetScript("OnEvent", function(_, event, unit, isReloadingUi)
     if not ns.modules:IsEnabled("pvp") then
       return
@@ -229,6 +233,8 @@ local function StartPvPMissions(feed)
       GuardedMissionCall("pvpMissions.battlegroundScore", missions.OnBattlegroundScore, missions)
     elseif event == PVP_MISSION_REGEN_EVENT then
       GuardedMissionCall("pvpMissions.combatEnded", missions.OnCombatEnded, missions)
+    elseif event == PVP_MISSION_SYSTEM_EVENT then
+      GuardedMissionCall("pvpMissions.systemMessage", missions.OnSystemMessage, missions, unit)
     elseif event == PVP_MISSION_WORLD_EVENT then
       GuardedMissionCall("pvpMissions.worldEntered", missions.OnWorldEntered, missions, unit, isReloadingUi)
     else

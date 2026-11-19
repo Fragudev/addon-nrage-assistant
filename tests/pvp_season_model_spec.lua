@@ -354,6 +354,83 @@ describe("PvPSeasonModel mission options", function()
     assert.is_true(Model.UsesNewGoalFeatures({ kind = "kills", victimCapPerDay = 0 }))
   end)
 
+  it("accepts the duel_wins kind with its options and drops the ones that do not apply", function()
+    local goal = assert(clean({
+      kind = "duel_wins",
+      count = 10,
+      zones = { 1411 },
+      distinct = "name",
+      place = "world",
+      target = "Zed",
+      victimCapPerDay = 3,
+      victimClasses = { "MAGE" },
+      victimRaces = { "ORC" },
+      minGuildInGroup = 2,
+      bgs = { "wsg" },
+      window = { startsAt = 100, endsAt = 200 },
+      maxCompletions = 2,
+      autoClaim = true,
+    }))
+    assert.are.equal("duel_wins", goal.kind)
+    assert.are.equal("any", goal.place)
+    assert.are.equal("name", goal.distinct)
+    assert.are.same({ 1411 }, goal.zones)
+    assert.are.equal(3, goal.victimCapPerDay)
+    assert.are.same({ startsAt = 100, endsAt = 200 }, goal.window)
+    assert.are.equal(2, goal.maxCompletions)
+    assert.is_true(goal.autoClaim)
+    for _, field in ipairs({ "target", "victimClasses", "victimRaces", "minGuildInGroup", "bgs" }) do
+      assert.is_nil(goal[field], field)
+    end
+    assert.are.equal("none", assert(clean({ kind = "duel_wins" })).distinct)
+  end)
+
+  it("refuses a duel goal that distinguishes by class or race, or with a bad cap", function()
+    assert.is_nil((clean({ kind = "duel_wins", distinct = "class" })))
+    assert.is_nil((clean({ kind = "duel_wins", distinct = "race" })))
+    assert.is_nil((clean({ kind = "duel_wins", distinct = "class_race" })))
+    assert.is_nil((clean({ kind = "duel_wins", victimCapPerDay = -1 })))
+  end)
+
+  it("tells that a duel mission needs the new protocol", function()
+    assert.is_true(Model.UsesNewGoalFeatures({ kind = "duel_wins", count = 1 }))
+  end)
+
+  it("accepts a duel evidence row and refuses malformed ones", function()
+    local claim = {
+      id = "Ann:m-1:20261020:1",
+      missionId = "m-1",
+      seasonId = "s-1",
+      periodKey = "20261020",
+      player = "Ann",
+      at = 50,
+      evidence = { { at = 10, victim = "Zed", mapId = 1411, duel = true } },
+    }
+    assert.are.same(
+      { at = 10, victim = "Zed", mapId = 1411, duel = true },
+      assert(Model.ValidateClaim(claim)).evidence[1]
+    )
+    for _, row in ipairs({
+      { at = 10, victim = "Zed", duel = false },
+      { at = 10, victim = "Zed", duel = "yes" },
+      { at = 10, duel = true },
+      { at = 10, victim = "a|b", duel = true },
+      { at = 10, victim = string.rep("x", Constants.PVP_FEED_VICTIM_MAX + 1), duel = true },
+      { at = 10, victim = "Zed", duel = true, place = "world" },
+      { at = 10, victim = "Zed", duel = true, class = "MAGE" },
+      { at = 10, victim = "Zed", duel = true, race = "ORC" },
+      { at = 10, victim = "Zed", duel = true, kos = true },
+      { at = 10, victim = "Zed", duel = true, guild = 1 },
+      { at = 10, victim = "Zed", duel = true, bgWin = true },
+      { at = 10, victim = "Zed", duel = true, mapId = -1 },
+    }) do
+      claim.evidence = { row }
+      local record, why = Model.ValidateClaim(claim)
+      assert.is_nil(record)
+      assert.are.equal("invalid:evidence", why)
+    end
+  end)
+
   it("carries a lost battleground and the guild size as evidence", function()
     local claim = {
       id = "Ann:m-1:20261020:1",

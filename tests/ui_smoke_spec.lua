@@ -2638,7 +2638,7 @@ describe("Window smoke test: PvP seasons", function()
         templates = d
       end
     end
-    assert.are.equal(5, #templates.opts.items)
+    assert.are.equal(6, #templates.opts.items)
     templates.opts.onChange("group_up")
     assert.is_truthy(env.text():find("with at least 3 guildmates in the group", 1, true))
     assert.is_truthy(env.find(env.page(), "Button", "Hide advanced options"))

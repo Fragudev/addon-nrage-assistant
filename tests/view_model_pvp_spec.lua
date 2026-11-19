@@ -657,12 +657,15 @@ describe("ViewModel mission form", function()
   end)
 
   it("offers the goal kinds, hiding battleground wins when the client cannot read them", function()
-    assert.are.same({ "kills", "kos", "bg_wins", "manual", "bg_played" }, values(ViewModel.PvPGoalChoices(nil)))
     assert.are.same(
-      { "kills", "kos", "bg_wins", "manual", "bg_played" },
+      { "kills", "kos", "bg_wins", "manual", "bg_played", "duel_wins" },
+      values(ViewModel.PvPGoalChoices(nil))
+    )
+    assert.are.same(
+      { "kills", "kos", "bg_wins", "manual", "bg_played", "duel_wins" },
       values(ViewModel.PvPGoalChoices({ bgWins = true }))
     )
-    assert.are.same({ "kills", "kos", "manual" }, values(ViewModel.PvPGoalChoices({ bgWins = false })))
+    assert.are.same({ "kills", "kos", "manual", "duel_wins" }, values(ViewModel.PvPGoalChoices({ bgWins = false })))
     assert.are.same({ "any", "world", "bg" }, values(ViewModel.PvPPlaceChoices()))
     assert.are.same({ "none", "name", "class", "race", "class_race" }, values(ViewModel.PvPDistinctChoices()))
     assert.are.same({ "once", "daily", "weekly" }, values(ViewModel.PvPRepeatChoices()))
@@ -700,6 +703,74 @@ describe("ViewModel mission options (Advanced section)", function()
       updatedAt = 1,
     })
   end
+
+  it(
+    "builds a duel mission: the place is forced, only names can be distinct and the kill-only fields stay out",
+    function()
+      local fields = assert(ViewModel.PvPMissionFields(draft({
+        kind = "duel_wins",
+        count = "10",
+        place = "world",
+        distinct = "class",
+        target = "Zed",
+        victimClasses = { "MAGE" },
+        victimRaces = { "ORC" },
+        minGuild = "2",
+        bgs = { "wsg" },
+        victimCap = "3",
+        maxCompletions = "2",
+        autoClaim = true,
+      })))
+      assert.are.same(
+        { kind = "duel_wins", count = 10, zones = {}, place = "any", distinct = "none", victimCapPerDay = 3 },
+        {
+          kind = fields.goal.kind,
+          count = fields.goal.count,
+          zones = fields.goal.zones,
+          place = fields.goal.place,
+          distinct = fields.goal.distinct,
+          victimCapPerDay = fields.goal.victimCapPerDay,
+        }
+      )
+      for _, field in ipairs({ "target", "victimClasses", "victimRaces", "minGuildInGroup", "bgs" }) do
+        assert.is_nil(fields.goal[field], field)
+      end
+      assert.are.equal(2, fields.goal.maxCompletions)
+      assert.is_true(fields.goal.autoClaim)
+      assert.is_truthy(validates(fields))
+      local named = assert(ViewModel.PvPMissionFields(draft({ kind = "duel_wins", distinct = "name" })))
+      assert.are.equal("name", named.goal.distinct)
+    end
+  )
+
+  it("offers only the names as the distinct choice of a duel", function()
+    assert.are.same({ "none", "name" }, values(ViewModel.PvPDuelDistinctChoices()))
+    assert.are.equal(5, #ViewModel.PvPDistinctChoices())
+  end)
+
+  it("offers the duel kind last, labelled, and needs no kill source", function()
+    local kinds = values(ViewModel.PvPGoalChoices())
+    assert.are.equal("duel_wins", kinds[#kinds])
+    assert.are.equal("Duels won", ViewModel.PVP_GOAL_KINDS.duel_wins)
+    local goal = { kind = "duel_wins", count = 1, zones = {} }
+    assert.is_true(ViewModel.PvPGoalAvailable(goal, { kills = false, duels = true }))
+    assert.is_false(ViewModel.PvPGoalAvailable(goal, { kills = true, duels = false }))
+    kinds = values(ViewModel.PvPGoalChoices({ bgWins = false }))
+    assert.are.equal("duel_wins", kinds[#kinds])
+  end)
+
+  it("describes a duel mission as chips and in one sentence", function()
+    local m = {
+      repeatKind = "weekly",
+      goal = { kind = "duel_wins", count = 10, zones = {}, victimCapPerDay = 3, distinct = "none" },
+    }
+    assert.are.same({ "10 duels won", "Max 3 per victim per day", "Weekly" }, ViewModel.PvPCriteriaChips(m))
+    local fields = assert(ViewModel.PvPMissionFields(draft({ kind = "duel_wins", count = "10", victimCap = "3" })))
+    assert.are.equal(
+      "Counts duels won, 10 times, max 3 per victim per day, 10 points, once.",
+      ViewModel.PvPMissionSummary(fields, {})
+    )
+  end)
 
   it("writes no optional field for a plain draft, so the goal stays as before", function()
     local fields = assert(ViewModel.PvPMissionFields(draft()))
@@ -814,7 +885,7 @@ describe("ViewModel mission options (Advanced section)", function()
 
   it("fills the form from each template with a mission the service accepts", function()
     local choices = ViewModel.PvPPresetChoices()
-    assert.are.equal(5, #choices)
+    assert.are.equal(6, #choices)
     for _, choice in ipairs(choices) do
       local d = draft({ title = "old", victimClasses = { "MAGE" }, autoClaim = true })
       assert.is_true(ViewModel.PvPApplyPreset(d, choice.value))
@@ -827,6 +898,23 @@ describe("ViewModel mission options (Advanced section)", function()
       assert.is_nil(fields.goal.autoClaim)
     end
     assert.is_false(ViewModel.PvPApplyPreset(draft(), "nope"))
+  end)
+
+  it("has a Duelist template: 10 duels won, weekly, 3 per opponent per day", function()
+    local found
+    for _, choice in ipairs(ViewModel.PvPPresetChoices()) do
+      if choice.text == "Duelist: win 10 duels" then
+        found = choice.value
+      end
+    end
+    local d = draft()
+    assert.is_true(ViewModel.PvPApplyPreset(d, assert(found)))
+    local fields = assert(ViewModel.PvPMissionFields(d))
+    assert.are.same(
+      { "duel_wins", 10, "weekly", 3 },
+      { fields.goal.kind, fields.goal.count, fields.repeatKind, fields.goal.victimCapPerDay }
+    )
+    assert.is_truthy(validates(fields))
   end)
 
   it("describes a mission in one sentence", function()
@@ -1089,6 +1177,29 @@ describe("ViewModel.PvPClaimRows", function()
     )
     assert.is_nil(row.more)
     assert.is_nil(row.note)
+  end)
+
+  it("reads a duel claim as duels won, its evidence rows as duel wins and not as an unknown class", function()
+    missions.d1 = { id = "d1", title = "Duelist", points = 20, goal = { kind = "duel_wins" } }
+    local row = rows({
+      {
+        id = "c9",
+        player = "Ann",
+        missionId = "d1",
+        at = T0,
+        summary = { done = 3, total = 3 },
+        evidence = { { at = 1, victim = "Zed", mapId = 1454, duel = true } },
+      },
+    })[1]
+    assert.are.equal("3 of 3 duels won", row.summary)
+    assert.are.same({ "t1", "Zed", "Orgrimmar", "Duel win", false }, {
+      row.evidence[1].time,
+      row.evidence[1].victim,
+      row.evidence[1].zone,
+      row.evidence[1].info,
+      row.evidence[1].unknown,
+    })
+    missions.d1 = nil
   end)
 
   it("cuts a long evidence list and says how many more there are", function()

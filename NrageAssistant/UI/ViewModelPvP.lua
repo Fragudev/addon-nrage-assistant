@@ -353,6 +353,7 @@ ViewModel.PVP_GOAL_KINDS = ns.Locale.Table(function()
     bg_wins = L("Battleground wins"),
     manual = L("Manual"),
     bg_played = L("Battlegrounds played"),
+    duel_wins = L("Duels won"),
   }
 end)
 
@@ -378,7 +379,7 @@ ViewModel.PVP_REPEATS = ns.Locale.Table(function()
   return { once = L("Once"), daily = L("Daily"), weekly = L("Weekly") }
 end)
 
-local GOAL_ORDER = { "kills", "kos", "bg_wins", "manual", "bg_played" }
+local GOAL_ORDER = { "kills", "kos", "bg_wins", "manual", "bg_played", "duel_wins" }
 local BG_ORDER = { "wsg", "ab", "av" }
 local PLACE_ORDER = { "any", "world", "bg" }
 local DISTINCT_ORDER = { "none", "name", "class", "race", "class_race" }
@@ -434,6 +435,11 @@ function ViewModel.PvPDistinctChoices()
   return choices(DISTINCT_ORDER, ViewModel.PVP_DISTINCT)
 end
 
+-- A duel has no class or race: only the names can be distinct.
+function ViewModel.PvPDuelDistinctChoices()
+  return choices({ "none", "name" }, ViewModel.PVP_DISTINCT)
+end
+
 function ViewModel.PvPRepeatChoices()
   return choices(REPEAT_ORDER, ViewModel.PVP_REPEATS)
 end
@@ -472,6 +478,17 @@ function ViewModel.PvPCriteriaChips(mission, zoneName)
           names[#names + 1] = ViewModel.PVP_BATTLEGROUNDS[token] or token
         end
         add(table.concat(names, ", "))
+      end
+    elseif goal.kind == "duel_wins" then
+      if goal.distinct == "name" then
+        add(ViewModel.PVP_DISTINCT.name)
+      end
+      add(L("%d duels won"):format(goal.count))
+      if goal.victimCapPerDay ~= nil then
+        add(
+          goal.victimCapPerDay == 0 and L("No cap per victim")
+            or L("Max %d per victim per day"):format(goal.victimCapPerDay)
+        )
       end
     else
       if goal.kind == "kos" then
@@ -533,6 +550,11 @@ local function requirements(goal)
   local needs = {}
   if goal.kind == "bg_wins" or goal.kind == "bg_played" then
     needs[#needs + 1] = "bgWins"
+  elseif goal.kind == "duel_wins" then
+    needs[#needs + 1] = "duels"
+    if #(goal.zones or {}) > 0 then
+      needs[#needs + 1] = "zones"
+    end
   elseif goal.kind == "kills" or goal.kind == "kos" then
     needs[#needs + 1] = "kills"
     if #(goal.zones or {}) > 0 then
@@ -827,6 +849,13 @@ function ViewModel.PvPAdvancedFields(draft)
       return nil, "invalid:minGuildInGroup"
     end
     fields.minGuildInGroup = guild
+  elseif kind == "duel_wins" then
+    -- A duel mission has the per-opponent daily cap and none of the other kill filters.
+    local cap = optionalNumber(draft.victimCap)
+    if cap == false then
+      return nil, "invalid:victimCapPerDay"
+    end
+    fields.victimCapPerDay = cap
   end
   if kind ~= "manual" and draft.windowOn then
     if not (draft.windowStart and draft.windowEnd) then
@@ -877,6 +906,8 @@ function ViewModel.PvPMissionFields(draft)
     if draft.kind == "kills" then
       goal.place = draft.place or "any"
       goal.distinct = draft.distinct or "none"
+    elseif draft.kind == "duel_wins" then
+      goal.distinct = draft.distinct == "name" and "name" or "none"
     elseif draft.kind == "kos" then
       goal.place = draft.place or "any"
       local target = type(draft.target) == "string" and draft.target:match("^%s*(.-)%s*$") or ""
@@ -958,6 +989,22 @@ local PRESETS = {
     end,
   },
   {
+    id = "duelist",
+    name = function()
+      return L("Duelist: win 10 duels")
+    end,
+    set = function()
+      return {
+        title = L("Duelist"),
+        kind = "duel_wins",
+        count = "10",
+        points = "30",
+        repeatKind = "weekly",
+        victimCap = "3",
+      }
+    end,
+  },
+  {
     id = "av_veteran",
     name = function()
       return L("Alterac Valley veteran")
@@ -1023,6 +1070,7 @@ function ViewModel.PvPMissionSummary(fields, options)
       kos = L("Counts Kill on Sight kills"),
       bg_wins = L("Counts battleground wins"),
       bg_played = L("Counts battlegrounds played"),
+      duel_wins = L("Counts duels won"),
     }
     local places = {}
     for _, mapId in ipairs(goal.zones or {}) do
@@ -1215,13 +1263,17 @@ local SUMMARY_PARTS = {
 }
 
 -- What a claim says it counted: "10 of 10 kills", "8 of 8 classes · 4 of 4 races · 1 without a known class".
-local function summaryText(claim)
+local function summaryText(claim, mission)
   local summary = claim.summary or {}
   local parts = {}
   for _, part in ipairs(SUMMARY_PARTS) do
     local done, total = summary[part[1]], summary[part[2]]
     if done and total then
-      parts[#parts + 1] = part[3](done, total)
+      if part[1] == "done" and mission and mission.goal and mission.goal.kind == "duel_wins" then
+        parts[#parts + 1] = L("%d of %d duels won"):format(done, total)
+      else
+        parts[#parts + 1] = part[3](done, total)
+      end
     end
   end
   if (summary.unknown or 0) > 0 then
@@ -1250,7 +1302,9 @@ local function evidenceRows(claim, options)
       or ViewModel.PVP_PLACES[entry.place or "any"]
       or "-"
     local info, unknown
-    if entry.bgWin ~= nil then
+    if entry.duel == true then
+      info = L("Duel win")
+    elseif entry.bgWin ~= nil then
       info = entry.bgWin and L("Battleground win") or L("Battleground loss")
     elseif entry.class or entry.race then
       local parts = {}
@@ -1287,7 +1341,7 @@ function ViewModel.PvPClaimRows(claims, options)
       who = Escape(claim.player),
       mission = Escape(mission and mission.title or "?"),
       points = mission and L("+%d pts"):format(mission.points) or "",
-      summary = summaryText(claim),
+      summary = summaryText(claim, mission),
       when = ViewModel.AgeText(math.max(0, options.now - claim.at)),
       note = (claim.note and claim.note ~= "") and Escape(claim.note) or nil,
       evidence = evidenceRows(claim, options),
