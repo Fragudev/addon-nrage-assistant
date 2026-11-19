@@ -173,10 +173,10 @@ client refuses the unknown kind (no partial counting).
 
 | ID | Specs | Route | Owner | Status |
 |---|---|---|---|---|
-| T1 | S2: 1.1–1.4 + tests | delegated (parallel unit, worktree) | Haiku | pending |
-| T2 | S1: 2.1–2.6 + tests | delegated (parallel unit, worktree) | Sonnet | pending |
-| T3 | S2: 1.5 picker + `PvPZonePickerItems` + tests | delegated after T1 | Haiku | pending |
-| T4 | merge, full suite, luacheck, stylua | inline | parent | pending |
+| T1 | S2: 1.1–1.4 + tests | delegated (parallel unit, worktree) | Haiku | done, `a0f8e3c` |
+| T2 | S1: 2.1–2.6 + tests | delegated (parallel unit, worktree) | Sonnet | done, `f25ecd5` + fix `9c03369` |
+| T3 | S2: 1.5 picker + `PvPZonePickerItems` + tests | delegated after T1 | Haiku | done, `3c4f00f` |
+| T4 | merge, full suite, luacheck, stylua | inline | parent | done: 3955 tests, 0 luacheck warnings, stylua clean |
 
 ## Log
 
@@ -187,3 +187,7 @@ client refuses the unknown kind (no partial counting).
   sonnet"
 - L2: Ironforge is in Dun Morogh; the "zone includes its cities" rule applies to the six capitals (see S2).
 - L3: Zones keep the wire format (list of ≤5 map ids, continents allowed); duels need protocol minor 17.
+- L4 (2026-11-19): all tasks merged into `feat/pvp-duels-zones`. Parent fix `9c03369`: the duel winner is matched
+  against the full roster name too (`UnitName` gives only the first word of a multi-word name on Forever).
+  Still open in game: M10 (duel system message), M1 (uiMapIds), Spanish names of the less common zones (written
+  from memory), and the zone picker sorts by lower-case bytes, so accented names may sort slightly off.
