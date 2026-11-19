@@ -1,0 +1,29 @@
+NrageAssistant/UI/Tabs/PvPAdmin.lua
+  s_906f4e34c204f1::t_b30604ce37a908 352-358,361-393,395,398,400-403,408,419-421
+NrageAssistant/UI/ViewModelPvP.lua
+  s_4b09ba843ac1ed::t_397ac54d487b3b 716-747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "3c4f00f104a46e094395011ba63e2d1b8844a738",
+  "prompts": {},
+  "sessions": {
+    "s_4b09ba843ac1ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afa5bb05ab379a293",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    },
+    "s_906f4e34c204f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c696518-5152-49ff-9b6d-ec6de89a55b7",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
