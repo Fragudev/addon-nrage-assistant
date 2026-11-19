@@ -349,49 +349,63 @@ local function toggleZone(draft, mapId, on)
   draft.zones = table.concat(kept, ", ")
 end
 
+-- Adds a zone to the draft's zone text; a zone already there stays once. Past PVP_MISSION_ZONES_MAX the zone is
+-- refused with a warning. Returns true when the zone is in the draft.
+local function addZone(draft, mapId)
+  local zones = ViewModel.PvPParseZones(draft.zones) or {}
+  for _, id in ipairs(zones) do
+    if id == mapId then
+      return true
+    end
+  end
+  if #zones >= ns.Constants.PVP_MISSION_ZONES_MAX then
+    UI.Notify("warning", L("At most 5 zones."))
+    return false
+  end
+  toggleZone(draft, mapId, true)
+  return true
+end
+
+-- The zone picker (docs/PVP_DUELS_ZONES_PLAN.md, 1.5): a dropdown of the whole world, the continents and every zone,
+-- then the chosen zones as chips that can be taken out again. The dropdown keeps no choice of its own, so its value
+-- matches no item and it always shows its placeholder.
+local NO_CHOICE = ""
+local WHOLE_WORLD = "world"
+
 local function zonesField(parent, draft)
   local field = Kit.Field(parent, { label = L("Zones (optional)") })
-  local list = ns.Constants.PVP_MISSION_ZONES
-  local row
-  if list then
-    -- The listed zones, then any selected zone the list does not have (added as the current zone), so it can be
-    -- seen and taken out again.
-    local selected = ViewModel.PvPParseZones(draft.zones) or {}
-    local isSelected, listed = {}, {}
-    for _, mapId in ipairs(selected) do
-      isSelected[mapId] = true
-    end
+  Kit.Dropdown(field, {
+    items = ViewModel.PvPZonePickerItems(),
+    value = NO_CHOICE,
+    placeholder = L("Add a zone"),
+    onChange = function(value)
+      if value == WHOLE_WORLD then
+        draft.zones = ""
+      else
+        addZone(draft, value)
+      end
+      UI.Redraw()
+    end,
+  })
+  local selected = ViewModel.PvPParseZones(draft.zones) or {}
+  if #selected == 0 then
+    Kit.Label(field, { text = L("Whole world"), style = "small", color = "dim" })
+  else
     local flow = Kit.Flow(field, { gap = 6, rowGap = 6 })
-    local function chip(mapId)
+    for _, mapId in ipairs(selected) do
       Kit.Chip(flow, {
         text = zoneName(mapId) or tostring(mapId),
-        active = isSelected[mapId] == true,
+        active = true,
         onToggle = function(active)
-          toggleZone(draft, mapId, active)
+          if not active then
+            toggleZone(draft, mapId, false)
+            UI.Redraw()
+          end
         end,
       })
     end
-    for _, zone in ipairs(list) do
-      listed[zone.mapId] = true
-      chip(zone.mapId)
-    end
-    for _, mapId in ipairs(selected) do
-      if not listed[mapId] then
-        chip(mapId)
-      end
-    end
-    row = Kit.Row(field, { gap = 8 })
-  else
-    row = Kit.Row(field, { gap = 8 })
-    Kit.EditBox(row, {
-      text = draft.zones,
-      placeholder = L("Map ids, separated by commas"),
-      layout = { weight = 1 },
-      onChange = function(text)
-        draft.zones = text
-      end,
-    })
   end
+  local row = Kit.Row(field, { gap = 8 })
   if type(ns.Platform.GetPlayerMapId) == "function" then
     Kit.Button(row, {
       text = L("Add current zone"),
@@ -402,8 +416,9 @@ local function zonesField(parent, draft)
           UI.Notify("warning", L("The current zone could not be read."))
           return
         end
-        toggleZone(draft, mapId, true)
-        UI.Redraw()
+        if addZone(draft, mapId) then
+          UI.Redraw()
+        end
       end,
     })
   end
@@ -457,6 +472,21 @@ local function advancedSection(card, draft)
   local kills = kind == "kills" or kind == "kos"
   if kind == "bg_wins" or kind == "bg_played" then
     tokenChips(card, L("Battlegrounds (none = any)"), draft, "bgs", ViewModel.PvPBattlegroundChoices())
+  end
+  if kind == "duel_wins" then
+    -- A duel mission takes the per-opponent daily cap and no other kill filter (no class, race, group or place).
+    fieldRow(card, L("Max duels won against one opponent per day"), function(field)
+      Kit.EditBox(field, {
+        text = draft.victimCap,
+        placeholder = L("Default: %d, 0 = no cap"):format(ns.Constants.PVP_VICTIM_DAILY_CAP),
+        numeric = true,
+        maxLetters = 2,
+        onChange = function(text)
+          draft.victimCap = text
+        end,
+        onEnter = UI.Redraw,
+      })
+    end, { weight = 1 })
   end
   if kills then
     local faction = type(ns.Platform.GetPlayerFaction) == "function" and ns.Platform.GetPlayerFaction() or nil
@@ -650,6 +680,18 @@ local function missionForm(page)
         })
       end)
     end
+  end
+
+  if draft.kind == "duel_wins" then
+    fieldRow(card, L("Distinct by"), function(field)
+      Kit.Dropdown(field, {
+        items = ViewModel.PvPDuelDistinctChoices(),
+        value = draft.distinct == "name" and "name" or "none",
+        onChange = function(value)
+          draft.distinct = value
+        end,
+      })
+    end, { weight = 1 })
   end
 
   local when = Kit.Row(card, { gap = 16 })

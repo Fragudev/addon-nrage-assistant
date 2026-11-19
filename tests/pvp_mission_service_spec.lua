@@ -116,6 +116,29 @@ local function new_client(world, name, withMissions)
         HasBattlegroundWinner = function()
           return client.world.winnerApi ~= false
         end,
+        GetPlayerName = function()
+          return name
+        end,
+        -- The roster's full name once known (several words on Forever), else the UnitName-based key.
+        GetIdentityKey = function()
+          return client.world.identity or (name .. "-Realm")
+        end,
+        NormalizeName = function(value)
+          return (value:gsub("%-Realm$", ""))
+        end,
+        HasDuelResult = function()
+          return client.world.duelApi ~= false
+        end,
+        -- The fake system message reads "<winner> beats <loser>"; a client without the globals parses nothing.
+        ParseDuelResult = function(message)
+          if client.world.duelApi == false then
+            return nil
+          end
+          if type(message) ~= "string" then
+            return nil
+          end
+          return message:match("^(.-) beats (.-)$")
+        end,
       },
       killsAvailable = function()
         return client.world.killsApi ~= false
@@ -144,6 +167,7 @@ local function new_client(world, name, withMissions)
     })
     client.missions.unitSource = true
     client.missions.winSource = true
+    client.missions.duelSource = true
   end
   return client
 end
@@ -351,6 +375,83 @@ describe("PvPMissionService unit cache feed", function()
   end)
 end)
 
+describe("PvPMissionService duel wins", function()
+  local function duels(member)
+    local list = {}
+    for _, row in ipairs(member.char.pvpLog.events) do
+      if row.kind == "duel" then
+        list[#list + 1] = row
+      end
+    end
+    return list
+  end
+
+  it("logs an own win with the opponent and the map id", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 2 })
+    member.world.mapId = 1453
+    assert.is_true(member.missions:OnSystemMessage("Ann beats Zed"))
+    local rows = duels(member)
+    assert.are.equal(1, #rows)
+    assert.are.same(
+      { "duel", "Zed", 1453, member.season.now() },
+      { rows[1].kind, rows[1].victim, rows[1].mapId, rows[1].at }
+    )
+    assert.are.equal(1, member.missions:Progress("m1").bars[1].done)
+    assert.are.equal("Duels won", member.missions:Progress("m1").bars[1].label)
+  end)
+
+  it("recognises an own win under the full multi-word roster name, which UnitName cuts to the first word", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 1 })
+    member.world.identity = "Ann Gg"
+    assert.is_true(member.missions:OnSystemMessage("Ann Gg beats Zed"))
+    assert.are.equal("Zed", duels(member)[1].victim)
+    assert.is_false(member.missions:OnSystemMessage("Ann Other beats Zed"))
+  end)
+
+  it("logs the win of a retreat the same way (the parser already puts the winner first)", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 1 })
+    assert.is_true(member.missions:OnSystemMessage("Ann beats Yan"))
+    assert.are.equal("Yan", duels(member)[1].victim)
+  end)
+
+  it("logs nothing for a loss or for the duel of a stranger", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 1 })
+    assert.is_false(member.missions:OnSystemMessage("Zed beats Ann"))
+    assert.is_false(member.missions:OnSystemMessage("Zed beats Yan"))
+    assert.is_false(member.missions:OnSystemMessage("Anna beats Zed"))
+    assert.are.equal(0, #member.char.pvpLog.events)
+  end)
+
+  it("logs nothing for text that is not a duel result, an unknown name or a client without the globals", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 1 })
+    assert.is_false(member.missions:OnSystemMessage("hello"))
+    assert.is_false(member.missions:OnSystemMessage(nil))
+    member.world.duelApi = false
+    assert.is_false(member.missions:OnSystemMessage("Ann beats Zed"))
+    member.world.duelApi = nil
+    assert.are.equal(0, #member.char.pvpLog.events)
+    member.char = nil
+    assert.is_false(member.missions:OnSystemMessage("Ann beats Zed"))
+  end)
+
+  it("does not count a duel for a kill mission, and a kill does not count for a duel mission", function()
+    local _, _, member = setup()
+    member.missions:OnSystemMessage("Ann beats Zed")
+    assert.are.equal(0, member.missions:Progress("m1").bars[1].done)
+    local _, _, other = setup({ kind = "duel_wins", count = 1 })
+    kill(other, "Zed")
+    assert.are.equal(0, other.missions:Progress("m1").bars[1].done)
+  end)
+
+  it("claims a completed duel mission with the duel evidence", function()
+    local _, admin, member = setup({ kind = "duel_wins", count = 1 })
+    member.missions:OnSystemMessage("Ann beats Zed")
+    local claim = assert(member.missions:Claim("m1"))
+    assert.are.same({ at = member.season.now(), victim = "Zed", mapId = 1411, duel = true }, claim.evidence[1])
+    relay(member, admin)
+  end)
+end)
+
 describe("PvPMissionService battleground results", function()
   local function results(member)
     local list = {}
@@ -554,11 +655,22 @@ end)
 describe("PvPMissionService availability", function()
   it("says which sources this client has", function()
     local _, _, member = setup()
-    assert.are.same({ kills = true, zones = true, classRace = true, bgWins = true }, member.missions:Availability())
+    assert.are.same(
+      { kills = true, zones = true, classRace = true, bgWins = true, duels = true },
+      member.missions:Availability()
+    )
     member.world.killsApi = false
     member.world.winnerApi = false
     member.missions.unitSource = false
-    assert.are.same({ kills = false, zones = false, classRace = false, bgWins = false }, member.missions:Availability())
+    member.world.duelApi = false
+    assert.are.same(
+      { kills = false, zones = false, classRace = false, bgWins = false, duels = false },
+      member.missions:Availability()
+    )
+    member.world.duelApi = nil
+    assert.is_true(member.missions:Availability().duels)
+    member.missions.duelSource = false
+    assert.is_false(member.missions:Availability().duels)
     member.world.killsApi = true
     member.world.mapId = nil
     member.missions.winSource = false

@@ -2494,13 +2494,49 @@ describe("Window smoke test: PvP seasons", function()
 
   -- The chip text of a listed zone, as the form writes it.
   local function zoneText(e, mapId)
-    for _, zone in ipairs(e.ns.Constants.PVP_MISSION_ZONES) do
-      if zone.mapId == mapId then
-        return e.ns.L(zone.nameKey)
+    for _, region in ipairs(e.ns.Constants.PVP_MISSION_REGIONS) do
+      for _, zone in ipairs(region.zones) do
+        if zone.mapId == mapId then
+          return e.ns.L(zone.nameKey)
+        end
       end
     end
     return tostring(mapId)
   end
+
+  -- The zone picker of the mission form: the dropdown that adds a zone, whole world included.
+  local function zonePicker(e)
+    return FakeKit.find_all(e.page(), "Dropdown", function(node)
+      return node.opts.placeholder == e.ns.L("Add a zone")
+    end)[1]
+  end
+
+  it("picks zones from the dropdown: whole world clears them, a sixth zone is refused", function()
+    env = build("GM")
+    seed(env)
+    go(env, "admin", "missions")
+    env.press("New mission")
+    assert.is_truthy(env.text():find("Whole world", 1, true))
+    zonePicker(env).opts.onChange(1454)
+    zonePicker(env).opts.onChange(1414)
+    assert.is_true(FakeKit.find(env.page(), "Chip", "Orgrimmar").opts.active)
+    assert.is_true(FakeKit.find(env.page(), "Chip", "Kalimdor").opts.active)
+    -- Picking a zone already chosen adds nothing.
+    zonePicker(env).opts.onChange(1454)
+    local orgrimmar = FakeKit.find_all(env.page(), "Chip", function(node)
+      return node.opts.text == "Orgrimmar"
+    end)
+    assert.are.equal(1, #orgrimmar)
+    for _, mapId in ipairs({ 1411, 1412, 1413 }) do
+      zonePicker(env).opts.onChange(mapId)
+    end
+    zonePicker(env).opts.onChange(1438)
+    assert.is_truthy(env.banner().opts.text:find("At most 5 zones.", 1, true))
+    assert.is_nil(FakeKit.find(env.page(), "Chip", "Teldrassil"))
+    zonePicker(env).opts.onChange("world")
+    assert.is_nil(FakeKit.find(env.page(), "Chip", "Orgrimmar"))
+    assert.is_truthy(env.text():find("Whole world", 1, true))
+  end)
 
   it("creates, edits and pauses missions from the form", function()
     env = build("GM")
@@ -2522,9 +2558,9 @@ describe("Window smoke test: PvP seasons", function()
     assert.is_truthy(env.banner().opts.text:find("'points' is not valid", 1, true))
     edit(4, "30")
     edit(3, "7")
-    -- The zones come from the constant list as chips.
+    -- The zones are chosen from the picker's dropdown.
     for _, mapId in ipairs({ 1454, 1453 }) do
-      FakeKit.find(env.page(), "Chip", zoneText(env, mapId)).opts.onToggle(true)
+      zonePicker(env).opts.onChange(mapId)
     end
     env.press("Create mission")
     assert.is_truthy(env.banner().opts.text:find("Mission saved", 1, true))
@@ -2638,7 +2674,7 @@ describe("Window smoke test: PvP seasons", function()
         templates = d
       end
     end
-    assert.are.equal(5, #templates.opts.items)
+    assert.are.equal(6, #templates.opts.items)
     templates.opts.onChange("group_up")
     assert.is_truthy(env.text():find("with at least 3 guildmates in the group", 1, true))
     assert.is_truthy(env.find(env.page(), "Button", "Hide advanced options"))

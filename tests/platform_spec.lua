@@ -1102,3 +1102,69 @@ describe("Platform layer and group calls", function()
     assert.are.same({ "new", "old" }, left)
   end)
 end)
+
+describe("Platform.ParseDuelResult", function()
+  local Duel = load_platform()
+  local ENGLISH = {
+    DUEL_WINNER_KNOCKOUT = "%1$s has defeated %2$s in a duel",
+    DUEL_WINNER_RETREAT = "%2$s has fled from %1$s in a duel",
+  }
+
+  it("reads the winner and the loser of a knockout", function()
+    with_globals(ENGLISH, function()
+      assert.are.same({ "Ann", "Zed" }, { Duel.ParseDuelResult("Ann has defeated Zed in a duel") })
+    end)
+  end)
+
+  it("reads a retreat, where the winner is the first argument and comes second in the text", function()
+    with_globals(ENGLISH, function()
+      assert.are.same({ "Ann", "Zed" }, { Duel.ParseDuelResult("Zed has fled from Ann in a duel") })
+    end)
+  end)
+
+  it("keeps a name of several words and strips a realm suffix from both names", function()
+    with_globals(ENGLISH, function()
+      assert.are.same(
+        { "Yonemon Gg", "Zed" },
+        { Duel.ParseDuelResult("Yonemon Gg-ClassicBeta has defeated Zed-Other in a duel") }
+      )
+    end)
+  end)
+
+  it("builds the patterns from the globals, in whatever order the client puts the arguments", function()
+    with_globals({
+      DUEL_WINNER_KNOCKOUT = "%2$s lost a duel (vs. %1$s)",
+      DUEL_WINNER_RETREAT = "%s ran from %s",
+    }, function()
+      assert.are.same({ "Ann", "Zed" }, { Duel.ParseDuelResult("Zed lost a duel (vs. Ann)") })
+      assert.are.same({ "Ann", "Zed" }, { Duel.ParseDuelResult("Ann ran from Zed") })
+    end)
+  end)
+
+  it("says whether the client defines both duel texts", function()
+    with_globals(ENGLISH, function()
+      assert.is_true(Duel.HasDuelResult())
+    end)
+    with_globals({ DUEL_WINNER_KNOCKOUT = ENGLISH.DUEL_WINNER_KNOCKOUT, DUEL_WINNER_RETREAT = false }, function()
+      assert.is_false(Duel.HasDuelResult())
+    end)
+    with_globals({ DUEL_WINNER_KNOCKOUT = false, DUEL_WINNER_RETREAT = false }, function()
+      assert.is_false(Duel.HasDuelResult())
+    end)
+  end)
+
+  it("gives nil for text that does not match, a non-string and a client without the globals", function()
+    with_globals(ENGLISH, function()
+      assert.is_nil(Duel.ParseDuelResult("Ann has defeated Zed"))
+      assert.is_nil(Duel.ParseDuelResult(""))
+      assert.is_nil(Duel.ParseDuelResult(nil))
+      assert.is_nil(Duel.ParseDuelResult(42))
+    end)
+    with_globals({ DUEL_WINNER_KNOCKOUT = false, DUEL_WINNER_RETREAT = false }, function()
+      assert.is_nil(Duel.ParseDuelResult("Ann has defeated Zed in a duel"))
+    end)
+    with_globals({ DUEL_WINNER_KNOCKOUT = 5, DUEL_WINNER_RETREAT = "no placeholders" }, function()
+      assert.is_nil(Duel.ParseDuelResult("no placeholders"))
+    end)
+  end)
+end)

@@ -798,6 +798,75 @@ function Platform.GetPlayerFaction()
   return ok and faction or nil
 end
 
+-- A Lua pattern for a client format string such as "%1$s has defeated %2$s in a duel" (or with plain "%s"), plus the
+-- number of the argument each capture holds. Nil when the format is not a string or has fewer than two arguments.
+local function formatPattern(format)
+  if type(format) ~= "string" then
+    return nil
+  end
+  local parts, order, index, auto = {}, {}, 1, 0
+  while true do
+    local first, last, number = format:find("%%(%d*)%$?s", index)
+    if not first then
+      parts[#parts + 1] = format:sub(index):gsub("%p", "%%%0")
+      break
+    end
+    parts[#parts + 1] = format:sub(index, first - 1):gsub("%p", "%%%0")
+    parts[#parts + 1] = "(.-)"
+    auto = auto + 1
+    order[#order + 1] = tonumber(number) or auto
+    index = last + 1
+  end
+  if #order < 2 then
+    return nil
+  end
+  return "^" .. table.concat(parts) .. "$", order
+end
+
+-- The name without a "-Realm" suffix (a name of several words keeps its spaces).
+local function withoutRealm(name)
+  return (name:gsub("%-[^%s%-]+$", ""))
+end
+
+-- Does this client define both duel message formats? (Without them a duel result cannot be read.)
+function Platform.HasDuelResult()
+  local ok, found = pcall(function()
+    return formatPattern(_G.DUEL_WINNER_KNOCKOUT) ~= nil and formatPattern(_G.DUEL_WINNER_RETREAT) ~= nil
+  end)
+  return ok and found == true
+end
+
+-- The winner and the loser of a duel from the system message the client prints (CHAT_MSG_SYSTEM), or nil when the text
+-- is not a duel result or the client does not define the message formats. The formats are the client globals
+-- DUEL_WINNER_KNOCKOUT and DUEL_WINNER_RETREAT; in both, argument 1 is the winner and argument 2 the loser. Read from
+-- _G: these globals are not in the luacheck list (API_NOTES M10).
+function Platform.ParseDuelResult(message)
+  if type(message) ~= "string" then
+    return nil
+  end
+  for _, global in ipairs({ "DUEL_WINNER_KNOCKOUT", "DUEL_WINNER_RETREAT" }) do
+    local ok, winner, loser = pcall(function()
+      local pattern, order = formatPattern(_G[global])
+      if not pattern then
+        return nil
+      end
+      local captures = { message:match(pattern) }
+      if #captures == 0 then
+        return nil
+      end
+      local byArgument = {}
+      for position, argument in ipairs(order) do
+        byArgument[argument] = captures[position]
+      end
+      return byArgument[1], byArgument[2]
+    end)
+    if ok and winner and loser and winner ~= "" and loser ~= "" then
+      return withoutRealm(winner), withoutRealm(loser)
+    end
+  end
+  return nil
+end
+
 -- The map id of the battleground instance the player is in (the eighth return of GetInstanceInfo: 489 for Warsong
 -- Gulch, 529 for Arathi Basin, 30 for Alterac Valley; not measured on Forever yet, API_NOTES M9), or nil outside a
 -- battleground or when the client does not say. It names the battleground type, not one match.
