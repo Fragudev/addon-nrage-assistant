@@ -34,7 +34,14 @@ local MAX_ITEM_ID = 10000000
 local MAX_TOKEN = 20
 
 PvPSeasonModel.STATES = { active = true, closed = true }
-PvPSeasonModel.GOAL_KINDS = { kills = true, kos = true, bg_wins = true, manual = true, bg_played = true }
+PvPSeasonModel.GOAL_KINDS = {
+  kills = true,
+  kos = true,
+  bg_wins = true,
+  manual = true,
+  bg_played = true,
+  duel_wins = true,
+}
 -- The battleground tokens a `bgs` filter may hold (the values of PVP_BG_BY_MAP).
 PvPSeasonModel.BATTLEGROUNDS = { wsg = true, ab = true, av = true }
 PvPSeasonModel.PLACES = { any = true, world = true, bg = true }
@@ -270,6 +277,8 @@ local function addOptionalGoal(goal, clean)
   local kind = goal.kind
   local kills = kind == "kills" or kind == "kos"
   local battlegrounds = kind == "bg_wins" or kind == "bg_played"
+  -- A duel goal takes the per-opponent daily cap like a kill goal, and none of the kill-only filters.
+  local capped = kills or kind == "duel_wins"
   if battlegrounds and goal.bgs ~= nil then
     local bgs = cleanList(goal.bgs, 3, isBattleground)
     if not bgs then
@@ -287,18 +296,18 @@ local function addOptionalGoal(goal, clean)
         clean[field] = #list > 0 and list or nil
       end
     end
-    if goal.victimCapPerDay ~= nil then
-      if not isInt(goal.victimCapPerDay, 0, constants.PVP_MISSION_VICTIM_CAP_MAX) then
-        return false
-      end
-      clean.victimCapPerDay = goal.victimCapPerDay
-    end
     if goal.minGuildInGroup ~= nil then
       if not isInt(goal.minGuildInGroup, 0, constants.PVP_MISSION_GUILD_GROUP_MAX) then
         return false
       end
       clean.minGuildInGroup = goal.minGuildInGroup > 0 and goal.minGuildInGroup or nil
     end
+  end
+  if capped and goal.victimCapPerDay ~= nil then
+    if not isInt(goal.victimCapPerDay, 0, constants.PVP_MISSION_VICTIM_CAP_MAX) then
+      return false
+    end
+    clean.victimCapPerDay = goal.victimCapPerDay
   end
   if kind ~= "manual" and goal.window ~= nil then
     local window = goal.window
@@ -336,6 +345,13 @@ local function validateGoal(goal)
   end
   local place = goal.place == nil and "any" or goal.place
   local distinct = goal.distinct == nil and "none" or goal.distinct
+  if goal.kind == "duel_wins" then
+    -- A duel has no place and no class or race: the place is forced and only the names can be distinct.
+    place = "any"
+    if distinct ~= "none" and distinct ~= "name" then
+      return nil
+    end
+  end
   if not (type(place) == "string" and PvPSeasonModel.PLACES[place]) then
     return nil
   end
@@ -380,12 +396,36 @@ end
 
 -- Does this mission need a client that knows the optional goal fields or the battleground-played kind (protocol minor
 -- 13)? An older client drops the fields (and so counts more than the officer asked for) and refuses the kind.
+-- The zone ids an older client would misread (docs/PVP_DUELS_ZONES_PLAN.md, 1.4): the continents of the zone tree and
+-- the zones that have cities inside them. Built once on first use.
+local newZoneIds
+
+local function getNewZoneIds()
+  if not newZoneIds then
+    newZoneIds = {}
+    for _, region in ipairs(ns.Constants.PVP_MISSION_REGIONS) do
+      newZoneIds[region.mapId] = true
+      for _, zone in ipairs(region.zones) do
+        if zone.includes then
+          newZoneIds[zone.mapId] = true
+        end
+      end
+    end
+  end
+  return newZoneIds
+end
+
 function PvPSeasonModel.UsesNewGoalFeatures(goal)
   if type(goal) ~= "table" then
     return false
   end
-  if goal.kind == "bg_played" then
+  if goal.kind == "bg_played" or goal.kind == "duel_wins" then
     return true
+  end
+  for _, mapId in ipairs(type(goal.zones) == "table" and goal.zones or {}) do
+    if getNewZoneIds()[mapId] then
+      return true
+    end
   end
   for _, field in ipairs({
     "bgs",
@@ -520,6 +560,18 @@ local function validateEvidenceRow(row)
       return nil
     end
     return { at = row.at, bgWin = row.bgWin, mapId = mapId, bg = row.bg }
+  end
+  if row.duel ~= nil then
+    -- A duel won: the opponent and the map, nothing a kill carries.
+    if row.duel ~= true or not isText(row.victim, ns.Constants.PVP_FEED_VICTIM_MAX) then
+      return nil
+    end
+    for _, field in ipairs({ "place", "kos", "guild", "class", "race" }) do
+      if row[field] ~= nil then
+        return nil
+      end
+    end
+    return { at = row.at, victim = row.victim, mapId = mapId, duel = true }
   end
   if row.kos ~= nil and row.kos ~= true then
     return nil
