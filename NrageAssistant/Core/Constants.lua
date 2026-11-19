@@ -21,7 +21,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 16,
+  PROTOCOL_MINOR = 17,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -328,21 +328,70 @@ ns.Constants = {
   -- score data is requested while the player is inside one (the winner comes with it).
   PVP_BG_BY_MAP = { [489] = "wsg", [529] = "ab", [30] = "av" },
   PVP_BG_SCORE_POLL_SECONDS = 30,
-  -- The zones an admin can pick for a mission: uiMapIds of the capitals and contested zones, with the English name
-  -- (a key for L()). The ids are from the Classic map tables and are TO BE MEASURED on Forever (plan, M1); a zone
-  -- whose id turns out wrong is fixed here, nothing else depends on the list.
-  PVP_MISSION_ZONES = {
-    { mapId = 1454, nameKey = "Orgrimmar" },
-    { mapId = 1453, nameKey = "Stormwind City" },
-    { mapId = 1455, nameKey = "Ironforge" },
-    { mapId = 1457, nameKey = "Darnassus" },
-    { mapId = 1456, nameKey = "Thunder Bluff" },
-    { mapId = 1458, nameKey = "Undercity" },
-    { mapId = 1434, nameKey = "Stranglethorn Vale" },
-    { mapId = 1424, nameKey = "Hillsbrad Foothills" },
-    { mapId = 1416, nameKey = "Alterac Mountains" },
-    { mapId = 1440, nameKey = "Ashenvale" },
-    { mapId = 1417, nameKey = "Arathi Highlands" },
+  -- The zones an admin can pick for a mission: a tree of the two continents and their zones
+  -- (docs/PVP_DUELS_ZONES_PLAN.md, 1.1). The uiMapIds are from the Classic map tables and are TO BE MEASURED on
+  -- Forever (API_NOTES M1); an id that turns out wrong is fixed here, nothing else depends on the tree.
+  -- `includes` lists the cities inside a zone: a mission on the zone counts them too (Ironforge is in Dun Morogh).
+  -- Every nameKey is an English key for L().
+  PVP_MISSION_REGIONS = {
+    {
+      mapId = 1414,
+      nameKey = "Kalimdor",
+      zones = {
+        { mapId = 1411, nameKey = "Durotar", includes = { 1454 } },
+        { mapId = 1454, nameKey = "Orgrimmar" },
+        { mapId = 1412, nameKey = "Mulgore", includes = { 1456 } },
+        { mapId = 1456, nameKey = "Thunder Bluff" },
+        { mapId = 1413, nameKey = "The Barrens" },
+        { mapId = 1438, nameKey = "Teldrassil", includes = { 1457 } },
+        { mapId = 1457, nameKey = "Darnassus" },
+        { mapId = 1439, nameKey = "Darkshore" },
+        { mapId = 1440, nameKey = "Ashenvale" },
+        { mapId = 1441, nameKey = "Thousand Needles" },
+        { mapId = 1442, nameKey = "Stonetalon Mountains" },
+        { mapId = 1443, nameKey = "Desolace" },
+        { mapId = 1444, nameKey = "Feralas" },
+        { mapId = 1445, nameKey = "Dustwallow Marsh" },
+        { mapId = 1446, nameKey = "Tanaris" },
+        { mapId = 1447, nameKey = "Azshara" },
+        { mapId = 1448, nameKey = "Felwood" },
+        { mapId = 1449, nameKey = "Un'Goro Crater" },
+        { mapId = 1450, nameKey = "Moonglade" },
+        { mapId = 1451, nameKey = "Silithus" },
+        { mapId = 1452, nameKey = "Winterspring" },
+      },
+    },
+    {
+      mapId = 1415,
+      nameKey = "Eastern Kingdoms",
+      zones = {
+        { mapId = 1416, nameKey = "Alterac Mountains" },
+        { mapId = 1417, nameKey = "Arathi Highlands" },
+        { mapId = 1418, nameKey = "Badlands" },
+        { mapId = 1419, nameKey = "Blasted Lands" },
+        { mapId = 1420, nameKey = "Tirisfal Glades", includes = { 1458 } },
+        { mapId = 1458, nameKey = "Undercity" },
+        { mapId = 1421, nameKey = "Silverpine Forest" },
+        { mapId = 1422, nameKey = "Western Plaguelands" },
+        { mapId = 1423, nameKey = "Eastern Plaguelands" },
+        { mapId = 1424, nameKey = "Hillsbrad Foothills" },
+        { mapId = 1425, nameKey = "The Hinterlands" },
+        { mapId = 1426, nameKey = "Dun Morogh", includes = { 1455 } },
+        { mapId = 1455, nameKey = "Ironforge" },
+        { mapId = 1427, nameKey = "Searing Gorge" },
+        { mapId = 1428, nameKey = "Burning Steppes" },
+        { mapId = 1429, nameKey = "Elwynn Forest", includes = { 1453 } },
+        { mapId = 1453, nameKey = "Stormwind City" },
+        { mapId = 1430, nameKey = "Deadwind Pass" },
+        { mapId = 1431, nameKey = "Duskwood" },
+        { mapId = 1432, nameKey = "Loch Modan" },
+        { mapId = 1433, nameKey = "Redridge Mountains" },
+        { mapId = 1434, nameKey = "Stranglethorn Vale" },
+        { mapId = 1435, nameKey = "Swamp of Sorrows" },
+        { mapId = 1436, nameKey = "Westfall" },
+        { mapId = 1437, nameKey = "Wetlands" },
+      },
+    },
   },
 
   -- Guild blacklist: names and short free-text reasons, shared with the guild. A snapshot carries at most

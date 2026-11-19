@@ -23,15 +23,21 @@ local _, ns = ...
 --          (optional: is the victim on the guild Kill On Sight list right now), guildInGroup = function() -> number
 --          (optional: the guild members in the group of the player now, the player excluded), onAutoClaim =
 --          function(mission, claim) (optional: a mission with `autoClaim` was claimed) }
--- The wiring sets `unitSource` and `winSource` to true when the events behind them could be registered.
+-- The wiring sets `unitSource`, `winSource` and `duelSource` to true when the events behind them could be registered.
+-- (`platform` also gives ParseDuelResult, GetPlayerName and HasDuelResult for the duel wins.)
 local PvPMissionService = {}
 PvPMissionService.__index = PvPMissionService
 
 function PvPMissionService.New(deps)
-  return setmetatable(
-    { deps = deps, unitSource = false, winSource = false, looping = false, scoring = false, refused = {} },
-    PvPMissionService
-  )
+  return setmetatable({
+    deps = deps,
+    unitSource = false,
+    winSource = false,
+    duelSource = false,
+    looping = false,
+    scoring = false,
+    refused = {},
+  }, PvPMissionService)
 end
 
 function PvPMissionService:Changed()
@@ -141,6 +147,55 @@ function PvPMissionService:OnHonorKill(entry)
     class = class,
     race = race,
     guildInGroup = inGroup,
+  })
+  self:Changed()
+  self:AutoClaim()
+  return true
+end
+
+-- Is `name` this character? On Forever a name can have several words and UnitName gives only the first one, so the
+-- full roster name (the identity key without the own realm) is tried first, then the UnitName one. Case-insensitive.
+function PvPMissionService:IsOwnName(name)
+  local platform = self.deps.platform
+  local wanted = name:lower()
+  if platform.GetIdentityKey and platform.NormalizeName then
+    local ok, key = pcall(platform.GetIdentityKey)
+    if ok and type(key) == "string" then
+      local normalized, full = pcall(platform.NormalizeName, key)
+      if normalized and type(full) == "string" and full ~= "" and full:lower() == wanted then
+        return true
+      end
+    end
+  end
+  local read, own = pcall(platform.GetPlayerName)
+  return read and type(own) == "string" and own ~= "" and own:lower() == wanted
+end
+
+-- A system message (CHAT_MSG_SYSTEM). The client prints the result of every duel nearby, so only the own win is
+-- logged, as `{ kind = "duel", at, victim, mapId }` (a loss, another player's duel and any other text log nothing). The
+-- winner is compared with the name the client gives for the player; a name that cannot be read logs nothing. Returns
+-- true when a row was logged.
+function PvPMissionService:OnSystemMessage(message)
+  local platform = self.deps.platform
+  if not (platform.ParseDuelResult and platform.GetPlayerName) then
+    return false
+  end
+  local parsed, winner, loser = pcall(platform.ParseDuelResult, message)
+  if not (parsed and type(winner) == "string" and type(loser) == "string") then
+    return false
+  end
+  if not self:IsOwnName(winner) then
+    return false
+  end
+  local log = self:WriteLog()
+  if not log then
+    return false
+  end
+  self:Append(log, {
+    kind = "duel",
+    at = self.deps.now(),
+    victim = loser,
+    mapId = platform.GetPlayerMapId(),
   })
   self:Changed()
   self:AutoClaim()
@@ -301,7 +356,8 @@ end
 
 -- Which sources of data this client has: kills (the feed has a victim name), zones (the map id is readable), class
 -- and race (the unit events could be registered), battleground wins (the winner can be read and the event could be
--- registered). A mission whose source is missing shows "Not available on this client".
+-- registered) and duels (the system message could be registered and the client defines both duel texts). A mission
+-- whose source is missing shows "Not available on this client".
 function PvPMissionService:Availability()
   local kills = self.deps.killsAvailable() == true
   return {
@@ -309,6 +365,9 @@ function PvPMissionService:Availability()
     zones = kills and self.deps.platform.GetPlayerMapId() ~= nil,
     classRace = self.unitSource == true,
     bgWins = self.winSource == true and self.deps.platform.HasBattlegroundWinner() == true,
+    duels = self.duelSource == true
+      and self.deps.platform.HasDuelResult ~= nil
+      and self.deps.platform.HasDuelResult() == true,
   }
 end
 

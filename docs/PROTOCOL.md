@@ -40,7 +40,7 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
   `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
   ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below; minor 16 added the
-  optional `zone` of `LAYER_STATE` and of a `LAYER_SWAP` request (layers are per zone, see *Layers*).
+  optional `zone` of `LAYER_STATE` and of a `LAYER_SWAP` request (layers are per zone, see *Layers*); minor 17 added the `duel_wins` mission kind and the duel evidence row (see *PvP seasons*).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -81,7 +81,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `ROSTER_RULES` | guild | `rosterId`, `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Readiness rules per roster) | gm, cogm; rl for its own roster |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
-| `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct, target?, bgs[]?, victimClasses[]?, victimRaces[]?, victimCapPerDay?, minGuildInGroup?, window{startsAt, endsAt}?, maxCompletions?, autoClaim?}` (kinds `kills`, `kos`, `bg_wins`, `bg_played`, `manual`), `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
+| `PVP_MISSION` | guild | `id`, `seasonId`, `title` (1 to 40), `desc` (0 to 100), `points` (1 to 1000), `goal{kind, count, zones[], place, distinct, target?, bgs[]?, victimClasses[]?, victimRaces[]?, victimCapPerDay?, minGuildInGroup?, window{startsAt, endsAt}?, maxCompletions?, autoClaim?}` (kinds `kills`, `kos`, `bg_wins`, `bg_played`, `duel_wins`, `manual`), `repeatKind`, `perPlayer`, `active`, `rev`, `updatedAt` | admin |
 | `PVP_PRIZES` | guild | `seasonId`, `tiers{["1"], ["2"], ["3"], ["4-6"], ["7-10"]}` (up to 5 gold or item rewards each), `rev`, `updatedAt` | admin |
 | `PVP_OFFICER` | guild | `player`, `intervals[]` (`from`, optional `to`; up to 10), `rev`, `updatedAt` | admin |
 | `PVP_CLAIM` | guild | `id`, `missionId`, `seasonId`, `periodKey`, `player`, `at`, `summary{}`, `evidence[]` (up to 60 rows), optional `note` | anyone; `player` must be the sender |
@@ -541,13 +541,18 @@ client, so nothing but the grants has to be trusted.
   relay that is not a gm or cogm cannot hand claims in. The claimant also sends its pending claims again when it hears
   a HELLO from a gm or cogm (at most every 2 minutes), so a claim is not stuck when its author is never online with an
   approver.
+- **Duel evidence (minor 17):** the evidence of a `duel_wins` claim is made of rows `{at, victim, mapId?, duel = true}`: `duel`
+  is exactly `true`, `victim` is text of at most `PVP_FEED_VICTIM_MAX` characters, and the row carries none of `place`,
+  `bgWin`, `kos`, `guild`, `class` or `race` (a row that does is refused with the whole claim, `invalid:evidence`). A
+  `duel_wins` goal keeps only `count`, `zones`, `distinct` (`none` or `name`), `victimCapPerDay`, `window`,
+  `maxCompletions` and `autoClaim`; `place` is forced to `any` and the kill-only fields are dropped.
 - **Progress summaries (`PVP_PROGRESS`):** a member shares, at most every 2 minutes and only when something changed,
   how far they are in each mission of the active season (counts only, no evidence). Only a client that approves claims
   keeps the last summary of each member (up to 1000, `db.global.pvpSeason.progress`, dropped when the season closes). It
   is display only and not checked; the claim decides. It never travels in a catch-up.
 - **Older clients:** a client without these fields drops the optional goal fields while validating (so it would count
-  more than the officer asked) and refuses a mission of kind `bg_played` (`invalid:goal`); the admin form warns when a
-  mission uses them. `maxCompletions` is also enforced by approvers when a claim arrives (`limit`).
+  more than the officer asked) and refuses a mission of kind `bg_played` or `duel_wins` (`invalid:goal`; no partial counting); the admin form warns
+  when a mission uses them. `maxCompletions` is also enforced by approvers when a claim arrives (`limit`).
 - **Order:** a record that reaches a client before the one that authorises it (a grant of an officer before the officer
   record, a claim before its mission) is refused and comes back with the next catch-up. Records an admin wrote do not
   depend on any other and may arrive in any order (a void before its grant, a grant before its season).
