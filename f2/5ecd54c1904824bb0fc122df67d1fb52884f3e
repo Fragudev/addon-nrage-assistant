@@ -1,0 +1,61 @@
+NrageAssistant/Core/Constants.lua
+  s_906f4e34c204f1::t_69962d87bf80f3 24
+NrageAssistant/Core/Init.lua
+  s_906f4e34c204f1::t_f174ea511d644b 117-118,220-222,236-237
+NrageAssistant/Core/Platform.lua
+  s_906f4e34c204f1::t_cb1eac239fc5a0 801-869
+NrageAssistant/Domain/PvPMissionService.lua
+  s_906f4e34c204f1::t_53914a12a76a44 26-27,32-40,156-187,342-343,351-353
+NrageAssistant/Domain/PvPMissionTracker.lua
+  s_906f4e34c204f1::t_b2f60672fea0ef 8-9,35,81-85,134-136,294,304-305,308,314,357,384-388
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_906f4e34c204f1::t_717ee7fa1cc002 37-44,280-281,306-311,348-354,403,540-551
+NrageAssistant/Locales/esES.lua
+  s_906f4e34c204f1::t_b8b285d8871488 777,1329,1341-1346
+NrageAssistant/UI/Tabs/PvPAdmin.lua
+  s_906f4e34c204f1::t_b46fe3f116c269 461-475,670-681
+NrageAssistant/UI/ViewModelPvP.lua
+  s_906f4e34c204f1::t_cda05ab83f9de7 356,382,438-442,482-492,553-557,852-858,909-910,991-1006,1073,1266,1272-1276,1305-1307,1344
+docs/API_NOTES.md
+  s_906f4e34c204f1::t_c14edc07006f44 172
+docs/PROTOCOL.md
+  s_906f4e34c204f1::t_545e9041aceadf 43,84,544-548,554-555
+docs/USER_GUIDE.md
+  s_906f4e34c204f1::t_ca5cd1cc6e1e87 549-554
+tests/platform_spec.lua
+  s_906f4e34c204f1::t_edfccdb824420b 1105-1170
+tests/pvp_mission_service_spec.lua
+  s_906f4e34c204f1::t_ce054c0df5e755 119-134,163,371-439,643-646,650-658
+tests/pvp_mission_tracker_spec.lua
+  s_906f4e34c204f1::t_5241f20405a520 531-601
+tests/ui_smoke_spec.lua
+  s_906f4e34c204f1::t_979fccbaf20206 2641
+tests/view_model_pvp_spec.lua
+  s_906f4e34c204f1::t_35599f91085713 661-665,668,707-774,888,903-919,1182-1204
+tests/pvp_season_model_spec.lua
+  s_94bc77d658ca80::t_9dce78881f63ec 357-433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f25ecd54c1904824bb0fc122df67d1fb52884f3e",
+  "prompts": {},
+  "sessions": {
+    "s_906f4e34c204f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c696518-5152-49ff-9b6d-ec6de89a55b7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    },
+    "s_94bc77d658ca80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab43ed066d8ae1f48",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
