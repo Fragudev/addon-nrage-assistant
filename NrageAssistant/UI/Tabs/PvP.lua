@@ -28,14 +28,9 @@ local function service()
   return ns.pvpSeason
 end
 
--- The name of a zone: the constant list when the project has one (PVP_MISSION_ZONES = { { mapId, nameKey } }), else the
--- mission tracker's own naming when it has one; nil lets the view model write the map id.
+-- The name of a zone of the zone tree (PVP_MISSION_REGIONS), from the mission tracker; nil lets the view model write
+-- the map id.
 local function zoneName(mapId)
-  for _, zone in ipairs(ns.Constants.PVP_MISSION_ZONES or {}) do
-    if zone.mapId == mapId and zone.nameKey then
-      return L(zone.nameKey)
-    end
-  end
   local tracker = ns.PvPMissionTracker
   if tracker and tracker.ZoneName then
     return tracker.ZoneName(mapId)

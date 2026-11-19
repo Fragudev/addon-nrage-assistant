@@ -35,28 +35,202 @@ function PvPMissionTracker.LabelText(label)
   return texts[label] or label
 end
 
--- The name of a zone of PVP_MISSION_ZONES in the language of the client, or nil for a map id that is not in the list.
-function PvPMissionTracker.ZoneName(mapId)
-  local names = {
-    ["Orgrimmar"] = L("Orgrimmar"),
-    ["Stormwind City"] = L("Stormwind City"),
-    ["Ironforge"] = L("Ironforge"),
-    ["Darnassus"] = L("Darnassus"),
-    ["Thunder Bluff"] = L("Thunder Bluff"),
-    ["Undercity"] = L("Undercity"),
-    ["Stranglethorn Vale"] = L("Stranglethorn Vale"),
-    ["Hillsbrad Foothills"] = L("Hillsbrad Foothills"),
-    ["Alterac Mountains"] = L("Alterac Mountains"),
-    ["Ashenvale"] = L("Ashenvale"),
-    ["Arathi Highlands"] = L("Arathi Highlands"),
-  }
-  for _, zone in ipairs(ns.Constants.PVP_MISSION_ZONES) do
-    if zone.mapId == mapId then
-      return names[zone.nameKey] or zone.nameKey
-    end
+-- The zone tree (PVP_MISSION_REGIONS) as lookups, built once on first use. `names[mapId]` is the name key of every
+-- continent and zone. `members[selected]` holds the map ids a selected continent or zone matches besides its own id:
+-- a zone its `includes`, a continent its zones and their `includes`. An unknown id has no entry.
+local zoneIndex
+
+local function getZoneIndex()
+  if zoneIndex then
+    return zoneIndex
   end
-  return nil
+  zoneIndex = { names = {}, members = {} }
+  for _, region in ipairs(ns.Constants.PVP_MISSION_REGIONS) do
+    local inRegion = {}
+    zoneIndex.names[region.mapId] = region.nameKey
+    for _, zone in ipairs(region.zones) do
+      local inZone = {}
+      zoneIndex.names[zone.mapId] = zone.nameKey
+      inRegion[zone.mapId] = true
+      for _, city in ipairs(zone.includes or {}) do
+        inZone[city] = true
+        inRegion[city] = true
+      end
+      zoneIndex.members[zone.mapId] = inZone
+    end
+    zoneIndex.members[region.mapId] = inRegion
+  end
+  return zoneIndex
 end
+
+-- Each zone name key maps to a function that translates it, so the language of the client is read at call time.
+local zoneNames = {
+  ["Kalimdor"] = function()
+    return L("Kalimdor")
+  end,
+  ["Eastern Kingdoms"] = function()
+    return L("Eastern Kingdoms")
+  end,
+  ["Durotar"] = function()
+    return L("Durotar")
+  end,
+  ["Orgrimmar"] = function()
+    return L("Orgrimmar")
+  end,
+  ["Mulgore"] = function()
+    return L("Mulgore")
+  end,
+  ["Thunder Bluff"] = function()
+    return L("Thunder Bluff")
+  end,
+  ["The Barrens"] = function()
+    return L("The Barrens")
+  end,
+  ["Teldrassil"] = function()
+    return L("Teldrassil")
+  end,
+  ["Darnassus"] = function()
+    return L("Darnassus")
+  end,
+  ["Darkshore"] = function()
+    return L("Darkshore")
+  end,
+  ["Ashenvale"] = function()
+    return L("Ashenvale")
+  end,
+  ["Thousand Needles"] = function()
+    return L("Thousand Needles")
+  end,
+  ["Stonetalon Mountains"] = function()
+    return L("Stonetalon Mountains")
+  end,
+  ["Desolace"] = function()
+    return L("Desolace")
+  end,
+  ["Feralas"] = function()
+    return L("Feralas")
+  end,
+  ["Dustwallow Marsh"] = function()
+    return L("Dustwallow Marsh")
+  end,
+  ["Tanaris"] = function()
+    return L("Tanaris")
+  end,
+  ["Azshara"] = function()
+    return L("Azshara")
+  end,
+  ["Felwood"] = function()
+    return L("Felwood")
+  end,
+  ["Un'Goro Crater"] = function()
+    return L("Un'Goro Crater")
+  end,
+  ["Moonglade"] = function()
+    return L("Moonglade")
+  end,
+  ["Silithus"] = function()
+    return L("Silithus")
+  end,
+  ["Winterspring"] = function()
+    return L("Winterspring")
+  end,
+  ["Alterac Mountains"] = function()
+    return L("Alterac Mountains")
+  end,
+  ["Arathi Highlands"] = function()
+    return L("Arathi Highlands")
+  end,
+  ["Badlands"] = function()
+    return L("Badlands")
+  end,
+  ["Blasted Lands"] = function()
+    return L("Blasted Lands")
+  end,
+  ["Tirisfal Glades"] = function()
+    return L("Tirisfal Glades")
+  end,
+  ["Undercity"] = function()
+    return L("Undercity")
+  end,
+  ["Silverpine Forest"] = function()
+    return L("Silverpine Forest")
+  end,
+  ["Western Plaguelands"] = function()
+    return L("Western Plaguelands")
+  end,
+  ["Eastern Plaguelands"] = function()
+    return L("Eastern Plaguelands")
+  end,
+  ["Hillsbrad Foothills"] = function()
+    return L("Hillsbrad Foothills")
+  end,
+  ["The Hinterlands"] = function()
+    return L("The Hinterlands")
+  end,
+  ["Dun Morogh"] = function()
+    return L("Dun Morogh")
+  end,
+  ["Ironforge"] = function()
+    return L("Ironforge")
+  end,
+  ["Searing Gorge"] = function()
+    return L("Searing Gorge")
+  end,
+  ["Burning Steppes"] = function()
+    return L("Burning Steppes")
+  end,
+  ["Elwynn Forest"] = function()
+    return L("Elwynn Forest")
+  end,
+  ["Stormwind City"] = function()
+    return L("Stormwind City")
+  end,
+  ["Deadwind Pass"] = function()
+    return L("Deadwind Pass")
+  end,
+  ["Duskwood"] = function()
+    return L("Duskwood")
+  end,
+  ["Loch Modan"] = function()
+    return L("Loch Modan")
+  end,
+  ["Redridge Mountains"] = function()
+    return L("Redridge Mountains")
+  end,
+  ["Stranglethorn Vale"] = function()
+    return L("Stranglethorn Vale")
+  end,
+  ["Swamp of Sorrows"] = function()
+    return L("Swamp of Sorrows")
+  end,
+  ["Westfall"] = function()
+    return L("Westfall")
+  end,
+  ["Wetlands"] = function()
+    return L("Wetlands")
+  end,
+}
+
+-- The name of a continent or zone of PVP_MISSION_REGIONS in the language of the client, or nil for a map id that is
+-- not in the tree.
+function PvPMissionTracker.ZoneName(mapId)
+  local key = getZoneIndex().names[mapId]
+  if not key then
+    return nil
+  end
+  return zoneNames[key] and zoneNames[key]() or key
+end
+
+-- Does a mission zone `selectedId` take in a row on `mapId` (docs/PVP_DUELS_ZONES_PLAN.md, 1.3)? The same id always
+-- does; a zone or a continent of the tree also takes what is inside it. An unknown id matches only itself.
+local function zoneMatches(selectedId, mapId)
+  if selectedId == mapId then
+    return true
+  end
+  local members = getZoneIndex().members[selectedId]
+  return members ~= nil and members[mapId] == true
+end
+PvPMissionTracker.ZoneMatches = zoneMatches
 
 -- The rows of `log` in time order (a copy), without the ones over the per-victim daily cap.
 function PvPMissionTracker.CapVictims(log, cap)
@@ -91,8 +265,8 @@ local function inZones(zones, row)
   if not zones or #zones == 0 then
     return true
   end
-  for _, mapId in ipairs(zones) do
-    if row.mapId == mapId then
+  for _, selectedId in ipairs(zones) do
+    if zoneMatches(selectedId, row.mapId) then
       return true
     end
   end

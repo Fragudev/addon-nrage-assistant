@@ -380,12 +380,36 @@ end
 
 -- Does this mission need a client that knows the optional goal fields or the battleground-played kind (protocol minor
 -- 13)? An older client drops the fields (and so counts more than the officer asked for) and refuses the kind.
+-- The zone ids an older client would misread (docs/PVP_DUELS_ZONES_PLAN.md, 1.4): the continents of the zone tree and
+-- the zones that have cities inside them. Built once on first use.
+local newZoneIds
+
+local function getNewZoneIds()
+  if not newZoneIds then
+    newZoneIds = {}
+    for _, region in ipairs(ns.Constants.PVP_MISSION_REGIONS) do
+      newZoneIds[region.mapId] = true
+      for _, zone in ipairs(region.zones) do
+        if zone.includes then
+          newZoneIds[zone.mapId] = true
+        end
+      end
+    end
+  end
+  return newZoneIds
+end
+
 function PvPSeasonModel.UsesNewGoalFeatures(goal)
   if type(goal) ~= "table" then
     return false
   end
   if goal.kind == "bg_played" then
     return true
+  end
+  for _, mapId in ipairs(type(goal.zones) == "table" and goal.zones or {}) do
+    if getNewZoneIds()[mapId] then
+      return true
+    end
   end
   for _, field in ipairs({
     "bgs",

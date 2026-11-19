@@ -2494,9 +2494,11 @@ describe("Window smoke test: PvP seasons", function()
 
   -- The chip text of a listed zone, as the form writes it.
   local function zoneText(e, mapId)
-    for _, zone in ipairs(e.ns.Constants.PVP_MISSION_ZONES) do
-      if zone.mapId == mapId then
-        return e.ns.L(zone.nameKey)
+    for _, region in ipairs(e.ns.Constants.PVP_MISSION_REGIONS) do
+      for _, zone in ipairs(region.zones) do
+        if zone.mapId == mapId then
+          return e.ns.L(zone.nameKey)
+        end
       end
     end
     return tostring(mapId)

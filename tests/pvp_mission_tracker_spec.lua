@@ -544,9 +544,49 @@ describe("PvPMissionTracker texts", function()
     assert.are.equal("Stormwind City", Tracker.ZoneName(1453))
   end)
 
-  it("names every zone of the list", function()
-    for _, zone in ipairs(Constants.PVP_MISSION_ZONES) do
-      assert.is_string(Tracker.ZoneName(zone.mapId))
+  it("names every continent and zone of the tree", function()
+    for _, region in ipairs(Constants.PVP_MISSION_REGIONS) do
+      assert.is_string(Tracker.ZoneName(region.mapId))
+      for _, zone in ipairs(region.zones) do
+        assert.is_string(Tracker.ZoneName(zone.mapId))
+      end
     end
+  end)
+end)
+
+describe("PvPMissionTracker zones", function()
+  it("matches a city only through its zone's includes, and a city on its own", function()
+    local log = { kill(NOW - 2, "A", { mapId = 1455 }), kill(NOW - 1, "B", { mapId = 1426 }) }
+    assert.are.equal(2, progress(mission({ count = 5, zones = { 1426 } }), log).bars[1].done)
+    assert.are.equal(1, progress(mission({ count = 5, zones = { 1455 } }), { log[1] }).bars[1].done)
+    assert.are.equal(0, progress(mission({ count = 5, zones = { 1455 } }), { log[2] }).bars[1].done)
+  end)
+
+  it("matches a continent by its zones and their cities, and nothing outside it", function()
+    local log = {
+      kill(NOW - 3, "A", { mapId = 1411 }),
+      kill(NOW - 2, "B", { mapId = 1454 }),
+      kill(NOW - 1, "C", { mapId = 1436 }),
+    }
+    assert.are.equal(2, progress(mission({ count = 5, zones = { 1414 } }), log).bars[1].done)
+    assert.are.equal(1, progress(mission({ count = 5, zones = { 1415 } }), { log[3] }).bars[1].done)
+    assert.are.equal(0, progress(mission({ count = 5, zones = { 1415 } }), { log[1] }).bars[1].done)
+  end)
+
+  it("matches an unknown map id only exactly", function()
+    assert.is_true(Tracker.ZoneMatches(9999, 9999))
+    assert.is_false(Tracker.ZoneMatches(9999, 9998))
+    assert.is_false(Tracker.ZoneMatches(1411, 9999))
+    assert.is_false(Tracker.ZoneMatches(1411, nil))
+    local log = { kill(NOW - 1, "A", { mapId = 9998 }) }
+    assert.are.equal(0, progress(mission({ count = 5, zones = { 9999 } }), log).bars[1].done)
+  end)
+
+  it("names the continents of the tree", function()
+    ns.Locale.Use("esES")
+    assert.are.equal("Kalimdor", Tracker.ZoneName(1414))
+    assert.are.equal("Reinos del Este", Tracker.ZoneName(1415))
+    ns.Locale.Use("enUS")
+    assert.are.equal("Eastern Kingdoms", Tracker.ZoneName(1415))
   end)
 end)

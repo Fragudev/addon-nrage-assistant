@@ -351,7 +351,14 @@ end
 
 local function zonesField(parent, draft)
   local field = Kit.Field(parent, { label = L("Zones (optional)") })
-  local list = ns.Constants.PVP_MISSION_ZONES
+  -- The zone tree as one flat list: each continent, then its zones (the picker itself comes later).
+  local list = {}
+  for _, region in ipairs(ns.Constants.PVP_MISSION_REGIONS) do
+    list[#list + 1] = region
+    for _, zone in ipairs(region.zones) do
+      list[#list + 1] = zone
+    end
+  end
   local row
   if list then
     -- The listed zones, then any selected zone the list does not have (added as the current zone), so it can be
