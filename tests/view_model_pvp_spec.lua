@@ -1250,3 +1250,84 @@ describe("ViewModel.PvPSubTabs with the Intel module off", function()
     assert.are.same({ "season", "missions", "stats", "feed", "history" }, values(ViewModel.PvPSubTabs()))
   end)
 end)
+
+describe("ViewModel.PvPZonePickerItems", function()
+  local function slice(list, first, last)
+    local part = {}
+    for index = first, last do
+      part[#part + 1] = list[index]
+    end
+    return part
+  end
+
+  -- The items as short strings: "|" for a separator, "# text" for a disabled header, "value:text" for a choice.
+  local function outline(items)
+    local lines = {}
+    for _, item in ipairs(items) do
+      if item.separator then
+        lines[#lines + 1] = "|"
+      elseif item.disabled then
+        lines[#lines + 1] = "# " .. item.text
+      else
+        lines[#lines + 1] = tostring(item.value) .. ":" .. item.text
+      end
+    end
+    return lines
+  end
+
+  it("starts with the whole world and the two continents, then a separator", function()
+    local lines = outline(ViewModel.PvPZonePickerItems())
+    assert.are.same(
+      { "world:Whole world", "1414:Kalimdor", "1415:Eastern Kingdoms", "|" },
+      { lines[1], lines[2], lines[3], lines[4] }
+    )
+  end)
+
+  it("lists each continent's zones after a disabled header, sorted by name, with a separator between", function()
+    local lines = outline(ViewModel.PvPZonePickerItems())
+    assert.are.equal("# Kalimdor", lines[5])
+    assert.are.same({
+      "1440:Ashenvale",
+      "1447:Azshara",
+      "1439:Darkshore",
+      "1457:Darnassus",
+      "1443:Desolace",
+      "1411:Durotar",
+      "1445:Dustwallow Marsh",
+      "1448:Felwood",
+      "1444:Feralas",
+      "1450:Moonglade",
+      "1412:Mulgore",
+      "1454:Orgrimmar",
+      "1451:Silithus",
+      "1442:Stonetalon Mountains",
+      "1446:Tanaris",
+      "1438:Teldrassil",
+      "1413:The Barrens",
+      "1441:Thousand Needles",
+      "1456:Thunder Bluff",
+      "1449:Un'Goro Crater",
+      "1452:Winterspring",
+    }, slice(lines, 6, 26))
+    assert.are.equal("|", lines[27])
+    assert.are.equal("# Eastern Kingdoms", lines[28])
+    assert.are.equal("1416:Alterac Mountains", lines[29])
+    assert.are.equal("1437:Wetlands", lines[#lines])
+  end)
+
+  it("lists every zone and city of the tree exactly once", function()
+    local seen, total = {}, 0
+    for _, item in ipairs(ViewModel.PvPZonePickerItems()) do
+      if not item.separator and not item.disabled and item.value ~= "world" then
+        assert.is_nil(seen[item.value], tostring(item.value))
+        seen[item.value] = true
+        total = total + 1
+      end
+    end
+    local expected = 2
+    for _, region in ipairs(ns.Constants.PVP_MISSION_REGIONS) do
+      expected = expected + #region.zones
+    end
+    assert.are.equal(expected, total)
+  end)
+end)

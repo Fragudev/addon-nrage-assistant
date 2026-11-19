@@ -713,6 +713,38 @@ function ViewModel.PvPParseZones(text)
   return zones
 end
 
+-- The name of a continent or zone of the zone tree, or its map id when the tracker cannot name it.
+local function zoneLabel(mapId)
+  local tracker = ns.PvPMissionTracker
+  return (tracker and tracker.ZoneName and tracker.ZoneName(mapId)) or tostring(mapId)
+end
+
+-- The items of the mission form's zone picker (docs/PVP_DUELS_ZONES_PLAN.md, 1.5): "Whole world" (value "world"),
+-- the two continents, then each continent as a disabled header followed by its zones sorted by name. A separator
+-- comes before every header after the first choices.
+function ViewModel.PvPZonePickerItems()
+  local regions = ns.Constants.PVP_MISSION_REGIONS
+  local items = { { value = "world", text = L("Whole world") } }
+  for _, region in ipairs(regions) do
+    items[#items + 1] = { value = region.mapId, text = zoneLabel(region.mapId) }
+  end
+  for _, region in ipairs(regions) do
+    items[#items + 1] = { separator = true }
+    items[#items + 1] = { text = zoneLabel(region.mapId), disabled = true }
+    local zones = {}
+    for _, zone in ipairs(region.zones) do
+      zones[#zones + 1] = { value = zone.mapId, text = zoneLabel(zone.mapId) }
+    end
+    table.sort(zones, function(a, b)
+      return a.text:lower() < b.text:lower()
+    end)
+    for _, zone in ipairs(zones) do
+      items[#items + 1] = zone
+    end
+  end
+  return items
+end
+
 local function copyList(list)
   local copy = {}
   for index, value in ipairs(list or {}) do
