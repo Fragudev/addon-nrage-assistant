@@ -1,0 +1,19 @@
+release-notes/v1.16.0.md
+  s_906f4e34c204f1::t_819928549885d9 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "aa4319ee0e67963b22258b3508ff2a5a55123acb",
+  "prompts": {},
+  "sessions": {
+    "s_906f4e34c204f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c696518-5152-49ff-9b6d-ec6de89a55b7",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
