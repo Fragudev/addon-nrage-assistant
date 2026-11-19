@@ -153,6 +153,24 @@ function PvPMissionService:OnHonorKill(entry)
   return true
 end
 
+-- Is `name` this character? On Forever a name can have several words and UnitName gives only the first one, so the
+-- full roster name (the identity key without the own realm) is tried first, then the UnitName one. Case-insensitive.
+function PvPMissionService:IsOwnName(name)
+  local platform = self.deps.platform
+  local wanted = name:lower()
+  if platform.GetIdentityKey and platform.NormalizeName then
+    local ok, key = pcall(platform.GetIdentityKey)
+    if ok and type(key) == "string" then
+      local normalized, full = pcall(platform.NormalizeName, key)
+      if normalized and type(full) == "string" and full ~= "" and full:lower() == wanted then
+        return true
+      end
+    end
+  end
+  local read, own = pcall(platform.GetPlayerName)
+  return read and type(own) == "string" and own ~= "" and own:lower() == wanted
+end
+
 -- A system message (CHAT_MSG_SYSTEM). The client prints the result of every duel nearby, so only the own win is
 -- logged, as `{ kind = "duel", at, victim, mapId }` (a loss, another player's duel and any other text log nothing). The
 -- winner is compared with the name the client gives for the player; a name that cannot be read logs nothing. Returns
@@ -163,11 +181,10 @@ function PvPMissionService:OnSystemMessage(message)
     return false
   end
   local parsed, winner, loser = pcall(platform.ParseDuelResult, message)
-  local read, own = pcall(platform.GetPlayerName)
-  if not (parsed and read and type(winner) == "string" and type(loser) == "string" and type(own) == "string") then
+  if not (parsed and type(winner) == "string" and type(loser) == "string") then
     return false
   end
-  if own == "" or winner:lower() ~= own:lower() then
+  if not self:IsOwnName(winner) then
     return false
   end
   local log = self:WriteLog()

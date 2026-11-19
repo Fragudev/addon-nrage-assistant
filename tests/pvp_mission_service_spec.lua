@@ -119,6 +119,13 @@ local function new_client(world, name, withMissions)
         GetPlayerName = function()
           return name
         end,
+        -- The roster's full name once known (several words on Forever), else the UnitName-based key.
+        GetIdentityKey = function()
+          return client.world.identity or (name .. "-Realm")
+        end,
+        NormalizeName = function(value)
+          return (value:gsub("%-Realm$", ""))
+        end,
         HasDuelResult = function()
           return client.world.duelApi ~= false
         end,
@@ -391,6 +398,14 @@ describe("PvPMissionService duel wins", function()
     )
     assert.are.equal(1, member.missions:Progress("m1").bars[1].done)
     assert.are.equal("Duels won", member.missions:Progress("m1").bars[1].label)
+  end)
+
+  it("recognises an own win under the full multi-word roster name, which UnitName cuts to the first word", function()
+    local _, _, member = setup({ kind = "duel_wins", count = 1 })
+    member.world.identity = "Ann Gg"
+    assert.is_true(member.missions:OnSystemMessage("Ann Gg beats Zed"))
+    assert.are.equal("Zed", duels(member)[1].victim)
+    assert.is_false(member.missions:OnSystemMessage("Ann Other beats Zed"))
   end)
 
   it("logs the win of a retreat the same way (the parser already puts the winner first)", function()
