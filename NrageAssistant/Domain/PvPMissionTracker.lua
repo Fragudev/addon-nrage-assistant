@@ -5,6 +5,8 @@ local L = ns.L
 -- given, so the rules are tested without a client.
 --
 -- A log row is `{ kind = "kill", at, victim, mapId?, place, class?, race?, kos? }` for a kill and
+-- `{ kind = "duel", at, victim, mapId? }` for a duel the player won (a kill goal never counts it, a `duel_wins` goal
+-- counts nothing else) and
 -- `{ kind = "bg", result = "win" | "loss", at, mapId?, bg? }` for a battleground result (rows saved before schema 18
 -- carry no `kind`, and a win is `{ at, bgWin = true }`: they still read the same). The rules, in order:
 --   1. The per-victim cap (D14) is applied to the whole log first, before any mission filter: a victim counts at
@@ -30,6 +32,7 @@ function PvPMissionTracker.LabelText(label)
     ["Races"] = L("Races"),
     ["Distinct players"] = L("Distinct players"),
     ["Victories"] = L("Victories"),
+    ["Duels won"] = L("Duels won"),
     ["Battlegrounds"] = L("Battlegrounds"),
   }
   return texts[label] or label
@@ -249,7 +252,11 @@ function PvPMissionTracker.CapVictims(log, cap)
   for _, item in ipairs(ordered) do
     local row = item.row
     if row.victim then
-      local key = ns.PvPSeasonModel.DayKey(row.at) .. "|" .. row.victim:lower()
+      -- Duels and kills of the same opponent are capped apart: a duel never uses up a kill.
+      local key = (row.kind == "duel" and "duel|" or "kill|")
+        .. ns.PvPSeasonModel.DayKey(row.at)
+        .. "|"
+        .. row.victim:lower()
       seen[key] = (seen[key] or 0) + 1
       if seen[key] <= cap then
         kept[#kept + 1] = row
@@ -298,6 +305,9 @@ local function isBg(row)
 end
 
 local function evidenceRow(row, withGuild)
+  if row.kind == "duel" then
+    return { at = row.at, victim = row.victim, mapId = row.mapId, duel = true }
+  end
   if isBg(row) then
     return { at = row.at, bgWin = isWin(row), mapId = row.mapId, bg = row.bg }
   end
@@ -455,6 +465,7 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season, faction
 
   local wantsWins = goal.kind == "bg_wins"
   local wantsBg = wantsWins or goal.kind == "bg_played"
+  local wantsDuels = goal.kind == "duel_wins"
   local rows = {}
   if goal.kind ~= "manual" then
     -- Without a cap of its own the mission reads the log after the global per-victim cap; with one, every row is read
@@ -464,14 +475,17 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season, faction
       local kindOk
       if wantsBg then
         kindOk = isBg(row) and (not wantsWins or isWin(row)) and inList(goal.bgs, row.bg)
+      elseif wantsDuels then
+        kindOk = row.kind == "duel" and row.victim ~= nil
       else
         kindOk = row.victim ~= nil
+          and row.kind ~= "duel"
           and not isBg(row)
           and inList(goal.victimClasses, row.class)
           and inList(goal.victimRaces, row.race)
           and (row.guildInGroup or 0) >= (goal.minGuildInGroup or 0)
       end
-      local placeOk = wantsBg or goal.place == "any" or goal.place == nil or row.place == goal.place
+      local placeOk = wantsBg or wantsDuels or goal.place == "any" or goal.place == nil or row.place == goal.place
       local seasonOk = not season or ns.PvPSeasonModel.Contains(season, row.at)
       if
         kindOk
@@ -514,7 +528,7 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season, faction
     result.bars[1] = { label = "Distinct players", done = math.min(#firsts, goal.count), total = goal.count }
     result.complete = #firsts >= goal.count
     result.evidence = evidenceOf(firsts, withGuild)
-  elseif goal.distinct == "class" or goal.distinct == "race" or goal.distinct == "class_race" then
+  elseif not wantsDuels and (goal.distinct == "class" or goal.distinct == "race" or goal.distinct == "class_race") then
     local dimensions = {}
     local enemyClasses, enemyRaces = PvPMissionTracker.EnemySets(faction)
     if goal.distinct ~= "race" then
@@ -541,7 +555,11 @@ function PvPMissionTracker.Progress(mission, kills, now, claims, season, faction
     result.couldComplete = could
     result.evidence = mergedEvidence(lists, withGuild)
   else
-    result.bars[1] = { label = "Kills", done = math.min(#rows, goal.count), total = goal.count }
+    result.bars[1] = {
+      label = wantsDuels and "Duels won" or "Kills",
+      done = math.min(#rows, goal.count),
+      total = goal.count,
+    }
     result.complete = #rows >= goal.count
     result.evidence = evidenceOf(rows, withGuild)
   end

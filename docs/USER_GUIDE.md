@@ -546,7 +546,12 @@ itself; nothing is shared until you claim.
   the end date of the season, in the current period of the mission (*once*: the whole season; *daily*: today, server
   day, UTC; *weekly*: this ISO week, UTC). The same victim counts at most 3 times per server day, unless the mission sets its own cap.
   A mission can ask for a number of kills, a number of different players, one kill of each enemy class and/or race, a
-  number of battleground wins, or be *manual* (you describe what you did in the note).
+  number of battleground wins, a number of duels won, or be *manual* (you describe what you did in the note).
+- **Duels.** A *duel won* mission counts the duels you win, against players of either faction and guild members
+  included. The addon reads the result from the system message of the game (a knockout or the opponent fleeing) and
+  logs only your own wins: a duel you lose, or one of players near you, counts for nothing. Zones, distinct names, a
+  per-opponent daily cap (3 by default, apart from the one for kills), the event window and the other options work as
+  for kills. A duel never counts for a kill mission. Every claim still needs the approval of an officer.
 - **Zones and place.** A mission can be limited to some zones and to the open world or battlegrounds. A kill whose
   zone the client did not give never matches a zone mission.
 - **Class and race.** The client does not tell the addon the class of a victim directly: the addon remembers the

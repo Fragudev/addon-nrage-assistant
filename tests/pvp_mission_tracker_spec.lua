@@ -528,6 +528,77 @@ describe("PvPMissionTracker mission options", function()
   end)
 end)
 
+describe("PvPMissionTracker duel wins", function()
+  local function duel(at, victim, extra)
+    local row = { kind = "duel", at = at, victim = victim, mapId = 1411 }
+    for key, value in pairs(extra or {}) do
+      row[key] = value
+    end
+    return row
+  end
+
+  it("counts only the duel rows, with the Duels won bar", function()
+    local log = { duel(NOW - 4, "A"), kill(NOW - 3, "B"), duel(NOW - 2, "C"), { at = NOW - 1, bgWin = true } }
+    local result = progress(mission({ kind = "duel_wins", count = 2 }), log)
+    assert.are.same({ { label = "Duels won", done = 2, total = 2 } }, result.bars)
+    assert.is_true(result.complete)
+    assert.is_true(result.claimable)
+  end)
+
+  it("emits the duel evidence shape the approver reads", function()
+    local result = progress(mission({ kind = "duel_wins", count = 1 }), { duel(NOW - 1, "Zed") })
+    assert.are.same({ at = NOW - 1, victim = "Zed", mapId = 1411, duel = true }, result.evidence[1])
+  end)
+
+  it("keeps a kill goal blind to duel rows", function()
+    local log = { duel(NOW - 3, "A"), duel(NOW - 2, "B"), kill(NOW - 1, "C") }
+    assert.are.equal(1, progress(mission({ count = 5 }), log).bars[1].done)
+    assert.are.equal(1, progress(mission({ distinct = "name", count = 5 }), log).bars[1].done)
+    assert.are.equal(0, progress(mission({ kind = "kos", count = 5 }), log).bars[1].done)
+  end)
+
+  it("still counts a kill mission the same when the log has no duels", function()
+    local log = { kill(NOW - 3, "A"), kill(NOW - 2, "B"), kill(NOW - 1, "C"), kill(NOW, "D") }
+    local result = progress(mission(), log)
+    assert.are.same({ { label = "Kills", done = 3, total = 3 } }, result.bars)
+    assert.are.equal(4, #result.evidence)
+    assert.are.same({ at = NOW - 3, victim = "A", mapId = 1411, place = "world" }, result.evidence[1])
+  end)
+
+  it("filters duels by zone and window like a kill goal", function()
+    local log = { duel(NOW - 3, "A", { mapId = 1411 }), duel(NOW - 2, "B", { mapId = 1453 }), duel(NOW - 1, "C") }
+    assert.are.equal(2, progress(mission({ kind = "duel_wins", count = 5, zones = { 1411 } }), log).bars[1].done)
+    local window = { startsAt = NOW - 2, endsAt = NOW }
+    assert.are.equal(2, progress(mission({ kind = "duel_wins", count = 5, window = window }), log).bars[1].done)
+  end)
+
+  it("counts distinct opponents when asked", function()
+    local log = { duel(NOW - 3, "Zed"), duel(NOW - 2, "ZED"), duel(NOW - 1, "Yan") }
+    local result = progress(mission({ kind = "duel_wins", distinct = "name", count = 2 }), log)
+    assert.are.same({ { label = "Distinct players", done = 2, total = 2 } }, result.bars)
+    assert.is_true(result.complete)
+  end)
+
+  it("caps duels and kills of the same opponent separately", function()
+    local log = {}
+    for index = 1, 4 do
+      log[#log + 1] = duel(NOW - 20 + index, "Zed")
+      log[#log + 1] = kill(NOW - 10 + index, "Zed")
+    end
+    assert.are.equal(6, #Tracker.CapVictims(log))
+    assert.are.equal(3, progress(mission({ kind = "duel_wins", count = 9 }), log).bars[1].done)
+    assert.are.equal(3, progress(mission({ count = 9 }), log).bars[1].done)
+    local own = progress(mission({ kind = "duel_wins", count = 9, victimCapPerDay = 1 }), log)
+    assert.are.equal(1, own.bars[1].done)
+  end)
+
+  it("translates the bar label", function()
+    ns.Locale.Use("esES")
+    assert.are.equal("Duelos ganados", Tracker.LabelText("Duels won"))
+    ns.Locale.Use("enUS")
+  end)
+end)
+
 describe("PvPMissionTracker texts", function()
   it("translates the bar labels and the zone names, and passes unknown ones through", function()
     ns.Locale.Use("esES")
