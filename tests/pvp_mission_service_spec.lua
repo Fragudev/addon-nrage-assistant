@@ -357,6 +357,31 @@ describe("PvPMissionService kill log", function()
 end)
 
 describe("PvPMissionService unit cache feed", function()
+  it("retries nameplates with late data and records a kill without target or mouseover", function()
+    local world = new_world()
+    local member = new_client(world, "Ann", true)
+    assert.are.equal(0, member.missions:RescanUnits())
+    member.world.enemy.nameplate17 = { name = "Zed", class = "MAGE", race = "ORC" }
+    member.world.enemy.focus = { name = "Other", class = "ROGUE", race = "TROLL" }
+    assert.are.equal(2, member.missions:RescanUnits())
+    kill(member, "Zed")
+    assert.are.equal("MAGE", member.char.pvpLog.events[1].class)
+    assert.are.equal("ORC", member.char.pvpLog.events[1].race)
+  end)
+
+  it("continues scanning when one unit reader raises", function()
+    local member = new_client(new_world(), "Ann", true)
+    member.missions.deps.platform.GetEnemyPlayerInfo = function(unit)
+      if unit == "nameplate1" then
+        error("unreadable unit")
+      elseif unit == "nameplate40" then
+        return { name = "Zed", class = "MAGE", race = "ORC" }
+      end
+    end
+    assert.are.equal(1, member.missions:RescanUnits())
+    assert.are.equal("MAGE", member.cache:Lookup("Zed"))
+  end)
+
   it("remembers the enemy players it sees, also before a season is known", function()
     local world = new_world()
     local lone = new_client(world, "Ann", true)

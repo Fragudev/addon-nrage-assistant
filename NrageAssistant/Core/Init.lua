@@ -107,7 +107,11 @@ local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
 -- The events the PvP missions listen to (docs/PVP_MISSIONS_PLAN.md, 2.2 and 2.3), each registered on its own so a
 -- client that refuses one keeps the others. The first three fill the unit cache (the unit is the event argument for
 -- a nameplate, otherwise the one named here); none of them is measured on Forever yet (M3 to M5).
-local PVP_MISSION_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
+local PVP_MISSION_UNITS = {
+  PLAYER_TARGET_CHANGED = "target",
+  PLAYER_FOCUS_CHANGED = "focus",
+  UPDATE_MOUSEOVER_UNIT = "mouseover",
+}
 local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
 local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
 local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
@@ -241,6 +245,12 @@ local function StartPvPMissions(feed)
       pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
     end
   end)
+  C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
+    if ns.active and ns.modules:IsEnabled("pvp") then
+      GuardedMissionCall("pvpMissions.unitScan", missions.RescanUnits, missions)
+    end
+  end)
+  missions:RescanUnits()
   missions:StartAnnouncing()
   return missions
 end

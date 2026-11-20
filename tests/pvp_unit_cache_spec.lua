@@ -1,6 +1,6 @@
 local function load_cache()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Domain/PvPUnitCache" }) do
+  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PvPUnitCache" }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns
@@ -27,6 +27,14 @@ describe("PvPUnitCache", function()
     assert.are.equal("WARRIOR", class)
     assert.are.equal("ORC", race)
     assert.is_nil(env.cache:Lookup("Nobody"))
+  end)
+
+  it("matches names when spacing differs", function()
+    local env = build()
+    assert.is_true(env.cache:Remember("Az  Kano", "MAGE", "SCOURGE"))
+    local class, race = env.cache:Lookup("azkano")
+    assert.are.equal("MAGE", class)
+    assert.are.equal("SCOURGE", race)
   end)
 
   it("keeps what is known when a later sighting only gives one of the two", function()

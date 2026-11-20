@@ -31,6 +31,7 @@ PvPMissionService.__index = PvPMissionService
 function PvPMissionService.New(deps)
   return setmetatable({
     deps = deps,
+    units = ns.EnemyPlayerUnits(),
     unitSource = false,
     winSource = false,
     duelSource = false,
@@ -207,6 +208,18 @@ end
 function PvPMissionService:OnUnit(unit)
   local info = self.deps.platform.GetEnemyPlayerInfo(unit)
   return info ~= nil and self.deps.cache:Remember(info.name, info.class, info.race)
+end
+
+-- Retry visible units whose data was not ready at NAME_PLATE_UNIT_ADDED. Independent of the Intel module.
+function PvPMissionService:RescanUnits()
+  local count = 0
+  for _, unit in ipairs(self.units) do
+    local ok, remembered = pcall(self.OnUnit, self, unit)
+    if ok and remembered then
+      count = count + 1
+    end
+  end
+  return count
 end
 
 -- The battleground result (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.4). Three sources, the first that gives a winner

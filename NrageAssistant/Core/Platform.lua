@@ -525,7 +525,7 @@ end
 -- full name as the client gives it and the class and race file tokens (which do not depend on the locale); `class`
 -- and `race` are nil when one is not readable. Nil when the unit is not an enemy player or nothing is readable.
 function Platform.GetEnemyPlayerInfo(unit)
-  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy and UnitClass and UnitRace) then
+  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy) then
     return nil
   end
   local ok, info = pcall(function()
@@ -533,8 +533,16 @@ function Platform.GetEnemyPlayerInfo(unit)
       return nil
     end
     local name = readableName(GetUnitName and GetUnitName(unit, true) or UnitName(unit))
-    local class = fileToken(select(2, UnitClass(unit)))
-    local race = fileToken(select(2, UnitRace(unit)))
+    local class = UnitClass and fileToken(select(2, UnitClass(unit))) or nil
+    local race = UnitRace and fileToken(select(2, UnitRace(unit))) or nil
+    if not (class and race) and UnitGUID and type(_G.GetPlayerInfoByGUID) == "function" then
+      local guid = UnitGUID(unit)
+      local guidOk, _, guidClass, _, guidRace = pcall(_G.GetPlayerInfoByGUID, guid)
+      if guidOk then
+        class = class or fileToken(guidClass)
+        race = race or fileToken(guidRace)
+      end
+    end
     if not name or not (class or race) then
       return nil
     end

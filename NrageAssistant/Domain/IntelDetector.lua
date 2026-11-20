@@ -17,13 +17,7 @@ local IntelDetector = {}
 IntelDetector.__index = IntelDetector
 
 function IntelDetector.New(deps)
-  local units = {}
-  for index = 1, ns.Constants.INTEL_NAMEPLATE_UNITS do
-    units[#units + 1] = "nameplate" .. index
-  end
-  for _, unit in ipairs({ "target", "focus", "mouseover" }) do
-    units[#units + 1] = unit
-  end
+  local units = ns.EnemyPlayerUnits()
   local detector = setmetatable({
     deps = deps,
     units = units,

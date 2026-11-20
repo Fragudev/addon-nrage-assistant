@@ -29,6 +29,7 @@ local Log = ns.PvPProbeLog
 
 local log
 local frame
+local watchTicker
 local lastSnapshot
 -- The unit descriptions already logged since the probe started, so a nameplate event does not fill the log.
 local seenUnits = {}
@@ -186,6 +187,30 @@ local function IsPlayerDeath(destGUID)
   return ok and isPlayer
 end
 
+-- M7: class and race for a combat-log destination, without requiring a unit token such as target or mouseover.
+local function DescribePlayerInfoByGUID(guid)
+  if type(guid) ~= "string" then
+    return "GetPlayerInfoByGUID no GUID"
+  end
+  local getPlayerInfo = _G.GetPlayerInfoByGUID
+  if type(getPlayerInfo) ~= "function" then
+    return "GetPlayerInfoByGUID missing"
+  end
+  local ok, localizedClass, class, localizedRace, race, sex, name, realm = pcall(getPlayerInfo, guid)
+  if not ok then
+    return "GetPlayerInfoByGUID error=" .. Log.ToText(localizedClass)
+  end
+  return ("class=%s classToken=%s race=%s raceToken=%s sex=%s name=%s realm=%s"):format(
+    tostring(localizedClass),
+    tostring(class),
+    tostring(localizedRace),
+    tostring(race),
+    tostring(sex),
+    tostring(name),
+    tostring(realm)
+  )
+end
+
 local function OnCombatLog()
   local fn = _G.CombatLogGetCurrentEventInfo
   if type(fn) ~= "function" then
@@ -211,7 +236,8 @@ local function OnCombatLog()
     destName = destName,
     destFlags = destFlags,
   }, PlayerGuid())
-  log:Record(partyKill and "party_kill" or "player_died", text .. " " .. DescribeInstance())
+  local playerInfo = DescribePlayerInfoByGUID(destGUID)
+  log:Record(partyKill and "party_kill" or "player_died", text .. " " .. playerInfo .. " " .. DescribeInstance())
 end
 
 -- A unit event: the unit is logged once per distinct description.
@@ -221,6 +247,12 @@ local function OnUnit(unit)
     return
   end
   local text = DescribeUnit(unit)
+  local guidOk, guid = Read("UnitGUID", unit)
+  if guidOk and type(guid) == "string" then
+    text = text .. " guid=" .. Log.ToText(guid) .. " " .. DescribePlayerInfoByGUID(guid)
+  else
+    text = text .. " guid=" .. Log.DescribeRead("UnitGUID", guidOk, guid)
+  end
   if not seenUnits[text] then
     seenUnits[text] = true
     log:Record("unit", text)
@@ -266,9 +298,8 @@ local function Start()
   for _, event in ipairs(EVENTS) do
     Register(event)
   end
-  -- Blocked or not on this client is one of the things being measured, so a failure is only logged. The unit events
-  -- are M4 (a registration that shows the "blocked action" dialog is the answer).
-  Register(COMBAT_LOG)
+  -- COMBAT_LOG_EVENT_UNFILTERED is protected on this client and registering it can show a blocked-action dialog.
+  -- The probe deliberately does not register it; unit GUID lookups are enough to measure GetPlayerInfoByGUID safely.
   for event in pairs(UNIT_EVENTS) do
     Register(event)
   end
@@ -283,6 +314,11 @@ local function Start()
 end
 
 local function Stop()
+  if watchTicker then
+    watchTicker:Cancel()
+    watchTicker = nil
+    say("mission watch stopped.")
+  end
   if not frame then
     say("probe is not running.")
     return
@@ -307,10 +343,114 @@ local function PrintLog()
   end
 end
 
+-- The mission log is separate from the probe log: this shows whether an honour message actually reached the mission
+-- service, and which victim data was available when it was appended.
+local function PrintMissionEvents()
+  local missions = ns.pvpMissions
+  if not missions then
+    say("mission service is not running.")
+    return
+  end
+  local events = missions:Events()
+  if #events == 0 then
+    say("mission events: none.")
+    return
+  end
+  local first = math.max(1, #events - 9)
+  say(("mission events (%d total, showing %d-%d):"):format(#events, first, #events))
+  for index = first, #events do
+    local event = events[index]
+    print(
+      ("  [%d] kind=%s at=%s victim=%s place=%s class=%s race=%s mapId=%s"):format(
+        index,
+        tostring(event.kind),
+        tostring(event.at),
+        tostring(event.victim),
+        tostring(event.place),
+        tostring(event.class),
+        tostring(event.race),
+        tostring(event.mapId)
+      )
+    )
+  end
+end
+
+-- Observe the real mission pipeline; reference sets stay bounded by the retained mission log, including at its cap.
+local function WatchMissions()
+  if watchTicker then
+    say("mission watch already running.")
+    return
+  end
+  if not ns.pvpMissions then
+    say("mission service is not running.")
+    return
+  end
+  local previous, lastScan = {}, nil
+  for _, event in ipairs(ns.pvpMissions:Events()) do
+    previous[event] = true
+  end
+  local function tick()
+    if not ns.active or not ns.modules:IsEnabled("pvp") then
+      return
+    end
+    local missions = ns.pvpMissions
+    local count = missions:RescanUnits()
+    local summary = ("mission scan: %d readable enemy units; %d cached names."):format(
+      count,
+      missions.deps.cache:Count()
+    )
+    if summary ~= lastScan then
+      say(summary)
+      lastScan = summary
+    end
+    local current = {}
+    for _, event in ipairs(missions:Events()) do
+      current[event] = true
+      if not previous[event] then
+        say(
+          ("mission event: kind=%s victim=%s class=%s race=%s place=%s mapId=%s"):format(
+            Log.ToText(event.kind),
+            Log.ToText(event.victim),
+            Log.ToText(event.class),
+            Log.ToText(event.race),
+            Log.ToText(event.place),
+            Log.ToText(event.mapId)
+          )
+        )
+      end
+    end
+    previous = current
+  end
+  tick()
+  watchTicker = C_Timer.NewTicker(ns.Constants.INTEL_RESCAN_SECONDS, function()
+    local ok, err = pcall(tick)
+    if not ok then
+      say("mission watch error: " .. Log.ToText(err))
+      watchTicker:Cancel()
+      watchTicker = nil
+    end
+  end)
+  say("mission watch started; use /nrage debug pvp stop to stop.")
+end
+
 local ACTIONS = {
+  watch = WatchMissions,
+  scan = function()
+    if not ns.pvpMissions then
+      say("mission service is not running.")
+      return
+    end
+    say(
+      ("mission scan: %d readable enemy units; %d cached names."):format(
+        ns.pvpMissions:RescanUnits(),
+        ns.pvpMissions.deps.cache:Count()
+      )
+    )
+  end,
   start = Start,
   stop = Stop,
   log = PrintLog,
+  events = PrintMissionEvents,
   clear = function()
     if log then
       log:Clear()
@@ -339,7 +479,7 @@ function PvPProbe.Handle(action)
   if run then
     run()
   else
-    say("usage: /nrage debug pvp start | stop | status | log | clear")
+    say("usage: /nrage debug pvp start | stop | status | log | events | scan | watch | clear")
   end
 end
 

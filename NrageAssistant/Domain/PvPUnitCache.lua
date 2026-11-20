@@ -6,8 +6,8 @@ local _, ns = ...
 --
 --   * It keeps at most PVP_UNIT_CACHE_MAX names; when full, the least recently seen one is dropped.
 --   * An entry older than PVP_UNIT_CACHE_TTL seconds is ignored (and forgotten when it is looked up).
---   * Names are compared without case. Which form of the name the kill feed produces (full or first word) is not
---     measured yet (M3); the cache is keyed by the name exactly as it is given.
+--   * Names are compared through Validate.NameKey (case and whitespace insensitive). Which form of the name the kill
+--     feed produces (full or first word) is not measured yet (M3); a genuinely truncated name still cannot match.
 --
 -- deps = { now = function() -> seconds (monotonic) }
 local PvPUnitCache = {}
@@ -25,7 +25,10 @@ local function keyOf(name)
   if type(name) ~= "string" or name == "" then
     return nil
   end
-  return name:lower()
+  if ns.Validate and ns.Validate.NameKey then
+    return ns.Validate.NameKey(name)
+  end
+  return name:lower():gsub("%s+", "")
 end
 
 function PvPUnitCache:Count()
