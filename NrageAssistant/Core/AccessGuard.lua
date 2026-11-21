@@ -5,7 +5,8 @@ local AccessGuard = {}
 
 -- Returns true, or false plus a reason code:
 -- "not_in_guild" | "wrong_guild" | "wrong_faction" | "wrong_ruleset" | "pending"
--- "pending" means the client has not given a value yet, which happens around login: nothing is known either way.
+-- "pending" means the client has not given the guild or the faction yet, which happens around login: nothing is
+-- known either way.
 function AccessGuard.Evaluate(platform, constants)
   if not platform.IsInGuild() then
     return false, "not_in_guild"
@@ -37,11 +38,10 @@ function AccessGuard.Evaluate(platform, constants)
     return false, "wrong_faction"
   end
 
+  -- WoW Forever blanks the realm name ("" or nothing). The ruleset cannot be read then, and the guild check above
+  -- already pins the guild, so the check is skipped instead of waiting for a value that never comes.
   local realm = platform.GetRealmName()
-  if realm == nil or realm == "" then
-    return false, "pending"
-  end
-  if not realm:find(constants.RULESET_REALM_MARKER, 1, true) then
+  if type(realm) == "string" and realm ~= "" and not realm:find(constants.RULESET_REALM_MARKER, 1, true) then
     return false, "wrong_ruleset"
   end
 
