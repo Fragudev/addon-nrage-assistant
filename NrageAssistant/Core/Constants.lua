@@ -23,6 +23,9 @@ ns.Constants = {
   -- The PvP ruleset shows up in the normalized realm name (beta: "ClassicBetaPvP", live EU: "CAMWOWEU4Realm2PvP").
   -- Matched as a plain substring so a rename of the realm prefix does not break it.
   RULESET_REALM_MARKER = "PvP",
+  -- The realm of the guild on live. WoW Forever now returns "" from the realm APIs; this name stands in for it so the
+  -- saved data of each character and the rank map keep the keys they were saved under.
+  HOME_REALM = "CAMWOWEU4Realm2PvP",
   -- Around login the client may not have the guild data yet: the access check waits up to one minute for it.
   ACCESS_RETRY_SECONDS = 2,
   ACCESS_RETRY_MAX = 30,

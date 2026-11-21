@@ -104,8 +104,15 @@ function Platform.GetFaction()
   return faction
 end
 
+-- The normalized realm name. WoW Forever now blanks it ("" or nothing), so the home realm of the guild stands in:
+-- it keeps the keys built from the realm (the saved data of each character, the rank map of the guild) as they were.
+-- Nil when the client gives nothing and there is no home realm.
 function Platform.GetRealmName()
-  return GetNormalizedRealmName()
+  local realm = GetNormalizedRealmName()
+  if type(realm) == "string" and realm ~= "" then
+    return realm
+  end
+  return ns.Constants and ns.Constants.HOME_REALM or nil
 end
 
 function Platform.IsChatMessagingLockedDown()

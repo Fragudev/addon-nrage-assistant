@@ -112,6 +112,52 @@ describe("Platform.NormalizeName", function()
   end)
 end)
 
+describe("Platform.GetRealmName", function()
+  local function realm_with(value, constants)
+    local result
+    with_globals({
+      GetNormalizedRealmName = function()
+        return value
+      end,
+    }, function()
+      local ns = { Constants = constants }
+      assert(loadfile("NrageAssistant/Core/Platform.lua"))("NrageAssistant", ns)
+      result = ns.Platform.GetRealmName()
+    end)
+    return result
+  end
+
+  local home = { HOME_REALM = "HomeRealmPvP" }
+
+  it("returns the realm the client gives", function()
+    assert.are.equal("ClassicBetaPvP", realm_with("ClassicBetaPvP", home))
+  end)
+
+  it("falls back to the home realm when the client blanks it (WoW Forever)", function()
+    assert.are.equal("HomeRealmPvP", realm_with("", home))
+    assert.are.equal("HomeRealmPvP", realm_with(nil, home))
+  end)
+
+  it("keeps the saved-data key of the character when the realm is blanked", function()
+    with_globals({
+      UnitName = function()
+        return "Yonemon"
+      end,
+      GetNormalizedRealmName = function()
+        return ""
+      end,
+    }, function()
+      local ns = { Constants = home }
+      assert(loadfile("NrageAssistant/Core/Platform.lua"))("NrageAssistant", ns)
+      assert.are.equal("Yonemon-HomeRealmPvP", ns.Platform.GetLegacyIdentityKey())
+    end)
+  end)
+
+  it("gives nothing when the client blanks it and there is no home realm", function()
+    assert.is_nil(realm_with("", nil))
+  end)
+end)
+
 describe("Platform identity key", function()
   local function client()
     return {
