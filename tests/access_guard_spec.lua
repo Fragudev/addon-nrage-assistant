@@ -103,12 +103,23 @@ describe("AccessGuard.Evaluate", function()
     pending({ GetGuildClubId = none }, by_id)
     pending({ GetGuildName = none }, by_name)
     pending({ GetFaction = none }, by_name)
-    pending({ GetRealmName = none }, by_name)
-    pending({
-      GetRealmName = function()
-        return ""
-      end,
-    }, by_name)
+  end)
+
+  -- WoW Forever now returns "" (or nothing) from GetRealmName: the ruleset cannot be read, and the guild check
+  -- already pins the guild, so a blank realm must not keep the addon off.
+  it("lets members in when the client gives no realm", function()
+    for _, value in ipairs({ "", false }) do
+      local ok, reason = guard.Evaluate(
+        fake_platform({
+          GetRealmName = function()
+            return value or nil
+          end,
+        }),
+        by_id
+      )
+      assert.is_true(ok)
+      assert.is_nil(reason)
+    end
   end)
 
   it("rejects the wrong faction", function()
