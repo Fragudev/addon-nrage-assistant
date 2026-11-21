@@ -1,0 +1,19 @@
+release-notes/v1.16.1.md
+  s_b1e8e8274d9a7d::t_c204be8a566106 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "ce8b0c06677179a57779bd4310dafc7e61043c84",
+  "prompts": {},
+  "sessions": {
+    "s_b1e8e8274d9a7d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced6b2cd-a774-4240-a089-827ac289fdde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
