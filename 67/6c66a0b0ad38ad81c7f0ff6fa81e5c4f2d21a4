@@ -1,0 +1,27 @@
+NrageAssistant/Core/AccessGuard.lua
+  s_b1e8e8274d9a7d::t_fadca290ab2255 8-9,41-42,44
+NrageAssistant/Core/Constants.lua
+  s_b1e8e8274d9a7d::t_2e1e5cb935b3b3 14-16
+NrageAssistant/Core/Platform.lua
+  s_b1e8e8274d9a7d::t_440ec3f19256a0 107-109,111-115
+tests/access_guard_spec.lua
+  s_b1e8e8274d9a7d::t_47157741fa4f77 106-122
+tests/platform_spec.lua
+  s_b1e8e8274d9a7d::t_4fdaa00d756ffa 115-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "676c66a0b0ad38ad81c7f0ff6fa81e5c4f2d21a4",
+  "prompts": {},
+  "sessions": {
+    "s_b1e8e8274d9a7d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ced6b2cd-a774-4240-a089-827ac289fdde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
