@@ -558,7 +558,7 @@ ns.Locale.Register("es", {
   ["Skinning"] = "Desuello",
   ["Slots that must be enchanted"] = "Ranuras que deben estar encantadas",
   ["Spell names or ids, separated by commas"] = "Nombres o ids de hechizos, separados por comas",
-  ["Tailoring"] = "Sastrería",
+  ["Tailoring"] = "Costura",
   ["The player confirms this one by hand."] = "El jugador confirma esta a mano.",
   ["%d to %s"] = "%d para %s",
   ["Automatic"] = "Automática",

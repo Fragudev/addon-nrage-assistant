@@ -18,7 +18,7 @@ Professions.ENTRIES = {
   { key = "leatherworking", en = "Leatherworking", es = "Peletería", id = 165 },
   { key = "mining", en = "Mining", es = "Minería", id = 186 },
   { key = "skinning", en = "Skinning", es = "Desuello", id = 393 },
-  { key = "tailoring", en = "Tailoring", es = "Sastrería", id = 197 },
+  { key = "tailoring", en = "Tailoring", es = "Costura", id = 197 },
   { key = "cooking", en = "Cooking", es = "Cocina", id = 185 },
   { key = "fishing", en = "Fishing", es = "Pesca", id = 356 },
   { key = "firstaid", en = "First Aid", es = "Primeros auxilios", id = 129 },

@@ -83,7 +83,7 @@ The addon is published on CurseForge, but it only works for Nrage:
   there; the login message says why.
 - Shared data is accepted only from guild members, and edits only from members whose role allows them.
 - Your role is your **guild rank**, matched by name (`Emperador`, `Comandante`, `Oficial`, `Raid Lider`, `Raider`,
-  `Soldado`, `Alter`); the guild master is recognised by rank index 0, never by a name. A rank with any other name
+  `Comunidad`, `Alter`); the guild master is recognised by rank index 0, never by a name. A rank with any other name
   counts as Alter.
 - The Emperador and Comandante can save a **rank mapping** (Admin, Ranks) that ties each rank position to a role, so a
   rank renamed in the game keeps its role. A Comandante cannot change their own rank's role.
