@@ -1,0 +1,25 @@
+NrageAssistant/Core/Platform.lua
+  s_076bf10c38fc89::t_100e51c2f13908 347-365
+NrageAssistant/Domain/Professions.lua
+  s_076bf10c38fc89::t_4ff4b94becd977 11-13,15-18,20-26,72-88,111,117,137
+NrageAssistant/UI/ViewModelProfessions.lua
+  s_076bf10c38fc89::t_a7badc3172131b 190
+tests/professions_spec.lua
+  s_076bf10c38fc89::t_3a7fc21e0e8b2b 69-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "497e451ed35263edd23e3283a670c27c9758e475",
+  "prompts": {},
+  "sessions": {
+    "s_076bf10c38fc89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b32593f5-d0b5-4a3b-8c46-3d962c81a9c2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
