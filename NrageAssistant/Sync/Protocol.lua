@@ -320,6 +320,18 @@ local function validatePvPStats(payload)
       return nil
     end
   end
+  -- The kills counted for the active season (optional: older clients send none). Never above the totals.
+  if payload.season ~= nil then
+    local season = payload.season
+    if type(season) ~= "table" or not isText(season.id, 64) or season.id:find("[%c|]") then
+      return nil
+    end
+    local pair = validatePair(season)
+    if not pair or pair.world > clean.honor.world or pair.bg > clean.honor.bg then
+      return nil
+    end
+    clean.season = { id = season.id, world = pair.world, bg = pair.bg }
+  end
   return clean
 end
 

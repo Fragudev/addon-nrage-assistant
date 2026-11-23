@@ -14,8 +14,13 @@ local _, ns = ...
 -- PVP_RESET (admin only) zeroes the record of a member and raises the minimum `rev` accepted for them, so the
 -- totals they had cannot come back. The reset of this client's own key is handed to `ctx.onOwnReset(rev)`.
 --
+-- A record may carry `season = { id, world, bg }`: the kills counted while season `id` was active (they feed the
+-- season ranking). They are never above the totals; they restart with each season, so they are not held to the
+-- "never goes down" rule of the totals.
+--
 -- ctx = { pvpStats = db.global.pvpStats, pvpResets = db.global.pvpResets, now = function(),
---         ownKey = function() -> string (optional), onOwnReset = function(rev) (optional) }
+--         ownKey = function() -> string (optional), onOwnReset = function(rev) (optional),
+--         onOwnRecord = function(record) (optional): the guild's record of this character was stored }
 -- Every function returns true, or false plus:
 --   "unknown_sender" | "forbidden" | "reset" | "stale" | "implausible" | "limit" | "unsupported"
 local PvPSync = {}
@@ -136,8 +141,14 @@ local function applyStats(ctx, payload, owner, role, relayed)
     },
     rev = payload.rev,
     updatedAt = updatedAt,
+    season = payload.season and { id = payload.season.id, world = payload.season.world, bg = payload.season.bg } or nil,
     receivedAt = ctx.now(),
   }
+  -- The record of this very character came back from the guild (a snapshot, or the echo): the local counters may have
+  -- been lost while the guild still holds them.
+  if ctx.ownKey and ctx.onOwnRecord and owner == ctx.ownKey() then
+    ctx.onOwnRecord(ctx.pvpStats[owner])
+  end
   return true
 end
 
@@ -215,6 +226,10 @@ function PvPSync.OwnPayload(stats, rev, updatedAt, day, blowsAvailable)
   if blowsAvailable then
     payload.blows = copyPair(totals.blows)
     payload.today.blows = copyPair(today.blows)
+  end
+  local season = stats.season
+  if type(season) == "table" and type(season.id) == "string" then
+    payload.season = { id = season.id, world = season.world, bg = season.bg }
   end
   return payload
 end

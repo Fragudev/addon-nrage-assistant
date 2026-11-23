@@ -720,7 +720,25 @@ function Comm:PvPContext()
     now = self.platform.ServerTime,
     ownKey = self.platform.GetIdentityKey,
     onOwnReset = self.onPvPReset,
+    onOwnRecord = function(record)
+      self:AdoptOwnPvPRecord(record)
+    end,
   }
+end
+
+-- The guild holds a record of this very character (a snapshot or the echo of a message): when it is above the local
+-- counters (they were lost: a new saved-data key, a reinstall), the local ones are raised to it, so the character sees
+-- its own kills again, keeps counting from there and publishes the right totals. Never lowers anything.
+function Comm:AdoptOwnPvPRecord(record)
+  local stats = ns.character and ns.character.pvp
+  if stats and ns.PvPService.Adopt(stats, record) then
+    if ns.pvpPublisher then
+      ns.pvpPublisher:Changed()
+    end
+    if self.onPvPChange then
+      self.onPvPChange("PVP_STATS")
+    end
+  end
 end
 
 -- PVP_STATS and PVP_RESET: the sender's role is read from the local guild roster, and a record belongs to the

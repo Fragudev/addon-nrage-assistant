@@ -296,6 +296,12 @@ saved. There are no switches: all your kills are always shared with the guild.
 A PvP season is a period in which missions give points and the points make a ranking. Everything is in the PvP tab
 (`docs/PVP_MISSIONS_PLAN.md`); the `/nrage pvp ...` commands still work for testing.
 
+**Kill points.** Kills also give season points, on top of the missions: 1 point for each world kill and 1 point for
+every 5 battleground kills (rounded down). They count only while a season is active, and only the kills made in that
+season. When the season is closed, its points (kills included) stay in the all-time ranking, and the next season
+starts counting kills from zero. Kills made before this feature, or before a season was open, are not counted
+retroactively.
+
 | Who | Can |
 |---|---|---|
 | member | everybody the guild master did not assign a role to | see shared data, edit and publish your own sheet, put yourself forward for loot (in your roster), add players to the blacklist |
@@ -495,6 +501,12 @@ saved. There are no switches: all your kills are always shared with the guild.
 A PvP season is a period in which missions give points and the points make a ranking. Everything described here is
 the base of the system: for now it is driven with `/nrage pvp ...` commands, and the PvP tab will get its own screens
 in a later version (`docs/PVP_MISSIONS_PLAN.md`).
+
+**Kill points.** Kills also give season points, on top of the missions: 1 point for each world kill and 1 point for
+every 5 battleground kills (rounded down). They count only while a season is active, and only the kills made in that
+season. When the season is closed, its points (kills included) stay in the all-time ranking, and the next season
+starts counting kills from zero. Kills made before this feature, or before a season was open, are not counted
+retroactively.
 
 | Who | Can |
 |---|---|
