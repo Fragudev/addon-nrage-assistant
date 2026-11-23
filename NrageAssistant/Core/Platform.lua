@@ -344,6 +344,25 @@ function Platform.GetItemDetails(itemId)
   return next(details) and details or nil
 end
 
+-- The name the client gives a spell in its own language, or nil (no such API, unknown spell, not a string).
+function Platform.GetSpellName(spellId)
+  if type(spellId) ~= "number" then
+    return nil
+  end
+  local ok, name = pcall(function()
+    if C_Spell and C_Spell.GetSpellInfo then
+      local spell = C_Spell.GetSpellInfo(spellId)
+      return spell and spell.name
+    elseif GetSpellInfo then
+      return (GetSpellInfo(spellId))
+    end
+  end)
+  if ok and type(name) == "string" and name ~= "" then
+    return name
+  end
+  return nil
+end
+
 -- The client's interface number (build 16001 on the Forever beta).
 -- The client's locale code ("enUS", "esES"...); "enUS" when the client does not say.
 function Platform.GetLocale()
