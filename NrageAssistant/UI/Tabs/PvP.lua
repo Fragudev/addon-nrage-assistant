@@ -159,7 +159,17 @@ local function drawRankingTable(region, data, withBlows)
   end
 end
 
+-- The guild may hold a record of this character above the local counters (saved counters lost while the guild kept
+-- them): the others show that record, so this character takes it over instead of showing zeros. Never lowers anything.
+local function adoptHeldRecord()
+  local held = ns.db and ns.db.global.pvpStats and ns.db.global.pvpStats[ns.Platform.GetIdentityKey()]
+  if held and ns.character and ns.PvPService.Adopt(ns.character.pvp, held) and ns.pvpPublisher then
+    ns.pvpPublisher:Changed()
+  end
+end
+
 function rankingData()
+  adoptHeldRecord()
   local tracker = ns.pvpTracker
   local rosterNames = {}
   if ns.guildRoster then

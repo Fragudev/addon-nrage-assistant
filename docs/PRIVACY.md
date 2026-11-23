@@ -146,11 +146,10 @@ not agreed to it, so read the switches before you play with them.
 ## Your layer
 
 The layer you are on is coarse location data. It is sent with the zone you are in (the zone name level, e.g. Elwynn
-Forest, never your position in it), because layers are per zone and a swap only works inside one zone. It is read from the creatures you target or mouse over, kept **in
+Forest, never your position in it), because layers are per zone. It is read from the creatures you target or mouse over, kept **in
 memory only** (never saved), shared with the guild only, and forgotten by everyone after 15 minutes without a new
 message. **Share my layer** (Layers tab, on by default) stops sharing it: the addon then tells the guild once to
-forget you and sends nothing more. With sharing off you can still ask for a swap: the request carries the layer you
-want, not the one you are on. A guildmate who answers a request tells the requester that they are on that layer.
+forget you and sends nothing more.
 
 ## Your map position
 

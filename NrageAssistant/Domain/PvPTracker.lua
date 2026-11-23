@@ -22,13 +22,15 @@ local function safe(fn, ...)
   return nil
 end
 
--- deps = { platform, stats (the saved table), schedule = C_Timer.After, onChange = function() }
+-- deps = { platform, stats (the saved table), schedule = C_Timer.After, onChange = function(),
+--          seasonId = function() -> id of the active PvP season or nil (default: ns.pvpSeason) }
 function PvPTracker.New(deps)
   local tracker = setmetatable({}, PvPTracker)
   tracker.platform = deps.platform
   tracker.stats = ns.PvPService.Ensure(deps.stats)
   tracker.schedule = deps.schedule
   tracker.onChange = deps.onChange
+  tracker.seasonIdOf = deps.seasonId
   tracker.baseline = nil
   -- Both are decided at start-up: honour by whether the session counter can be read, blows by the wiring.
   tracker.honorAvailable = false
@@ -44,6 +46,26 @@ end
 -- "bg" inside a battleground; "world" anywhere else and when the client does not say.
 function PvPTracker:Where()
   return safe(self.platform.IsInBattleground) == true and "bg" or "world"
+end
+
+-- The id of the season the kills count for now: the active season while its dates hold, nil otherwise. The season
+-- service is looked up when it is needed (it starts after the tracker).
+function PvPTracker:SeasonId()
+  if self.seasonIdOf then
+    return safe(self.seasonIdOf)
+  end
+  local service = ns.pvpSeason
+  local season = service and safe(service.ActiveSeason, service)
+  if type(season) ~= "table" or season.state ~= "active" then
+    return nil
+  end
+  local now = safe(self.platform.ServerTime)
+  if type(now) == "number" and type(season.endsAt) == "number" and type(season.startsAt) == "number" then
+    if now < season.startsAt or now > season.endsAt then
+      return nil
+    end
+  end
+  return season.id
 end
 
 function PvPTracker:Changed()
@@ -68,7 +90,7 @@ function PvPTracker:CheckHonor()
   self.baseline = current
   self.honorAvailable = true
   if baseline and current > baseline then
-    if ns.PvPService.RecordHonorKills(self.stats, current - baseline, self:Where(), self:Day()) then
+    if ns.PvPService.RecordHonorKills(self.stats, current - baseline, self:Where(), self:Day(), self:SeasonId()) then
       self:Changed()
     end
   end

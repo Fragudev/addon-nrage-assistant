@@ -438,21 +438,6 @@ function ns.SetLayerShare(share)
   ns.UI.LayersChanged()
 end
 
--- A swap and a Groups post or application exclude each other (docs/LFG_PLAN.md 2.4): the swap rules refuse with "lfg"
--- while the Groups service is busy. The service starts after this and is looked up when asked.
-local function ExcludeLfg(rules)
-  local function guarded(rule)
-    return function(...)
-      local ok, reason = rule(...)
-      if ok and ns.lfgService and ns.lfgService:IsBusy() then
-        return false, "lfg"
-      end
-      return ok, reason
-    end
-  end
-  return { requester = guarded(rules.requester), helper = guarded(rules.helper) }
-end
-
 -- Own frame. Runs once: access can be lost and regained. Everything the client has to say is guarded, so a wrong
 -- assumption about layers (docs/API_NOTES.md) leaves the feature quietly unavailable instead of raising.
 local function StartLayer()
@@ -461,18 +446,13 @@ local function StartLayer()
   end
   layerStarted = true
   local platform = ns.Platform
-  local function isLocked()
-    return not ns.lockdown:CanSend()
-  end
-
-  local swap, publisher
+  local publisher
   local tracker = ns.LayerTracker.New({
     now = platform.Now,
     isInInstance = platform.IsInInstance,
     zone = platform.GetPlayerZoneId,
-    onChange = function(current)
+    onChange = function()
       publisher:Changed()
-      swap:OnLayerConfirmed(current)
       ns.UI.LayersChanged()
     end,
   })
@@ -497,45 +477,9 @@ local function StartLayer()
       return ns.LayerModel.Settings(ns.db).share
     end,
   })
-  swap = ns.LayerSwap.New({
-    now = platform.Now,
-    schedule = C_Timer.After,
-    send = function(payload)
-      return ns.comm:SendLayerSwap(payload)
-    end,
-    isLocked = isLocked,
-    ownName = platform.GetIdentityKey,
-    newId = function()
-      return ns.comm:NextId()
-    end,
-    ownLayer = ownLayer,
-    ownZone = platform.GetPlayerZoneId,
-    eligibility = ExcludeLfg(ns.LayerSwap.Eligibility(platform, ownLayer, isLocked)),
-    invite = function(name)
-      local ok, reason = platform.InviteByName(name)
-      ns.LayerProbe.Note(
-        "invite",
-        ("InviteByName('%s') -> %s %s"):format(tostring(name), tostring(ok), tostring(reason))
-      )
-      return ok, reason
-    end,
-    leave = function()
-      local ok, reason = platform.LeaveGroup()
-      ns.LayerProbe.Note("leave", ("LeaveGroup() -> %s %s"):format(tostring(ok), tostring(reason)))
-      return ok, reason
-    end,
-    onJoined = function(t)
-      tracker:ResetSince(t)
-    end,
-    onChange = function()
-      ns.UI.LayersChanged()
-      ns.LayerPopup.Refresh()
-    end,
-  })
-  ns.layerTracker, ns.layerDirectory, ns.layerSwap, ns.layerPublisher = tracker, directory, swap, publisher
-  ns.comm.layerDirectory, ns.comm.layerSwap = directory, swap
+  ns.layerTracker, ns.layerDirectory, ns.layerPublisher = tracker, directory, publisher
+  ns.comm.layerDirectory = directory
   ns.comm.onLayerChange = ns.UI.LayersChanged
-  ns.LayerPopup.Start()
 
   local layerFrame = CreateFrame("Frame")
   for event in pairs(LAYER_UNIT_EVENTS) do
@@ -545,7 +489,6 @@ local function StartLayer()
   for _, event in ipairs(LAYER_WORLD_EVENTS) do
     platform.TryRegisterEvent(layerFrame, event)
   end
-  local wasGrouped = platform.IsInGroup()
   layerFrame:SetScript("OnEvent", function(_, event, arg1)
     if not ns.active then
       return
@@ -559,13 +502,6 @@ local function StartLayer()
       return
     end
     tracker:Expire()
-    if event == "GROUP_ROSTER_UPDATE" then
-      local grouped = platform.IsInGroup()
-      if grouped and not wasGrouped then
-        swap:OnGroupJoined()
-      end
-      wasGrouped = grouped
-    end
     ns.UI.LayersChanged()
   end)
 
@@ -603,9 +539,6 @@ local function StartLfg()
   local function isLocked()
     return not ns.lockdown:CanSend()
   end
-  local function swapActive()
-    return ns.layerSwap ~= nil and ns.layerSwap:IsActive()
-  end
 
   local board = ns.LfgBoard.New({
     now = platform.Now,
@@ -631,7 +564,7 @@ local function StartLfg()
       return ns.comm:NextId()
     end,
     ownLevel = OwnLevel,
-    eligibility = ns.LfgService.Eligibility(platform, isLocked, swapActive),
+    eligibility = ns.LfgService.Eligibility(platform, isLocked),
     invite = function(name)
       local ok, reason = platform.InviteByName(name)
       ns.LayerProbe.Note(

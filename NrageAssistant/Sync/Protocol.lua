@@ -320,6 +320,18 @@ local function validatePvPStats(payload)
       return nil
     end
   end
+  -- The kills counted for the active season (optional: older clients send none). Never above the totals.
+  if payload.season ~= nil then
+    local season = payload.season
+    if type(season) ~= "table" or not isText(season.id, 64) or season.id:find("[%c|]") then
+      return nil
+    end
+    local pair = validatePair(season)
+    if not pair or pair.world > clean.honor.world or pair.bg > clean.honor.bg then
+      return nil
+    end
+    clean.season = { id = season.id, world = pair.world, bg = pair.bg }
+  end
   return clean
 end
 
@@ -410,11 +422,8 @@ local function validatePvPReset(payload)
   return { target = payload.target, rev = payload.rev }
 end
 
--- Layers. LAYER_STATE is the sender's own layer (`layer = 0` means "forget me"); LAYER_SWAP is one step of a swap.
--- Neither names who acts: the actor is always the sender. Only the helper of an `assign` is named, and it is
--- plain text like any character name.
-local SWAP_STEPS = { request = true, offer = true, assign = true, close = true }
-local SWAP_OUTCOMES = { done = true, expired = true, cancelled = true, declined = true, unconfirmed = true }
+-- Layers. LAYER_STATE is the sender's own layer (`layer = 0` means "forget me"). It names nobody: the actor is always
+-- the sender. (Older clients also sent LAYER_SWAP; it is no longer known and is dropped as an unknown type.)
 
 -- The optional `zone` of a layer message (older clients send none): nil when absent, false when malformed.
 local function layerZone(payload)
@@ -434,36 +443,6 @@ local function validateLayerState(payload)
     return nil
   end
   return { map = payload.map, layer = payload.layer, zone = zone }
-end
-
-local function validateLayerSwap(payload)
-  local constants = ns.Constants
-  local step = payload.s
-  if not (isId(payload.rid) and type(step) == "string" and SWAP_STEPS[step]) then
-    return nil
-  end
-  local clean = { rid = payload.rid, s = step }
-  if step == "request" then
-    if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 1, constants.LAYER_ID_MAX)) then
-      return nil
-    end
-    local zone = layerZone(payload)
-    if zone == false then
-      return nil
-    end
-    clean.map, clean.layer, clean.zone = payload.map, payload.layer, zone
-  elseif step == "assign" then
-    if not ns.EventModel.IsCharacterKey(payload.helper) then
-      return nil
-    end
-    clean.helper = payload.helper
-  elseif step == "close" then
-    if not (type(payload.o) == "string" and SWAP_OUTCOMES[payload.o]) then
-      return nil
-    end
-    clean.o = payload.o
-  end
-  return clean
 end
 
 -- Groups (docs/LFG_PLAN.md). LFG_POST is the post of its sender (the owner is always the sender); LFG_APPLY is one step
@@ -774,7 +753,6 @@ local VALIDATORS = {
   KOS_DELETE = validateKosDelete,
   ROSTER_RULES = validateRosterRules,
   LAYER_STATE = validateLayerState,
-  LAYER_SWAP = validateLayerSwap,
   LFG_POST = validateLfgPost,
   LFG_APPLY = validateLfgApply,
   RECIPES = validateRecipes,

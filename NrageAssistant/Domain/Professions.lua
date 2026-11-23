@@ -8,20 +8,22 @@ local Professions = {}
 
 local L = ns.L
 
--- In the order of the Rules picker. `id` is the base skill line id (C_TradeSkillUI.GetBaseProfessionInfo).
+-- In the order of the Rules picker. `id` is the base skill line id (C_TradeSkillUI.GetBaseProfessionInfo). `spell`
+-- is the profession's own spell, whose name the client gives in its language (none for Herbalism: its spell is
+-- "Herb Gathering"; the catalog names it).
 Professions.ENTRIES = {
-  { key = "alchemy", en = "Alchemy", es = "Alquimia", id = 171 },
-  { key = "blacksmithing", en = "Blacksmithing", es = "Herrería", id = 164 },
-  { key = "enchanting", en = "Enchanting", es = "Encantamiento", id = 333 },
-  { key = "engineering", en = "Engineering", es = "Ingeniería", id = 202 },
+  { key = "alchemy", en = "Alchemy", es = "Alquimia", id = 171, spell = 2259 },
+  { key = "blacksmithing", en = "Blacksmithing", es = "Herrería", id = 164, spell = 2018 },
+  { key = "enchanting", en = "Enchanting", es = "Encantamiento", id = 333, spell = 7411 },
+  { key = "engineering", en = "Engineering", es = "Ingeniería", id = 202, spell = 4036 },
   { key = "herbalism", en = "Herbalism", es = "Herboristería", id = 182 },
-  { key = "leatherworking", en = "Leatherworking", es = "Peletería", id = 165 },
-  { key = "mining", en = "Mining", es = "Minería", id = 186 },
-  { key = "skinning", en = "Skinning", es = "Desuello", id = 393 },
-  { key = "tailoring", en = "Tailoring", es = "Sastrería", id = 197 },
-  { key = "cooking", en = "Cooking", es = "Cocina", id = 185 },
-  { key = "fishing", en = "Fishing", es = "Pesca", id = 356 },
-  { key = "firstaid", en = "First Aid", es = "Primeros auxilios", id = 129 },
+  { key = "leatherworking", en = "Leatherworking", es = "Peletería", id = 165, spell = 2108 },
+  { key = "mining", en = "Mining", es = "Minería", id = 186, spell = 2575 },
+  { key = "skinning", en = "Skinning", es = "Desuello", id = 393, spell = 8613 },
+  { key = "tailoring", en = "Tailoring", es = "Sastrería", id = 197, spell = 3908 },
+  { key = "cooking", en = "Cooking", es = "Cocina", id = 185, spell = 2550 },
+  { key = "fishing", en = "Fishing", es = "Pesca", id = 356, spell = 7620 },
+  { key = "firstaid", en = "First Aid", es = "Primeros auxilios", id = 129, spell = 3273 },
 }
 
 -- The accented vowels of Spanish (UTF-8), lower and upper case, and the plain vowel each stands for.
@@ -67,6 +69,23 @@ local NAMES = ns.Locale.Table(function()
   }
 end)
 
+-- The name the client itself gives a profession, when the addon shows the language of the client (a name in another
+-- language is not the client's to give); nil when there is no such name, and the catalog names it then.
+local function clientName(entry)
+  local platform = ns.Platform
+  if not entry.spell or not platform or not platform.GetSpellName or not platform.GetLocale then
+    return nil
+  end
+  if ns.Locale.Language() ~= ns.Locale.LanguageFor(platform.GetLocale()) then
+    return nil
+  end
+  return platform.GetSpellName(entry.spell)
+end
+
+local function displayName(entry)
+  return clientName(entry) or NAMES[entry.key]
+end
+
 local byName, byId = {}, {}
 for _, entry in ipairs(Professions.ENTRIES) do
   byName[normalize(entry.en)] = entry
@@ -89,13 +108,13 @@ end
 -- A profession name in the language of the addon; a name not in the catalog comes back as it is.
 function Professions.Name(name)
   local entry = byName[normalize(name) or ""]
-  return entry and NAMES[entry.key] or name
+  return entry and displayName(entry) or name
 end
 
 -- The name of a skill line id in the language of the addon, or `fallback` (the name that came with it).
 function Professions.NameForId(id, fallback)
   local entry = byId[id]
-  return entry and NAMES[entry.key] or fallback
+  return entry and displayName(entry) or fallback
 end
 
 -- Whether two names are the same profession: by the catalog, else by the plain names.
@@ -115,7 +134,7 @@ end
 function Professions.List()
   local names = {}
   for index, entry in ipairs(Professions.ENTRIES) do
-    names[index] = NAMES[entry.key]
+    names[index] = displayName(entry)
   end
   return names
 end

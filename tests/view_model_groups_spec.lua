@@ -474,7 +474,6 @@ describe("ViewModel groups reasons", function()
   it("has a text for every reason the service, the rules and the form can give", function()
     for _, reason in ipairs({
       "locked",
-      "swap",
       "raid",
       "not_leader",
       "full",

@@ -114,9 +114,6 @@ describe("Secondary windows on the real kit", function()
       Redraw = function() end,
     }
     assert(loadfile("NrageAssistant/UI/Tabs/Loot.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/Domain/LayerModel.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/UI/ViewModelLayers.lua"))("NrageAssistant", ns)
-    assert(loadfile("NrageAssistant/UI/LayerPopup.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/UI/PopupFrame.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/UI/LootPopup.lua"))("NrageAssistant", ns)
     assert(loadfile("NrageAssistant/UI/VotingFrame.lua"))("NrageAssistant", ns)
@@ -162,36 +159,6 @@ describe("Secondary windows on the real kit", function()
       timers[index].fn()
     end
     assert.is_true(_G.NrageAssistantLootPopup.shown)
-  end)
-
-  it("builds the layer popup on the shared card, and closes it with its button", function()
-    local close
-    local realIconButton = ns.Kit.IconButton
-    ns.Kit.IconButton = function(parent, opts)
-      close = opts.onClick
-      return realIconButton(parent, opts)
-    end
-    local ignored = false
-    ns.layerSwap = {
-      Status = function()
-        return { rid = "r1", role = "helper", stage = "request", requester = "Ann", map = 0, layer = 1, left = 30 }
-      end,
-      Ignore = function()
-        ignored = true
-      end,
-    }
-    local realPrint = _G.print
-    ns.Platform.ShowRaidNotice = function() end
-    ns.Platform.PlayAlertSound = function() end
-    _G.print = function() end
-    ns.LayerPopup.Start()
-    ns.LayerPopup.Refresh()
-    _G.print = realPrint
-    assert.is_true(_G.NrageAssistantLayerPopup.shown)
-    close()
-    assert.is_false(_G.NrageAssistantLayerPopup.shown)
-    assert.is_true(ignored)
-    ns.Kit.IconButton = realIconButton
   end)
 
   it("moves the countdown in place instead of drawing the popup again", function()
