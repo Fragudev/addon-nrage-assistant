@@ -1,0 +1,37 @@
+NrageAssistant/Domain/PvPSeasonModel.lua
+  s_076bf10c38fc89::t_e552d05dd637ae 1049-1050,1053,1074-1094
+NrageAssistant/Domain/PvPSeasonService.lua
+  s_076bf10c38fc89::t_e37a1d5e955595 51,75-114,218-225
+NrageAssistant/Domain/PvPService.lua
+  s_076bf10c38fc89::t_e170278459de3d 9-12,19-21,60-66,83,97-104,106-109,115-118,139-192
+NrageAssistant/Domain/PvPTracker.lua
+  s_076bf10c38fc89::t_772c785d11d459 25-26,33,51-70,93
+NrageAssistant/Sync/Comm.lua
+  s_076bf10c38fc89::t_0ca16431399a06 723-725,729-743
+NrageAssistant/Sync/Protocol.lua
+  s_076bf10c38fc89::t_31e265aa0a5699 323-334
+NrageAssistant/Sync/PvPSync.lua
+  s_076bf10c38fc89::t_ee45cdaca8efc9 17-20,22-23,144,147-151,230-233
+NrageAssistant/UI/Tabs/PvP.lua
+  s_076bf10c38fc89::t_a85dedab556e5a 162-170,172
+docs/USER_GUIDE.md
+  s_076bf10c38fc89::t_fd0f5777fc9486 299-304,505-510
+tests/pvp_season_kills_spec.lua
+  s_076bf10c38fc89::t_d15b63d437d584 1-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "8968e454c53bca24e94fd27956f07887772eabe8",
+  "prompts": {},
+  "sessions": {
+    "s_076bf10c38fc89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b32593f5-d0b5-4a3b-8c46-3d962c81a9c2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
