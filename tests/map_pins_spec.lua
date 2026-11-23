@@ -575,6 +575,28 @@ describe("MapPins.BuildPin visibility", function()
     assert.is_false(MapPins.BuildPin("minimap"):IsShown())
   end)
 
+  -- OpenMap's combat view moves every HereBeDragons icon onto its own layer and, as combat ends, gives each one back
+  -- to the parent it had then and shows it. An icon the library had let go has UIParent as its parent, so it came
+  -- back shown in the middle of the screen.
+  it("will not show on UIParent, where nothing places it", function()
+    for _, kind in ipairs({ "minimap", "worldmap" }) do
+      local frame = MapPins.BuildPin(kind)
+      frame:SetParent(UIParent)
+      frame:Show()
+      assert.is_false(frame:IsShown())
+    end
+  end)
+
+  it("still shows once the library or another map puts it on a frame of theirs", function()
+    local holder = CreateFrame("Frame", nil, UIParent)
+    for _, kind in ipairs({ "minimap", "worldmap" }) do
+      local frame = MapPins.BuildPin(kind)
+      frame:SetParent(holder)
+      frame:Show()
+      assert.is_true(frame:IsShown())
+    end
+  end)
+
   it("keeps every pin frame hidden when the library places none of them", function()
     -- A library that places nothing (the pins are on another map): no pool frame may be left visible.
     local env = build({ hbd = fake_hbd(), newPin = MapPins.BuildPin, dress = MapPins.DressPin })
