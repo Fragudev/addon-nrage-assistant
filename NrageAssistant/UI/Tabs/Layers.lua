@@ -1,23 +1,17 @@
 local _, ns = ...
 
--- Layers (docs/LAYER_SWAP_PLAN.md, section 4.1): the own layer, the "Share my layer" switch, the layers of this
--- zone with the guildmates on each and a button to ask for a swap, and the swap that is running. What to show
--- (and the reason behind a disabled button) comes from ViewModel.LayersView; the request itself is LayerSwap:Request,
--- which checks the rules again. Open to every role: the layer is shared with the guild only.
+-- Layers: the own layer, the "Share my layer" switch and the layers of this zone with the guildmates on each. What to
+-- show comes from ViewModel.LayersView. Open to every role: the layer is shared with the guild only.
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
 local ViewModel = ns.ViewModel
 
 local function viewOf()
-  local tracker, directory, swap = ns.layerTracker, ns.layerDirectory, ns.layerSwap
+  local tracker, directory = ns.layerTracker, ns.layerDirectory
   local own = tracker and tracker:Current() or nil
-  -- Layers are per zone: only the guildmates in this zone can move the player.
+  -- Layers are per zone: the guildmates listed are the ones in this zone.
   local zone = own and own.zone or ns.Platform.GetPlayerZoneId()
-  local canRequest, reason
-  if swap then
-    canRequest, reason = swap:CanRequest()
-  end
   return ViewModel.LayersView({
     own = own,
     inInstance = ns.Platform.IsInInstance() == true,
@@ -25,21 +19,8 @@ local function viewOf()
     ownName = ns.Platform.GetIdentityKey(),
     zoneName = zone and ns.Platform.GetMapName(zone) or nil,
     groups = directory and zone and directory:Groups(own and own.map or nil, zone) or {},
-    swap = swap and swap:Status() or nil,
-    canRequest = canRequest,
-    reason = reason,
-    available = swap ~= nil,
-  }),
-    swap
-end
-
-local function request(row)
-  local ok, why = ns.layerSwap:Request(row.map, row.layer)
-  if not ok then
-    UI.Notify("warning", L("Not done: ") .. ViewModel.LayerReason(why))
-    return
-  end
-  UI.Redraw()
+    available = tracker ~= nil,
+  })
 end
 
 local function layersCard(page, view)
@@ -58,58 +39,16 @@ local function layersCard(page, view)
     }
     if row.isOwn then
       item.badge = { text = L("You"), color = "info", fixed = true }
-    elseif row.button then
-      item.right = {
-        widget = "button",
-        opts = {
-          text = L("Request swap"),
-          disabled = not row.enabled,
-          tooltip = row.reason,
-          layout = { width = "auto" },
-          onClick = function()
-            request(row)
-          end,
-        },
-      }
     end
     rows[#rows + 1] = item
   end
   Kit.List(card, { rows = rows })
-  for _, row in ipairs(view.rows) do
-    if row.reason then
-      Kit.Label(card, {
-        text = L("You cannot ask for a swap now: %s"):format(row.reason),
-        style = "small",
-        color = "muted",
-        wrap = true,
-      })
-      break
-    end
-  end
-end
-
-local function swapCard(page, view, swap)
-  if not view.swapLine then
-    return
-  end
-  local card = Kit.Card(page, { title = L("Current swap"), gap = 8 })
-  Kit.Label(card, { text = view.swapLine, wrap = true })
-  if view.cancelText then
-    Kit.Button(card, {
-      text = view.cancelText,
-      layout = { width = "auto" },
-      onClick = function()
-        swap:Cancel()
-        UI.Redraw()
-      end,
-    })
-  end
 end
 
 -- The sections of the layers, drawn into `parent` (the Layers tab and the Home tab): your layer, the layers of the
--- zone, the running swap and the note on how the layer is read.
+-- zone and the note on how the layer is read.
 function UI.DrawLayers(parent)
-  local view, swap = viewOf()
+  local view = viewOf()
 
   local card = Kit.Card(parent, { title = L("Your layer"), gap = 8 })
   Kit.Label(card, { text = view.yourLayer, wrap = true })
@@ -124,13 +63,8 @@ function UI.DrawLayers(parent)
   })
 
   layersCard(parent, view)
-  swapCard(parent, view, swap)
   Kit.Label(parent, {
-    text = L("The layer is read from the creatures you target or mouse over, and shared with the guild only.")
-      .. " "
-      .. L("A swap needs a guildmate on that layer and in your zone to invite you.")
-      .. " "
-      .. L("Leaving the group afterwards is your choice."),
+    text = L("The layer is read from the creatures you target or mouse over, and shared with the guild only."),
     style = "small",
     color = "muted",
     wrap = true,
@@ -140,7 +74,7 @@ end
 UI.Register("layers", function(page)
   Kit.PageHeader(page, {
     title = L("Layers"),
-    description = L("Your layer, the layers of your guildmates and a swap when you want to change."),
+    description = L("Your layer and the layers of your guildmates."),
   })
   UI.DrawLayers(page)
 end)

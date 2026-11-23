@@ -48,7 +48,7 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
 
 ## Layers (assumed, not measured yet)
 
-The whole layer feature (`docs/LAYER_SWAP_PLAN.md`) was built on the assumptions below **without measuring them on
+The whole layer feature was built on the assumptions below **without measuring them on
 Forever** (decided 2026-10-20). Every client call is guarded, so a wrong assumption turns the feature off quietly
 (nil or false means unavailable) instead of raising. **All of this must be verified in game before release**, with
 two clients: `/nrage debug layer start`, target and mouse over NPCs, group up, then `/nrage debug layer log` and
@@ -59,24 +59,20 @@ two clients: `/nrage debug layer start`, target and mouse over NPCs, group up, t
 | 1 | Does `UnitGUID` return a readable creature GUID for `target`, `mouseover` and `nameplateN`, outside combat? In combat? | `UnitGUID` | yes; a secret or unreadable value is skipped (`LayerModel.Parse`) | not measured yet |
 | 2 | Is the fifth field of `Creature-0-<server>-<instance>-<zoneUid>-<npc>-<spawn>` stable for one layer and different between layers of one continent? | GUID | yes: the layer key is `(instanceId, zoneUid)`, and two readings from different spawns confirm it | not measured yet |
 | 3 | Does `zoneUid` change after a realm restart? | GUID | yes, hence a 15 minute time to live and no saved layer | not measured yet |
-| 4 | After joining a group led by someone on another layer: is the move automatic, how long does it take, is there a cooldown, what blocks it? | game behaviour | automatic after a short delay, not in combat or an instance; the addon waits 300 s for a confirmed layer (see 11), never moves anyone itself | not measured yet |
-| 5 | Does `C_PartyInfo.InviteUnit` / `InviteUnit` invite the right character for a multi-word name (`Yonemon Gg`) and for the `sender` of `CHAT_MSG_ADDON`? Does it need a hardware event? | invite | the name as the guild roster gives it works; always called from a button click | not measured yet |
-| 6 | Are `C_PartyInfo.LeaveParty` / `LeaveParty` available, and do they need a hardware event? | leave | available; always called from a button click | not measured yet |
+| 4 | After joining a group led by someone on another layer: is the move automatic, how long does it take, is there a cooldown, what blocks it? | game behaviour | automatic after a short delay, not in combat or an instance; the addon never moves anyone itself | not measured yet |
 | 7 | Are `NAME_PLATE_UNIT_ADDED` and `nameplateN` available and readable? | event, unit | yes; registered with `TryRegisterEvent`, so a refusal only drops that source | not measured yet |
 | 8 | `InCombatLockdown`, `UnitIsGroupLeader("player")`, `IsInInstance`, `GetNumGroupMembers`, `IsInRaid` behave as on Mainline | group | yes; each is read through `pcall` and a missing one reads as false/unknown | not measured yet |
-| 9 | Does the game ever move a player who is a group *leader* to another layer, or can a leader invite someone from another layer without effect? | game behaviour | the helper (leader) stays on their layer and the invited player moves | not measured yet |
-| 10 | Since the Forever launch (Nov 2026), layers are per zone and an invite only moves a player in the same zone as the inviter. Does the fifth GUID field differ per zone, and is `C_Map.GetBestMapForUnit("player")` walked up to `Enum.UIMapType.Zone` the right "same zone" (cities, joined zones such as Dalaran and Silverpine)? | GUID, `C_Map` | the zone is the uiMapId at zone level; the layer is forgotten when it changes; a helper must be in the request's zone | not measured yet |
-| 11 | How long is the "refresh world" countdown, and is the Spanish button really "Actualizar ahora"? | game behaviour | the addon waits 300 s for a confirmed layer and tells the player to press "Refresh Now" ("Actualizar ahora" in Spanish) | not measured yet |
+| 10 | Since the Forever launch (Nov 2026), layers are per zone and the game only moves a player in the same zone as the leader. Does the fifth GUID field differ per zone, and is `C_Map.GetBestMapForUnit("player")` walked up to `Enum.UIMapType.Zone` the right "same zone" (cities, joined zones such as Dalaran and Silverpine)? | GUID, `C_Map` | the zone is the uiMapId at zone level; the layer is forgotten when it changes | not measured yet |
 
 The probe logs every GUID read (raw string and parsed fields), the zone and group events, the confirmed layer and the
-result of the invite and leave calls made from the swap popup. `/nrage debug layer status` also prints which of
-the invite and leave APIs exist on the client. If question 1 or 2 turns out to be false, the layer cannot be read
-and the feature should be removed; if question 5 or 6 fails, the popup buttons will say that the client refused.
+result of the invites made from the Groups tab. `/nrage debug layer status` also prints which of the invite APIs
+exist on the client. If question 1 or 2 turns out to be false, the layer cannot be read and the feature should be
+removed.
 
 ## Groups (not measured yet)
 
 The Groups feature (`docs/LFG_PLAN.md`) is built for v1.2.0 without measuring the four P0 questions of its plan
-(decided 2026-11-06). It calls the same invite and group APIs as the layer swap, each through `Core/Platform.lua`. Check
+(decided 2026-11-06). It calls the invite and group APIs through `Core/Platform.lua`. Check
 these in game before relying on Groups: two clients, one with a multi-word name. Invite from the Groups tab, form and
 leave a party, and read the results in `/nrage debug layer status` and the probe log (the invite is logged there too).
 
@@ -103,8 +99,6 @@ drawn). **All of this must be verified in game before release.** Record the resu
 | 2 | Do `UnitInParty(name)` / `UnitInRaid(name)` find a guildmate by the name the guild roster gives (a multi-word name)? | `Platform.IsGroupMember` | yes; a miss only means the pin is also drawn | not measured yet |
 | 3 | Does HereBeDragons 2.18 draw minimap pins correctly on Forever (rotation, zoom, indoors) and place world map pins? | `HereBeDragons-Pins-2.0` in `UI/MapPins.lua` | yes; it has a `WoWForever` branch upstream | not measured yet |
 | 4 | Does `ChatThrottleLib` "BULK" traffic on `NRAGEPOS` with 20 or more members delay `NRAGE` messages? | `ChatThrottleLib:SendAddonMessage` | no: BULK is the lowest priority | not measured yet |
-| 5 | Do `CLASS_ICON_TCOORDS` and the texture `Interface\GLUES\CHARACTERCREATE\UI-CHARACTERCREATE-CLASSES` exist? | `UI/MapPins.lua` | yes; a grey dot is drawn when not | not measured yet |
-| 6 | Are the map ids of `C_Map.GetBestMapForUnit` all in 1..9999 (the wire limit, `LAYER_MAP_MAX`)? | wire format | yes; a position on another map is simply not sent | not measured yet |
 
 HereBeDragons was scanned for divisions that could raise `Division by zero` on this client (see the section above):
 there is no literal zero and no `1 / x` operand. Its divisors are map sizes and radii that the code checks
@@ -134,8 +128,6 @@ they say. Every value is logged through `pcall`; a secret value shows as `<secre
 | 2 | Does `CHAT_MSG_COMBAT_HONOR_GAIN` fire? What text and arguments does it carry (victim name, rank, honour)? Is it a secret value? | event | not measured yet |
 | 3 | Can an addon register `COMBAT_LOG_EVENT_UNFILTERED` outside encounters? Does `CombatLogGetCurrentEventInfo()` return readable `PARTY_KILL` data (source GUID = player, destination = hostile player)? | event | Right after login the client showed "NrageAssistant has been blocked from an action only available to the Blizzard UI". The dialog does not name the call; this registration is the suspect (Midnight protects the event, and a `pcall` does not hide the dialog), not a confirmed cause. The addon no longer registers it (`PVP_COMBAT_LOG_ENABLED = false`). `/nrage debug pvp start` still tries it, so the dialog may show when you run the probe. |
 | 4 | Does `IsInInstance()` return `instanceType == "pvp"` inside a battleground? | `IsInInstance` | not measured yet |
-| 5 | Do kills that give no honour (grey targets, repeated kills of the same target) increase any counter? | counters | not measured yet |
-| 6 | Are victim names multi-word and first-word-only, like `UnitName`? | event | not measured yet |
 | 7 | Does the global `COMBATLOG_HONORGAIN` (and `COMBATLOG_HONORGAIN_NO_RANK`) exist, and does it match the text of `CHAT_MSG_COMBAT_HONOR_GAIN`? Is `destName` of `PARTY_KILL` readable (not secret)? | globals, event | not measured yet |
 
 The kill feed (phase 6, #97) needs a victim name and takes it from either source, whichever works: the first `%s`
@@ -227,13 +219,9 @@ remove the "not measured yet" marker.
 | 2 | Does `IsGuildLeader()` exist and answer a boolean? | `IsGuildLeader` (`Platform.IsGuildLeader`) | Second source for "I am the guild master" | The rank index alone decides | not measured yet |
 | 3 | Does `GetGuildRosterInfo` return `isOnline` as the ninth value? Is it kept up to date without a new request? | `GetGuildRosterInfo` (`Platform.GetGuildRosterEntry`, `online`) | Online crafters first, "Connected only", disabled "Ask" for offline members | Every crafter shows as offline-unknown; "Ask" stays enabled | not measured yet |
 | 4 | `IsInRaid`, `GetNumGroupMembers`, `GetRaidRosterInfo`, `UnitName("partyN")`: do they exist, and do they return the full multi-word name or only the first word? | `Platform.GroupApiAvailable`, `Platform.GetFullGroupNames` | "Fill from current group" (Raid, Attendance) | The button is hidden | not measured yet |
-| 5 | Does `GetProfessions()` also fill the secondary slots (archaeology, fishing, cooking), and does `GetProfessionInfo` give their skill? | `Platform.GetProfessions` (`secondary`) | Profile line 3 and the Members row detail | Only the primary professions are listed | not measured yet |
-| 6 | Does `C_TradeSkillUI.GetBaseProfessionInfo`, `GetAllRecipeIDs` and `GetRecipeInfo(id).learned` work while a profession window is open? Is `professionID` stable between clients? Do secondary professions (cooking, fishing) scan the same way? Do `IsTradeSkillLinked`, `IsTradeSkillGuild` and `IsNPCCrafting` exist? | `Platform.RecipeScanAvailable`, `Platform.ScanKnownRecipes` | Professions tab: scan, sync | The Professions tab shows "not available on this client" and nothing is scanned or sent | not measured yet |
 | 7 | Do the events `TRADE_SKILL_SHOW` and `TRADE_SKILL_LIST_UPDATE` fire, and is `TRADE_SKILL_LIST_UPDATE` fired before the recipe list is complete? | events (registered through `Platform.TryRegisterEvent`) | When to scan | Scan on `TRADE_SKILL_SHOW` only | not measured yet |
 | 8 | Does a recipe id give a name and icon through `C_TradeSkillUI.GetRecipeInfo(id)` when no window is open, or only through the spell (`C_Spell.GetSpellInfo(id)`)? Does `C_TradeSkillUI.GetRecipeOutputItemData(id)` give a link? | `Platform.GetRecipeInfo` | Recipe names, icons and the item link in the "Ask" text | The recipe shows as `Recipe <id>` without an icon | not measured yet |
-| 9 | Does `ChatFrameUtil.OpenChat(text)` or `ChatFrame_OpenChat(text)` exist, and does it fill the edit box without sending? | `Platform.CanPrefillChat`, `Platform.PrefillChat` | The "Ask" whisper | The "Ask" button is hidden | not measured yet |
 | 10 | Do `LOOT_OPENED`, `GetNumLootItems`, `GetLootSlotLink`, `GetLootSlotInfo` work on a boss corpse, and are the links readable (not secret values) right after the kill? Does `ENCOUNTER_LOOT_RECEIVED` fire and carry the link? | `Platform.LootWindowAvailable`, `Platform.GetLootWindowItems` | The "Last boss loot" strip in the Loot tab | The strip is not shown | not measured yet |
-| 11 | Does `GetPhysicalScreenSize` exist, so a border can be exactly one physical pixel? | `Kit/Pixel.lua` | 1px borders | Borders are one interface unit thick | not measured yet |
 | 12 | Does `Frame:SetResizeBounds` exist (else `SetMinResize`)? | `Kit/Shell.lua` | Resizable windows | Fixed size | not measured yet |
 
 ### Checklist for the owner (run these in the game, then fill the Result column)

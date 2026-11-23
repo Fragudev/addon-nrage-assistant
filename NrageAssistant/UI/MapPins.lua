@@ -155,6 +155,9 @@ function MapPins.BuildPin(kind)
   local size = kind == "minimap" and MINIMAP_SIZE or WORLDMAP_SIZE
   local frame = CreateFrame("Frame", nil, UIParent)
   frame:SetSize(size, size)
+  -- Hidden until the library places it: an unanchored frame that is shown sits at the centre of the screen, and
+  -- the library never hides a frame it does not place (a pin on another map), so it would stay there.
+  frame:Hide()
   frame:EnableMouse(true)
   frame.border = frame:CreateTexture(nil, "BACKGROUND")
   frame.border:SetAllPoints(frame)

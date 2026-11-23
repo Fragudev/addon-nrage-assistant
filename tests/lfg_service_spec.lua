@@ -69,7 +69,6 @@ local function new_client(world, name)
     leader = true,
     raid = false,
     combat = false,
-    swapActive = false,
     level = 60,
     group = {},
     invites = {},
@@ -135,9 +134,7 @@ local function new_client(world, name)
       end
       return c.level
     end,
-    eligibility = ns.LfgService.Eligibility(platform, isLocked, function()
-      return c.swapActive
-    end),
+    eligibility = ns.LfgService.Eligibility(platform, isLocked),
     invite = function(who)
       c.invites[#c.invites + 1] = who
       return not c.inviteFails, "invite_failed"
@@ -268,8 +265,6 @@ describe("LfgService posting", function()
     assert.are.same({ false, "full" }, { lead.service:Post(fields()) })
     lead.size = 1
     assert.are.same({ false, "no_needs" }, { lead.service:Post(fields({ needs = { tank = 0, heal = 0, dps = 0 } })) })
-    lead.swapActive = true
-    assert.are.same({ false, "swap" }, { lead.service:Post(fields()) })
     assert.are.equal(0, #world.sent)
     assert.is_nil(lead.service:Status().post)
   end)
@@ -468,9 +463,6 @@ describe("LfgService applying", function()
     ann.size = 3
     assert.are.same({ false, "in_group" }, { ann.service:Apply(pid, "tank") })
     ann.size = 1
-    ann.swapActive = true
-    assert.are.same({ false, "swap" }, { ann.service:Apply(pid, "tank") })
-    ann.swapActive = false
     ann.level = 29
     assert.are.same({ false, "level" }, { ann.service:Apply(pid, "tank") })
     ann.level = 30
@@ -1104,24 +1096,6 @@ describe("LfgService party seats", function()
   end)
 end)
 
-describe("LfgService.IsBusy", function()
-  it("is true with an own post or an active application only", function()
-    local world = new_world()
-    local lead = new_client(world, "Lead")
-    local ann = new_client(world, "Ann")
-    assert.is_false(lead.service:IsBusy())
-    lead.service:Post(fields())
-    assert.is_true(lead.service:IsBusy())
-    assert.is_false(ann.service:IsBusy())
-    ann.service:Apply(lead.board:Get("Lead").pid, "tank")
-    assert.is_true(ann.service:IsBusy())
-    ann.service:Withdraw()
-    assert.is_false(ann.service:IsBusy())
-    lead.service:Close()
-    assert.is_false(lead.service:IsBusy())
-  end)
-end)
-
 describe("LfgService asking before acting", function()
   local world, lead, ann, pid
 
@@ -1160,7 +1134,6 @@ describe("LfgService asking before acting", function()
     ann.size = 1
     ann.service:Apply(pid, "tank")
     assert.are.same({ false, "busy" }, { ann.service:CanApply(pid) })
-    assert.is_true(ann.service:IsBusy())
   end)
 
   it("sends nothing when it only asks", function()
@@ -1375,7 +1348,7 @@ end)
 
 describe("LfgService.Eligibility", function()
   local function rules(overrides)
-    local state = { locked = false, group = false, raid = false, leader = true, size = 1, combat = false, swap = false }
+    local state = { locked = false, group = false, raid = false, leader = true, size = 1, combat = false }
     for k, v in pairs(overrides or {}) do
       state[k] = v
     end
@@ -1398,8 +1371,6 @@ describe("LfgService.Eligibility", function()
     }
     return ns.LfgService.Eligibility(platform, function()
       return state.locked
-    end, function()
-      return state.swap
     end)
   end
 
@@ -1420,8 +1391,6 @@ describe("LfgService.Eligibility", function()
     assert.are.same({ false, "locked" }, { rules({ locked = true }).post() })
     assert.are.same({ false, "locked" }, { rules({ locked = true }).apply() })
     assert.are.same({ false, "locked" }, { rules({ locked = true }).invite() })
-    assert.are.same({ false, "swap" }, { rules({ swap = true }).post() })
-    assert.are.same({ false, "swap" }, { rules({ swap = true }).apply() })
     assert.are.same({ false, "raid" }, { rules({ group = true, raid = true, size = 8 }).post() })
     assert.are.same({ false, "not_leader" }, { rules({ group = true, leader = false, size = 3 }).post() })
     assert.are.same({ false, "not_leader" }, { rules({ group = true, leader = false, size = 3 }).invite() })

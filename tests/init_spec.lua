@@ -75,7 +75,6 @@ local function build()
   spy(ns.MinimapButton, "Refresh", "minimapRefresh")
   spy(ns.LootPopup, "Start", "lootPopup")
   spy(ns.VotingFrame, "Start", "votingFrame")
-  spy(ns.LayerPopup, "Start", "layerPopup")
   spy(ns.LfgPopup, "Start", "lfgPopup")
   ns.GuildRoster.New = function()
     calls[#calls + 1] = "roster"
@@ -151,7 +150,7 @@ describe("Init", function()
       env.fire("PLAYER_LOGIN")
       assert.is_true(env.ns.active)
       assert.are.same({}, env.ns.startupErrors)
-      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "layerPopup", "lfgPopup" }, env.calls)
+      assert.are.same({ "comm", "minimap", "roster", "lootPopup", "votingFrame", "lfgPopup" }, env.calls)
       assert.are.equal(1, env.loadedMessages())
     end)
 
@@ -368,25 +367,6 @@ describe("Init", function()
         error("secret")
       end
       assert.is_true(env.ns.lfgService:Apply("p-1", "dps"))
-    end)
-
-    it("keeps a layer swap out while it is busy, and the other way round", function()
-      start()
-      local rules = env.ns.layerSwap.deps.eligibility
-      assert.is_true(rules.requester())
-      env.ns.lfgService.application = { state = "applied" }
-      assert.are.same({ false, "lfg" }, { rules.requester() })
-      assert.are.same({ false, "unknown_layer" }, { rules.helper(1, 1) })
-      env.ns.lfgService.application = { state = "joined" }
-      assert.is_true(rules.requester())
-      env.ns.lfgService.application = nil
-      local swapActive = false
-      env.ns.layerSwap.IsActive = function()
-        return swapActive
-      end
-      assert.is_true(env.ns.lfgService.deps.eligibility.apply())
-      swapActive = true
-      assert.are.same({ false, "swap" }, { env.ns.lfgService.deps.eligibility.apply() })
     end)
 
     it("asks the game to invite through the platform and leaves a trace in the probe log", function()

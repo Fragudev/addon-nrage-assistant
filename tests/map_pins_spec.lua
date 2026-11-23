@@ -558,3 +558,31 @@ describe("MapPins frames", function()
     assert.are.equal(MapPins.BuildPin, MapPins.Start(deps).deps.newPin)
   end)
 end)
+
+describe("MapPins.BuildPin visibility", function()
+  before_each(function()
+    FakeFrames.install()
+  end)
+
+  after_each(function()
+    FakeFrames.uninstall()
+  end)
+
+  -- A pin frame is anchored only by the library. Shown before that, an unanchored frame sits at the centre of
+  -- UIParent, so a pin the library does not place (a pin on another map) stayed on screen after the map closed.
+  it("starts hidden on both maps, until the library places it", function()
+    assert.is_false(MapPins.BuildPin("worldmap"):IsShown())
+    assert.is_false(MapPins.BuildPin("minimap"):IsShown())
+  end)
+
+  it("keeps every pin frame hidden when the library places none of them", function()
+    -- A library that places nothing (the pins are on another map): no pool frame may be left visible.
+    local env = build({ hbd = fake_hbd(), newPin = MapPins.BuildPin, dress = MapPins.DressPin })
+    env.controller:Redraw({ pin("Ann"), pin("Bob") }, { minimap = true, worldmap = true })
+    for _, kind in ipairs({ "minimap", "worldmap" }) do
+      for index = 1, 2 do
+        assert.is_false(env.controller.pools[kind][index]:IsShown())
+      end
+    end
+  end)
+end)

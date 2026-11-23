@@ -1104,48 +1104,21 @@ describe("Platform layer and group calls", function()
     assert.are.same({ "new:Yonemon Gg", "old:Ann" }, invited)
   end)
 
-  it("reports why an invite or a leave could not be done", function()
-    with({ C_PartyInfo = false, InviteUnit = false, LeaveParty = false }, function()
+  it("reports why an invite could not be done", function()
+    with({ C_PartyInfo = false, InviteUnit = false }, function()
       assert.are.same({ false, "unavailable" }, { Layer.InviteByName("Ann") })
-      assert.are.same({ false, "unavailable" }, { Layer.LeaveGroup() })
     end)
     with({
       C_PartyInfo = false,
       InviteUnit = function()
         error("needs a hardware event")
       end,
-      LeaveParty = function()
-        error("needs a hardware event")
-      end,
     }, function()
       assert.are.same({ false, "error" }, { Layer.InviteByName("Ann") })
-      assert.are.same({ false, "error" }, { Layer.LeaveGroup() })
     end)
     for _, name in ipairs({ "", 5 }) do
       assert.are.same({ false, "error" }, { Layer.InviteByName(name) })
     end
-  end)
-
-  it("leaves the group through the newest API the client has", function()
-    local left = {}
-    with({
-      C_PartyInfo = {
-        LeaveParty = function()
-          left[#left + 1] = "new"
-        end,
-      },
-    }, function()
-      assert.is_true(Layer.LeaveGroup())
-    end)
-    with({
-      C_PartyInfo = false,
-      LeaveParty = function()
-        left[#left + 1] = "old"
-      end,
-    }, function()
-      assert.is_true(Layer.LeaveGroup())
-    end)
-    assert.are.same({ "new", "old" }, left)
   end)
 end)
 

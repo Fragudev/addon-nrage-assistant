@@ -58,7 +58,6 @@ Domain\BlacklistWatcher.lua
 Domain\LayerModel.lua
 Domain\LayerTracker.lua
 Domain\LayerDirectory.lua
-Domain\LayerSwap.lua
 Domain\LayerPublisher.lua
 Domain\PositionModel.lua
 Domain\PositionPublisher.lua
@@ -154,7 +153,6 @@ UI\Tabs\Announcements.lua
 UI\Tabs\AnnouncementsAdmin.lua
 UI\PopupFrame.lua
 UI\LootPopup.lua
-UI\LayerPopup.lua
 UI\LfgPopup.lua
 UI\AnnouncementPopup.lua
 UI\VotingFrame.lua

@@ -30,8 +30,7 @@ the game, typed by the player or received from someone else, and what the game c
 ### Home
 
 Your character at a glance: name, class, level and item level, your main and secondary spec, and your **layer**. You
-also see the layers your guildmates in your zone have shared, and you can ask to swap layers: a guildmate on that
-layer **in the same zone** invites you, and you press **Refresh Now** when the game offers it.
+also see the layers your guildmates in your zone have shared.
 
 ### Notice board
 

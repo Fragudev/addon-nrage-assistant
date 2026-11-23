@@ -13,7 +13,7 @@ Comm.__index = Comm
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional), guildKos (the guild Kill On
 --       Sight table) and onGuildKosChange(messageType) (optional),
---       layerDirectory, layerSwap and onLayerChange(messageType), lfgService and onLfgChange(messageType) (all
+--       layerDirectory and onLayerChange(messageType), lfgService and onLfgChange(messageType) (all
 --       optional), announcements (the announcements store, see AnnouncementSync), onAnnouncement(announcement) (each
 --       stored one) and onAnnouncementChange(messageType) (all optional),
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
@@ -54,9 +54,8 @@ function Comm.New(deps)
     guildKey = deps.guildKey,
     entryOf = deps.entryOf,
     onRanksChange = deps.onRanksChange,
-    -- The layer directory and swap flow are in memory and created after Comm (Init.StartLayer sets them).
+    -- The layer directory is in memory and created after Comm (Init.StartLayer sets it).
     layerDirectory = deps.layerDirectory,
-    layerSwap = deps.layerSwap,
     onLayerChange = deps.onLayerChange,
     -- The Groups service is in memory and created after Comm (Init.StartLfg sets it).
     lfgService = deps.lfgService,
@@ -720,7 +719,25 @@ function Comm:PvPContext()
     now = self.platform.ServerTime,
     ownKey = self.platform.GetIdentityKey,
     onOwnReset = self.onPvPReset,
+    onOwnRecord = function(record)
+      self:AdoptOwnPvPRecord(record)
+    end,
   }
+end
+
+-- The guild holds a record of this very character (a snapshot or the echo of a message): when it is above the local
+-- counters (they were lost: a new saved-data key, a reinstall), the local ones are raised to it, so the character sees
+-- its own kills again, keeps counting from there and publishes the right totals. Never lowers anything.
+function Comm:AdoptOwnPvPRecord(record)
+  local stats = ns.character and ns.character.pvp
+  if stats and ns.PvPService.Adopt(stats, record) then
+    if ns.pvpPublisher then
+      ns.pvpPublisher:Changed()
+    end
+    if self.onPvPChange then
+      self.onPvPChange("PVP_STATS")
+    end
+  end
 end
 
 -- PVP_STATS and PVP_RESET: the sender's role is read from the local guild roster, and a record belongs to the
@@ -1093,10 +1110,10 @@ function Comm:HandleRankMap(sender, message)
   return ok, reason
 end
 
--- LAYER_STATE and LAYER_SWAP: live only, nothing is saved. The sender's role is read from the local guild roster and
+-- LAYER_STATE: live only, nothing is saved. The sender's role is read from the local guild roster and
 -- the actor is always the sender, never a payload field.
 function Comm:HandleLayer(sender, message)
-  local ctx = { directory = self.layerDirectory, swap = self.layerSwap }
+  local ctx = { directory = self.layerDirectory }
   local ok, reason = ns.LayerSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onLayerChange then
     self.onLayerChange(message.t)
@@ -1203,15 +1220,7 @@ function Comm:SendLayerState(payload)
   return self:Send("LAYER_STATE", payload, "LY")
 end
 
--- One step of a layer swap. Never queued: a step that is old by the time the encounter ends is not news.
-function Comm:SendLayerSwap(payload)
-  if not self.queue.guard:CanSend() then
-    return false, "locked"
-  end
-  return self:Send("LAYER_SWAP", payload)
-end
-
--- The own Groups post (open, changed or closed) and a step of an application. Live only, like the layer swap: refused
+-- The own Groups post (open, changed or closed) and a step of an application. Live only, like the layer state: refused
 -- during the lockdown instead of queued, because the next republication carries the current post.
 function Comm:SendLfgPost(payload)
   if not self.queue.guard:CanSend() then

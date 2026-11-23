@@ -66,4 +66,54 @@ describe("Professions", function()
       assert.are.equal(entry.es, Locale.Translate(entry.en))
     end
   end)
+
+  describe("names from the client", function()
+    local function with_platform(platform)
+      local space = {}
+      assert(loadfile("NrageAssistant/Core/Locale.lua"))("NrageAssistant", space)
+      assert(loadfile("NrageAssistant/Locales/esES.lua"))("NrageAssistant", space)
+      space.Platform = platform
+      assert(loadfile("NrageAssistant/Domain/Professions.lua"))("NrageAssistant", space)
+      return space.Professions, space.Locale
+    end
+
+    it("uses the name the client gives when the addon shows the language of the client", function()
+      local professions, locale = with_platform({
+        GetLocale = function()
+          return "esES"
+        end,
+        GetSpellName = function(id)
+          return id == 3908 and "Sastrería del cliente" or nil
+        end,
+      })
+      locale.Use("esES")
+      assert.are.equal("Sastrería del cliente", professions.Name("Tailoring"))
+      assert.are.equal("Sastrería del cliente", professions.NameForId(197, "x"))
+      assert.are.equal("Sastrería del cliente", professions.List()[9])
+      -- The client gave no name for Alchemy: the catalog names it.
+      assert.are.equal("Alquimia", professions.Name("Alchemy"))
+    end)
+
+    it("keeps to the catalog when the addon is in another language than the client", function()
+      local professions, locale = with_platform({
+        GetLocale = function()
+          return "esES"
+        end,
+        GetSpellName = function()
+          return "Del cliente"
+        end,
+      })
+      locale.Use("enUS")
+      assert.are.equal("Tailoring", professions.Name("Sastrería"))
+    end)
+
+    it("keeps to the catalog without the API, and the corrected names stand", function()
+      local professions, locale = with_platform(nil)
+      locale.Use("esES")
+      assert.are.equal("Sastrería", professions.Name("Tailoring"))
+      assert.are.equal("tailoring", professions.Key("Sastrería"))
+      assert.is_nil(professions.Key("Costura"))
+      assert.are.equal("Desuello", professions.Name("Skinning"))
+    end)
+  end)
 end)
