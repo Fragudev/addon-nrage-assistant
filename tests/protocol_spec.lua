@@ -778,79 +778,11 @@ describe("Protocol.Validate LAYER_STATE", function()
   end)
 end)
 
-describe("Protocol.Validate LAYER_SWAP", function()
-  local function validate(payload)
-    return Protocol.Validate(Protocol.Build("LAYER_SWAP", payload, "sw-1"))
-  end
-
-  it("accepts a request for a layer", function()
-    local m = validate({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222, extra = 1 })
-    assert.are.same({ rid = "a1-b2-c3", s = "request", map = 0, layer = 222 }, m.p)
-  end)
-
-  it("carries the zone of the requester in a request, and accepts a request without one", function()
-    assert.are.same(
-      { rid = "a1", s = "request", map = 0, layer = 222, zone = 1429 },
-      validate({ rid = "a1", s = "request", map = 0, layer = 222, zone = 1429 }).p
-    )
-    local _, reason = validate({ rid = "a1", s = "request", map = 0, layer = 222, zone = 0 })
-    assert.are.equal("bad_payload", reason)
-    assert.are.same({ rid = "a1", s = "offer" }, validate({ rid = "a1", s = "offer", zone = 1429 }).p)
-  end)
-
-  it("accepts an offer without anything else", function()
-    assert.are.same({ rid = "a1", s = "offer" }, validate({ rid = "a1", s = "offer", map = 3, helper = "X" }).p)
-  end)
-
-  it("accepts an assign that names a helper, including a multi-word name", function()
-    assert.are.same(
-      { rid = "a1", s = "assign", helper = "Yonemon Gg" },
-      validate({ rid = "a1", s = "assign", helper = "Yonemon Gg" }).p
-    )
-  end)
-
-  it("accepts a close with each outcome", function()
-    for _, outcome in ipairs({ "done", "expired", "cancelled", "declined", "unconfirmed" }) do
-      assert.are.same({ rid = "a1", s = "close", o = outcome }, validate({ rid = "a1", s = "close", o = outcome }).p)
-    end
-  end)
-
-  it("rejects a bad step, outcome or id", function()
-    for _, bad in ipairs({
-      { rid = "a1", s = "other" },
-      { rid = "a1", s = 4 },
-      { rid = "a1" },
-      { s = "offer" },
-      { rid = "a:1", s = "offer" },
-      { rid = "", s = "offer" },
-      { rid = "a1", s = "close" },
-      { rid = "a1", s = "close", o = "won" },
-      { rid = "a1", s = "close", o = 3 },
-    }) do
-      local _, reason = validate(bad)
-      assert.are.equal("bad_payload", reason)
-    end
-  end)
-
-  it("rejects a request without a valid target", function()
-    for _, bad in ipairs({
-      { rid = "a1", s = "request" },
-      { rid = "a1", s = "request", map = 0, layer = 0 },
-      { rid = "a1", s = "request", map = 10000, layer = 5 },
-      { rid = "a1", s = "request", map = 0, layer = 2147483648 },
-      { rid = "a1", s = "request", map = "0", layer = 5 },
-    }) do
-      local _, reason = validate(bad)
-      assert.are.equal("bad_payload", reason)
-    end
-  end)
-
-  it("rejects an assign whose helper is not plain text", function()
-    for _, bad in ipairs({ "", "|cffff0000Red|r", "line\nbreak", string.rep("a", 200) }) do
-      local _, reason = validate({ rid = "a1", s = "assign", helper = bad })
-      assert.are.equal("bad_payload", reason)
-    end
-    assert.are.equal("bad_payload", select(2, validate({ rid = "a1", s = "assign" })))
+describe("Protocol.Validate LAYER_SWAP (removed)", function()
+  it("is an unknown type, so a message from an older client is dropped", function()
+    local m, reason = Protocol.Validate(Protocol.Build("LAYER_SWAP", { rid = "a1", s = "offer" }, "sw-1"))
+    assert.is_nil(m)
+    assert.are.equal("unknown_type", reason)
   end)
 end)
 

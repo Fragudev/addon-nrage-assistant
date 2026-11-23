@@ -419,18 +419,8 @@ ns.Constants = {
   LAYER_ID_MAX = 2147483647,
   -- The zone (a uiMapId at zone level) a layer was read in. Layers are per zone on Forever.
   LAYER_ZONE_MAX = 99999,
-  -- Swap flow timeouts (seconds) and the age after which a swap whose close message was lost is dropped. The confirm
-  -- step waits for the player to press "Refresh Now" in the game's prompt, so it is long; the age stays above it.
-  LAYER_REQUEST_TIMEOUT = 60,
-  LAYER_ASSIGN_TIMEOUT = 90,
-  LAYER_CONFIRM_TIMEOUT = 300,
-  LAYER_SWAP_MAX_AGE = 600,
-  -- A swap popup that cannot be shown during a lockdown tries again after this long.
-  LAYER_POPUP_RETRY_SECONDS = 5,
   -- A redraw of the Layers tab because of a received state waits at least this long after the previous one.
   LAYER_REDRAW_SECONDS = 1,
-  -- A party holds five players.
-  LAYER_PARTY_SIZE = 5,
 
   -- Groups (docs/LFG_PLAN.md). A post is kept by the receiver for LFG_POST_TTL after the last message and the leader
   -- repeats it every LFG_REPUBLISH_SECONDS; a post closes itself after LFG_POST_MAX_AGE. LFG_LEVEL_MAX only bounds

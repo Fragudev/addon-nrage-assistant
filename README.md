@@ -152,8 +152,7 @@ The addon is published on CurseForge, but it only works for Nrage:
 
 - **Professions:** "who can craft this?" with online members first and a one-click whisper.
 - **Blacklist:** a guild-wide list of players to be warned about.
-- **Layers:** your current layer, the layers guildmates in your zone have shared, and layer swap requests (layers are
-  per zone, so the helper must be in your zone; press **Refresh Now** when the game offers it).
+- **Layers:** your current layer, and the layers guildmates in your zone have shared (layers are per zone).
 - **Guild map:** guildmates who share their position, on the minimap and the world map, each as a class icon inside a
   diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
 - **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. Each post shows its
@@ -193,7 +192,6 @@ The full walkthrough, tab by tab and role by role, is the [user guide](docs/USER
 | [Privacy and data](docs/PRIVACY.md) | what is shared, with whom |
 | [Sync protocol](docs/PROTOCOL.md) | the wire format between clients |
 | [Client API notes](docs/API_NOTES.md) | what the Forever client does and does not expose |
-| [Layer swap plan](docs/LAYER_SWAP_PLAN.md) | design of layer swap requests |
 | [PvP missions, seasons and rewards plan](docs/PVP_MISSIONS_PLAN.md) | design of PvP seasons |
 | [Guild map plan](docs/GUILD_MAP_PLAN.md) | design of the guild map |
 | [PvP Intel plan](docs/PVP_INTEL_PLAN.md) | design of Intel, the enemy player tracker |

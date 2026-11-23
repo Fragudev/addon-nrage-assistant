@@ -782,7 +782,7 @@ function Platform.GetZoneMapId(mapId)
 end
 
 -- The uiMapId of the zone the player is in, at zone level (never a sub-zone or a micro-dungeon), or nil. Layers are
--- per zone on Forever, and a swap only works between players in the same zone (docs/LAYER_SWAP_PLAN.md 0.1).
+-- per zone on Forever.
 function Platform.GetPlayerZoneId()
   return Platform.GetZoneMapId(Platform.GetPlayerMapId())
 end
@@ -1256,16 +1256,6 @@ function Platform.InviteByName(name)
     return false, "unavailable"
   end
   local ok = pcall(invite, name)
-  return ok, not ok and "error" or nil
-end
-
--- Leaves the group. Returns true, or false plus "unavailable" | "error". Only ever called from a click.
-function Platform.LeaveGroup()
-  local leave = (C_PartyInfo and C_PartyInfo.LeaveParty) or LeaveParty
-  if not leave then
-    return false, "unavailable"
-  end
-  local ok = pcall(leave)
   return ok, not ok and "error" or nil
 end
 

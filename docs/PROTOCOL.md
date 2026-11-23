@@ -34,13 +34,13 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   peer and the local data is left alone. `m` only adds optional fields and new message types (currently 13 in the PvP tracking branch; see the list below): a client
   that does not know a field drops it while validating, and a client that does not know a message type drops the
   message as `unknown_type`, so older and newer clients keep talking. Minor 5 added the roster and recipe messages and fields
-  below; minor 6 added the layer messages (`LAYER_STATE`, `LAYER_SWAP`); minor 7 added the PvP season messages
+  below; minor 6 added the layer messages (`LAYER_STATE` and the since removed `LAYER_SWAP`); minor 7 added the PvP season messages
   (`PVP_SEASON` and the others of the "PvP seasons" section); minor 8 added event sign-up (`SIGNUP_UPSERT`); minor 9
   replaced `READINESS_RULES` with the per-roster `ROSTER_RULES`; minor 10 added the guild Kill on Sight messages
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
   `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
   ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below; minor 16 added the
-  optional `zone` of `LAYER_STATE` and of a `LAYER_SWAP` request (layers are per zone, see *Layers*); minor 17 added the `duel_wins` mission kind and the duel evidence row (see *PvP seasons*).
+  optional `zone` of `LAYER_STATE` (layers are per zone, see *Layers*); minor 17 added the `duel_wins` mission kind and the duel evidence row (see *PvP seasons*).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -77,7 +77,6 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `MEMBER_UPSERT` | guild | `key` (the character name as the guild roster writes it, no `:`), optional `rosterId`, `rev`, `updatedAt` (older clients also sent a `role`: it is tolerated and ignored) | gm, cogm; rl, only into or out of its own roster, for a member in no roster or in its own |
 | `MEMBER_DELETE` | guild | `key`, `rev` | gm, cogm; rl, only for a member of its own roster |
 | `LAYER_STATE` | guild | `map` (0 to 9999), `layer` (0 to 2147483647; `0` means "forget me"), optional `zone` (1 to 99999) | anyone, for themselves; the layer belongs to the sender |
-| `LAYER_SWAP` | guild | `rid`, `s` (`request`, `offer`, `assign` or `close`), and by step: `map` + `layer` + optional `zone` (`request`), `helper` (`assign`), `o` (`close`: `done`, `expired`, `cancelled`, `declined` or `unconfirmed`) | anyone; the actor is the sender |
 | `ROSTER_RULES` | guild | `rosterId`, `rev`, `updatedAt`, `rules[]` (up to 30 rules, each validated: see Readiness rules per roster) | gm, cogm; rl for its own roster |
 | `LOOT_AWARD` | guild | `eventId`, `sessionId`, `rev`, `updatedAt`, `itemId`, `itemName`, `characterKey`, `reason` | council, admin |
 | `PVP_SEASON` | guild | `id`, `name` (1 to 40 bytes), `startsAt`, `endsAt`, `state` (`active` or `closed`), `rev`, `updatedAt` | admin |
@@ -167,34 +166,20 @@ inbox. The kill is validated and then ignored: the Recent kills list only holds 
 
 ## Layers
 
-Protocol minor version 6. Older clients drop both types with `unknown_type`. Both are **guild channel only** (never a
-whisper, never part of a snapshot) and live only: nothing is saved. A sender must be a known guild member
-(`layer_share`, every role).
+Protocol minor version 6. Older clients drop it with `unknown_type`. It is **guild channel only** (never a whisper,
+never part of a snapshot) and live only: nothing is saved. A sender must be a known guild member (`layer_share`,
+every role).
 
 `LAYER_STATE` is the sender's own layer, a pair `(map, layer)` read from creature GUIDs (see `docs/API_NOTES.md`).
 It is sent when the layer changes and again every 300 seconds, at most once per 30 seconds (queue key `LY`), and
 refused during an encounter lockdown instead of waiting. `layer = 0` means "forget me" and is sent once when the
 player turns "Share my layer" off. The receiver keeps it in memory for 15 minutes.
 
-`LAYER_SWAP` is one step of a swap, tied together by `rid`, which the requester makes. The actor is always the
-**sender**; a name in the payload is only data.
+Since minor 16 it carries the optional `zone`: the uiMapId, at zone level, of the zone the layer was read in. On
+Forever each zone has its own layers. A state without `zone` (an older client) is not listed in the zone view.
 
-Since minor 16 both carry the optional `zone`: the uiMapId, at zone level, of the zone the layer was read in (state)
-or the requester is in (request). On Forever each zone has its own layers and the game only moves an invited player
-who is in the same zone as the member who invites, so a helper only answers a request of its own zone. A request
-without `zone` (an older client) is answered as before, and a state without `zone` is not listed in the zone view.
-
-| Step | Sent by | Meaning |
-|---|---|---|
-| `request` | requester | wants to be on `(map, layer)` |
-| `offer` | an eligible member on that layer | can help |
-| `assign` | requester | the first offer won; `helper` names who |
-| `close` | requester (`o` = `done`, `expired`, `cancelled`, `unconfirmed`), or the assigned helper (`o = declined`) | the swap is over |
-
-Only the requester of a `rid` may send `assign` and `close`, with the one exception of `close declined` from the
-assigned helper; the receiver checks this against the sender of the stored request, so another member cannot
-hijack or close a swap. A client takes part in at most one swap at a time and drops one whose `close` was lost
-after 300 seconds without messages. Like `PVP_KILL`, a step is never queued during an encounter lockdown.
+`LAYER_SWAP` (a swap request between guildmates) was sent by earlier versions and has been removed. A current client
+no longer knows it: it drops the message as `unknown_type`, without an error and without a reply.
 
 ## Groups
 

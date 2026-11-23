@@ -3722,7 +3722,7 @@ describe("Window smoke test: secondary windows", function()
 end)
 
 describe("Window smoke test: Layers", function()
-  local env, requested, share
+  local env, share
 
   local function install(options)
     options = options or {}
@@ -3745,37 +3745,14 @@ describe("Window smoke test: Layers", function()
       end,
     }
     env.layerZones = zones
-    env.ns.layerSwap = {
-      CanRequest = function()
-        return options.canRequest ~= false, options.reason
-      end,
-      Status = function()
-        return options.status
-      end,
-      Request = function(_, map, layer)
-        requested = { map, layer }
-        return options.requestOk ~= false, "busy"
-      end,
-      Cancel = function()
-        requested = "cancelled"
-      end,
-    }
     env.ns.SetLayerShare = function(value)
       share = value
     end
   end
 
-  local function button(page, text)
-    for _, row in ipairs(FakeKit.find(page, "List").opts.rows) do
-      if row.right and row.right.opts.text == text then
-        return row.right.opts
-      end
-    end
-  end
-
   before_each(function()
     env = build("RL")
-    requested, share = nil, nil
+    share = nil
   end)
 
   after_each(function()
@@ -3796,41 +3773,16 @@ describe("Window smoke test: Layers", function()
     assert.is_truthy(FakeKit.find(env.page(), "Switch", "Share my layer"))
   end)
 
-  it("lists the layers and asks for a swap with the button", function()
+  it("lists the layers of the zone the player is in", function()
     install({ own = { map = 0, layer = 1234 } })
     env.open("layers")
     local text = env.text()
     assert.is_truthy(text:find("Your layer: #1234", 1, true))
     assert.is_truthy(text:find("#5678", 1, true))
-    -- Only the layers of the zone the player is in: a swap only works there.
+    -- Only the layers of the zone the player is in.
     assert.is_truthy(text:find("Layers in Elwynn Forest", 1, true))
     assert.are.same({ 0, 1429 }, env.layerZones[#env.layerZones])
     assert.is_truthy(text:find("Ann-Realm", 1, true))
-    button(env.page(), "Request swap").onClick()
-    assert.are.same({ 0, 5678 }, requested)
-  end)
-
-  it("explains why a button is disabled and what went wrong with a click", function()
-    install({ own = { map = 0, layer = 1234 }, canRequest = false, reason = "in_group", requestOk = false })
-    env.open("layers")
-    local request = button(env.page(), "Request swap")
-    assert.is_true(request.disabled)
-    assert.are.equal("you are in a group.", request.tooltip)
-    assert.is_truthy(env.text():find("you are in a group", 1, true))
-    request.onClick()
-    assert.are.equal("warning", env.banner().opts.kind)
-    assert.is_truthy(env.banner().opts.text:find("Not done: a swap is already running.", 1, true))
-  end)
-
-  it("shows the running swap with a way to cancel it", function()
-    install({
-      own = { map = 0, layer = 1234 },
-      status = { role = "requester", stage = "request", map = 0, layer = 5678 },
-    })
-    env.open("layers")
-    assert.is_truthy(env.text():find("Looking for someone on #5678", 1, true))
-    env.press("Cancel")
-    assert.are.equal("cancelled", requested)
   end)
 
   it("switches sharing with the switch", function()

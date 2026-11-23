@@ -301,7 +301,7 @@ function UI.PvPSeasonChanged(messageType)
   end
 end
 
--- The own layer, a received layer or the swap changed (a whole guild logging in sends one state each): the Layers tab
+-- The own layer or a received layer changed (a whole guild logging in sends one state each): the Layers tab
 -- is drawn again if it is the one on screen, at most once per LAYER_REDRAW_SECONDS.
 UI.LayersChanged = throttledRedraw(function()
   return currentTab == "layers" or currentTab == "home"

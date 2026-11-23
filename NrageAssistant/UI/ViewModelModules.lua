@@ -34,7 +34,7 @@ ViewModel.MODULE_TEXT = ns.Locale.Table(function()
     },
     layers = {
       label = L("Layers"),
-      description = L("Your layer, the layer swaps and the layer popup."),
+      description = L("Your layer and the layers of your guildmates."),
     },
     map = {
       label = L("Map pins"),

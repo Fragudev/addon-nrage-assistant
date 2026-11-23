@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- The floating card the loot popup and the layer popup share: a movable frame on a cut surface with a title and a
+-- The floating card the popups share: a movable frame on a cut surface with a title and a
 -- close button, that remembers where it was left. What goes inside is up to each popup. Client only.
 local PopupFrame = {}
 

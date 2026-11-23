@@ -52,7 +52,7 @@ local ACTIONS = {
   install_check = GLOBAL_ONLY,
 
   edit_own_profile = EVERYONE,
-  -- Sharing the own layer and taking part in a layer swap.
+  -- Sharing the own layer.
   layer_share = EVERYONE,
   -- Posting a group, applying to one and inviting an applicant (docs/LFG_PLAN.md).
   lfg_use = EVERYONE,

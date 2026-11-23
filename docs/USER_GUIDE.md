@@ -674,20 +674,7 @@ sure), so when it says "unknown", click any NPC. The label of a layer is `#` plu
 id; your own layer is marked "(you)". Layers are shown only for your continent.
 
 - **Share my layer** (on by default) lets the guild see your layer. Turn it off and the addon tells the guild to
-  forget you. You can still ask for a swap with it off.
-- **Request swap** asks the guildmates on that layer to help you. It needs you to be alone (not in a group), out of
-  combat and not in an instance, and no other swap running; otherwise the button is disabled and says why.
-- A member on that layer who can help gets a popup with a sound: **Help** or **Ignore**. The first to answer is
-  picked, and the others' popups close. The helper then clicks **Invite**; you accept the normal group invite.
-- After you join, target or mouse over any NPC so the addon can confirm the move. When your layer is the one you
-  asked for, the popup says "Layer changed" and offers **Leave group**. The addon never leaves a group by itself.
-- If nobody answers (60 seconds), the helper does not invite you (90 seconds) or the move cannot be confirmed
-  (120 seconds), the popup says so. **Cancel** works at any step.
-
-To help: the popup appears only if you are on the requested layer, not in an instance, and either alone or leading a
-party that is not full. In combat it does not pop up: a small icon appears next to the Groups icon (near the
-minimap), and the popup opens with its sound when combat ends. Hover the icon to see the request, or click it to open
-the popup at once; **Help** and **Invite** still wait for the end of combat.
+  forget you.
 
 The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
 on Forever is still being checked (see `docs/API_NOTES.md`).
@@ -720,13 +707,12 @@ post shows five seats. A taken seat shows the class icon of a member of your par
 (shield for Tank, cross for Heal, swords for DPS) when it is known: your own declared role, and the role each applicant
 joined as. A free seat shows the role you still need, dimmed. A member who was in your party before you posted has no
 role mark, and a post from an older version of the addon shows people instead of classes. You can post when you are alone or when
-you lead a party that is not full. You cannot post while you are in a raid or during an encounter, or while a layer
-swap runs. **Edit** changes the open post and **Close group** ends it. The post closes by itself when the party is
+you lead a party that is not full. You cannot post while you are in a raid or during an encounter. **Edit** changes the open post and **Close group** ends it. The post closes by itself when the party is
 full, when you stop leading it, when it disbands after someone joined, or when it becomes a raid.
 
 **Applying.** On the board, press **Apply** on a post, choose the role you go as (it must be one the post still needs)
 and add a note if you like. The button says why it is off when you cannot apply: you are in a group, you already have
-an application or an open post, your known level is below the minimum, or a layer swap runs. Your application waits
+an application or an open post, or your known level is below the minimum. Your application waits
 two minutes for the leader. If there is no answer it expires, and you can apply again. **Withdraw** takes it back.
 
 **Inviting.** The leader sees each applicant in the tab and in a popup, with **Invite** and **Decline**. **Invite**
@@ -735,12 +721,8 @@ invitation, they join and the need goes down by one. If they do not join within 
 invite again. **Decline** tells the applicant. Invites are never automatic. You cannot invite during combat, or while
 you are in a group you do not lead.
 
-**Joining may move you.** Joining a party may move you to the leader's layer, as a layer swap does. The addon does
+**Joining may move you.** Joining a party may move you to the leader's layer. The addon does
 nothing about it. Whether the game does this on Forever has not been checked yet (see `docs/API_NOTES.md`).
-
-**Groups and layer swaps exclude each other.** While you have an open post or an application that has not ended, you
-cannot request a layer swap or answer one, and the Layers tab says why. While a swap runs, Groups refuses to post or
-to apply.
 
 ## Announcements
 

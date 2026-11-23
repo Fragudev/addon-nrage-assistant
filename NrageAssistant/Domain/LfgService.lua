@@ -200,12 +200,6 @@ local function merge(base, fields)
   return merged
 end
 
--- Is this client running a Groups flow: an own post, or an application that has not ended? The layer swap reads it to
--- stay out of the way (docs/LFG_PLAN.md 2.4).
-function LfgService:IsBusy()
-  return self.post ~= nil or (self.application ~= nil and ACTIVE[self.application.state] == true)
-end
-
 -- Can this client post a group now? Returns true, or false plus "locked" | "busy" | a reason of the eligibility. The
 -- tab asks it to enable its button; Post asks it again.
 function LfgService:CanPost()
@@ -838,10 +832,10 @@ end
 
 -- The eligibility rules (plan section 2.3) over a platform-like object.
 --   platform: IsInGroup, IsInRaid, IsInCombat, IsGroupLeader, GetGroupSize
---   isLocked: function() -> boolean     swapActive: function() -> boolean (a layer swap is running)
+--   isLocked: function() -> boolean
 -- Each rule returns true, or false plus a reason. The rules that depend on the post or the application (an own post,
 -- the level, the role, another application, the needs) are checked by the service.
-function LfgService.Eligibility(platform, isLocked, swapActive)
+function LfgService.Eligibility(platform, isLocked)
   local function notLeader()
     return platform.IsInGroup() and not platform.IsGroupLeader()
   end
@@ -849,9 +843,6 @@ function LfgService.Eligibility(platform, isLocked, swapActive)
     post = function()
       if isLocked() then
         return false, "locked"
-      end
-      if swapActive() then
-        return false, "swap"
       end
       if platform.IsInRaid() then
         return false, "raid"
@@ -870,9 +861,6 @@ function LfgService.Eligibility(platform, isLocked, swapActive)
       end
       if platform.IsInGroup() then
         return false, "in_group"
-      end
-      if swapActive() then
-        return false, "swap"
       end
       return true
     end,

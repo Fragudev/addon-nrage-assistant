@@ -13,7 +13,7 @@ Comm.__index = Comm
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional), guildKos (the guild Kill On
 --       Sight table) and onGuildKosChange(messageType) (optional),
---       layerDirectory, layerSwap and onLayerChange(messageType), lfgService and onLfgChange(messageType) (all
+--       layerDirectory and onLayerChange(messageType), lfgService and onLfgChange(messageType) (all
 --       optional), announcements (the announcements store, see AnnouncementSync), onAnnouncement(announcement) (each
 --       stored one) and onAnnouncementChange(messageType) (all optional),
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
@@ -54,9 +54,8 @@ function Comm.New(deps)
     guildKey = deps.guildKey,
     entryOf = deps.entryOf,
     onRanksChange = deps.onRanksChange,
-    -- The layer directory and swap flow are in memory and created after Comm (Init.StartLayer sets them).
+    -- The layer directory is in memory and created after Comm (Init.StartLayer sets it).
     layerDirectory = deps.layerDirectory,
-    layerSwap = deps.layerSwap,
     onLayerChange = deps.onLayerChange,
     -- The Groups service is in memory and created after Comm (Init.StartLfg sets it).
     lfgService = deps.lfgService,
@@ -1111,10 +1110,10 @@ function Comm:HandleRankMap(sender, message)
   return ok, reason
 end
 
--- LAYER_STATE and LAYER_SWAP: live only, nothing is saved. The sender's role is read from the local guild roster and
+-- LAYER_STATE: live only, nothing is saved. The sender's role is read from the local guild roster and
 -- the actor is always the sender, never a payload field.
 function Comm:HandleLayer(sender, message)
-  local ctx = { directory = self.layerDirectory, swap = self.layerSwap }
+  local ctx = { directory = self.layerDirectory }
   local ok, reason = ns.LayerSync.Apply(ctx, message, sender, self.roleOf(sender))
   if ok and self.onLayerChange then
     self.onLayerChange(message.t)
@@ -1221,15 +1220,7 @@ function Comm:SendLayerState(payload)
   return self:Send("LAYER_STATE", payload, "LY")
 end
 
--- One step of a layer swap. Never queued: a step that is old by the time the encounter ends is not news.
-function Comm:SendLayerSwap(payload)
-  if not self.queue.guard:CanSend() then
-    return false, "locked"
-  end
-  return self:Send("LAYER_SWAP", payload)
-end
-
--- The own Groups post (open, changed or closed) and a step of an application. Live only, like the layer swap: refused
+-- The own Groups post (open, changed or closed) and a step of an application. Live only, like the layer state: refused
 -- during the lockdown instead of queued, because the next republication carries the current post.
 function Comm:SendLfgPost(payload)
   if not self.queue.guard:CanSend() then
