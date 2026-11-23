@@ -1,0 +1,21 @@
+NrageAssistant/UI/MapPins.lua
+  s_076bf10c38fc89::t_f4578723ca26cc 161-168
+tests/map_pins_spec.lua
+  s_076bf10c38fc89::t_53793864e74952 578-599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9b6991fbe4e893373ab4bbff69b1e6f8f3fca447",
+  "prompts": {},
+  "sessions": {
+    "s_076bf10c38fc89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b32593f5-d0b5-4a3b-8c46-3d962c81a9c2",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
