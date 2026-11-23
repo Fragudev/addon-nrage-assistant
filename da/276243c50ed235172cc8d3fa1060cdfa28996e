@@ -1,0 +1,73 @@
+NrageAssistant/Core/Init.lua
+  s_076bf10c38fc89::t_f5bc0de510ca65 449,454,480-481,567
+NrageAssistant/Core/LayerProbe.lua
+  s_076bf10c38fc89::t_da29172d50237b 3
+NrageAssistant/Core/Platform.lua
+  s_076bf10c38fc89::t_50828fe48c8ba9 785
+NrageAssistant/Domain/LfgService.lua
+  s_076bf10c38fc89::t_520adbcc1bf8e2 835,838
+NrageAssistant/Domain/PermissionService.lua
+  s_076bf10c38fc89::t_0fa126dd89378b 55
+NrageAssistant/Locales/esES.lua
+  s_076bf10c38fc89::t_46268e722c7fb8 652,654
+NrageAssistant/Sync/Comm.lua
+  s_076bf10c38fc89::t_f84edc415787e4 16,57,1113,1116,1223
+NrageAssistant/Sync/LayerSync.lua
+  s_076bf10c38fc89::t_0f76efe5e91b4f 7-8,10,26
+NrageAssistant/Sync/Protocol.lua
+  s_076bf10c38fc89::t_ba3d2602219e36 425-426
+NrageAssistant/UI/Main.lua
+  s_076bf10c38fc89::t_cf10329907edf9 304
+NrageAssistant/UI/PopupFrame.lua
+  s_076bf10c38fc89::t_2da9141c507b05 3
+NrageAssistant/UI/Tabs/Layers.lua
+  s_076bf10c38fc89::t_b3df5a68b7bce4 3-4,11,13,22-23,49,51,67,77
+NrageAssistant/UI/ViewModelLayers.lua
+  s_076bf10c38fc89::t_070eb4fea4f850 3,12-13
+NrageAssistant/UI/ViewModelModules.lua
+  s_076bf10c38fc89::t_e4a1f94313fb51 37
+README.md
+  s_076bf10c38fc89::t_b6d7ac5bd75c16 155
+docs/API_NOTES.md
+  s_076bf10c38fc89::t_8efa376e0775b5 51,62,65,68-70,75
+docs/CURSEFORGE_DESCRIPTION.md
+  s_076bf10c38fc89::t_6bc448711a02ad 33
+docs/PRIVACY.md
+  s_076bf10c38fc89::t_4cbd81397c6efc 149,152
+docs/PROTOCOL.md
+  s_076bf10c38fc89::t_ae06de3c6bb684 37,43,169-171,178-182
+docs/USER_GUIDE.md
+  s_076bf10c38fc89::t_51bc06b28fec86 677,710,715,724
+tests/comm_spec.lua
+  s_076bf10c38fc89::t_30b9d47b59734a 2146,2166-2175,2195-2196
+tests/init_spec.lua
+  s_076bf10c38fc89::t_8e89340d04f851 153
+tests/layer_sync_spec.lua
+  s_076bf10c38fc89::t_7d89d5052594b3 29,39,41-42,69,87
+tests/lfg_service_spec.lua
+  s_076bf10c38fc89::t_7adb99d6459e22 137,1351
+tests/platform_spec.lua
+  s_076bf10c38fc89::t_299d99a6a0ab8e 1107-1108
+tests/protocol_spec.lua
+  s_076bf10c38fc89::t_0ae74e405d180c 781-785
+tests/ui_smoke_spec.lua
+  s_076bf10c38fc89::t_e69d03a7353a39 3725,3755,3776,3782
+tests/view_model_layers_spec.lua
+  s_076bf10c38fc89::t_ce8ab6b57d9954 1,41-42,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "da276243c50ed235172cc8d3fa1060cdfa28996e",
+  "prompts": {},
+  "sessions": {
+    "s_076bf10c38fc89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b32593f5-d0b5-4a3b-8c46-3d962c81a9c2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
