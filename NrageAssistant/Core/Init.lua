@@ -146,6 +146,11 @@ local function StartPvPMissions(feed)
       return ns.character and ns.character.pvpClaims
     end,
     cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
+    onEnemy = function(info)
+      if ns.pvpWorldKills then
+        ns.pvpWorldKills:Remember(info)
+      end
+    end,
     now = ns.Platform.ServerTime,
     platform = ns.Platform,
     killsAvailable = function()
@@ -323,7 +328,7 @@ local function StartPvP()
     -- The own honour kills also go to the mission log.
     onHonorKill = function(entry)
       if ns.pvpMissions then
-        ns.pvpMissions:OnHonorKill(entry)
+        return ns.pvpMissions:OnHonorKill(entry)
       end
     end,
   })
@@ -335,19 +340,69 @@ local function StartPvP()
   for _, event in ipairs(PVP_HONOR_EVENTS) do
     ns.Platform.TryRegisterEvent(pvpFrame, event)
   end
+  local world = ns.PvPWorldKills.New({
+    now = ns.Platform.Now,
+    serverTime = ns.Platform.ServerTime,
+    contextKey = function()
+      if not ns.active or not ns.modules:IsEnabled("pvp") or ns.Platform.GetInstanceKind() ~= "none" then
+        return nil
+      end
+      local map = ns.Platform.GetPlayerMapId()
+      return map and "world:" .. map or nil
+    end,
+    counters = ns.Platform.GetPvPKillCounters,
+    deathInfo = ns.Platform.GetPlayerDeathInfo,
+    isAlive = ns.Platform.IsWorldVictimAlive,
+    killContext = function(victim)
+      return ns.pvpMissions:KillContext(victim)
+    end,
+    commit = function(info)
+      return feed:OnHonorKill(info.name, "world", info)
+    end,
+    onDecision = function(decision)
+      if ns.PvPProbe.RecordWorldDecision then
+        ns.PvPProbe.RecordWorldDecision(decision)
+      end
+    end,
+  })
+  ns.pvpWorldKills = world
+  local deathSource = false
+  for _, event in ipairs({ "UNIT_DIED", "PARTY_KILL" }) do
+    deathSource = ns.Platform.TryRegisterEvent(pvpFrame, event) or deathSource
+  end
+  ns.Platform.TryRegisterEvent(pvpFrame, "PLAYER_ENTERING_WORLD")
+  ns.Platform.TryRegisterEvent(pvpFrame, "ZONE_CHANGED_NEW_AREA")
+  world.enabled = deathSource and ns.pvpMissions ~= nil
+  feed.worldNames = world.enabled
+  if ns.pvpMissions then
+    ns.pvpMissions:RescanUnits()
+  end
+  C_Timer.NewTicker(0.5, function()
+    GuardedMissionCall("pvpWorldKills.poll", world.Poll, world)
+  end)
   -- A protected event: even inside a pcall, registering it shows the client's "blocked action" dialog.
   tracker.blowsAvailable = Constants.PVP_COMBAT_LOG_ENABLED
       and ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
     or false
   feed.blowNames = tracker.blowsAvailable
-  pvpFrame:SetScript("OnEvent", function(_, event, text)
+  pvpFrame:SetScript("OnEvent", function(_, event, text, targetGUID)
     if not ns.modules:IsEnabled("pvp") then
       return
     end
     if not ns.active then
       return
     end
-    if event == PVP_COMBAT_LOG_EVENT then
+    if event == "UNIT_DIED" or event == "PARTY_KILL" then
+      GuardedMissionCall("pvpWorldKills.poll", world.Poll, world)
+      if ns.pvpMissions then
+        GuardedMissionCall("pvpWorldKills.scan", ns.pvpMissions.RescanUnits, ns.pvpMissions)
+      end
+      GuardedMissionCall("pvpWorldKills.death", world.OnDeath, world, event == "PARTY_KILL" and targetGUID or text)
+      return
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+      world:Reset(event)
+      return
+    elseif event == PVP_COMBAT_LOG_EVENT then
       local info = ns.Platform.GetCombatLogInfo()
       if info and tracker:OnCombatLog(info) and info.destName then
         feed:OnKillingBlow(info.destName, tracker:Where())
@@ -357,7 +412,12 @@ local function StartPvP()
       if event == PVP_HONOR_TEXT_EVENT then
         local victim = ns.Platform.ParseHonorVictim(text)
         if victim then
-          feed:OnHonorKill(victim, tracker:Where())
+          local handled = world:OnHonorName(victim)
+          local kind = ns.Platform.GetInstanceKind()
+          -- Never bypass the world arbiter during an uncertain map/loading transition.
+          if not handled and (not world.enabled or (kind and kind ~= "none")) then
+            feed:OnHonorKill(victim, tracker:Where())
+          end
           -- The same honour kill is a win against that enemy in Intel.
           if ns.intel and ns.intelDetector and ns.intelDetector:Allowed() then
             pcall(ns.intel.OnWin, ns.intel, victim)

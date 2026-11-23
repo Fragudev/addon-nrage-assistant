@@ -547,6 +547,112 @@ local function fileToken(value)
   return nil
 end
 
+local function plainGUID(value)
+  local ok, guid = pcall(function()
+    if type(_G.issecretvalue) == "function" and _G.issecretvalue(value) then
+      return nil
+    end
+    if type(value) == "string" and value:find("^Player%-") then
+      return value .. ""
+    end
+  end)
+  return ok and guid or nil
+end
+
+-- Separate readings are required: honor points and raid-member change notifications are not HK credits.
+function Platform.GetPvPKillCounters()
+  local ok, snapshot = pcall(function()
+    local session = Platform.GetPvPSessionKills()
+    local lifetime = _G.GetPVPLifetimeStats and _G.GetPVPLifetimeStats()
+    if type(session) == "number" and type(lifetime) == "number" and lifetime >= 0 and lifetime % 1 == 0 then
+      return { sessionHK = session, lifetimeHK = lifetime }
+    end
+    return { error = "unavailable" }
+  end)
+  return ok and snapshot or { error = "restricted" }
+end
+
+-- false = definitely not an eligible player; nil = unknown (must make a correlation ambiguous).
+-- No faction inference here: live credit requires a matching hostile unit or a recent hostile GUID observation.
+function Platform.GetPlayerDeathInfo(rawGUID)
+  local values
+  if type(_G.GetPlayerInfoByGUID) == "function" then
+    values = { pcall(_G.GetPlayerInfoByGUID, rawGUID) }
+  end
+  local ok, result = pcall(function()
+    local guid = plainGUID(rawGUID)
+    if not guid then
+      if type(_G.issecretvalue) == "function" and _G.issecretvalue(rawGUID) then
+        return nil
+      end
+      if type(rawGUID) == "string" and rawGUID ~= "" then
+        return false
+      end
+      return nil
+    end
+    if UnitGUID and guid == UnitGUID("player") then
+      return false
+    end
+    for _, prefix in ipairs({ "party", "raid" }) do
+      for index = 1, prefix == "party" and 4 or 40 do
+        if UnitGUID and plainGUID(UnitGUID(prefix .. index)) == guid then
+          return false
+        end
+      end
+    end
+    -- Current friendliness overrides any earlier hostile cache entry (for example after a control effect ends).
+    for _, unit in ipairs(ns.EnemyPlayerUnits()) do
+      local sideOk, friendly = pcall(function()
+        if not UnitGUID or plainGUID(UnitGUID(unit)) ~= guid then
+          return nil
+        end
+        if UnitIsPlayer and UnitIsPlayer(unit) == false then
+          return true
+        end
+        if UnitIsEnemy and UnitIsEnemy("player", unit) == false then
+          return true
+        end
+      end)
+      if sideOk and friendly then
+        return false
+      end
+    end
+    local info = { guid = guid }
+    if values and values[1] then
+      info.name = readableName(values[7])
+      info.class, info.race = fileToken(values[3]), fileToken(values[5])
+    end
+    return info
+  end)
+  if not ok then
+    return nil
+  end
+  return result
+end
+
+-- A readable living/Feign Death unit vetoes a delayed attribution. Missing/hidden units give no such evidence.
+function Platform.IsWorldVictimAlive(guid)
+  for _, unit in ipairs(ns.EnemyPlayerUnits()) do
+    local ok, alive = pcall(function()
+      if not UnitGUID or plainGUID(UnitGUID(unit)) ~= guid then
+        return nil
+      end
+      local feigning = _G.UnitIsFeignDeath
+      if type(feigning) == "function" and feigning(unit) == true then
+        return true
+      end
+      local dead = _G.UnitIsDeadOrGhost or _G.UnitIsDead
+      if type(dead) == "function" and dead(unit) == false then
+        return true
+      end
+    end)
+    if ok and alive then
+      return true
+    end
+  end
+  return nil
+end
+
 -- What is known of the enemy player on `unit` ("target", "mouseover", "nameplate3"): { name, class, race } with the
 -- full name as the client gives it and the class and race file tokens (which do not depend on the locale); `class`
 -- and `race` are nil when one is not readable. Nil when the unit is not an enemy player or nothing is readable.
@@ -572,7 +678,10 @@ function Platform.GetEnemyPlayerInfo(unit)
     if not name or not (class or race) then
       return nil
     end
-    return { name = name, class = class, race = race }
+    local guidOk, guid = pcall(function()
+      return UnitGUID and plainGUID(UnitGUID(unit)) or nil
+    end)
+    return { name = name, class = class, race = race, guid = guidOk and guid or nil }
   end)
   return ok and info or nil
 end

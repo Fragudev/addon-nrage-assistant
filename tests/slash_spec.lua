@@ -96,6 +96,16 @@ describe("/nrage", function()
     assert.are.same({ "pvp:Grant Yonemon Gg M-1 40" }, seen)
   end)
 
+  it("forwards PvP diagnostic filters, pages and session arguments", function()
+    local ns = load_slash(seen, identity)
+    local received
+    ns.PvPProbe.Handle = function(action, args)
+      received = { action, args }
+    end
+    run("DEBUG PvP REPORT ambiguous 2 7")
+    assert.are.same({ "report", "ambiguous 2 7" }, received)
+  end)
+
   it("shows the version, the expected club id and the access result in debug identity", function()
     run("debug identity")
     local output = table.concat(printed, "\n")

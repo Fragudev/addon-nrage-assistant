@@ -795,6 +795,57 @@ describe("Init", function()
   end)
 
   describe("PvP missions handlers", function()
+    it("wires world deaths and named honor into one deferred mission credit without requiring debug", function()
+      local platform, clock, session, lifetime = env.ns.Platform, 1000, 1, 172
+      platform.Now = function()
+        return clock
+      end
+      platform.GetInstanceKind = function()
+        return "none"
+      end
+      platform.GetPlayerMapId = function()
+        return 2548
+      end
+      platform.GetPvPKillCounters = function()
+        return { sessionHK = session, lifetimeHK = lifetime }
+      end
+      platform.GetEnemyPlayerInfo = function(unit)
+        if unit == "target" then
+          return { guid = "Player-enemy", name = "Xtrap Xtratos", class = "HUNTER", race = "ORC" }
+        end
+      end
+      platform.GetPlayerDeathInfo = function(guid)
+        return { guid = guid, name = "Xtrap Xtratos", class = "HUNTER", race = "ORC" }
+      end
+      platform.ParseHonorVictim = function()
+        return "Xtrap Xtratos"
+      end
+      env.fire("ADDON_LOADED", "NrageAssistant")
+      env.fire("PLAYER_LOGIN")
+      local frame
+      for _, candidate in ipairs(env.frames) do
+        if candidate.events.UNIT_DIED then
+          frame = candidate
+        end
+      end
+      assert.is_truthy(frame)
+      assert.is_true(frame.events.PARTY_KILL)
+      assert.is_nil(frame.events.COMBAT_LOG_EVENT_UNFILTERED)
+      frame.OnEvent(frame, "UNIT_DIED", "Player-enemy")
+      frame.OnEvent(frame, "PARTY_KILL", "Player-friend", "Player-enemy")
+      clock, session, lifetime = clock + 0.316, 2, 173
+      frame.OnEvent(frame, "PLAYER_PVP_KILLS_CHANGED", "player")
+      frame.OnEvent(frame, "CHAT_MSG_COMBAT_HONOR_GAIN", "named honor")
+      clock = clock + 7
+      env.ns.pvpWorldKills:Poll()
+      local events = env.ns.pvpMissions:Events()
+      assert.are.equal(1, #events)
+      assert.are.equal("Xtrap Xtratos", events[1].victim)
+      assert.are.equal("HUNTER", events[1].class)
+      assert.are.equal("ORC", events[1].race)
+      assert.are.equal("world-hk:173", events[1].creditId)
+    end)
+
     it("builds the progress publisher and hooks the HELLO of a gm or cogm to the pending claims", function()
       env.fire("ADDON_LOADED", "NrageAssistant")
       env.fire("PLAYER_LOGIN")
