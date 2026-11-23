@@ -158,6 +158,14 @@ function MapPins.BuildPin(kind)
   -- Hidden until the library places it: an unanchored frame that is shown sits at the centre of the screen, and
   -- the library never hides a frame it does not place (a pin on another map), so it would stay there.
   frame:Hide()
+  -- A pin only belongs on a frame that places it (the library's map pin, the minimap, another map addon's layer).
+  -- On UIParent it is unanchored, so it never shows there: OpenMap's combat view gives every icon back to the parent
+  -- it had and shows it as combat ends, and an icon the library had let go has UIParent then.
+  frame:SetScript("OnShow", function(self)
+    if self:GetParent() == UIParent then
+      self:Hide()
+    end
+  end)
   frame:EnableMouse(true)
   frame.border = frame:CreateTexture(nil, "BACKGROUND")
   frame.border:SetAllPoints(frame)
