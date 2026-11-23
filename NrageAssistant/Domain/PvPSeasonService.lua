@@ -48,6 +48,7 @@ function PvPSeasonService.New(deps)
     onChange = deps.onChange,
     onSeasonClosed = deps.onSeasonClosed,
     fits = deps.fits,
+    killPoints = deps.killPoints,
   }, PvPSeasonService)
 end
 
@@ -71,6 +72,46 @@ function PvPSeasonService:RosterReady()
 end
 
 -- The rules a record goes through: the roster for roles, the own role for the own name.
+-- The points the kills of a season are worth, per player: `{ [player] = { points, at } }`. Each player's own counters
+-- come from their PVP_STATS record (db.global.pvpStats; the own ones from the local counters, or the held record when
+-- that is higher); only the counters of that very season count, so a new season starts from zero. With the roster
+-- read, a name that is not in the guild gets nothing. `deps.killPoints(seasonId)` replaces this (tests).
+function PvPSeasonService:KillPoints(seasonId)
+  if self.killPoints then
+    return self.killPoints(seasonId) or {}
+  end
+  local Stats = ns.PvPService
+  local result = {}
+  local function add(player, world, bg, at)
+    local points = Stats.SeasonPoints(world, bg)
+    if points > 0 then
+      result[player] = { points = points, at = at or 0 }
+    end
+  end
+  local held = ns.db and ns.db.global and ns.db.global.pvpStats or {}
+  for player, record in pairs(held) do
+    local season = type(record) == "table" and record.season
+    if type(player) == "string" and type(season) == "table" and season.id == seasonId then
+      if not self:RosterReady() or self.guildRoleOf(player) ~= nil then
+        add(player, season.world, season.bg, record.updatedAt)
+      end
+    end
+  end
+  local own = self.ownName()
+  local stats = ns.character and ns.character.pvp
+  if own and stats then
+    local world, bg = Stats.SeasonKills(stats, seasonId)
+    local record = held[own]
+    local season = type(record) == "table" and record.season
+    if type(season) == "table" and season.id == seasonId then
+      world, bg = math.max(world, season.world), math.max(bg, season.bg)
+    end
+    result[own] = nil
+    add(own, world, bg, self.now())
+  end
+  return result
+end
+
 function PvPSeasonService:Context()
   return {
     ledger = self.ledger,
@@ -174,7 +215,14 @@ function PvPSeasonService:Standings(seasonId)
     return rows
   end
   local ctx = self:Context()
-  return Model.Standings(self.ledger.grants[seasonId] or {}, self.ledger.voids, nil, ctx.roleOf, seasonId)
+  return Model.Standings(
+    self.ledger.grants[seasonId] or {},
+    self.ledger.voids,
+    nil,
+    ctx.roleOf,
+    seasonId,
+    self:KillPoints(seasonId)
+  )
 end
 
 -- The row of a player (default: the local one) in the ranking of a season, or nil when they have no points.

@@ -38,7 +38,6 @@ end
 ViewModel.GROUP_REASONS = ns.Locale.Table(function()
   return {
     locked = L("An encounter is in progress"),
-    swap = L("A layer swap is running"),
     raid = L("You are in a raid"),
     not_leader = L("You do not lead your group"),
     full = L("Your group is full"),

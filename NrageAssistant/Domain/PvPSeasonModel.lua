@@ -1046,9 +1046,11 @@ end
 -- stored by PvPSeasonSync (each grant with its `by`), `_officers` unused (the PvP officer flag gives no power any
 -- more), `roleOf(name)` the role of an author according to the guild roster. With `seasonId` only the grants of that
 -- season are read.
+-- `extra` (optional) is a map player -> { points, at }: points that come from outside the grants (the kills of the
+-- season, PvPService.SeasonPoints). They are added to the points of the grants of the same player.
 -- Returns a list of { pos, player, points, lastAt, tier } best first; a player with no points is not ranked, and
 -- `tier` is nil past position 10. Ties on points go to whoever reached the total first (earlier `lastAt`), then name.
-function PvPSeasonModel.Standings(grants, voids, _officers, roleOf, seasonId)
+function PvPSeasonModel.Standings(grants, voids, _officers, roleOf, seasonId, extra)
   local totals, rows = {}, {}
   for _, grant in pairs(grants or {}) do
     local voided = voids and voids[grant.id]
@@ -1066,6 +1068,27 @@ function PvPSeasonModel.Standings(grants, voids, _officers, roleOf, seasonId)
       row.points = row.points + grant.points
       if grant.at > row.lastAt then
         row.lastAt = grant.at
+      end
+    end
+  end
+  local extraNames = {}
+  for player in pairs(extra or {}) do
+    extraNames[#extraNames + 1] = player
+  end
+  table.sort(extraNames)
+  for _, player in ipairs(extraNames) do
+    local bonus = extra[player]
+    if type(bonus) == "table" and type(bonus.points) == "number" and bonus.points > 0 then
+      local row = totals[player]
+      if not row then
+        row = { player = player, points = 0, lastAt = 0 }
+        totals[player] = row
+        rows[#rows + 1] = row
+      end
+      row.points = row.points + bonus.points
+      local at = type(bonus.at) == "number" and bonus.at or 0
+      if at > row.lastAt then
+        row.lastAt = at
       end
     end
   end

@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- Client-side harness for the layer measurements (docs/LAYER_SWAP_PLAN.md section 1.1). Not unit tested: it only
+-- Client-side harness for the layer measurements. Not unit tested: it only
 -- wires PvPProbeLog (a generic bounded log) to real events. Every client read is guarded, because an API may be
 -- missing on this client or return secret values.
 -- Usage: /nrage debug layer start | stop | status | log | clear
