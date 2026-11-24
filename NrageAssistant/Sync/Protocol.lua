@@ -447,17 +447,18 @@ end
 
 -- Groups (docs/LFG_PLAN.md). LFG_POST is the post of its sender (the owner is always the sender); LFG_APPLY is one step
 -- of an application, and the actor is always the sender. Only `to` of an accept or a decline names someone, as plain
--- text like any character name. The needs plus the members of an open post never exceed a party.
+-- text like any character name. The needs plus the members of an open post never exceed its size: a party, or for the
+-- kind `raid` (protocol 1.18) the `size` it carries, one of Constants.LFG_RAID_SIZES. Only a raid carries a size.
 local LFG_APPLY_STEPS = { apply = true, withdraw = true, accept = true, decline = true }
 
-local function validateLfgNeeds(needs)
+local function validateLfgNeeds(needs, size)
   local constants = ns.Constants
   if type(needs) ~= "table" then
     return nil
   end
   local clean, total = {}, 0
   for role in pairs(constants.LFG_ROLES) do
-    if not isInt(needs[role], 0, constants.LFG_NEED_MAX) then
+    if not isInt(needs[role], 0, size - 1) then
       return nil
     end
     clean[role] = needs[role]
@@ -483,13 +484,15 @@ local function validateLfgPost(payload)
   if not (type(payload.kind) == "string" and constants.LFG_KINDS[payload.kind]) then
     return nil
   end
-  local needs, total = validateLfgNeeds(payload.needs)
+  local size = ns.LfgModel.SizeFor(payload.kind, payload.size)
+  if not size then
+    return nil
+  end
+  local needs, total = validateLfgNeeds(payload.needs, size)
   if not (needs and total > 0 and isText(payload.title, constants.LFG_TITLE_MAX)) then
     return nil
   end
-  if
-    not isInt(payload.members, 1, constants.LFG_PARTY_SIZE - 1) or total + payload.members > constants.LFG_PARTY_SIZE
-  then
+  if not isInt(payload.members, 1, size - 1) or total + payload.members > size then
     return nil
   end
   local clean = {
@@ -501,6 +504,9 @@ local function validateLfgPost(payload)
     needs = needs,
     members = payload.members,
   }
+  if payload.kind == "raid" then
+    clean.size = size
+  end
   if payload.minLevel ~= nil then
     if not isInt(payload.minLevel, 1, constants.LFG_LEVEL_MAX) then
       return nil

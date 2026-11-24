@@ -49,6 +49,7 @@ local function view(self, entry)
     kind = entry.kind,
     title = entry.title,
     members = entry.members,
+    size = entry.size,
     minLevel = entry.minLevel,
     note = entry.note,
     postedAt = entry.postedAt,
@@ -113,6 +114,7 @@ function LfgBoard:Apply(sender, payload)
     replacement.title = payload.title
     replacement.needs = { tank = payload.needs.tank, heal = payload.needs.heal, dps = payload.needs.dps }
     replacement.members = payload.members
+    replacement.size = payload.size
     replacement.minLevel = payload.minLevel
     replacement.note = payload.note
     replacement.party = ns.LfgModel.CleanParty(payload.party, payload.members)
@@ -144,8 +146,8 @@ function LfgBoard:Remove(sender)
   end
 end
 
--- The post of `sender` as { owner, pid, rev, state, outcome, kind, title, needs, members, minLevel, note, postedAt,
--- lastSeen, age }, or nil. A closed post (a tombstone) is returned too; a stale one is not.
+-- The post of `sender` as { owner, pid, rev, state, outcome, kind, title, needs, members, size, minLevel, note,
+-- postedAt, lastSeen, age }, or nil. A closed post (a tombstone) is returned too; a stale one is not.
 function LfgBoard:Get(sender)
   local entry = type(sender) == "string" and self.entries[keyOf(sender)] or nil
   if entry and fresh(self, entry) then

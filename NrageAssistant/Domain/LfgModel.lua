@@ -3,14 +3,15 @@ local _, ns = ...
 -- Pure rules of a Groups post (docs/LFG_PLAN.md): the kinds, the roles, the needs of a party and the payloads that
 -- travel on the wire. Nothing here touches the client.
 --
--- A post is { kind, title, needs = { tank, heal, dps }, members, minLevel?, note?, party? }. `members` counts the
--- leader and whoever is already in the party; needs plus members never exceed Constants.LFG_PARTY_SIZE. `party` lists
--- the seats taken, the leader first: { { c = class file token, r = wire role or nil } }, exactly `members` long. It is
--- optional: older clients do not send it, and a party the client cannot read is left out.
+-- A post is { kind, title, needs = { tank, heal, dps }, members, size?, minLevel?, note?, party? }. `members` counts
+-- the leader and whoever is already in the group; needs plus members never exceed the size of the post: `size` (one of
+-- Constants.LFG_RAID_SIZES) for a raid, which is the kind `raid` and only that kind, else Constants.LFG_PARTY_SIZE.
+-- `party` lists the seats taken, the leader first: { { c = class file token, r = wire role or nil } }, exactly
+-- `members` long. It is optional: older clients do not send it, and a party the client cannot read is left out.
 local LfgModel = {}
 
 -- In display order; the sets used to validate are in Constants.
-LfgModel.KINDS = { "dungeon", "quest", "other" }
+LfgModel.KINDS = { "dungeon", "quest", "other", "raid" }
 LfgModel.ROLES = { "tank", "heal", "dps" }
 
 local WIRE_ROLES = { Tank = "tank", Heal = "heal", Dps = "dps" }
@@ -80,7 +81,41 @@ local function trimmed(value)
   return type(value) == "string" and value:match("^%s*(.-)%s*$") or value
 end
 
-local function cleanNeeds(needs)
+-- The number of seats of a post: its raid size, or a party.
+function LfgModel.SizeOf(post)
+  return post and post.size or ns.Constants.LFG_PARTY_SIZE
+end
+
+function LfgModel.IsRaid(post)
+  return post ~= nil and post.size ~= nil
+end
+
+-- How many applicants the leader of `post` keeps at once.
+function LfgModel.ApplicantsMax(post)
+  return LfgModel.IsRaid(post) and ns.Constants.LFG_RAID_APPLICANTS_MAX or ns.Constants.LFG_APPLICANTS_MAX
+end
+
+-- The share of each role in a suggested group, before it is fitted to the free seats.
+local DEFAULT_SHARES = {
+  [5] = { tank = 1, heal = 1, dps = 3 },
+  [10] = { tank = 2, heal = 3, dps = 5 },
+  [20] = { tank = 3, heal = 5, dps = 12 },
+  [25] = { tank = 3, heal = 6, dps = 16 },
+  [40] = { tank = 4, heal = 10, dps = 26 },
+}
+
+-- The needs a new post of `size` seats starts with when the leader's group has `members`: a usual composition minus
+-- the leader, fitted to the free seats. A party asks for one of each role, as it always did.
+function LfgModel.DefaultNeeds(size, members)
+  local room = size - math.max(1, members or 1)
+  if size == ns.Constants.LFG_PARTY_SIZE or not DEFAULT_SHARES[size] then
+    return LfgModel.FitNeeds({ tank = 1, heal = 1, dps = 1 }, room)
+  end
+  local shares = DEFAULT_SHARES[size]
+  return LfgModel.FitNeeds({ tank = shares.tank, heal = shares.heal, dps = shares.dps - 1 }, room)
+end
+
+local function cleanNeeds(needs, size)
   if type(needs) ~= "table" then
     return nil
   end
@@ -90,7 +125,7 @@ local function cleanNeeds(needs)
     if count == nil then
       count = 0
     end
-    if not ns.Validate.Int(count, 0, ns.Constants.LFG_NEED_MAX) then
+    if not ns.Validate.Int(count, 0, size - 1) then
       return nil
     end
     clean[role] = count
@@ -104,7 +139,7 @@ function LfgModel.RemainingNeeds(post)
 end
 
 function LfgModel.IsFull(post)
-  return LfgModel.RemainingNeeds(post) == 0 or post.members >= ns.Constants.LFG_PARTY_SIZE
+  return LfgModel.RemainingNeeds(post) == 0 or post.members >= LfgModel.SizeOf(post)
 end
 
 -- Lowers the needs, the last role first, until they fit in `room` seats. Returns a new table.
@@ -123,8 +158,19 @@ function LfgModel.FitNeeds(needs, room)
   return fitted
 end
 
--- The clean post for `fields` ({ kind, title, needs, members, minLevel, note, party }), or nil plus "bad_kind" |
--- "bad_title" | "bad_needs" | "no_needs" | "bad_members" | "full" | "bad_level" | "bad_note".
+-- The size of a post of `kind` that says `size`, or nil when they do not go together: a raid needs one of
+-- Constants.LFG_RAID_SIZES, any other kind is a party and carries no size.
+local function sizeFor(kind, size)
+  local constants = ns.Constants
+  if kind == "raid" then
+    return (type(size) == "number" and constants.LFG_RAID_SIZE_SET[size]) and size or nil
+  end
+  return size == nil and constants.LFG_PARTY_SIZE or nil
+end
+LfgModel.SizeFor = sizeFor
+
+-- The clean post for `fields` ({ kind, title, needs, members, size, minLevel, note, party }), or nil plus "bad_kind" |
+-- "bad_size" | "bad_title" | "bad_needs" | "no_needs" | "bad_members" | "full" | "bad_level" | "bad_note".
 function LfgModel.NewPost(fields)
   local constants = ns.Constants
   if type(fields) ~= "table" then
@@ -133,28 +179,35 @@ function LfgModel.NewPost(fields)
   if not (type(fields.kind) == "string" and constants.LFG_KINDS[fields.kind]) then
     return nil, "bad_kind"
   end
+  local size = sizeFor(fields.kind, fields.size)
+  if not size then
+    return nil, "bad_size"
+  end
   local title = trimmed(fields.title)
   if not ns.Validate.Text(title, constants.LFG_TITLE_MAX) then
     return nil, "bad_title"
   end
-  local needs = cleanNeeds(fields.needs)
+  local needs = cleanNeeds(fields.needs, size)
   if not needs then
     return nil, "bad_needs"
   end
-  if not ns.Validate.Int(fields.members, 1, constants.LFG_PARTY_SIZE) then
+  if not ns.Validate.Int(fields.members, 1, size) then
     return nil, "bad_members"
   end
-  if fields.members >= constants.LFG_PARTY_SIZE then
+  if fields.members >= size then
     return nil, "full"
   end
   local total = needs.tank + needs.heal + needs.dps
   if total == 0 then
     return nil, "no_needs"
   end
-  if total + fields.members > constants.LFG_PARTY_SIZE then
+  if total + fields.members > size then
     return nil, "bad_needs"
   end
   local post = { kind = fields.kind, title = title, needs = needs, members = fields.members }
+  if fields.kind == "raid" then
+    post.size = size
+  end
   if fields.minLevel ~= nil then
     if not ns.Validate.Int(fields.minLevel, 1, constants.LFG_LEVEL_MAX) then
       return nil, "bad_level"
@@ -183,6 +236,7 @@ function LfgModel.PostPayload(pid, rev, post)
     title = post.title,
     needs = { tank = post.needs.tank, heal = post.needs.heal, dps = post.needs.dps },
     members = post.members,
+    size = post.size,
     minLevel = post.minLevel,
     note = post.note,
     party = copyParty(post.party),

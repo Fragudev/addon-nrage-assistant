@@ -577,6 +577,11 @@ local function StartLfg()
     groupSize = platform.GetGroupSize,
     isLeader = platform.IsGroupLeader,
     isRaid = platform.IsInRaid,
+    convertToRaid = function()
+      if not platform.ConvertToRaid() then
+        error("convert")
+      end
+    end,
     partyClasses = platform.GetPartyClasses,
     ownRole = function()
       local fields = ns.character and ns.character.profile and ns.character.profile.fields or {}

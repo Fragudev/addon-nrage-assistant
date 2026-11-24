@@ -26,6 +26,7 @@ local _, ns = ...
 --            invite = function() -> ok, reason }  (see LfgService.Eligibility),
 --          invite = function(name) -> ok, reason, isGroupMember = function(name) -> boolean,
 --          groupSize = function() -> number (0 or 1 when alone), isRaid = function() -> boolean (only `true` counts),
+--          convertToRaid = function() turns the party into a raid before a raid post invites (optional),
 --          isLeader = function() -> boolean, board = LfgBoard, onChange = function() (optional),
 --          partyClasses = function() -> { { name, class } } the party, the player first (optional),
 --          ownRole = function() -> wire role or nil, the player's declared role (optional),
@@ -188,7 +189,7 @@ end
 -- The fields of the model for a post being created or changed: `fields` over `base`.
 local function merge(base, fields)
   local merged = {}
-  for _, key in ipairs({ "kind", "title", "needs", "minLevel", "note" }) do
+  for _, key in ipairs({ "kind", "title", "needs", "size", "minLevel", "note" }) do
     if base and base[key] ~= nil then
       merged[key] = base[key]
     end
@@ -200,13 +201,18 @@ local function merge(base, fields)
   return merged
 end
 
--- Can this client post a group now? Returns true, or false plus "locked" | "busy" | a reason of the eligibility. The
--- tab asks it to enable its button; Post asks it again.
-function LfgService:CanPost()
+-- Can this client post a group of `size` seats now (nil: a party or any raid)? Returns true, or false plus "locked" |
+-- "busy" | a reason of the eligibility. The tab asks it without a size to enable its button; Post asks it again with
+-- the size of the post.
+function LfgService:CanPost(size)
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.post)
+  local ok, reason = eligible(self.deps.eligibility.post, size)
+  if not ok and size == nil then
+    local sizes = ns.Constants.LFG_RAID_SIZES
+    ok = eligible(self.deps.eligibility.post, sizes[#sizes])
+  end
   if not ok then
     return false, reason
   end
@@ -221,11 +227,11 @@ end
 -- reason: "locked" | "busy" | a reason of the eligibility | the reason of LfgModel.NewPost ("full", "no_needs"...) |
 -- the reason the send was refused.
 function LfgService:Post(fields)
-  local ok, reason = self:CanPost()
+  local merged = merge(nil, type(fields) == "table" and fields or {})
+  local ok, reason = self:CanPost(ns.LfgModel.SizeFor(merged.kind, merged.size))
   if not ok then
     return false, reason
   end
-  local merged = merge(nil, type(fields) == "table" and fields or {})
   merged.members = members(self)
   merged.party = partyOf(self, merged.members, nil)
   local clean, why = ns.LfgModel.NewPost(merged)
@@ -267,6 +273,9 @@ function LfgService:Update(fields)
     return false, "locked"
   end
   local merged = merge(post.fields, type(fields) == "table" and fields or {})
+  if merged.kind ~= "raid" then
+    merged.size = nil
+  end
   merged.members = members(self)
   merged.party = partyOf(self, merged.members, post.roles)
   local clean, why = ns.LfgModel.NewPost(merged)
@@ -322,18 +331,20 @@ local function countRows(post)
   return count
 end
 
--- Can the leader invite now? Returns true, or false plus "locked" | a reason of the eligibility | "full". The tab asks
--- it to enable its buttons; Invite asks it again.
+-- Can the leader invite now? Returns true, or false plus "locked" | a reason of the eligibility | "full". The group
+-- may grow up to the size of the own post (a party without one). The tab asks it to enable its buttons; Invite asks
+-- it again.
 function LfgService:CanInvite()
   if locked(self) then
     return false, "locked"
   end
-  local ok, reason = eligible(self.deps.eligibility.invite)
+  local limit = ns.LfgModel.SizeOf(self.post and self.post.fields)
+  local ok, reason = eligible(self.deps.eligibility.invite, limit)
   if not ok then
     return false, reason
   end
   local size = groupSize(self)
-  if size and size >= ns.Constants.LFG_PARTY_SIZE then
+  if size and size >= limit then
     return false, "full"
   end
   return true
@@ -360,6 +371,17 @@ function LfgService:Invite(applicant)
   local allowed, why = self:CanInvite()
   if not allowed then
     return false, why
+  end
+  -- A party holds five: a raid post turns the party into a raid before it grows, from the click that invites. Alone
+  -- there is no party to convert yet.
+  if ns.LfgModel.IsRaid(post.fields) and (groupSize(self) or 0) > 1 then
+    local okRaid, raid = pcall(self.deps.isRaid)
+    if not (okRaid and raid == true) then
+      local converted = self.deps.convertToRaid and pcall(self.deps.convertToRaid)
+      if not converted then
+        return false, "convert"
+      end
+    end
   end
   local ok, reason = eligible(self.deps.invite, row.name)
   if not ok then
@@ -430,7 +452,7 @@ local function onApplicantStep(self, sender, payload)
       row.state, row.deadline = "pending", nil
     end
   else
-    if countRows(post) >= ns.Constants.LFG_APPLICANTS_MAX then
+    if countRows(post) >= ns.LfgModel.ApplicantsMax(post.fields) then
       return false, "limit"
     end
     post.applicants[key] = { name = sender, role = payload.role, note = payload.note, state = "pending", at = now }
@@ -656,10 +678,14 @@ local function syncPost(self)
   if not size then
     return
   end
-  local okRaid, raid = pcall(self.deps.isRaid)
-  if (okRaid and raid == true) or size > constants.LFG_PARTY_SIZE then
-    closePost(self, "cancelled", false)
-    return
+  -- A party post ends when the party becomes a raid; a raid post follows the raid up to its size.
+  local limit = ns.LfgModel.SizeOf(post.fields)
+  if not ns.LfgModel.IsRaid(post.fields) then
+    local okRaid, raid = pcall(self.deps.isRaid)
+    if (okRaid and raid == true) or size > constants.LFG_PARTY_SIZE then
+      closePost(self, "cancelled", false)
+      return
+    end
   end
   if size > 1 and leaderState(self) == false then
     closePost(self, "cancelled", false)
@@ -681,7 +707,7 @@ local function syncPost(self)
     end
   end
   local count = math.max(1, size)
-  needs = ns.LfgModel.FitNeeds(needs, constants.LFG_PARTY_SIZE - count)
+  needs = ns.LfgModel.FitNeeds(needs, limit - count)
 
   local party = partyOf(self, count, post.roles)
   local fields = post.fields
@@ -698,6 +724,7 @@ local function syncPost(self)
     title = fields.title,
     needs = needs,
     members = count,
+    size = fields.size,
     minLevel = fields.minLevel,
     note = fields.note,
     party = party,
@@ -767,7 +794,7 @@ local function left(self, deadline)
 end
 
 -- { post, application, closed }. `closed` is { title, outcome } of an own post that closed by itself, until Dismiss or
--- a new post. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, minLevel, note, party,
+-- a new post. `post` is the own post, or nil: { pid, rev, kind, title, needs, members, size, minLevel, note, party,
 -- remaining, age, left (seconds to LFG_POST_MAX_AGE), applicants = { { name, role, note, state (pending | invited |
 -- retry), left, at } oldest first } }. `application` is the own application, or nil: { pid, leader, title, role,
 -- note, state (applied | invited | joined | declined | withdrawn | expired), reason, left }. A finished
@@ -802,6 +829,7 @@ function LfgService:Status()
       title = fields.title,
       needs = copyNeeds(fields.needs),
       members = fields.members,
+      size = fields.size,
       minLevel = fields.minLevel,
       note = fields.note,
       party = ns.LfgModel.CopyParty(fields.party),
@@ -840,17 +868,19 @@ function LfgService.Eligibility(platform, isLocked)
     return platform.IsInGroup() and not platform.IsGroupLeader()
   end
   return {
-    post = function()
+    -- `size` is the size of the post: a party when nil. Only a raid post may be posted from a raid.
+    post = function(size)
+      local limit = size or ns.Constants.LFG_PARTY_SIZE
       if isLocked() then
         return false, "locked"
       end
-      if platform.IsInRaid() then
+      if platform.IsInRaid() and limit <= ns.Constants.LFG_PARTY_SIZE then
         return false, "raid"
       end
       if notLeader() then
         return false, "not_leader"
       end
-      if platform.GetGroupSize() >= ns.Constants.LFG_PARTY_SIZE then
+      if platform.GetGroupSize() >= limit then
         return false, "full"
       end
       return true
@@ -864,14 +894,14 @@ function LfgService.Eligibility(platform, isLocked)
       end
       return true
     end,
-    invite = function()
+    invite = function(size)
       if isLocked() then
         return false, "locked"
       end
       if notLeader() then
         return false, "not_leader"
       end
-      if platform.GetGroupSize() >= ns.Constants.LFG_PARTY_SIZE then
+      if platform.GetGroupSize() >= (size or ns.Constants.LFG_PARTY_SIZE) then
         return false, "full"
       end
       if platform.IsInCombat() then
