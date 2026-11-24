@@ -1,0 +1,61 @@
+.luacheckrc
+  s_39c689c02066e8::t_b7f72e0de9bfce 80
+NrageAssistant/Core/Constants.lua
+  s_39c689c02066e8::t_482a742bb26426 27,428-430,433-435,438
+NrageAssistant/Core/Init.lua
+  s_39c689c02066e8::t_75cf2e871122cd 580-584
+NrageAssistant/Core/Platform.lua
+  s_39c689c02066e8::t_c655bd059e5fb3 974-1011,1015-1018,1301-1310
+NrageAssistant/Domain/LfgBoard.lua
+  s_39c689c02066e8::t_3489591172989e 52,117,149-150
+NrageAssistant/Domain/LfgModel.lua
+  s_39c689c02066e8::t_63edd59244c87b 6-10,14,84-118,128,142,161-173,182-185,190,194,197,204,208-210,239
+NrageAssistant/Domain/LfgService.lua
+  s_39c689c02066e8::t_dcda889548317f 29,192,204-207,211-215,230-231,276-278,334-336,341-342,347,375-385,455,681-688,710,727,797,832,871-873,877,883,897,904
+NrageAssistant/Locales/esES.lua
+  s_39c689c02066e8::t_783ba77bcc9a6e 1236-1241
+NrageAssistant/Sync/Protocol.lua
+  s_39c689c02066e8::t_557bd9f91ada3f 450-451,454,461,487-491,495,507-509
+NrageAssistant/UI/Tabs/Groups.lua
+  s_39c689c02066e8::t_263b04fd36245b 91,168,174-179,183-194,335-340,348,442,457,515
+NrageAssistant/UI/ViewModelGroups.lua
+  s_39c689c02066e8::t_f07af92a21c631 11,15,19,31-39,41,64-65,107-110,113-115,197,200,203,286,329,335,339,388-435,442,470-474,478-480,490,492-497,507,515-517,529,657
+README.md
+  s_39c689c02066e8::t_a1bcb0085b0532 158-159
+docs/CURSEFORGE_DESCRIPTION.md
+  s_39c689c02066e8::t_fc1099965481bc 95-96
+docs/LFG_PLAN.md
+  s_39c689c02066e8::t_0ca7e294174fbe 25
+docs/PROTOCOL.md
+  s_39c689c02066e8::t_6571246b97cbed 43-44,72,197-201
+docs/USER_GUIDE.md
+  s_39c689c02066e8::t_a40e2cc3567cf8 685-689
+tests/lfg_model_spec.lua
+  s_39c689c02066e8::t_4d70d33b191277 62,189-273
+tests/lfg_service_spec.lua
+  s_39c689c02066e8::t_5d0876ddf6054a 154-160,280-281,1410-1418,1467-1568
+tests/platform_spec.lua
+  s_39c689c02066e8::t_14f61bc95b72ce 763,772-800,804-823
+tests/protocol_spec.lua
+  s_39c689c02066e8::t_84c26399740859 925-987
+tests/ui_smoke_spec.lua
+  s_39c689c02066e8::t_58b984e27d31c0 3906-3908,4105-4124
+tests/view_model_groups_spec.lua
+  s_39c689c02066e8::t_dcb98101200276 189,379,469-596,799
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "a1175e0881ee0c377be3781d0131b717c8df9680",
+  "prompts": {},
+  "sessions": {
+    "s_39c689c02066e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d32514d-65d4-48fd-898c-7556d592a838",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
