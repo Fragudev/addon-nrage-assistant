@@ -40,7 +40,8 @@ How Nrage Assistant clients talk to each other. The limits quoted here are the v
   (`KOS_UPSERT`, `KOS_DELETE`); minor 11 added the Groups messages (`LFG_POST`, `LFG_APPLY`, see *Groups*); minor 12 added the optional
   `party` of an open `LFG_POST`; minor 13 added the rank map (`RANK_MAP`, see *Rank mapping*); minor 14 added the announcement messages (`ANN`, `ANN_DEL`, see *Announcements*); minor 15 added `PVP_PROGRESS`, the optional `queue` of `PVP_LEDGER_REQ`, claims in the
   ledger catch-up between approvers, the `bg_played` goal kind and the optional goal fields below; minor 16 added the
-  optional `zone` of `LAYER_STATE` (layers are per zone, see *Layers*); minor 17 added the `duel_wins` mission kind and the duel evidence row (see *PvP seasons*).
+  optional `zone` of `LAYER_STATE` (layers are per zone, see *Layers*); minor 17 added the `duel_wins` mission kind and the duel evidence row (see *PvP seasons*); minor 18 added raid posts to
+  `LFG_POST` (the `raid` kind and its `size`, see *Groups*).
 - `id` is 1 to 40 characters from `[A-Za-z0-9_-]`; a `(sender, id)` pair is processed once (a bounded cache of the
   last 200).
 
@@ -68,7 +69,7 @@ the length given by the model (title 60, encounter 60, item name 60, reason 100,
 | `BLACKLIST_DELETE` | guild | `key`, `rev` | admin |
 | `KOS_UPSERT` | guild | `key` (the name key, no `:`), `name` (1 to 40 bytes), `category` (`gank`, `camp`, `corpse`, `objective`, `insult` or `other`), optional `reason` (up to 100 bytes), `rev`, `updatedAt` | anyone adds; for an entry that exists, its author, gm or cogm; the author is the sender |
 | `KOS_DELETE` | guild | `key`, `rev` | the author of the entry, gm or cogm; gm or cogm for an entry this client does not hold |
-| `LFG_POST` | guild | `pid`, `rev`, `s` (`open` or `closed`); open: `kind`, `title`, `needs{tank, heal, dps}`, `members`, optional `minLevel`, `note` and `party[]` (`c`, optional `r`); closed: `o` (`full`, `cancelled` or `expired`) | anyone; the owner is the sender |
+| `LFG_POST` | guild | `pid`, `rev`, `s` (`open` or `closed`); open: `kind`, `title`, `needs{tank, heal, dps}`, `members`, `size` (raid only), optional `minLevel`, `note` and `party[]` (`c`, optional `r`); closed: `o` (`full`, `cancelled` or `expired`) | anyone; the owner is the sender |
 | `LFG_APPLY` | guild | `pid`, `s` (`apply`, `withdraw`, `accept` or `decline`); `apply`: `role`, optional `note`; `accept` and `decline`: `to` | anyone; the actor is the sender |
 | `I1` sighting (prefix `NRAGEINT`, plain text, not an envelope type) | guild in the open world; the group in a battleground | `map`, `x`, `y`, `class`, `race`, `level`, `flags`, `name` (see *Enemy sightings*) | anyone in the guild roster; the sender is the client that sent it |
 | `RECIPES` | guild | `prof` (profession id), optional `name`, `rev`, `updatedAt`, `part`, `parts` (up to 20), optional `total`, `ids[]` (up to 150 recipe ids per message) | anyone, for themselves; the record belongs to the sender |
@@ -193,9 +194,11 @@ replaces it, the same `rev` only refreshes it, a lower one is dropped, and a new
 post stays as a tombstone until it is stale, so a late open message cannot bring it back. The leader repeats an open
 post every 120 seconds with the same `rev`, and a post nobody repeats for 360 seconds is dropped.
 
-Rules for an open post: `kind` is `dungeon`, `quest` or `other`; `title` is 1 to 60 bytes; `needs` holds `tank`, `heal`
-and `dps`, each 0 to 4, and their sum is at least 1; `members` is 1 to 4; the needs and the members together never
-exceed five. `minLevel` (1 to 100) and `note` (up to 100 bytes) are optional. Text fields refuse `|` and control
+Rules for an open post: `kind` is `dungeon`, `quest`, `other` or `raid`; `title` is 1 to 60 bytes. The size of the
+post is five for a party, and for `raid` (minor 18) the `size` it carries, one of 10, 20, 25 or 40; only a raid carries
+a `size`. `needs` holds `tank`, `heal` and `dps`, each 0 to size minus one, and their sum is at least 1; `members` is 1
+to size minus one; the needs and the members together never exceed the size. A client older than minor 18 drops raid
+posts and keeps parties. `minLevel` (1 to 100) and `note` (up to 100 bytes) are optional. Text fields refuse `|` and control
 characters. Unknown fields are dropped.
 
 `party` (minor 12, optional) lists the seats already taken, the leader first, so the board can show who is in the

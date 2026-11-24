@@ -92,7 +92,8 @@ instances, battlegrounds or during an encounter.
 
 ### Groups
 
-Post a party for a dungeon, a quest or anything else, with the roles you need. Guildmates running the addon see the
+Post a party for a dungeon, a quest or anything else, or put together a raid of 10, 20, 25 or 40, with the roles you
+need. Guildmates running the addon see the
 board and apply with a role, and you invite them with one click. Each post shows five seats with the class and role
 of who is already in, and the roles still missing. Nothing is saved, and a post closes by itself when the party is
 full.
