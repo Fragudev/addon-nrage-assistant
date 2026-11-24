@@ -36,7 +36,7 @@ ns.Constants = {
 
   -- Wire protocol. Major mismatches are rejected; minor versions only add optional fields.
   PROTOCOL_MAJOR = 1,
-  PROTOCOL_MINOR = 17,
+  PROTOCOL_MINOR = 18,
   -- Bounds applied before anything is decoded or deserialized from the wire.
   MAX_ENCODED_BYTES = 4096,
   MAX_DECOMPRESSED_BYTES = 32768,
@@ -437,12 +437,17 @@ ns.Constants = {
   -- Groups (docs/LFG_PLAN.md). A post is kept by the receiver for LFG_POST_TTL after the last message and the leader
   -- repeats it every LFG_REPUBLISH_SECONDS; a post closes itself after LFG_POST_MAX_AGE. LFG_LEVEL_MAX only bounds
   -- the validation of `minLevel`. An application waits LFG_APPLY_TIMEOUT for the leader and an invite
-  -- LFG_INVITE_TIMEOUT for the join. LFG_NEED_MAX is a party of LFG_PARTY_SIZE minus the leader.
+  -- LFG_INVITE_TIMEOUT for the join. LFG_NEED_MAX is a party of LFG_PARTY_SIZE minus the leader. A raid post
+  -- (kind `raid`) carries one of LFG_RAID_SIZES; its needs are bounded by its size minus the leader, and it takes up
+  -- to LFG_RAID_APPLICANTS_MAX applicants instead of LFG_APPLICANTS_MAX.
   LFG_PARTY_SIZE = 5,
   LFG_NEED_MAX = 4,
+  LFG_RAID_SIZES = { 10, 20, 25, 40 },
+  LFG_RAID_SIZE_SET = { [10] = true, [20] = true, [25] = true, [40] = true },
+  LFG_RAID_APPLICANTS_MAX = 40,
   LFG_TITLE_MAX = 60,
   LFG_NOTE_MAX = 100,
-  LFG_KINDS = { dungeon = true, quest = true, other = true },
+  LFG_KINDS = { dungeon = true, quest = true, other = true, raid = true },
   LFG_ROLES = { tank = true, heal = true, dps = true },
   LFG_OUTCOMES = { full = true, cancelled = true, expired = true },
   LFG_REPUBLISH_SECONDS = 120,

@@ -186,7 +186,7 @@ describe("ViewModel groups board", function()
       end
     end
     assert.are.same({ "quest", "heal" }, active)
-    assert.are.equal(4, #v.kindFilters)
+    assert.are.equal(5, #v.kindFilters)
     assert.are.equal("Any role", v.roleFilters[1].text)
     assert.is_true(view().kindFilters[1].active)
   end)
@@ -376,7 +376,7 @@ describe("ViewModel groups form", function()
   it("starts with the roles that fit the party", function()
     assert.are.same({ tank = 1, heal = 1, dps = 1 }, ViewModel.GroupFormNew(1).needs)
     assert.are.same({ tank = 1, heal = 1, dps = 0 }, ViewModel.GroupFormNew(3).needs)
-    assert.are.same({ tank = 0, heal = 0, dps = 0 }, ViewModel.GroupFormNew(5).needs)
+    assert.are.equal("raid", ViewModel.GroupFormNew(5).kind)
     assert.are.equal("dungeon", ViewModel.GroupFormNew().kind)
   end)
 
@@ -466,7 +466,134 @@ describe("ViewModel groups form", function()
       end
     end
     assert.are.equal("quest", active)
-    assert.are.equal(3, #v.kinds)
+    assert.are.equal(4, #v.kinds)
+  end)
+end)
+
+describe("ViewModel groups raids", function()
+  local function raid_form(overrides)
+    local f = {
+      kind = "raid",
+      size = 25,
+      title = "Molten Core",
+      needs = { tank = 3, heal = 6, dps = 15 },
+      min = "",
+      note = "",
+    }
+    for k, v in pairs(overrides or {}) do
+      f[k] = v
+    end
+    return f
+  end
+
+  it("offers the raid type and the four raid sizes", function()
+    local v = ViewModel.GroupFormView(raid_form(), { members = 1 })
+    assert.are.equal(4, #v.kinds)
+    assert.are.equal("raid", v.kinds[4].value)
+    assert.are.equal("Raid", v.kinds[4].text)
+    assert.is_true(v.isRaid)
+    local sizes, active = {}, nil
+    for _, item in ipairs(v.sizes) do
+      sizes[#sizes + 1] = item.value
+      if item.active then
+        active = item.value
+      end
+    end
+    assert.are.same({ 10, 20, 25, 40 }, sizes)
+    assert.are.equal(25, active)
+    assert.are.equal(24, v.room)
+    assert.is_nil(ViewModel.GroupFormView(raid_form({ kind = "dungeon" }), { members = 1 }).sizes)
+  end)
+
+  it("sends the size of a raid and none for a party", function()
+    local v = ViewModel.GroupFormView(raid_form(), { members = 1 })
+    assert.is_true(v.canSubmit)
+    assert.are.equal(25, v.fields.size)
+    assert.are.equal("raid", v.fields.kind)
+    local party = ViewModel.GroupFormView(raid_form({ kind = "dungeon", needs = { tank = 1, heal = 1, dps = 1 } }), {})
+    assert.is_nil(party.fields.size)
+  end)
+
+  it("lets the roles grow up to the size of the raid", function()
+    local v = ViewModel.GroupFormView(raid_form({ needs = { tank = 3, heal = 6, dps = 14 } }), { members = 1 })
+    for _, s in ipairs(v.steppers) do
+      assert.is_true(s.canInc, s.role)
+    end
+    v = ViewModel.GroupFormView(raid_form(), { members = 1 })
+    for _, s in ipairs(v.steppers) do
+      assert.is_false(s.canInc, s.role)
+    end
+  end)
+
+  it("refuses a raid that the group already fills", function()
+    local v = ViewModel.GroupFormView(raid_form({ size = 10 }), { members = 10 })
+    assert.is_false(v.canSubmit)
+    assert.are.equal("Your group is full", v.reason)
+  end)
+
+  it("switches between a party and a raid with needs that fit", function()
+    local f = ViewModel.GroupFormNew(1)
+    ViewModel.GroupFormSetKind(f, "raid", 1)
+    assert.are.equal("raid", f.kind)
+    assert.are.equal(10, f.size)
+    assert.are.equal(9, f.needs.tank + f.needs.heal + f.needs.dps)
+    ViewModel.GroupFormSetSize(f, 40, 1)
+    assert.are.equal(40, f.size)
+    assert.are.equal(39, f.needs.tank + f.needs.heal + f.needs.dps)
+    ViewModel.GroupFormSetKind(f, "quest", 1)
+    assert.are.equal("quest", f.kind)
+    assert.are.same({ tank = 1, heal = 1, dps = 1 }, f.needs)
+    ViewModel.GroupFormSetKind(f, "dungeon", 1)
+    assert.are.same({ tank = 1, heal = 1, dps = 1 }, f.needs)
+  end)
+
+  it("starts a raid form for a leader of a raid or a full party", function()
+    local f = ViewModel.GroupFormNew(5)
+    assert.are.equal("raid", f.kind)
+    assert.are.equal(10, f.size)
+    assert.are.equal(5, f.needs.tank + f.needs.heal + f.needs.dps)
+    f = ViewModel.GroupFormNew(12, true)
+    assert.are.equal(20, f.size)
+    f = ViewModel.GroupFormNew(3, true)
+    assert.are.equal("raid", f.kind)
+    assert.are.equal("dungeon", ViewModel.GroupFormNew(3).kind)
+  end)
+
+  it("fills the form of an own raid for an edit", function()
+    local f = ViewModel.GroupFormFrom(own_post({ kind = "raid", size = 40 }))
+    assert.are.equal(40, f.size)
+  end)
+
+  it("shows a raid on the board with its size and a count instead of seats", function()
+    local row = view({
+      posts = { entry({ kind = "raid", size = 25, members = 12, needs = { tank = 1, heal = 2, dps = 3 } }) },
+    }).rows[1]
+    assert.are.equal("Raid 25", row.kindLabel)
+    assert.is_nil(row.seats)
+    assert.are.equal("12/25", row.count)
+    assert.are.equal("12 of 25 members", row.membersLabel)
+  end)
+
+  it("shows the own raid with its size in the header", function()
+    local own = view({ status = { post = own_post({ kind = "raid", size = 40, members = 7 }) } }).own
+    assert.are.equal("Your group · Raid 40", own.header)
+    assert.are.equal("7/40", own.count)
+    assert.is_nil(own.seats)
+  end)
+
+  it("filters raids and names them in the alert", function()
+    local filters = view().kindFilters
+    assert.are.equal("raid", filters[#filters].value)
+    assert.are.equal("Raids", filters[#filters].text)
+    assert.are.equal(
+      "New group (Raid 25): Molten Core - Lead",
+      ViewModel.GroupAlertText("Lead", { kind = "raid", size = 25, title = "Molten Core" })
+    )
+  end)
+
+  it("explains the new refusals", function()
+    assert.are.equal("Pick a raid size", ViewModel.GroupReason("bad_size"))
+    assert.are.equal("Your party could not become a raid", ViewModel.GroupReason("convert"))
   end)
 end)
 
@@ -669,7 +796,7 @@ describe("ViewModel groups icon", function()
 
   it("uses the Other label for an unknown kind", function()
     local icon =
-      minimap({ posts = { entry({ owner = "Kaelis", kind = "raid", needs = { tank = 0, heal = 0, dps = 0 } }) } })
+      minimap({ posts = { entry({ owner = "Kaelis", kind = "arena", needs = { tank = 0, heal = 0, dps = 0 } }) } })
     assert.are.equal("Other: Scarlet Monastery - Kaelis", icon.lines[1].text)
   end)
 

@@ -88,7 +88,7 @@ local function openForm(edit)
     state.form = ViewModel.GroupFormFrom(post)
   else
     edit = false
-    state.form = ViewModel.GroupFormNew(ownMembers())
+    state.form = ViewModel.GroupFormNew(ownMembers(), ns.Platform.IsInRaid())
   end
   state.edit, state.page = edit, "form"
   UI.Redraw()
@@ -165,14 +165,32 @@ local function drawForm(page, locked)
     end
   end
 
+  local members = formOptions(locked).members
   local kind = Kit.Field(card, { label = L("Type") })
   Kit.Segmented(kind, {
     items = view.kinds,
     value = form.kind,
     onChange = function(value)
-      form.kind = value
+      local wasRaid = form.kind == "raid"
+      ViewModel.GroupFormSetKind(form, value, members)
+      -- The size picker and the roles change with a raid; the title and the note are kept in the form.
+      if wasRaid ~= (value == "raid") then
+        UI.Redraw()
+      end
     end,
   })
+
+  if view.sizes then
+    local size = Kit.Field(card, { label = L("Raid size") })
+    Kit.Segmented(size, {
+      items = view.sizes,
+      value = form.size,
+      onChange = function(value)
+        ViewModel.GroupFormSetSize(form, value, members)
+        UI.Redraw()
+      end,
+    })
+  end
 
   local title = Kit.Field(card, { label = L("Title") })
   Kit.EditBox(title, {
@@ -314,8 +332,12 @@ local function chips(parent, list)
   return row
 end
 
-local function seats(parent, data, label)
-  return Kit.Seats(parent, { seats = data, tooltip = label, layout = { width = "auto" } })
+-- The seats of a party, or the member count of a raid ("12/25"), which has too many seats to draw.
+local function seats(parent, view)
+  if not view.seats then
+    return Kit.Badge(parent, { text = view.count, color = "info", layout = { width = "auto" } })
+  end
+  return Kit.Seats(parent, { seats = view.seats, tooltip = view.membersLabel, layout = { width = "auto" } })
 end
 
 local function ownCard(page, own)
@@ -323,7 +345,7 @@ local function ownCard(page, own)
   local head = Kit.Row(card, { gap = 14, align = "center" })
   Kit.Label(head, { text = own.title, style = "value", layout = { weight = 1 } })
   chips(head, own.chips)
-  seats(head, own.seats, own.membersLabel)
+  seats(head, own)
   labelButton(head, L("Edit"), function()
     openForm(true)
   end, { disabled = not own.editEnabled })
@@ -417,7 +439,7 @@ local function postCard(page, post)
   Kit.Label(head, { text = post.kindLabel, style = "small", color = "muted", layout = { width = "auto" } })
   Kit.Label(info, { text = post.line, style = "small", color = "dim" })
   chips(row, post.chips)
-  seats(row, post.seats, post.membersLabel)
+  seats(row, post)
   local action = Kit.Stack(row, { gap = 2, layout = { width = 130 } })
   labelButton(action, post.cta, function()
     openApply(post)
@@ -432,7 +454,7 @@ local function drawBoard(page, view)
 
   Kit.PageHeader(head, {
     title = L("Groups"),
-    description = L("Put together dungeons and quests with guild members."),
+    description = L("Put together dungeons, quests and raids with guild members."),
     layout = { weight = 1 },
   })
 
@@ -490,7 +512,7 @@ UI.Register("groups", function(page)
   if not view.available then
     Kit.PageHeader(page, {
       title = L("Groups"),
-      description = L("Put together dungeons and quests with guild members."),
+      description = L("Put together dungeons, quests and raids with guild members."),
     })
     Kit.EmptyState(page, { icon = "users", title = view.empty })
     return

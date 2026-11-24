@@ -760,7 +760,7 @@ describe("Platform group", function()
       }, Platform.GetPartyClasses())
     end)
 
-    it("is the player alone outside a group, and empty in a raid", function()
+    it("is the player alone outside a group", function()
       _G.IsInGroup = function()
         return false
       end
@@ -769,8 +769,56 @@ describe("Platform group", function()
       end
       classes({ player = "WARRIOR", party1 = "MAGE" })
       assert.are.same({ { name = "Lead", class = "WARRIOR" } }, Platform.GetPartyClasses())
-      raid({ "Lead", "Ann" })
+    end)
+
+    it("lists the raid roster with the player first and the class tokens of the roster", function()
+      local rows = {
+        { "Ann", "PRIEST" },
+        { "Lead-ClassicBetaPvP", "WARRIOR" },
+        { "Bob", nil },
+        { "Cid", "mage" },
+      }
+      raid({})
+      _G.GetNumGroupMembers = function()
+        return #rows
+      end
+      _G.GetRaidRosterInfo = function(index)
+        local row = rows[index]
+        return row[1], 0, 1, 60, "Localized", row[2]
+      end
+      _G.UnitName = function()
+        return "Lead"
+      end
+      assert.are.same({
+        { name = "Lead", class = "WARRIOR" },
+        { name = "Ann", class = "PRIEST" },
+        { name = "Bob" },
+        { name = "Cid", class = "MAGE" },
+      }, Platform.GetPartyClasses())
+      _G.GetRaidRosterInfo = function()
+        error("restricted")
+      end
       assert.are.same({}, Platform.GetPartyClasses())
+    end)
+
+    it("converts the party to a raid when the client can", function()
+      local calls = 0
+      _G.C_PartyInfo = nil
+      _G.ConvertToRaid = function()
+        calls = calls + 1
+      end
+      assert.is_true(Platform.ConvertToRaid())
+      assert.are.equal(1, calls)
+      _G.ConvertToRaid = nil
+      assert.is_false(Platform.ConvertToRaid())
+      _G.C_PartyInfo = {
+        ConvertToRaid = function()
+          calls = calls + 1
+        end,
+      }
+      assert.is_true(Platform.ConvertToRaid())
+      assert.are.equal(2, calls)
+      _G.C_PartyInfo = nil
     end)
 
     it("keeps a seat whose class cannot be read, without a class", function()

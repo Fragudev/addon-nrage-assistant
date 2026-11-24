@@ -1088,12 +1088,51 @@ function Platform.GetGroupMemberNames()
   return names
 end
 
--- The seats of the player's party, the player first: { { name, class } } where `class` is a file token ("WARRIOR") or
--- nil when it is not readable. Empty in a raid (only parties are posted to Groups) and when not readable at all.
+-- The seats of a raid from its roster, the player first, or an empty list when the roster cannot be read whole.
+local function raidClasses()
+  local seats = {}
+  if not (GetRaidRosterInfo and GetNumGroupMembers) then
+    return seats
+  end
+  local okTotal, total = pcall(GetNumGroupMembers)
+  if not (okTotal and type(total) == "number") then
+    return seats
+  end
+  local own = groupName(function()
+    return (UnitName("player"))
+  end)
+  local moved = false
+  for index = 1, total do
+    local ok, name, _, _, _, _, class = pcall(GetRaidRosterInfo, index)
+    if not ok then
+      return {}
+    end
+    local seat = {
+      name = groupName(function()
+        return name
+      end),
+      class = fileToken(class),
+    }
+    -- UnitName gives only the first word of a multi-word name on Forever, the roster gives it whole.
+    if not moved and own and seat.name and (seat.name == own or seat.name:match("^(%S+)") == own) then
+      moved = true
+      table.insert(seats, 1, seat)
+    else
+      seats[#seats + 1] = seat
+    end
+  end
+  return seats
+end
+
+-- The seats of the player's group, the player first: { { name, class } } where `class` is a file token ("WARRIOR") or
+-- nil when it is not readable. In a raid they come from the raid roster. Empty when not readable at all.
 function Platform.GetPartyClasses()
   local seats = {}
   local inRaid = IsInRaid and select(2, pcall(IsInRaid)) == true
-  if inRaid or not UnitClass then
+  if inRaid then
+    return raidClasses()
+  end
+  if not UnitClass then
     return seats
   end
   local function seat(unit)
@@ -1374,6 +1413,16 @@ function Platform.InviteByName(name)
   end
   local ok = pcall(invite, name)
   return ok, not ok and "error" or nil
+end
+
+-- Turns the player's party into a raid (a raid post of Groups does it before an invite). Returns true when the client
+-- took the call, false when it has no such call or refused it. Not measured on Forever yet.
+function Platform.ConvertToRaid()
+  local convert = (C_PartyInfo and C_PartyInfo.ConvertToRaid) or ConvertToRaid
+  if not convert then
+    return false
+  end
+  return (pcall(convert))
 end
 
 -- The group APIs "Fill from current group" needs. None is measured on Forever yet (API_NOTES, P0): the feature is

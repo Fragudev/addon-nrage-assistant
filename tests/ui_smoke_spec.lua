@@ -3903,6 +3903,9 @@ describe("Window smoke test: Groups", function()
     ns.Platform.GetGroupSize = function()
       return 0
     end
+    ns.Platform.IsInRaid = function()
+      return false
+    end
     if options.post ~= false then
       ns.lfgBoard:Apply("Kaelis", {
         pid = "k-1",
@@ -4097,6 +4100,26 @@ describe("Window smoke test: Groups", function()
       assert.is_truthy(text:find("Posted. Applications will show up here.", 1, true))
       assert.is_true(env.find(env.page(), "Button", "New group").opts.disabled)
       assert.is_nil(text:find("Leader: Leader", 1, true))
+    end)
+
+    it("posts a raid of the chosen size and shows its member count", function()
+      env.open("groups")
+      env.press("New group")
+      env.box("Deadmines").opts.onChange("Molten Core")
+      assert.are.equal(1, #FakeKit.find_all(env.page(), "Segmented"))
+      FakeKit.find(env.page(), "Segmented").opts.onChange("raid")
+      local pickers = FakeKit.find_all(env.page(), "Segmented")
+      assert.are.equal(2, #pickers)
+      assert.is_truthy(env.text():find("Raid size", 1, true))
+      pickers[2].opts.onChange(25)
+      env.press("Post")
+      local status = env.ns.lfgService:Status()
+      assert.are.equal("raid", status.post.kind)
+      assert.are.equal(25, status.post.size)
+      assert.are.equal(24, status.post.remaining)
+      local text = env.text()
+      assert.is_truthy(text:find("Your group · Raid 25", 1, true))
+      assert.is_truthy(text:find("1/25", 1, true))
     end)
 
     it("changes the roles with the steppers and never past the party", function()

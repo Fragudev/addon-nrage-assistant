@@ -8,15 +8,15 @@ local ViewModel = ns.ViewModel
 local L = ns.L
 local Escape = ViewModel.Escape
 
-local KIND_ORDER = { "dungeon", "quest", "other" }
+local KIND_ORDER = { "dungeon", "quest", "other", "raid" }
 local ROLE_ORDER = { "tank", "heal", "dps" }
 
 ViewModel.GROUP_KINDS = ns.Locale.Table(function()
-  return { dungeon = L("Dungeon"), quest = L("Quest"), other = L("Other") }
+  return { dungeon = L("Dungeon"), quest = L("Quest"), other = L("Other"), raid = L("Raid") }
 end)
 
 local KIND_FILTER_TEXT = ns.Locale.Table(function()
-  return { all = L("All"), dungeon = L("Dungeons"), quest = L("Quests"), other = L("Others") }
+  return { all = L("All"), dungeon = L("Dungeons"), quest = L("Quests"), other = L("Others"), raid = L("Raids") }
 end)
 
 ViewModel.GROUP_ROLES = ns.Locale.Table(function()
@@ -28,8 +28,17 @@ local ROLE_FILTER_TEXT = ns.Locale.Table(function()
 end)
 
 -- The line shown at the top of the screen when another member opens a group: "New group (Dungeon): title - leader".
+-- The kind of a post as shown: "Dungeon", or "Raid 25" for a raid with its size. `fallback` is shown for a kind this
+-- client does not know (nil: its escaped name).
+function ViewModel.GroupKindText(post, fallback)
+  if post.kind == "raid" and type(post.size) == "number" then
+    return L("Raid %d"):format(post.size)
+  end
+  return ViewModel.GROUP_KINDS[post.kind] or fallback or Escape(tostring(post.kind))
+end
+
 function ViewModel.GroupAlertText(sender, post)
-  local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
+  local kind = ViewModel.GroupKindText(post, ViewModel.GROUP_KINDS.other)
   return L("New group (%s): %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(sender)))
 end
 
@@ -52,6 +61,8 @@ ViewModel.GROUP_REASONS = ns.Locale.Table(function()
     unknown_applicant = L("That applicant is gone"),
     no_application = L("You have no application"),
     bad_kind = L("Pick a type"),
+    bad_size = L("Pick a raid size"),
+    convert = L("Your party could not become a raid"),
     bad_title = L("The title is not valid"),
     bad_needs = L("The roles do not fit in the group"),
     bad_members = L("Your group size is not valid"),
@@ -93,11 +104,15 @@ end
 
 -- The seats of a party, for Kit.Seats: the members first ({ filled, class, role } from `party`, the leader first; a
 -- member the post does not describe has no class), then one seat per role still needed (tank, heal, dps), then the
--- free seats nobody is asked for. The tooltip says the same as text: the count, then a line per member.
-local function seats(members, needs, party)
-  local total = ns.Constants.LFG_PARTY_SIZE
+-- free seats nobody is asked for. The tooltip says the same as text: the count, then a line per member. A raid (`size`)
+-- has too many seats to draw: its list is nil and the third value is the count as text ("12/25").
+local function seats(members, needs, party, size)
+  local total = size or ns.Constants.LFG_PARTY_SIZE
   local filled = math.max(0, math.min(total, members or 1))
   local list, lines = {}, { L("%d of %d members"):format(filled, total) }
+  if size then
+    return nil, lines[1], ("%d/%d"):format(filled, total)
+  end
   for index = 1, filled do
     local seat = type(party) == "table" and party[index] or nil
     local class = seat and seat.c or nil
@@ -179,12 +194,13 @@ local function applicantRow(row, state)
 end
 
 local function ownView(post, state)
-  local seatsView, membersLabel = seats(post.members, post.needs, post.party)
+  local seatsView, membersLabel, count = seats(post.members, post.needs, post.party, post.size)
   local view = {
     title = Escape(post.title),
-    header = L("Your group · %s"):format(ViewModel.GROUP_KINDS[post.kind] or Escape(tostring(post.kind))),
+    header = L("Your group · %s"):format(ViewModel.GroupKindText(post)),
     chips = needChips(post.needs),
     seats = seatsView,
+    count = count,
     membersLabel = membersLabel,
     applicants = {},
     editEnabled = not state.locked,
@@ -267,7 +283,7 @@ end
 function ViewModel.GroupsView(state)
   local view = { available = state.available ~= false, locked = state.locked == true, rows = {} }
   local filter = state.filter or {}
-  view.kindFilters = filterItems({ "all", "dungeon", "quest", "other" }, KIND_FILTER_TEXT, filter.kind)
+  view.kindFilters = filterItems({ "all", "dungeon", "quest", "other", "raid" }, KIND_FILTER_TEXT, filter.kind)
   view.roleFilters = filterItems({ "all", "tank", "heal", "dps" }, ROLE_FILTER_TEXT, filter.role)
   if not view.available then
     view.empty = L("Groups are not available yet.")
@@ -310,16 +326,17 @@ function ViewModel.GroupsView(state)
       if entry.note then
         parts[#parts + 1] = Escape(entry.note)
       end
-      local seatsView, membersLabel = seats(entry.members, entry.needs, entry.party)
+      local seatsView, membersLabel, count = seats(entry.members, entry.needs, entry.party, entry.size)
       local row = {
         pid = entry.pid,
         title = Escape(entry.title),
         leader = Escape(entry.owner),
         needs = { tank = entry.needs.tank, heal = entry.needs.heal, dps = entry.needs.dps },
-        kindLabel = ViewModel.GROUP_KINDS[entry.kind] or Escape(tostring(entry.kind)),
+        kindLabel = ViewModel.GroupKindText(entry),
         line = table.concat(parts, " · "),
         chips = needChips(entry.needs),
         seats = seatsView,
+        count = count,
         membersLabel = membersLabel,
       }
       local active = applied and (applied.state == "applied" or applied.state == "invited")
@@ -368,22 +385,61 @@ end
 -- The form (new group and edit)
 ---------------------------------------------------------------------------------------------------------------------
 
--- The form of a new group for a leader who already has `members` in the party (at least 1): the roles that fit.
-function ViewModel.GroupFormNew(members)
-  local room = ns.Constants.LFG_PARTY_SIZE - math.max(1, members or 1)
-  return {
-    kind = "dungeon",
-    title = "",
-    needs = ns.LfgModel.FitNeeds({ tank = 1, heal = 1, dps = 1 }, room),
-    min = "",
-    note = "",
-  }
+-- The smallest raid size with a free seat for a group of `members`, else the largest.
+local function raidSizeFor(members)
+  local sizes = ns.Constants.LFG_RAID_SIZES
+  for _, size in ipairs(sizes) do
+    if size > members then
+      return size
+    end
+  end
+  return sizes[#sizes]
+end
+
+local function formSize(form)
+  return form.kind == "raid" and form.size or ns.Constants.LFG_PARTY_SIZE
+end
+
+-- Changes the kind of the form `form` for a group of `members`. Moving between a party and a raid starts the roles
+-- again, fitted to the new size; a raid starts at the smallest size with room.
+function ViewModel.GroupFormSetKind(form, kind, members)
+  members = math.max(1, members or 1)
+  local wasRaid = form.kind == "raid"
+  form.kind = kind
+  if kind == "raid" then
+    form.size = form.size or raidSizeFor(members)
+  end
+  if wasRaid ~= (kind == "raid") then
+    form.needs = ns.LfgModel.DefaultNeeds(formSize(form), members)
+  end
+end
+
+-- Changes the size of a raid form; the roles start again for that size.
+function ViewModel.GroupFormSetSize(form, size, members)
+  form.size = size
+  form.needs = ns.LfgModel.DefaultNeeds(size, math.max(1, members or 1))
+end
+
+-- The form of a new group for a leader who already has `members` in the group (at least 1): the roles that fit. A
+-- leader of a raid (`inRaid`) or of a full party starts with a raid.
+function ViewModel.GroupFormNew(members, inRaid)
+  members = math.max(1, members or 1)
+  local form = { kind = "dungeon", title = "", min = "", note = "" }
+  if inRaid or members >= ns.Constants.LFG_PARTY_SIZE then
+    form.kind, form.size = "raid", raidSizeFor(members)
+  end
+  form.needs = ns.LfgModel.DefaultNeeds(formSize(form), members)
+  if form.kind ~= "raid" then
+    form.needs = ns.LfgModel.FitNeeds({ tank = 1, heal = 1, dps = 1 }, formSize(form) - members)
+  end
+  return form
 end
 
 -- The form of the own post `post` (LfgService:Status().post), to edit it.
 function ViewModel.GroupFormFrom(post)
   return {
     kind = post.kind,
+    size = post.size,
     title = post.title,
     needs = { tank = post.needs.tank, heal = post.needs.heal, dps = post.needs.dps },
     min = post.minLevel and tostring(post.minLevel) or "",
@@ -411,14 +467,17 @@ local function parseLevel(text)
   return level
 end
 
--- What the form shows and what it would send. `form` = { kind, title, needs, min, note }; `options` = { members (the
--- party now, at least 1), edit (boolean), locked }.
--- Returns { heading, description, submitText, kinds = { { value, text, active } }, steppers = { { role, label, value,
--- canDec, canInc } }, minError (text or nil), canSubmit, reason (why not), fields (for LfgService:Post/Update) }.
+-- What the form shows and what it would send. `form` = { kind, size (a raid), title, needs, min, note }; `options` =
+-- { members (the group now, at least 1), edit (boolean), locked }.
+-- Returns { heading, description, submitText, kinds = { { value, text, active } }, isRaid, sizes (a raid: { { value,
+-- text, active } }), steppers = { { role, label, value, canDec, canInc } }, minError (text or nil), canSubmit, reason
+-- (why not), fields (for LfgService:Post/Update) }.
 function ViewModel.GroupFormView(form, options)
   options = options or {}
   local constants = ns.Constants
-  local room = constants.LFG_PARTY_SIZE - math.max(1, options.members or 1)
+  local isRaid = form.kind == "raid"
+  local size = formSize(form) or constants.LFG_PARTY_SIZE
+  local room = size - math.max(1, options.members or 1)
   local total = form.needs.tank + form.needs.heal + form.needs.dps
   local view = {
     heading = options.edit and L("Edit group") or L("New group"),
@@ -428,7 +487,14 @@ function ViewModel.GroupFormView(form, options)
     kinds = {},
     steppers = {},
     room = room,
+    isRaid = isRaid,
   }
+  if isRaid then
+    view.sizes = {}
+    for _, value in ipairs(constants.LFG_RAID_SIZES) do
+      view.sizes[#view.sizes + 1] = { value = value, text = tostring(value), active = value == size }
+    end
+  end
   for _, kind in ipairs(KIND_ORDER) do
     view.kinds[#view.kinds + 1] = { value = kind, text = ViewModel.GROUP_KINDS[kind], active = form.kind == kind }
   end
@@ -438,7 +504,7 @@ function ViewModel.GroupFormView(form, options)
       label = ViewModel.GROUP_ROLES[role],
       value = form.needs[role],
       canDec = form.needs[role] > 0,
-      canInc = total < room and form.needs[role] < constants.LFG_NEED_MAX,
+      canInc = total < room and form.needs[role] < size - 1,
     }
   end
   local level = parseLevel(form.min)
@@ -446,7 +512,9 @@ function ViewModel.GroupFormView(form, options)
     view.minError = ViewModel.GROUP_REASONS.bad_level
   end
   local title = trimmed(form.title)
-  if title == "" then
+  if room <= 0 then
+    view.reason = ViewModel.GROUP_REASONS.full
+  elseif title == "" then
     view.reason = ViewModel.GROUP_REASONS.bad_title
   elseif total == 0 then
     view.reason = ViewModel.GROUP_REASONS.no_needs
@@ -458,6 +526,7 @@ function ViewModel.GroupFormView(form, options)
   view.canSubmit = view.reason == nil
   view.fields = {
     kind = form.kind,
+    size = isRaid and size or nil,
     title = title,
     needs = { tank = form.needs.tank, heal = form.needs.heal, dps = form.needs.dps },
     -- `false` clears the level of a post that is being edited.
@@ -585,7 +654,7 @@ function ViewModel.GroupsIconView(state)
 
   for index = 1, math.min(count, ICON_LINES) do
     local post = posts[index]
-    local kind = ViewModel.GROUP_KINDS[post.kind] or ViewModel.GROUP_KINDS.other
+    local kind = ViewModel.GroupKindText(post, ViewModel.GROUP_KINDS.other)
     local text = L("%s: %s - %s"):format(kind, Escape(tostring(post.title or "")), Escape(tostring(post.owner or "")))
     local roles = neededRoleText(post.needs)
 

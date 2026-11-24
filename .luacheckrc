@@ -77,6 +77,7 @@ read_globals = {
   "GetRaidRosterInfo",
   "InCombatLockdown",
   "InviteUnit",
+  "ConvertToRaid",
   "IsInGroup",
   "IsInRaid",
   "PlaySound",
