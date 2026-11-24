@@ -151,6 +151,13 @@ local function new_client(world, name)
     isRaid = function()
       return c.raid
     end,
+    convertToRaid = function()
+      c.conversions = (c.conversions or 0) + 1
+      if c.convertFails then
+        error("convert")
+      end
+      c.raid = true
+    end,
     board = c.board,
     partyClasses = function()
       if c.seatsFail then
@@ -270,7 +277,8 @@ describe("LfgService posting", function()
   end)
 
   it("refuses a post the model refuses", function()
-    assert.are.equal("bad_kind", select(2, lead.service:Post(fields({ kind = "raid" }))))
+    assert.are.equal("bad_kind", select(2, lead.service:Post(fields({ kind = "arena" }))))
+    assert.are.equal("bad_size", select(2, lead.service:Post(fields({ kind = "raid" }))))
     assert.are.equal("bad_title", select(2, lead.service:Post(fields({ title = "a|b" }))))
     assert.are.equal("bad_needs", select(2, lead.service:Post(fields({ needs = { dps = 5 } }))))
     assert.are.equal("bad_level", select(2, lead.service:Post(fields({ minLevel = 500 }))))
@@ -1399,6 +1407,15 @@ describe("LfgService.Eligibility", function()
     assert.are.same({ false, "in_group" }, { rules({ group = true, size = 2 }).apply() })
     assert.are.same({ false, "combat" }, { rules({ combat = true }).invite() })
   end)
+
+  it("bounds a raid post by its size and lets it be posted from a raid", function()
+    assert.is_true(rules({ group = true, raid = true, size = 8 }).post(25))
+    assert.is_true(rules({ group = true, size = 5 }).post(10))
+    assert.are.same({ false, "full" }, { rules({ group = true, raid = true, size = 10 }).post(10) })
+    assert.are.same({ false, "raid" }, { rules({ group = true, raid = true, size = 8 }).post(5) })
+    assert.is_true(rules({ group = true, raid = true, size = 24 }).invite(25))
+    assert.are.same({ false, "full" }, { rules({ group = true, raid = true, size = 25 }).invite(25) })
+  end)
 end)
 
 describe("LfgService new group alert", function()
@@ -1445,5 +1462,107 @@ describe("LfgService new group alert", function()
     ann.alertFails = true
     lead.service:Post(fields())
     assert.are.equal(1, ann.board:OpenCount())
+  end)
+end)
+
+describe("LfgService raids", function()
+  local world, lead, ann
+
+  local function raid(overrides)
+    local f = fields({ kind = "raid", size = 25, title = "Molten Core", needs = { tank = 2, heal = 5, dps = 10 } })
+    for k, v in pairs(overrides or {}) do
+      f[k] = v
+    end
+    return f
+  end
+
+  before_each(function()
+    world = new_world()
+    lead = new_client(world, "Lead")
+    ann = new_client(world, "Ann")
+  end)
+
+  it("posts a raid with its size, and the others see it", function()
+    assert.is_true(lead.service:Post(raid()))
+    local payload = world.sent[1].payload
+    assert.are.equal("raid", payload.kind)
+    assert.are.equal(25, payload.size)
+    assert.are.equal(25, ann.board:Get("Lead").size)
+    assert.are.equal(25, lead.service:Status().post.size)
+  end)
+
+  it("lets the leader of a raid or of a full party post a raid, but not a party", function()
+    lead.size, lead.raid = 8, true
+    assert.is_true(lead.service:CanPost())
+    assert.are.same({ false, "raid" }, { lead.service:Post(fields()) })
+    assert.is_true(lead.service:Post(raid()))
+    assert.are.equal(8, lead.service:Status().post.members)
+  end)
+
+  it("refuses a raid that is already as big as its size", function()
+    lead.size, lead.raid = 10, true
+    assert.are.same({ false, "full" }, { lead.service:Post(raid({ size = 10 })) })
+  end)
+
+  it("converts the party to a raid before inviting, never when alone or already a raid", function()
+    lead.service:Post(raid())
+    local pid = lead.board:Get("Lead").pid
+    ann.service:Apply(pid, "tank")
+    assert.is_true(lead.service:Invite("Ann"))
+    assert.is_nil(lead.conversions)
+    lead.size = 5
+    lead.service:OnGroupChanged()
+    assert.is_true(lead.service:Invite("Ann"))
+    assert.are.equal(1, lead.conversions)
+    assert.is_true(lead.raid)
+    assert.is_true(lead.service:Invite("Ann"))
+    assert.are.equal(1, lead.conversions)
+  end)
+
+  it("does not invite when the party cannot become a raid", function()
+    lead.service:Post(raid())
+    ann.service:Apply(lead.board:Get("Lead").pid, "tank")
+    lead.size, lead.convertFails = 3, true
+    assert.are.same({ false, "convert" }, { lead.service:Invite("Ann") })
+    assert.are.same({}, lead.invites)
+  end)
+
+  it("keeps the post open when the group becomes a raid and closes it full at its size", function()
+    lead.service:Post(raid({ size = 10, needs = { tank = 1, heal = 2, dps = 6 } }))
+    lead.size, lead.raid = 7, true
+    lead.service:OnGroupChanged()
+    local post = lead.service:Status().post
+    assert.are.equal(7, post.members)
+    assert.are.equal(3, post.remaining)
+    lead.size = 10
+    lead.service:OnGroupChanged()
+    assert.is_nil(lead.service:Status().post)
+    assert.are.equal("Lead:closed=full", sentKinds(world)[#world.sent])
+  end)
+
+  it("counts a joined applicant as one seat less of the raid", function()
+    lead.service:Post(raid())
+    ann.service:Apply(lead.board:Get("Lead").pid, "heal")
+    lead.service:Invite("Ann")
+    join(ann, lead)
+    local post = lead.service:Status().post
+    assert.are.equal(2, post.members)
+    assert.are.equal(4, post.needs.heal)
+    assert.are.equal("joined", ann.service:Status().application.state)
+  end)
+
+  it("keeps up to the raid limit of applicants", function()
+    lead.service:Post(raid({ size = 40, needs = { tank = 4, heal = 10, dps = 25 } }))
+    local pid = lead.board:Get("Lead").pid
+    for index = 1, Constants.LFG_RAID_APPLICANTS_MAX do
+      assert.is_true(lead.service:OnApply("M" .. index, { pid = pid, s = "apply", role = "dps" }))
+    end
+    assert.are.same({ false, "limit" }, { lead.service:OnApply("Late", { pid = pid, s = "apply", role = "dps" }) })
+  end)
+
+  it("changes the size of the own raid", function()
+    lead.service:Post(raid())
+    assert.is_true(lead.service:Update({ size = 40, needs = { tank = 4, heal = 10, dps = 20 } }))
+    assert.are.equal(40, ann.board:Get("Lead").size)
   end)
 end)

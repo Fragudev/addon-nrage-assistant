@@ -22,7 +22,7 @@ Section 12 corrects this plan against the code Intel left; where they differ, se
 | Topic | Choice | Status |
 |---|---|---|
 | Audience | Guild members running the addon only; no public channel, no other guilds | decided |
-| Group type | Parties of up to 5; raids stay in Events | decided |
+| Group type | Parties of up to 5, and since v1.18.0 raids of 10, 20, 25 or 40 (kind `raid` with a `size`); scheduled raids stay in Events | decided |
 | Persistence | None: posts live in memory, with republication and a time to live | decided |
 | Invite | Always a button the leader clicks, never automatic | decided |
 | Transport | The `NRAGE` prefix on `GUILD`, live only, like `LAYER_SWAP` | decided |

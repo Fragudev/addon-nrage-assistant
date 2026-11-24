@@ -59,7 +59,7 @@ describe("LfgModel.NewPost", function()
   end)
 
   it("refuses an unknown kind and a bad title", function()
-    assert.are.equal("bad_kind", select(2, Model.NewPost(fields({ kind = "raid" }))))
+    assert.are.equal("bad_kind", select(2, Model.NewPost(fields({ kind = "arena" }))))
     assert.are.equal("bad_kind", select(2, Model.NewPost("x")))
     for _, title in ipairs({ "", "   ", string.rep("a", 61), "a|b", "a\nb", 4 }) do
       assert.are.equal("bad_title", select(2, Model.NewPost(fields({ title = title }))))
@@ -184,5 +184,90 @@ describe("LfgModel payloads", function()
     assert.are.same({ pid = "p1", s = "withdraw" }, Model.WithdrawPayload("p1"))
     assert.are.same({ pid = "p1", s = "accept", to = "Ann" }, Model.AcceptPayload("p1", "Ann"))
     assert.are.same({ pid = "p1", s = "decline", to = "Ann" }, Model.DeclinePayload("p1", "Ann"))
+  end)
+end)
+
+describe("LfgModel raids", function()
+  local function raid(overrides)
+    local f = fields({ kind = "raid", title = "Molten Core", size = 40, needs = { tank = 4, heal = 10, dps = 20 } })
+    for k, v in pairs(overrides or {}) do
+      f[k] = v
+    end
+    return f
+  end
+
+  it("builds a raid post of each size", function()
+    for _, size in ipairs({ 10, 20, 25, 40 }) do
+      local post = assert(Model.NewPost(raid({ size = size, needs = { tank = 1, heal = 1, dps = size - 3 } })))
+      assert.are.equal("raid", post.kind)
+      assert.are.equal(size, post.size)
+      assert.are.equal(size, Model.SizeOf(post))
+    end
+  end)
+
+  it("treats a party as size five and keeps no size on it", function()
+    local post = assert(Model.NewPost(fields()))
+    assert.is_nil(post.size)
+    assert.are.equal(5, Model.SizeOf(post))
+    assert.is_false(Model.IsRaid(post))
+    assert.is_true(Model.IsRaid(assert(Model.NewPost(raid()))))
+  end)
+
+  it("needs a raid size for a raid and refuses a size on a party", function()
+    for _, size in ipairs({ 5, 15, 41, 0, "25", 25.5 }) do
+      assert.are.equal("bad_size", select(2, Model.NewPost(raid({ size = size }))))
+    end
+    assert.are.equal("bad_size", select(2, Model.NewPost(raid({ size = false }))))
+    local sizeless = raid()
+    sizeless.size = nil
+    assert.are.equal("bad_size", select(2, Model.NewPost(sizeless)))
+    assert.are.equal("bad_size", select(2, Model.NewPost(fields({ size = 10 }))))
+  end)
+
+  it("fits the needs and the members in the size of the raid", function()
+    assert.is_truthy(Model.NewPost(raid({ size = 10, members = 4, needs = { tank = 1, heal = 2, dps = 3 } })))
+    assert.are.equal(
+      "bad_needs",
+      select(2, Model.NewPost(raid({ size = 10, members = 4, needs = { tank = 1, heal = 2, dps = 4 } })))
+    )
+    assert.are.equal("full", select(2, Model.NewPost(raid({ size = 25, members = 25 }))))
+    assert.are.equal("bad_members", select(2, Model.NewPost(raid({ size = 25, members = 26 }))))
+    assert.are.equal("bad_needs", select(2, Model.NewPost(raid({ needs = { tank = 40, heal = 0, dps = 0 } }))))
+  end)
+
+  it("is full at the size of the raid", function()
+    local post = assert(Model.NewPost(raid({ size = 10, members = 9, needs = { tank = 0, heal = 0, dps = 1 } })))
+    assert.is_false(Model.IsFull(post))
+    post.members = 10
+    assert.is_true(Model.IsFull(post))
+  end)
+
+  it("sends the size of a raid and no size for a party", function()
+    local post = assert(Model.NewPost(raid({ size = 25, needs = { tank = 2, heal = 5, dps = 10 } })))
+    local payload = Model.PostPayload("p1", 1, post)
+    assert.are.equal("raid", payload.kind)
+    assert.are.equal(25, payload.size)
+    assert.is_nil(Model.PostPayload("p1", 1, assert(Model.NewPost(fields()))).size)
+  end)
+
+  it("keeps a party of forty seats", function()
+    local party = {}
+    for index = 1, 30 do
+      party[index] = { c = "MAGE", r = "dps" }
+    end
+    local post = assert(Model.NewPost(raid({ members = 30, party = party, needs = { tank = 2, heal = 3, dps = 5 } })))
+    assert.are.equal(30, #post.party)
+  end)
+
+  it("suggests needs for each raid size that fit the free seats", function()
+    for _, size in ipairs({ 10, 20, 25, 40 }) do
+      local needs = Model.DefaultNeeds(size, 1)
+      assert.are.equal(size - 1, needs.tank + needs.heal + needs.dps)
+      assert.is_true(needs.tank >= 1 and needs.heal >= 1)
+    end
+    local party = Model.DefaultNeeds(5, 1)
+    assert.are.same({ tank = 1, heal = 1, dps = 1 }, party)
+    local fitted = Model.DefaultNeeds(10, 8)
+    assert.are.equal(2, fitted.tank + fitted.heal + fitted.dps)
   end)
 end)

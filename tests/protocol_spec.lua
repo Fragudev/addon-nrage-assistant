@@ -922,6 +922,69 @@ describe("Protocol.Validate LFG_POST", function()
   end)
 end)
 
+describe("Protocol.Validate LFG_POST raids", function()
+  local function validate(payload)
+    return Protocol.Validate(Protocol.Build("LFG_POST", payload, "lf-2"))
+  end
+
+  local function raid(overrides)
+    local payload = {
+      pid = "p-2",
+      rev = 1,
+      s = "open",
+      kind = "raid",
+      size = 40,
+      title = "Molten Core",
+      needs = { tank = 4, heal = 10, dps = 20 },
+      members = 5,
+    }
+    for k, v in pairs(overrides or {}) do
+      payload[k] = v
+    end
+    return payload
+  end
+
+  it("accepts a raid of each size and keeps its size", function()
+    for _, size in ipairs({ 10, 20, 25, 40 }) do
+      local m = validate(raid({ size = size, members = 1, needs = { tank = 1, heal = 1, dps = size - 3 } }))
+      assert.are.equal(size, m.p.size)
+      assert.are.equal("raid", m.p.kind)
+    end
+  end)
+
+  it("rejects a raid without a valid size and a party with a size", function()
+    for _, size in ipairs({ 5, 15, 41, "25", 25.5, false }) do
+      assert.are.equal("bad_payload", select(2, validate(raid({ size = size }))))
+    end
+    local sizeless = raid()
+    sizeless.size = nil
+    assert.are.equal("bad_payload", select(2, validate(sizeless)))
+    assert.are.equal(
+      "bad_payload",
+      select(2, validate(raid({ kind = "dungeon", size = 10, members = 1, needs = { tank = 1, heal = 1, dps = 1 } })))
+    )
+  end)
+
+  it("bounds the members and the needs by the size of the raid", function()
+    assert.are.equal("bad_payload", select(2, validate(raid({ size = 10, members = 10 }))))
+    assert.are.equal(
+      "bad_payload",
+      select(2, validate(raid({ size = 10, members = 5, needs = { tank = 1, heal = 2, dps = 3 } })))
+    )
+    assert.is_truthy(validate(raid({ size = 10, members = 5, needs = { tank = 1, heal = 2, dps = 2 } })))
+    assert.is_truthy(validate(raid({ members = 39, needs = { tank = 0, heal = 0, dps = 1 } })))
+  end)
+
+  it("keeps the party of a raid, one seat per member", function()
+    local party = {}
+    for index = 1, 5 do
+      party[index] = { c = "PRIEST", r = "heal" }
+    end
+    local m = validate(raid({ party = party }))
+    assert.are.equal(5, #m.p.party)
+  end)
+end)
+
 describe("Protocol.Validate LFG_APPLY", function()
   local function validate(payload)
     return Protocol.Validate(Protocol.Build("LFG_APPLY", payload, "la-1"))

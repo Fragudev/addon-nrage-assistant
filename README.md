@@ -155,7 +155,8 @@ The addon is published on CurseForge, but it only works for Nrage:
 - **Layers:** your current layer, and the layers guildmates in your zone have shared (layers are per zone).
 - **Guild map:** guildmates who share their position, on the minimap and the world map, each as a class icon inside a
   diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
-- **Groups:** post a party for a dungeon or a quest with the roles you need, or apply to one. Each post shows its
+- **Groups:** post a party for a dungeon or a quest, or a raid of 10, 20, 25 or 40, with the roles you need, or apply
+  to one. Each post shows its
   seats with the class and role of who is in. The leader invites with a click. A new group shows a short line at the
   top of the screen for everyone else, and a Groups icon you can drag anywhere on the screen while one is open. Only members with the
   addon see the board.
