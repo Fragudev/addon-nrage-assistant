@@ -212,7 +212,7 @@ ns.Locale.Register("es", {
   ["confirmed by the player"] = "confirmado por el jugador",
   ["/nrage               open the window, where everything else is done"] = "/nrage               abre la ventana, donde se hace todo lo demás",
   ["/nrage help          this list"] = "/nrage help          esta lista",
-  ["/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp | layer)"] = "/nrage debug         diagnóstico (debug selftest | info | identity | roster | senders | lockdown | pvp | layer)",
+  ["/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"] = "/nrage debug         diagnóstico (debug selftest | info | identity | roster | senders | lockdown | pvp)",
 
   -- UI/Main.lua
   ["Settings"] = "Ajustes",
@@ -429,7 +429,7 @@ ns.Locale.Register("es", {
   ["Save"] = "Guardar",
   ["Search by name or reason"] = "Buscar por nombre o motivo",
   ["No date"] = "Sin fecha",
-  ["Who you are, your specs and your layer."] = "Quién eres, tus especializaciones y tu capa.",
+  ["Who you are and your specs."] = "Quién eres y tus especializaciones.",
   ["A raid leader creates them in the Raid tab."] = "Tu líder de raid los crea en la pestaña Raid.",
   ["An admin has to assign you one."] = "Un administrador tiene que asignarte uno.",
   ["Confirm award"] = "Confirmar el reparto",
@@ -649,31 +649,15 @@ ns.Locale.Register("es", {
   ["Press Ctrl+C to copy"] = "Pulsa Ctrl+C para copiar",
   ["Paste the text (Ctrl+V)"] = "Pega el texto (Ctrl+V)",
 
-  -- Layers (UI/ViewModelLayers.lua, UI/Tabs/Layers.lua, UI/Main.lua)
-  ["Layers"] = "Capas",
-  ["Your layer and the layers of your guildmates."] = "Tu capa y las capas de tus compañeros de hermandad.",
+  -- Groups and Intel (UI/Tabs/Groups.lua, UI/ViewModelIntel.lua, UI/IntelWindow.lua)
   ["Ignore"] = "Ignorar",
   ["Invite"] = "Invitar",
   ["Decline"] = "Rechazar",
-  ["Your layer: you are in an instance."] = "Tu capa: estás en una instancia.",
-  ["Your layer: %s"] = "Tu capa: %s",
-  ["Your layer: unknown. Target or mouse over any NPC."] = "Tu capa: desconocida. Selecciona o pasa el ratón sobre cualquier PNJ.",
-  ["Layers are not available yet."] = "Las capas todavía no están disponibles.",
-  ["%s (map %d)"] = "%s (mapa %d)",
-  ["%s (you)"] = "%s (tú)",
-  ["Nobody has shared a layer yet."] = "Nadie ha compartido su capa todavía.",
-  ["Share my layer"] = "Compartir mi capa",
   ["You"] = "Tú",
-  ["Your layer"] = "Tu capa",
-  ["Guildmates see which layer you are on. Turn it off and they forget it."] = "Tus compañeros ven en qué capa estás. Si lo desactivas, la olvidan.",
-  ["Layers in this zone"] = "Capas de esta zona",
-  ["Layers in %s"] = "Capas en %s",
   ["Not done: "] = "No se pudo: ",
-  ["The layer is read from the creatures you target or mouse over, and shared with the guild only."] = "La capa se lee de las criaturas que seleccionas o sobre las que pasas el ratón, y solo se comparte con la guild.",
 
   -- Guild map (UI/MapPins.lua, UI/Main.lua)
   ["Level %d"] = "Nivel %d",
-  ["Layer %s"] = "Capa %s",
   ["%d s ago"] = "hace %d s",
   ["Share my position"] = "Compartir mi posición",
   ["disabled: the client did not give the guild data. Type /reload to try again."] = "desactivado: el cliente no ha dado los datos de la hermandad. Escribe /reload para reintentarlo.",

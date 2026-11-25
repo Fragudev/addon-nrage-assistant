@@ -738,51 +738,16 @@ describe("Protocol.Validate BLACKLIST_UPSERT and BLACKLIST_DELETE", function()
   end)
 end)
 
-describe("Protocol.Validate LAYER_STATE", function()
-  local function validate(payload)
-    return Protocol.Validate(Protocol.Build("LAYER_STATE", payload, "ly-1"))
-  end
-
-  it("accepts a layer and drops unknown fields", function()
-    local m = validate({ map = 1, layer = 4321, owner = "Someone" })
-    assert.are.same({ map = 1, layer = 4321 }, m.p)
-  end)
-
-  it("accepts layer 0, which means forget me", function()
-    assert.is_truthy(validate({ map = 0, layer = 0 }))
-  end)
-
-  it("carries the zone the layer was read in, and accepts a state without one from an older client", function()
-    assert.are.same({ map = 1, layer = 4321, zone = 1429 }, validate({ map = 1, layer = 4321, zone = 1429 }).p)
-    assert.are.same({ map = 1, layer = 4321 }, validate({ map = 1, layer = 4321 }).p)
-    for _, zone in ipairs({ 0, -1, 100000, 1.5, "1429" }) do
-      local _, reason = validate({ map = 1, layer = 4321, zone = zone })
-      assert.are.equal("bad_payload", reason, tostring(zone))
-    end
-  end)
-
-  it("rejects values out of range or not whole numbers", function()
-    for _, bad in ipairs({
-      { map = -1, layer = 5 },
-      { map = 10000, layer = 5 },
-      { map = 1, layer = -1 },
-      { map = 1, layer = 2147483648 },
-      { map = 1.5, layer = 5 },
-      { map = 1, layer = "5" },
-      { map = 1 },
-      { layer = 5 },
+describe("Protocol.Validate removed layer messages", function()
+  it("treats LAYER_STATE and LAYER_SWAP as unknown types, so a message from an older client is dropped", function()
+    for _, case in ipairs({
+      { "LAYER_STATE", { map = 1, layer = 4321 } },
+      { "LAYER_SWAP", { rid = "a1", s = "offer" } },
     }) do
-      local _, reason = validate(bad)
-      assert.are.equal("bad_payload", reason)
+      local m, reason = Protocol.Validate(Protocol.Build(case[1], case[2], "ly-1"))
+      assert.is_nil(m, case[1])
+      assert.are.equal("unknown_type", reason, case[1])
     end
-  end)
-end)
-
-describe("Protocol.Validate LAYER_SWAP (removed)", function()
-  it("is an unknown type, so a message from an older client is dropped", function()
-    local m, reason = Protocol.Validate(Protocol.Build("LAYER_SWAP", { rid = "a1", s = "offer" }, "sw-1"))
-    assert.is_nil(m)
-    assert.are.equal("unknown_type", reason)
   end)
 end)
 

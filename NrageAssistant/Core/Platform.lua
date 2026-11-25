@@ -781,12 +781,6 @@ function Platform.GetZoneMapId(mapId)
   return ancestorOfType(mapId, "Zone", ZONE_MAP_TYPE)
 end
 
--- The uiMapId of the zone the player is in, at zone level (never a sub-zone or a micro-dungeon), or nil. Layers are
--- per zone on Forever.
-function Platform.GetPlayerZoneId()
-  return Platform.GetZoneMapId(Platform.GetPlayerMapId())
-end
-
 -- Can this client say who won a battleground?
 function Platform.HasBattlegroundWinner()
   return type(GetBattlefieldWinner) == "function"
@@ -1169,33 +1163,6 @@ function Platform.ParseHonorVictim(text)
         return captured
       end
     end
-  end
-  return nil
-end
-
--- Layers and group actions. None of these is measured on Forever yet (see docs/API_NOTES.md): each is guarded, and
--- nil or false means "unavailable", never an error. A secret value is not inspected beyond its type.
-
--- The GUID of `unit`, or nil when the unit does not exist, the API is missing or the value is not a string.
-function Platform.GetUnitGUID(unit)
-  if not UnitGUID then
-    return nil
-  end
-  local ok, guid = pcall(UnitGUID, unit)
-  if ok and type(guid) == "string" then
-    return guid
-  end
-  return nil
-end
-
--- true inside any instance (dungeon, raid, battleground, arena), false outside, nil when the client does not say.
-function Platform.IsInInstance()
-  if not IsInInstance then
-    return nil
-  end
-  local ok, inInstance = pcall(IsInInstance)
-  if ok and (inInstance == true or inInstance == false) then
-    return inInstance
   end
   return nil
 end

@@ -38,7 +38,6 @@ local function load_addon()
     "Sync/RosterSync",
     "Sync/PvPSeasonSync",
     "Sync/RecipeSync",
-    "Sync/LayerSync",
     "Sync/LfgSync",
     "Sync/RankMapSync",
     "Sync/AnnouncementSync",

@@ -13,7 +13,7 @@ Comm.__index = Comm
 --       pvpStats (table), pvpResets (table), onPvPChange(), onPvPReset(rev) and onPvPKill(sender, payload)
 --       (all optional), blacklist (table) and onBlacklistChange(messageType) (optional), guildKos (the guild Kill On
 --       Sight table) and onGuildKosChange(messageType) (optional),
---       layerDirectory and onLayerChange(messageType), lfgService and onLfgChange(messageType) (all
+--       lfgService and onLfgChange(messageType) (all
 --       optional), announcements (the announcements store, see AnnouncementSync), onAnnouncement(announcement) (each
 --       stored one) and onAnnouncementChange(messageType) (all optional),
 --       rosters and members (tables: raid rosters, and the role and roster of each member) and
@@ -54,9 +54,6 @@ function Comm.New(deps)
     guildKey = deps.guildKey,
     entryOf = deps.entryOf,
     onRanksChange = deps.onRanksChange,
-    -- The layer directory is in memory and created after Comm (Init.StartLayer sets it).
-    layerDirectory = deps.layerDirectory,
-    onLayerChange = deps.onLayerChange,
     -- The Groups service is in memory and created after Comm (Init.StartLfg sets it).
     lfgService = deps.lfgService,
     onLfgChange = deps.onLfgChange,
@@ -364,9 +361,6 @@ function Comm:HandleMessage(text, sender, channel)
   end
   if ns.GuildKosSync.IsGuildKosMessage(message.t) then
     return self:HandleGuildKos(sender, message)
-  end
-  if ns.LayerSync.IsLayerMessage(message.t) then
-    return self:HandleLayer(sender, message)
   end
   if ns.LfgSync.IsLfgMessage(message.t) then
     return self:HandleLfg(sender, message)
@@ -1110,18 +1104,7 @@ function Comm:HandleRankMap(sender, message)
   return ok, reason
 end
 
--- LAYER_STATE: live only, nothing is saved. The sender's role is read from the local guild roster and
--- the actor is always the sender, never a payload field.
-function Comm:HandleLayer(sender, message)
-  local ctx = { directory = self.layerDirectory }
-  local ok, reason = ns.LayerSync.Apply(ctx, message, sender, self.roleOf(sender))
-  if ok and self.onLayerChange then
-    self.onLayerChange(message.t)
-  end
-  return ok, reason
-end
-
--- LFG_POST and LFG_APPLY: live only, nothing is saved. Same rules as the layer messages: the role comes from the local
+-- LFG_POST and LFG_APPLY: live only, nothing is saved. The role comes from the local
 -- roster and the actor is always the sender.
 function Comm:HandleLfg(sender, message)
   local ok, reason = ns.LfgSync.Apply({ service = self.lfgService }, message, sender, self.roleOf(sender))
@@ -1211,16 +1194,7 @@ function Comm:SendPvPKill(payload)
   return self:Send("PVP_KILL", payload)
 end
 
--- The own layer (or `layer = 0`, "forget me"). Live only, like a kill: refused during the lockdown instead of waiting,
--- because the next republication carries the latest layer anyway. Keyed, so it never piles up.
-function Comm:SendLayerState(payload)
-  if not self.queue.guard:CanSend() then
-    return false, "locked"
-  end
-  return self:Send("LAYER_STATE", payload, "LY")
-end
-
--- The own Groups post (open, changed or closed) and a step of an application. Live only, like the layer state: refused
+-- The own Groups post (open, changed or closed) and a step of an application. Live only, like a kill: refused
 -- during the lockdown instead of queued, because the next republication carries the current post.
 function Comm:SendLfgPost(payload)
   if not self.queue.guard:CanSend() then

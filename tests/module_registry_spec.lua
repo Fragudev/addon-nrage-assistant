@@ -30,7 +30,6 @@ describe("ModuleRegistry", function()
       "pvp",
       "intel",
       "groups",
-      "layers",
       "map",
       "blacklist",
       "announcements",

@@ -8,13 +8,11 @@ local _, ns = ...
 --         now = function() -> seconds (monotonic),
 --         mapMode = "all" | "zone" | "continent" | "none", ownMap = the map id the player is on or nil,
 --         continentOf = function(map) -> continent map id or nil,
---         ownLayer = { map, layer } or nil, layerOf = function(reporter) -> { map, layer } or nil (optional),
 --         kosOf = function(key) -> "personal" | "guild" | nil, isIgnored = function(key) -> boolean (both optional) }
 --
--- Each pin is { key, name, class, level, levelEstimated, map, x, y, layer, sameLayer, age, kos, stealth, reporter }
+-- Each pin is { key, name, class, level, levelEstimated, map, x, y, age, kos, stealth, reporter }
 -- with x and y as zone coordinates 0..1. The position is the reporter's, not the enemy's. `reporter` is nil for an
--- enemy seen here. When two sightings name the same enemy, the newest one wins. `sameLayer` is nil when either layer
--- is unknown, so the pin is drawn normally.
+-- enemy seen here. When two sightings name the same enemy, the newest one wins.
 local IntelPins = {}
 
 local function safeCall(fn, ...)
@@ -60,15 +58,6 @@ local function candidate(ctx, item, age, reporter)
   if not x then
     return nil
   end
-  -- The layer of the reporter: the own one for an enemy seen here, else the one the reporter shared (maybe none).
-  local theirs = ctx.ownLayer
-  if reporter then
-    theirs = safeCall(ctx.layerOf, reporter)
-  end
-  local sameLayer
-  if theirs and ctx.ownLayer and reporter then
-    sameLayer = ns.LayerModel.SameLayer(ctx.ownLayer, theirs)
-  end
   return {
     key = key,
     name = item.name,
@@ -78,8 +67,6 @@ local function candidate(ctx, item, age, reporter)
     map = item.map,
     x = x,
     y = y,
-    layer = theirs and theirs.layer or nil,
-    sameLayer = sameLayer,
     age = math.max(0, age),
     kos = item.kos or safeCall(ctx.kosOf, key),
     stealth = item.stealth == true,

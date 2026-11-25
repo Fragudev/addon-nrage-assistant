@@ -37,7 +37,7 @@ function PositionDirectory:Apply(sender, decoded)
   end
   if
     not (
-      ns.Validate.Int(decoded.map, 1, constants.LAYER_MAP_MAX)
+      ns.Validate.Int(decoded.map, 1, constants.MAP_ID_MAX)
       and ns.Validate.Int(decoded.x, 0, constants.POSITION_SCALE)
       and ns.Validate.Int(decoded.y, 0, constants.POSITION_SCALE)
     )
