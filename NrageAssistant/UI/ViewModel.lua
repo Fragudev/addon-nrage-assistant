@@ -1110,9 +1110,7 @@ function ViewModel.HelpLines()
   return {
     L("/nrage               open the window, where everything else is done"),
     L("/nrage help          this list"),
-    L(
-      "/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"
-    ),
+    L("/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"),
   }
 end
 
