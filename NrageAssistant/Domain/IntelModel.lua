@@ -145,7 +145,7 @@ function IntelModel.EncodeSighting(fields)
     not (
       name
       and name == fields.name
-      and ns.Validate.Int(fields.map, 1, constants.LAYER_MAP_MAX)
+      and ns.Validate.Int(fields.map, 1, constants.MAP_ID_MAX)
       and ns.Validate.Int(fields.x, 0, constants.POSITION_SCALE)
       and ns.Validate.Int(fields.y, 0, constants.POSITION_SCALE)
       and ns.Validate.Int(level, 0, 100)
@@ -194,7 +194,7 @@ function IntelModel.DecodeSighting(text)
     tonumber(map), tonumber(x), tonumber(y), tonumber(class), tonumber(race), tonumber(level), tonumber(flags)
   if
     not (
-      ns.Validate.Int(map, 1, constants.LAYER_MAP_MAX)
+      ns.Validate.Int(map, 1, constants.MAP_ID_MAX)
       and ns.Validate.Int(x, 0, constants.POSITION_SCALE)
       and ns.Validate.Int(y, 0, constants.POSITION_SCALE)
       and ns.Validate.Int(class, 0, #constants.INTEL_CLASSES)

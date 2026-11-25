@@ -55,7 +55,7 @@ end
 local function validPosition(position)
   local constants = ns.Constants
   return type(position) == "table"
-    and ns.Validate.Int(position.map, 1, constants.LAYER_MAP_MAX)
+    and ns.Validate.Int(position.map, 1, constants.MAP_ID_MAX)
     and ns.Validate.Int(position.x, 0, constants.POSITION_SCALE)
     and ns.Validate.Int(position.y, 0, constants.POSITION_SCALE)
 end

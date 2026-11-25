@@ -5,8 +5,8 @@ local _, ns = ...
 -- library is missing. The enemy pins (docs/PVP_INTEL_PLAN.md section 3.4) have a pool and a library key of their own,
 -- so redrawing one set never removes the other.
 -- A pin is a class icon inside a diamond: the diamond keeps it apart from the round pins Blizzard draws for the party
--- and the raid, and its border carries the signal (the class colour, red for an enemy, grey when the pin is on another
--- layer). An enemy pin also wears a swords badge. The pin is always fully opaque, so it stays readable over any map.
+-- and the raid, and its border carries the signal (the class colour, or red for an enemy). An enemy pin also wears a
+-- swords badge. The pin is always fully opaque, so it stays readable over any map.
 -- The decisions (pooling, which maps, coalescing) are apart from the frames so they can be tested with fakes; the
 -- frames themselves (BuildPin) are client-only.
 local MapPins = {}
@@ -33,17 +33,11 @@ local GREY = { 0.5, 0.5, 0.5 }
 local GREEN = { 0.3, 1, 0.3 }
 local RED = { 1, 0.35, 0.35 }
 
--- What the tooltip says under the name: { text, green } rows, in order. A layer that is unknown is left out.
+-- What the tooltip says under the name: { text } rows, in order. What is unknown is left out.
 function MapPins.TooltipLines(pin)
   local lines = {}
   if type(pin.level) == "number" then
     lines[#lines + 1] = { text = L("Level %d"):format(pin.level) }
-  end
-  if type(pin.layer) == "number" then
-    lines[#lines + 1] = {
-      text = L("Layer %s"):format(ns.LayerModel.Describe(nil, pin.layer)),
-      green = pin.sameLayer == true,
-    }
   end
   lines[#lines + 1] = { text = L("%d s ago"):format(math.floor(pin.age or 0)) }
   return lines
@@ -75,12 +69,6 @@ function MapPins.EnemyTooltipLines(pin)
   else
     lines[#lines + 1] = { text = L("Seen by you") }
   end
-  if type(pin.layer) == "number" then
-    lines[#lines + 1] = {
-      text = L("Layer %s"):format(ns.LayerModel.Describe(nil, pin.layer)),
-      green = pin.sameLayer == true,
-    }
-  end
   lines[#lines + 1] = { text = L("%d s ago"):format(math.floor(pin.age or 0)) }
   return lines
 end
@@ -99,12 +87,12 @@ local function setRing(frame, color)
 end
 
 -- Dresses a pin frame for `pin`: the class icon (or a grey diamond when the class is unknown) inside a diamond border
--- in the class colour, and a grey border when the member is on another layer. The pin is never transparent.
+-- in the class colour. The pin is never transparent.
 function MapPins.DressPin(frame, pin)
   frame.pin = pin
   local coords = pin.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[pin.class]
   frame.border:SetTexture(RING_TEXTURE)
-  setRing(frame, pin.sameLayer == false and GREY or classColor(pin.class))
+  setRing(frame, classColor(pin.class))
   if coords then
     local inset = (coords[2] - coords[1]) * CROP
     local vinset = (coords[4] - coords[3]) * CROP
@@ -119,15 +107,14 @@ function MapPins.DressPin(frame, pin)
   frame:SetAlpha(1)
 end
 
--- Dresses a pin frame for an enemy: the class icon in a red diamond with a red swords badge (both grey when the
--- reporter is on another layer), and a mark when the enemy is on a Kill on Sight list.
+-- Dresses a pin frame for an enemy: the class icon in a red diamond with a red swords badge, and a mark when the enemy
+-- is on a Kill on Sight list.
 function MapPins.DressEnemyPin(frame, pin)
   MapPins.DressPin(frame, pin)
   frame.enemy = true
-  local color = pin.sameLayer == false and GREY or RED
-  setRing(frame, color)
+  setRing(frame, RED)
   if frame.badge then
-    frame.badge:SetVertexColor(color[1], color[2], color[3], 1)
+    frame.badge:SetVertexColor(RED[1], RED[2], RED[3], 1)
   end
   if frame.mark then
     frame.mark:SetText(pin.kos and "!" or "")
@@ -158,7 +145,7 @@ function MapPins.BuildPin(kind)
   -- Hidden until the library places it: an unanchored frame that is shown sits at the centre of the screen, and
   -- the library never hides a frame it does not place (a pin on another map), so it would stay there.
   frame:Hide()
-  -- A pin only belongs on a frame that places it (the library's map pin, the minimap, another map addon's layer).
+  -- A pin only belongs on a frame that places it (the library's map pin, the minimap, another map addon's overlay).
   -- On UIParent it is unanchored, so it never shows there: OpenMap's combat view gives every icon back to the parent
   -- it had and shows it as combat ends, and an icon the library had let go has UIParent then.
   frame:SetScript("OnShow", function(self)
@@ -251,7 +238,6 @@ local function signature(pins, settings, max)
       tostring(pin.x),
       tostring(pin.y),
       tostring(pin.class),
-      tostring(pin.sameLayer),
       tostring(pin.kos),
     }, ",")
   end

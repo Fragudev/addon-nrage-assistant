@@ -7,7 +7,6 @@ local function load_view_model(locale)
     "Locales/esES",
     "Core/Validate",
     "Domain/PvPService",
-    "Domain/LayerModel",
     "Domain/PermissionService",
     "Domain/ModuleRegistry",
     "Domain/Settings",
@@ -32,7 +31,6 @@ local function load_view_model(locale)
     "UI/ViewModelRaid",
     "UI/ViewModelGuild",
     "UI/ViewModelProfessions",
-    "UI/ViewModelLayers",
     "Commands/RaidCommands",
     "Commands/LootCommands",
   }) do
@@ -99,7 +97,7 @@ describe("ViewModel misc", function()
     }, values)
   end)
 
-  it("orders the Guild tabs and then the Admin ones, and hides Profile, Layers and Blacklist", function()
+  it("orders the Guild tabs and then the Admin ones, and hides Profile and Blacklist", function()
     local order, groups = {}, {}
     for _, tab in ipairs(ViewModel.TABS) do
       order[#order + 1] = tab.value
@@ -140,7 +138,7 @@ describe("ViewModel misc", function()
     for _, value in ipairs({ "raid", "rules", "roster", "pvpadmin", "installs", "ranks", "announceadmin" }) do
       assert.are.equal("admin", groups[value], value)
     end
-    for _, value in ipairs({ "profile", "layers", "blacklist", "me" }) do
+    for _, value in ipairs({ "profile", "blacklist", "me" }) do
       assert.is_nil(groups[value], value)
     end
   end)
@@ -1384,7 +1382,7 @@ describe("ViewModel sidebar, user card and sync pill", function()
       assert.is_false(ViewModel.TabVisible("ranks", role, "r1"), role)
     end
     assert.is_false(ViewModel.TabVisible("raid", "roster", "r1"))
-    for _, value in ipairs({ "profile", "layers", "blacklist", "nowhere" }) do
+    for _, value in ipairs({ "profile", "blacklist", "nowhere" }) do
       assert.is_false(ViewModel.TabVisible(value, "gm", "r1"), value)
     end
   end)

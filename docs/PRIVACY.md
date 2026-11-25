@@ -24,7 +24,6 @@ secret store.
 | Your PvP counters (honourable kills, killing blows, per day for 30 days) | read from the game |
 | PvP counters received from other members | the guild channel |
 | Recent guild kills (killer, victim, place), in memory only | the guild channel, and your own kills |
-| Your layer, and the layers other members share, in memory only | read from the creatures you target, and the guild channel |
 | Your map position, if you chose to share it, and the positions other members share, in memory only | read from the game map, and the guild channel (prefix `NRAGEPOS`) |
 | The guild blacklist: names of players, a short free-text reason, who added each one and when | you, or received |
 | Enemy players you met: name, class, race, level, guild, faction, when first and last seen, how often, your wins and losses against them, and the map and position you stood at when you last met them | read from the game, and your own honourable kills and deaths; shared only as a sighting |
@@ -143,17 +142,9 @@ not agreed to it, so read the switches before you play with them.
 - **Bounties** count kills of players who are on the guild list at the moment of the kill, and that flag is saved in
   your mission log of the season (see *PvP seasons*).
 
-## Your layer
-
-The layer you are on is coarse location data. It is sent with the zone you are in (the zone name level, e.g. Elwynn
-Forest, never your position in it), because layers are per zone. It is read from the creatures you target or mouse over, kept **in
-memory only** (never saved), shared with the guild only, and forgotten by everyone after 15 minutes without a new
-message. **Share my layer** (Layers tab, on by default) stops sharing it: the addon then tells the guild once to
-forget you and sends nothing more.
-
 ## Your map position
 
-Your position on the map is finer than your layer, so **Share my position** (settings, the gear of the window) is
+Your position on the map is shared only while **Share my position** (settings, the gear of the window) is
 **on by default**. While it is on, the addon sends the map and your coordinates to the guild channel every few
 seconds while you move, on its own addon prefix (`NRAGEPOS`); the message carries only the map and two numbers, not
 your name, class or level (the others already know those from the guild roster). Guildmates see you as a pin on the

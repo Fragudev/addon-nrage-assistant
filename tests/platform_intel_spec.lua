@@ -410,7 +410,7 @@ describe("Platform.GetContinentMapId", function()
   end)
 end)
 
-describe("Platform.GetZoneMapId and GetPlayerZoneId", function()
+describe("Platform.GetZoneMapId", function()
   local maps = {
     [1] = { mapType = 2, parentMapID = 0 },
     [10] = { mapType = 3, parentMapID = 1 },
@@ -453,21 +453,6 @@ describe("Platform.GetZoneMapId and GetPlayerZoneId", function()
         return platform.GetZoneMapId(mapId)
       end))
     end
-  end)
-
-  it("gives the zone of the player, or nil when the client does not know where the player is", function()
-    assert.are.equal(
-      10,
-      run(function(platform)
-        return platform.GetPlayerZoneId()
-      end, 12)
-    )
-    assert.is_nil(run(function(platform)
-      return platform.GetPlayerZoneId()
-    end, nil))
-    with_globals({ C_Map = false }, function()
-      assert.is_nil(load_platform().GetPlayerZoneId())
-    end)
   end)
 end)
 

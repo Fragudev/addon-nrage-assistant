@@ -14,7 +14,6 @@ local MODULES = {
   { id = "pvp", tabs = { "pvp", "pvpadmin" }, steps = { "pvp", "pvpSeason" }, requires = {} },
   { id = "intel", tabs = {}, steps = { "intel" }, requires = { "pvp" } },
   { id = "groups", tabs = { "groups" }, steps = { "lfg" }, requires = {} },
-  { id = "layers", tabs = {}, steps = { "layer" }, requires = {} },
   { id = "map", tabs = {}, steps = { "position" }, requires = {} },
   { id = "blacklist", tabs = {}, steps = { "blacklist" }, requires = {} },
   -- The board and the popup. The editor (announceadmin) and the service stay core: the guild master can still publish,
