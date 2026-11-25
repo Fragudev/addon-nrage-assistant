@@ -1,0 +1,117 @@
+NrageAssistant/Commands/Slash.lua
+  s_1b23a4b3c27bb0::t_94085512300942 163
+NrageAssistant/Core/Constants.lua
+  s_1b23a4b3c27bb0::t_977e41c9951d59 5,409-410
+NrageAssistant/Core/Init.lua
+  s_1b23a4b3c27bb0::t_d1509ac1fe644b 473,599
+NrageAssistant/Core/Store.lua
+  s_1b23a4b3c27bb0::t_b22d9c341878bb 5,283-290
+NrageAssistant/Domain/IntelModel.lua
+  s_1b23a4b3c27bb0::t_cc1bb3e1073585 148,197
+NrageAssistant/Domain/PositionDirectory.lua
+  s_1b23a4b3c27bb0::t_f51cb37253149f 40
+NrageAssistant/Domain/PositionModel.lua
+  s_1b23a4b3c27bb0::t_f75fbc00df875c 58
+NrageAssistant/Domain/Settings.lua
+  s_1b23a4b3c27bb0::t_37e7b5f0dc1928 112
+NrageAssistant/Locales/esES.lua
+  s_1b23a4b3c27bb0::t_7b1c5ddbc3a7a3 215,432,652
+NrageAssistant/Sync/Comm.lua
+  s_1b23a4b3c27bb0::t_d78d19886ffd91 16,1107,1197
+NrageAssistant/UI/Tabs/Home.lua
+  s_1b23a4b3c27bb0::t_b9cb8fd52a36ce 3-4,12,31-32
+NrageAssistant/UI/ViewModel.lua
+  s_1b23a4b3c27bb0::t_61500995c3acb7 662,1114
+NrageAssistant/UI/ViewModelIntel.lua
+  s_1b23a4b3c27bb0::t_669ce57c25f53d 722
+README.md
+  s_1b23a4b3c27bb0::t_544257e5071439 5,71,125,155,182,235
+docs/API_NOTES.md
+  s_1b23a4b3c27bb0::t_6739d563ec7ee3 52,56,58-59
+docs/CURSEFORGE_DESCRIPTION.md
+  s_1b23a4b3c27bb0::t_d37e2ffff76e31 4,32,86,101
+docs/LFG_PLAN.local.md
+  s_1a384e21fbd520::t_2ddd4f4b400033 1-370
+docs/PRIVACY.md
+  s_1b23a4b3c27bb0::t_66fdac090fe272 147
+docs/PROTOCOL.md
+  s_1b23a4b3c27bb0::t_e153cee1dd3cda 43,167,169,267
+docs/USER_GUIDE.md
+  s_1b23a4b3c27bb0::t_52dea9cdfa8c72 50,751,957
+tests/comm_spec.lua
+  s_1b23a4b3c27bb0::t_029878b3e12777 2139,2147-2158
+tests/constants_spec.lua
+  s_1b23a4b3c27bb0::t_c74778e2707708 18,116-118
+tests/init_spec.lua
+  s_1b23a4b3c27bb0::t_d5354b4bece047 372,919,931
+tests/map_pins_spec.lua
+  s_57d3b776f8d339::t_09d347506a8db4 208-209,216-218,224,227,449,459,461,464,477,494
+tests/platform_intel_spec.lua
+  s_1b23a4b3c27bb0::t_209a08078321a1 413
+tests/platform_spec.lua
+  s_1b23a4b3c27bb0::t_552a58ed2ab677 970-971,983,991,998,1005,1008,1027-1029,1041-1043,1059-1061,1071,1087,1095,1102,1110,1113
+tests/position_model_spec.lua
+  s_1b23a4b3c27bb0::t_a1631410973634 84
+tests/position_pins_spec.lua
+  s_57d3b776f8d339::t_90073da248d029 43
+tests/protocol_spec.lua
+  s_1b23a4b3c27bb0::t_7457ae9c353a6f 741-745,747-749
+tests/slash_spec.lua
+  s_1b23a4b3c27bb0::t_595b0a7455f345 141
+tests/store_spec.lua
+  s_1b23a4b3c27bb0::t_57efc692b8820d 84,157,165,179,186,221,249,276,336,345,365,395,412,437,459,512,629-649
+tests/ui_smoke_spec.lua
+  s_1b23a4b3c27bb0::t_c85980b2bfd558 27,606,841,848,855,861,5420
+tests/view_model_modules_spec.lua
+  s_1b23a4b3c27bb0::t_6f879314d40c26 68
+tests/view_model_spec.lua
+  s_1b23a4b3c27bb0::t_e81e1d7a95e68d 100,141,1385
+NrageAssistant/Domain/IntelPins.lua
+  s_cd28f7ce0ca1fe::t_eea855dd877b96 13,15
+NrageAssistant/Domain/PositionPins.lua
+  s_cd28f7ce0ca1fe::t_c8b25eb591fe50 3-4,14
+NrageAssistant/UI/MapPins.lua
+  s_cd28f7ce0ca1fe::t_4f380a3654b3f7 8-9,36,90,95,110-111,115,117,148
+release-notes/v1.19.0.md
+  s_1b23a4b3c27bb0::t_8cae5cf900e0f9 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "544de629d902446260c05a210b778fa34c30403d",
+  "prompts": {},
+  "sessions": {
+    "s_1a384e21fbd520": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78aaee4e-41e5-429c-b279-4fea77270bc0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    },
+    "s_1b23a4b3c27bb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3d35e78-dee3-4874-bd36-63f6b6de197d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    },
+    "s_57d3b776f8d339": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1f327d8ffeymqA6Z1uNt2p9M",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    },
+    "s_cd28f7ce0ca1fe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-add6f9219bb5d55f7",
+        "model": "unknown"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
