@@ -1,0 +1,19 @@
+NrageAssistant/UI/ViewModel.lua
+  s_1b23a4b3c27bb0::t_b80277fcb49857 1113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "f8c8b5b596734caa5af9794875dd3cad85c093fd",
+  "prompts": {},
+  "sessions": {
+    "s_1b23a4b3c27bb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3d35e78-dee3-4874-bd36-63f6b6de197d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Francis Gutiérrez <fragudev@gmail.com>"
+    }
+  }
+}
