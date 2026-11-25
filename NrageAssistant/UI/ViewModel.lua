@@ -659,7 +659,7 @@ function ViewModel.BlacklistAlertLine(match)
 end
 
 -- The tabs of the window with the icon and the sidebar group of each ("guild" or "admin"). The tabs of one `section`
--- share a single sidebar item, and the page of each shows the others as tabs (ViewModel.SectionTabs). Profile, Layers
+-- share a single sidebar item, and the page of each shows the others as tabs (ViewModel.SectionTabs). Profile
 -- and Blacklist are not listed: their files and services stay, they only left the sidebar (plan 0.1). The text is
 -- translated again when the language changes (Locale.Table).
 ViewModel.TABS = ns.Locale.Table(function()
@@ -1111,7 +1111,7 @@ function ViewModel.HelpLines()
     L("/nrage               open the window, where everything else is done"),
     L("/nrage help          this list"),
     L(
-      "/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp | layer)"
+      "/nrage debug         diagnostics (debug selftest | info | identity | roster | senders | lockdown | pvp)"
     ),
   }
 end

@@ -1,7 +1,7 @@
 # Nrage Assistant
 
 Guild coordination and raid readiness for **Nrage** (Alliance, PvP ruleset) on **World of Warcraft: Forever**. Raid
-events, raid checks, loot council, PvP seasons, enemy Intel, layers, a guild map, groups and guild announcements, in
+events, raid checks, loot council, PvP seasons, enemy Intel, a guild map, groups and guild announcements, in
 one window.
 
 > **Nrage only.** The addon disables itself for any character outside Nrage, so it does nothing on other guilds or
@@ -29,8 +29,7 @@ the game, typed by the player or received from someone else, and what the game c
 
 ### Home
 
-Your character at a glance: name, class, level and item level, your main and secondary spec, and your **layer**. You
-also see the layers your guildmates in your zone have shared.
+Your character at a glance: name, class, level and item level, your main and secondary spec.
 
 ### Notice board
 
@@ -84,8 +83,7 @@ with a swords badge.
 ### Guild map
 
 See your guildmates on the **minimap** and the **world map**, each one as their class icon inside a diamond, so they
-never look like your party. Hover a pin for the name, level, layer and how fresh the position is; members on another
-layer get a grey border. Two round buttons on the right edge of the world map, **Guild** and **Enemies**, show or
+never look like your party. Hover a pin for the name, level and how fresh the position is. Two round buttons on the right edge of the world map, **Guild** and **Enemies**, show or
 hide each set of pins. Your own
 position is **shared with the guild by default**, and you can turn it off in the settings. Nothing is sent from
 instances, battlegrounds or during an encounter.
@@ -100,7 +98,7 @@ full.
 
 ### Modules
 
-Turn Professions, Raid, Loot, PvP, Intel, Groups, Layers, Guild map, Blacklist and Announcements on or off. Only you are
+Turn Professions, Raid, Loot, PvP, Intel, Groups, Guild map, Blacklist and Announcements on or off. Only you are
 affected, and turning a module off never deletes its data.
 
 ## Admin

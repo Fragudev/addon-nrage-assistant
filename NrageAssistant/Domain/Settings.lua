@@ -109,7 +109,7 @@ local function raceValid(key)
 end
 
 local function mapValid(key)
-  return ns.Validate.Int(key, 1, ns.Constants.LAYER_MAP_MAX)
+  return ns.Validate.Int(key, 1, ns.Constants.MAP_ID_MAX)
 end
 
 -- The Intel settings (db.global.settings.intel), created and repaired as needed, so a damaged saved value never

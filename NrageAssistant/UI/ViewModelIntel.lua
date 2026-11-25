@@ -719,7 +719,7 @@ function ViewModel.IntelApplySetting(settings, key, value, ctx)
   local zone = type(key) == "string" and key:match("^excludedZone:(%d+)$")
   if zone then
     local map = tonumber(zone)
-    if not ns.Validate.Int(map, 1, ns.Constants.LAYER_MAP_MAX) or type(value) ~= "boolean" then
+    if not ns.Validate.Int(map, 1, ns.Constants.MAP_ID_MAX) or type(value) ~= "boolean" then
       return false, "invalid"
     end
     settings.excludedZones[map] = value and true or nil

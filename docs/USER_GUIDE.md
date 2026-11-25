@@ -47,7 +47,7 @@ The **Admin** group appears from the Officer and RL ranks up:
 - **Notice board** is the editor of the board: publish, change and delete announcements (GM and CoGM only; see
   *Announcements* below).
 
-A tab you cannot see, or one that no longer exists in the sidebar (Profile, Layers and Blacklist are hidden for now),
+A tab you cannot see, or one that no longer exists in the sidebar (Profile and Blacklist are hidden for now),
 opens Home instead. A player without a roster only sees Home, Professions, PvP, Groups and Notice board.
 
 The **gear** in the header opens the settings, which are the same from every tab and are saved for your whole account:
@@ -666,19 +666,6 @@ The game gives the addon only the **first word** of a multi-word character name 
 the alert still fires and says so: `Yonemon may be Yonemon Gg, who is on the blacklist: <reason>`. A false alarm is
 better than a warning that never comes; check who it is before acting on it.
 
-## Layers
-
-The **Layers** tab shows the layer you are on and the layers of your continent that guildmates have shared. The
-addon reads your layer from the creatures you **target or mouse over** (it needs two different creatures to be
-sure), so when it says "unknown", click any NPC. The label of a layer is `#` plus the last four digits of its
-id; your own layer is marked "(you)". Layers are shown only for your continent.
-
-- **Share my layer** (on by default) lets the guild see your layer. Turn it off and the addon tells the guild to
-  forget you.
-
-The game moves a player to the layer of the group leader after a short delay; whether it works exactly like this
-on Forever is still being checked (see `docs/API_NOTES.md`).
-
 ## Groups
 
 The **Groups** tab, in the Guild part of the window, is a board where you post a party for a dungeon, a quest or
@@ -724,9 +711,6 @@ invitation, they join and the need goes down by one. If they do not join within 
 invite again. **Decline** tells the applicant. Invites are never automatic. You cannot invite during combat, or while
 you are in a group you do not lead.
 
-**Joining may move you.** Joining a party may move you to the leader's layer. The addon does
-nothing about it. Whether the game does this on Forever has not been checked yet (see `docs/API_NOTES.md`).
-
 ## Announcements
 
 The **Announcements** tab in the Guild group is the board of guild announcements. Every rank reads it; nobody edits it
@@ -764,8 +748,7 @@ on Home; a popup that arrives in combat waits for the end of combat.
 
 Guildmates who share their position appear as small pins on the minimap and on the world map, drawn as a round class
 icon inside a ring in the class colour (a grey dot when the class is not known). Hover a pin to see the name, the level,
-the layer (green when it is yours) and how many seconds ago the position arrived. The ring turns grey when that member
-is on another layer than you. Members of your own party or raid are not drawn: the game already shows them.
+and how many seconds ago the position arrived. Members of your own party or raid are not drawn: the game already shows them.
 
 - Turning on **Share my position** in the settings is your decision and is off by default. Only the map and your
   coordinates are sent, on the guild channel; nothing is saved, and the others forget you after 60 seconds without a
@@ -971,4 +954,4 @@ once; they are not needed in normal use.
 | `/nrage help` | this short list |
 | `/nrage pvp ...` | commands for the PvP seasons (see *PvP seasons*); the PvP tab does the same with screens |
 | `/nrage intel ...` | the Intel commands (see *Intel*); `/nrage spy` is the same command |
-| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp`, `layer` |
+| `/nrage debug ...` | diagnostics for developers: `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`, `lockdown`, `pvp` |

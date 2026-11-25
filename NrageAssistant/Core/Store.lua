@@ -2,7 +2,7 @@ local _, ns = ...
 
 -- SavedVariables layout and migrations. Plain tables (no AceDB yet); the shape follows plan section 9:
 --   db.global = { schemaVersion, roster, events, loot, templates, settings = { minimap, pvp, language,
---                 blacklistSound, layer, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
+--                 blacklistSound, windows }, sync = { seen, tombstones }, pvpStats = {}, pvpResets = {},
 --                 blacklist = {}, guildKos = {}, intel = { players, kos, ignore, zones } (see IntelService),
 --                 readinessRulesByRoster = { [rosterId] = { rev, updatedAt, updatedBy, rules } },
 --                 rosters = { [id] = { id, name, rev, ... } }, members = { [key] = { role, rosterId, rev, ... } },
@@ -278,6 +278,14 @@ local MIGRATIONS = {
           char.pvpMissions = nil
         end
       end
+    end
+  end,
+  -- v21: the layer feature is gone; its saved settings (settings.layer = { share }) are deleted. Nothing else is
+  -- touched.
+  [21] = function(db)
+    local settings = type(db.global) == "table" and db.global.settings
+    if type(settings) == "table" then
+      settings.layer = nil
     end
   end,
 }

@@ -24,7 +24,7 @@ local ALL_TABS = {
 }
 -- Tabs that left the sidebar but stay registered (docs/NAV_PERMISSIONS_PLAN.md 0.1): the specs of their views open them
 -- anyway.
-local HIDDEN_TABS = { profile = true, layers = true, blacklist = true, broken = true }
+local HIDDEN_TABS = { profile = true, blacklist = true, broken = true }
 
 -- `locale` (optional) is the client locale code the window is built for, e.g. "esES".
 local function load_window(locale)
@@ -59,7 +59,6 @@ local function load_window(locale)
     "Domain/ProfileService",
     "Domain/PublishService",
     "Domain/BlacklistService",
-    "Domain/LayerModel",
     "Domain/LfgModel",
     "Domain/LfgBoard",
     "Domain/LfgService",
@@ -85,7 +84,6 @@ local function load_window(locale)
     "UI/ViewModelGuild",
     "UI/ViewModelPvP",
     "UI/ViewModelProfessions",
-    "UI/ViewModelLayers",
     "UI/ViewModelIntel",
     "UI/ViewModelGroups",
     "UI/ViewModelInstalls",
@@ -114,7 +112,6 @@ local function load_window(locale)
     "UI/Tabs/Blacklist",
     "UI/Tabs/Rules",
     "UI/Tabs/Professions",
-    "UI/Tabs/Layers",
     "UI/Tabs/Groups",
     "UI/Tabs/Installs",
     "UI/Tabs/Announcements",
@@ -214,10 +211,6 @@ local function build(rank, locale)
     IsChatMessagingLockedDown = function()
       return false
     end,
-    IsInInstance = function()
-      return false
-    end,
-    GetPlayerZoneId = function() end,
     GetItemIcon = function(itemId)
       return "icon:" .. tostring(itemId)
     end,
@@ -610,7 +603,7 @@ describe("Window smoke test", function()
   it("opens Home instead of a tab that is hidden, that the rank cannot see, or that does not exist", function()
     env = build("Member")
     env.ns.ViewModel.TabVisible = env.realTabVisible
-    for _, tab in ipairs({ "profile", "layers", "blacklist", "raid", "loot", "roster", "nowhere" }) do
+    for _, tab in ipairs({ "profile", "blacklist", "raid", "loot", "roster", "nowhere" }) do
       env.ns.UI.OpenTab("professions")
       env.ns.UI.OpenTab(tab)
       assert.are.equal("home", env.ns.UI.CurrentTab(), tab)
@@ -845,36 +838,29 @@ describe("Window smoke test", function()
   end)
 
   describe("Home", function()
-    it("shows the identity, the specs and the layer, and nothing else", function()
+    it("shows the identity and the specs, and nothing else", function()
       env = build("Member")
       env.ns.db.global.events["e1"] = event("e1", "Molten Core")
       local home = env.open("home")
       local text = env.text()
       assert.is_truthy(text:find("Mage", 1, true))
       assert.is_truthy(text:find("Your declared details", 1, true))
-      assert.is_truthy(text:find("Your layer", 1, true))
+      assert.is_nil(text:find("Your layer", 1, true))
       assert.is_nil(text:find("Your readiness", 1, true))
       assert.is_nil(text:find("Members with the addon", 1, true))
       assert.is_nil(text:find("Molten Core", 1, true))
       assert.is_nil(env.find(home, "Button", "Request a sync"))
     end)
 
-    it("draws the identity, the specs and the layers for every rank", function()
+    it("draws the identity and the specs for every rank", function()
       for _, rank in ipairs({ "GM", "RL", "Council", "Member", "Norost" }) do
         env = build(rank)
         local home = env.open("home")
         assert.is_truthy(FakeKit.find(home, "StatGrid"), rank)
         assert.are.equal(2, #FakeKit.find_all(home, "Dropdown"), rank)
-        assert.is_truthy(env.text():find("Your layer", 1, true), rank)
+        assert.is_nil(env.text():find("Your layer", 1, true), rank)
         pcall(env.close)
       end
-    end)
-
-    it("says the layer feature is not available before it starts, and keeps the sharing switch", function()
-      env = build("Member")
-      env.open("home")
-      assert.is_truthy(env.text():find("not available", 1, true))
-      assert.is_truthy(FakeKit.find(env.page(), "Switch", "Share my layer"))
     end)
 
     it("saves a spec through ProfileService.SetField when its dropdown changes, and publishes it", function()
@@ -3721,106 +3707,6 @@ describe("Window smoke test: secondary windows", function()
   end)
 end)
 
-describe("Window smoke test: Layers", function()
-  local env, share
-
-  local function install(options)
-    options = options or {}
-    local zones = {}
-    env.ns.Platform.GetPlayerZoneId = function()
-      return 1429
-    end
-    env.ns.Platform.GetMapName = function(map)
-      return map == 1429 and "Elwynn Forest" or nil
-    end
-    env.ns.layerTracker = {
-      Current = function()
-        return options.own
-      end,
-    }
-    env.ns.layerDirectory = {
-      Groups = function(_, map, zone)
-        zones[#zones + 1] = { map, zone }
-        return { { map = 0, layer = 5678, members = { "Ann-Realm" }, count = 1 } }
-      end,
-    }
-    env.layerZones = zones
-    env.ns.SetLayerShare = function(value)
-      share = value
-    end
-  end
-
-  before_each(function()
-    env = build("RL")
-    share = nil
-  end)
-
-  after_each(function()
-    pcall(env.close)
-  end)
-
-  it("is not in the sidebar of any role", function()
-    for _, role in ipairs({ "gm", "cogm", "officer", "rl", "roster", "member", "alter" }) do
-      for _, tab in ipairs(env.ns.ViewModel.TabsFor(role, "r1")) do
-        assert.are_not.equal("layers", tab.value, role)
-      end
-    end
-  end)
-
-  it("says the feature is not available before it starts", function()
-    env.open("layers")
-    assert.is_truthy(env.text():find("not available", 1, true))
-    assert.is_truthy(FakeKit.find(env.page(), "Switch", "Share my layer"))
-  end)
-
-  it("lists the layers of the zone the player is in", function()
-    install({ own = { map = 0, layer = 1234 } })
-    env.open("layers")
-    local text = env.text()
-    assert.is_truthy(text:find("Your layer: #1234", 1, true))
-    assert.is_truthy(text:find("#5678", 1, true))
-    -- Only the layers of the zone the player is in.
-    assert.is_truthy(text:find("Layers in Elwynn Forest", 1, true))
-    assert.are.same({ 0, 1429 }, env.layerZones[#env.layerZones])
-    assert.is_truthy(text:find("Ann-Realm", 1, true))
-  end)
-
-  it("switches sharing with the switch", function()
-    install()
-    env.open("layers")
-    local switch = FakeKit.find(env.page(), "Switch", "Share my layer")
-    assert.is_true(switch.opts.checked)
-    switch.opts.onChange(false)
-    assert.is_false(share)
-  end)
-
-  it("redraws when the layers change, at most once per interval, and only on the tabs that show them", function()
-    install()
-    env.open("layers")
-    local count = #env.ns.Kit.fake.nodes
-    env.ns.UI.LayersChanged()
-    assert.is_true(#env.ns.Kit.fake.nodes > count)
-    count = #env.ns.Kit.fake.nodes
-    env.timers = {}
-    env.ns.UI.LayersChanged()
-    env.ns.UI.LayersChanged()
-    assert.are.equal(count, #env.ns.Kit.fake.nodes)
-    assert.are.equal(1, #env.timers)
-    env.ns.UI.SelectTab("professions")
-    count = #env.ns.Kit.fake.nodes
-    env.ns.UI.LayersChanged()
-    assert.are.equal(count, #env.ns.Kit.fake.nodes)
-  end)
-
-  it("redraws Home when the layers change, since Home shows them", function()
-    install()
-    env.open("home")
-    local count = #env.ns.Kit.fake.nodes
-    env.ns.UI.LayersChanged()
-    assert.is_true(#env.ns.Kit.fake.nodes > count)
-  end)
-end)
-
 describe("Window smoke test: Groups", function()
   local env, world
 
@@ -5531,7 +5417,7 @@ describe("Window smoke test: Home and modules", function()
     pcall(env.close)
   end)
 
-  it("leaves the Layers and Groups cards out while their modules are off", function()
+  it("leaves the Groups card out while its module is off", function()
     env = build("Member")
     env.ns.modules = env.ns.ModuleService.New({
       db = function()
@@ -5547,10 +5433,8 @@ describe("Window smoke test: Home and modules", function()
     assert.is_truthy(FakeKit.find(env.page(), "Button", "Open Groups"))
     assert.is_truthy(FakeKit.find(env.page(), "Card", "Groups"))
     env.ns.modules:SetEnabled("groups", false)
-    env.ns.modules:SetEnabled("layers", false)
     env.open("home")
     assert.is_nil(FakeKit.find(env.page(), "Button", "Open Groups"))
     assert.is_nil(FakeKit.find(env.page(), "Card", "Groups"))
-    assert.is_nil(FakeKit.find(env.page(), "Card", "Your layer"))
   end)
 end)

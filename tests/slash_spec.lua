@@ -30,7 +30,6 @@ local function load_slash(seen, identity)
       end,
     },
     PvPProbe = probe("pvp"),
-    LayerProbe = probe("layer"),
     Probe = probe("lockdown"),
     Constants = { GUILD_CLUB_ID = 123 },
     GetVersion = function()
@@ -137,10 +136,9 @@ describe("/nrage", function()
   end)
 
   it("takes the debug subcommand and action in any case, and passes the action lowercase", function()
-    run("Debug LAYER Status")
     run("DEBUG Pvp Start")
     run("debug LockDown Send")
-    assert.are.same({ "layer:status", "pvp:start", "lockdown:send" }, seen)
+    assert.are.same({ "pvp:start", "lockdown:send" }, seen)
   end)
 
   it("reports an unknown command with the text as the user typed it", function()

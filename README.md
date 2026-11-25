@@ -2,7 +2,7 @@
 
 <p align="center">
   Guild coordination and raid readiness for <b>Nrage</b> (Alliance, PvP ruleset) on <b>World of Warcraft: Forever</b>:
-  raid events, loot council, PvP seasons, enemy Intel, layers, the guild map and groups, in one window.
+  raid events, loot council, PvP seasons, enemy Intel, the guild map and groups, in one window.
 </p>
 
 <p align="center">
@@ -68,8 +68,7 @@ Good to know:
 ## What it is
 
 Nrage Assistant is the guild's own addon. It puts in one window what the guild otherwise coordinates by hand in chat
-and spreadsheets: who is ready for the raid, who comes, who gets the loot, who leads the PvP ranking and which layer
-the guild is on. Data is shared between members through the addon's own messages, with no server and no website:
+and spreadsheets: who is ready for the raid, who comes, who gets the loot, who leads the PvP ranking. Data is shared between members through the addon's own messages, with no server and no website:
 what one officer changes reaches every member running the addon.
 
 Values are never guessed. Each one says where it comes from: `verified` (read from the game), `declared` (typed by
@@ -123,7 +122,7 @@ The addon is published on CurseForge, but it only works for Nrage:
 
 ### Modules
 
-- Each player turns modules (Professions, Raid, Loot, PvP, Intel, Groups, Layers, Guild map, Blacklist,
+- Each player turns modules (Professions, Raid, Loot, PvP, Intel, Groups, Guild map, Blacklist,
   Announcements) on or off for themselves. Off hides the tabs and stops alerts and popups; synced data keeps arriving.
 
 ### Installed check
@@ -152,9 +151,8 @@ The addon is published on CurseForge, but it only works for Nrage:
 
 - **Professions:** "who can craft this?" with online members first and a one-click whisper.
 - **Blacklist:** a guild-wide list of players to be warned about.
-- **Layers:** your current layer, and the layers guildmates in your zone have shared (layers are per zone).
 - **Guild map:** guildmates who share their position, on the minimap and the world map, each as a class icon inside a
-  diamond (grey border when they are on another layer). The **Guild** button on the world map shows or hides them.
+  diamond. The **Guild** button on the world map shows or hides them.
 - **Groups:** post a party for a dungeon or a quest, or a raid of 10, 20, 25 or 40, with the roles you need, or apply
   to one. Each post shows its
   seats with the class and role of who is in. The leader invites with a click. A new group shows a short line at the
@@ -181,7 +179,7 @@ The full walkthrough, tab by tab and role by role, is the [user guide](docs/USER
 
 | Command | Description |
 |---|---|
-| `/nrage debug ...` | `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`; development builds only: `lockdown`, `pvp`, `layer` |
+| `/nrage debug ...` | `selftest`, `info`, `identity`, `roster`, `senders`, `sync`, `publish`; development builds only: `lockdown`, `pvp` |
 
 </details>
 
@@ -234,7 +232,7 @@ for, or when the placeholders differ.
 NrageAssistant/          Addon files (the only folder shipped in release zips)
   Core/                  Constants, platform seam, access and lockdown guards, store
   Domain/                Profile, readiness, events, loot, permissions, reports, templates, PvP and PvP seasons,
-                         Intel, Groups, layers, positions, installs, blacklist, diagnostics
+                         Intel, Groups, positions, installs, blacklist, diagnostics
   Sync/                  Codec, protocol, inbox and outbound queue, event, loot, roster, blacklist, guild Kill on
                          Sight, Groups, Intel and PvP season sync, snapshot, import/export
   UI/                    Window (own widget kit in Kit/), tabs and view models

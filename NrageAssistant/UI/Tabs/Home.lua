@@ -1,7 +1,7 @@
 local _, ns = ...
 
--- Home (plan 3.1): who you are, your two specs and your layer, top to bottom, and nothing else. The identity and the
--- specs are the cards Profile draws too (UI/Cards.lua); the layers are the Layers tab's sections (UI.DrawLayers).
+-- Home (plan 3.1): who you are and your two specs, top to bottom, and nothing else. The identity and the specs are the
+-- cards Profile draws too (UI/Cards.lua).
 local UI = ns.UI
 local Kit = ns.Kit
 local L = ns.L
@@ -9,7 +9,7 @@ local L = ns.L
 UI.Register("home", function(page)
   Kit.PageHeader(page, {
     title = L("Home"),
-    description = L("Who you are, your specs and your layer."),
+    description = L("Who you are and your specs."),
   })
   -- The newest pinned announcement, in one line with a way to the board.
   local banner = ns.announcements and ns.ViewModel.AnnouncementBanner(ns.announcements:List())
@@ -28,11 +28,8 @@ UI.Register("home", function(page)
   local character = ns.character
   UI.IdentityCard(page, character.profile)
   UI.SpecsCard(page, character.profile.fields or {})
-  -- The cards of a module that is off are left out (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, Part A.4).
-  if not ns.modules or ns.modules:IsEnabled("layers") then
-    UI.DrawLayers(page)
-  end
-  -- The open groups of the guild, with a way to the board.
+  -- The open groups of the guild, with a way to the board; the card of a module that is off is left out
+  -- (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, Part A.4).
   if ns.lfgBoard and (not ns.modules or ns.modules:IsEnabled("groups")) then
     local card = Kit.Card(page, { title = L("Groups"), gap = 8 })
     local row = Kit.Row(card, { gap = 12, align = "center" })

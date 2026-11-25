@@ -417,102 +417,6 @@ local function StartBlacklist()
   pcall(watcher.Check, watcher)
 end
 
--- The events the layer tracker listens to: the units whose creature GUID names the layer, and the changes that end
--- or move it. Each is registered on its own, so a client that does not know one keeps the others.
-local LAYER_UNIT_EVENTS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
-local LAYER_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
-local LAYER_WORLD_EVENTS = { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE" }
-
-local layerStarted = false
-
--- The "Share my layer" switch: on publishes the layer at once, off tells the guild to forget it.
-function ns.SetLayerShare(share)
-  ns.LayerModel.Settings(ns.db).share = share == true
-  if ns.layerPublisher then
-    if share then
-      ns.layerPublisher:Changed()
-    else
-      ns.layerPublisher:Forget()
-    end
-  end
-  ns.UI.LayersChanged()
-end
-
--- Own frame. Runs once: access can be lost and regained. Everything the client has to say is guarded, so a wrong
--- assumption about layers (docs/API_NOTES.md) leaves the feature quietly unavailable instead of raising.
-local function StartLayer()
-  if layerStarted then
-    return
-  end
-  layerStarted = true
-  local platform = ns.Platform
-  local publisher
-  local tracker = ns.LayerTracker.New({
-    now = platform.Now,
-    isInInstance = platform.IsInInstance,
-    zone = platform.GetPlayerZoneId,
-    onChange = function()
-      publisher:Changed()
-      ns.UI.LayersChanged()
-    end,
-  })
-  local function ownLayer()
-    return tracker:Current()
-  end
-  local directory = ns.LayerDirectory.New({
-    now = platform.Now,
-    isMember = function(name)
-      local roster = ns.guildRoster
-      return roster == nil or not roster:IsReady() or roster:Lookup(name) ~= nil
-    end,
-  })
-  publisher = ns.LayerPublisher.New({
-    now = platform.Now,
-    schedule = C_Timer.After,
-    send = function(payload)
-      return ns.comm:SendLayerState(payload)
-    end,
-    current = ownLayer,
-    enabled = function()
-      return ns.LayerModel.Settings(ns.db).share
-    end,
-  })
-  ns.layerTracker, ns.layerDirectory, ns.layerPublisher = tracker, directory, publisher
-  ns.comm.layerDirectory = directory
-  ns.comm.onLayerChange = ns.UI.LayersChanged
-
-  local layerFrame = CreateFrame("Frame")
-  for event in pairs(LAYER_UNIT_EVENTS) do
-    platform.TryRegisterEvent(layerFrame, event)
-  end
-  platform.TryRegisterEvent(layerFrame, LAYER_NAMEPLATE_EVENT)
-  for _, event in ipairs(LAYER_WORLD_EVENTS) do
-    platform.TryRegisterEvent(layerFrame, event)
-  end
-  layerFrame:SetScript("OnEvent", function(_, event, arg1)
-    if not ns.active then
-      return
-    end
-    local unit = LAYER_UNIT_EVENTS[event] or (event == LAYER_NAMEPLATE_EVENT and arg1) or nil
-    if unit then
-      local guid = platform.GetUnitGUID(unit)
-      if guid then
-        tracker:Observe(guid)
-      end
-      return
-    end
-    tracker:Expire()
-    ns.UI.LayersChanged()
-  end)
-
-  -- The layer is sent again now and then, so a member who logs in later learns it.
-  C_Timer.NewTicker(Constants.LAYER_REPUBLISH_SECONDS, function()
-    if ns.active then
-      publisher:Tick()
-    end
-  end)
-end
-
 local lfgStarted = false
 
 -- The own level when the client gives a plain whole number; a secret value (which raises when compared) or anything
@@ -566,12 +470,7 @@ local function StartLfg()
     ownLevel = OwnLevel,
     eligibility = ns.LfgService.Eligibility(platform, isLocked),
     invite = function(name)
-      local ok, reason = platform.InviteByName(name)
-      ns.LayerProbe.Note(
-        "invite",
-        ("InviteByName('%s') -> %s %s"):format(tostring(name), tostring(ok), tostring(reason))
-      )
-      return ok, reason
+      return platform.InviteByName(name)
     end,
     isGroupMember = platform.IsGroupMember,
     groupSize = platform.GetGroupSize,
@@ -697,7 +596,7 @@ function ns.SetPositionDisplay(which, on)
 end
 
 -- Guild map. Positions travel on their own prefix, outside the NRAGE envelope (docs/PROTOCOL.md): a short strict text
--- sent through ChatThrottleLib at "BULK" priority, so it never delays real traffic. Runs once, like StartLayer.
+-- sent through ChatThrottleLib at "BULK" priority, so it never delays real traffic. Runs once.
 local function StartPosition()
   if positionStarted then
     return
@@ -757,12 +656,6 @@ local function StartPosition()
     if not roster then
       return {}
     end
-    local layers = {}
-    if ns.layerDirectory then
-      for _, entry in ipairs(ns.layerDirectory:Fresh()) do
-        layers[entry.name] = entry
-      end
-    end
     return ns.PositionPins.Build({
       list = directory:List(),
       now = platform.Now,
@@ -771,10 +664,6 @@ local function StartPosition()
       end,
       profile = function(name)
         return ns.db.global.roster[name]
-      end,
-      ownLayer = ns.layerTracker and ns.layerTracker:Current() or nil,
-      layerOf = function(name)
-        return layers[name]
       end,
       isGroupMember = platform.IsGroupMember,
       settings = ns.PositionModel.Settings(ns.db),
@@ -792,17 +681,6 @@ local function StartPosition()
     end,
   })
   ns.positionDirectory, ns.positionPublisher, ns.positionSync, ns.mapPins = directory, publisher, sync, mapPins
-
-  -- A layer that arrives changes which pins are faded: the pins follow it, after what the Layers tab already does.
-  if ns.comm then
-    local onLayerChange = ns.comm.onLayerChange
-    ns.comm.onLayerChange = function(...)
-      if onLayerChange then
-        onLayerChange(...)
-      end
-      redraw()
-    end
-  end
 
   local positionFrame = CreateFrame("Frame")
   platform.TryRegisterEvent(positionFrame, "CHAT_MSG_ADDON")
@@ -1085,12 +963,6 @@ local function StartIntel()
 
   -- The enemy pins on the maps: the ones seen here and the sightings of the guild, by the map mode of the player.
   local function enemyPins()
-    local layers = {}
-    if ns.layerDirectory then
-      for _, entry in ipairs(ns.layerDirectory:Fresh()) do
-        layers[entry.name] = entry
-      end
-    end
     return ns.IntelPins.Build({
       own = service:Nearby(platform.Now()),
       remote = directory:List(),
@@ -1098,10 +970,6 @@ local function StartIntel()
       mapMode = settings().mapMode,
       ownMap = platform.GetPlayerMapId(),
       continentOf = platform.GetContinentMapId,
-      ownLayer = ns.layerTracker and ns.layerTracker:Current() or nil,
-      layerOf = function(reporter)
-        return layers[reporter]
-      end,
       kosOf = function(key)
         return service:IsKos(key)
       end,
@@ -1541,7 +1409,6 @@ local ACTIVATION_STEPS = {
   { name = "votingFrame", run = StartVotingFrame },
   { name = "pvp", run = StartPvP },
   { name = "blacklist", run = StartBlacklist },
-  { name = "layer", run = StartLayer },
   { name = "position", run = StartPosition },
   { name = "intel", run = StartIntel },
   { name = "lfg", run = StartLfg },
