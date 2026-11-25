@@ -5,7 +5,6 @@ local function load_addon()
     "Core/Constants",
     "Core/Locale",
     "Core/Validate",
-    "Domain/LayerModel",
     "Domain/PositionModel",
     "Domain/IntelModel",
     "Domain/IntelPins",
@@ -66,7 +65,6 @@ describe("IntelPins.Build", function()
     assert.is_true(pin.levelEstimated)
     assert.is_true(pin.stealth)
     assert.is_nil(pin.reporter)
-    assert.is_nil(pin.sameLayer)
   end)
 
   it("draws a sighting of the guild with its reporter and ages it from now", function()
@@ -160,27 +158,6 @@ describe("IntelPins.Build", function()
     })
     assert.are.equal(1, #pins)
     assert.are.equal("ann", pins[1].key)
-  end)
-
-  it("dims the pins of a reporter on another layer", function()
-    local layers = { ["Bob-Realm"] = { map = 1429, layer = 7 }, ["Cat-Realm"] = { map = 1429, layer = 9 } }
-    local pins = build({
-      remote = { remote("Cid"), remote("Dan", { source = "Cat-Realm" }), remote("Eve", { source = "Nobody-Realm" }) },
-      ownLayer = { map = 1429, layer = 7 },
-      layerOf = function(reporter)
-        return layers[reporter]
-      end,
-    })
-    local byKey = {}
-    for _, pin in ipairs(pins) do
-      byKey[pin.key] = pin
-    end
-    assert.is_true(byKey.cid.sameLayer)
-    assert.are.equal(7, byKey.cid.layer)
-    assert.is_false(byKey.dan.sameLayer)
-    assert.are.equal(9, byKey.dan.layer)
-    assert.is_nil(byKey.eve.sameLayer)
-    assert.is_nil(byKey.eve.layer)
   end)
 
   it("never draws more than the directory can hold", function()

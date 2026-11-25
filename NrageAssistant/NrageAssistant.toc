@@ -21,7 +21,6 @@ Core\LockdownProbe.lua
 Core\PvPCounterGuard.lua
 Core\PvPProbeLog.lua
 Core\PvPProbe.lua
-Core\LayerProbe.lua
 Core\Store.lua
 Domain\Settings.lua
 Domain\ModuleRegistry.lua
@@ -57,10 +56,6 @@ Domain\PvPMissionService.lua
 Domain\PvPProgressPublisher.lua
 Domain\BlacklistService.lua
 Domain\BlacklistWatcher.lua
-Domain\LayerModel.lua
-Domain\LayerTracker.lua
-Domain\LayerDirectory.lua
-Domain\LayerPublisher.lua
 Domain\PositionModel.lua
 Domain\PositionPublisher.lua
 Domain\PositionDirectory.lua
@@ -98,7 +93,6 @@ Sync\ReadinessRulesSync.lua
 Sync\RosterSync.lua
 Sync\PvPSeasonSync.lua
 Sync\RecipeSync.lua
-Sync\LayerSync.lua
 Sync\PositionSync.lua
 Sync\IntelSync.lua
 Sync\LfgSync.lua
@@ -123,7 +117,6 @@ UI\ViewModelRaid.lua
 UI\ViewModelGuild.lua
 UI\ViewModelPvP.lua
 UI\ViewModelProfessions.lua
-UI\ViewModelLayers.lua
 UI\ViewModelIntel.lua
 UI\ViewModelGroups.lua
 UI\ViewModelInstalls.lua
@@ -146,7 +139,6 @@ UI\Tabs\PvPIntel.lua
 UI\Tabs\Blacklist.lua
 UI\Tabs\Rules.lua
 UI\Tabs\Professions.lua
-UI\Tabs\Layers.lua
 UI\Tabs\Groups.lua
 UI\Tabs\Installs.lua
 UI\Tabs\Modules.lua

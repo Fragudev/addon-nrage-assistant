@@ -32,10 +32,6 @@ ViewModel.MODULE_TEXT = ns.Locale.Table(function()
       label = L("Groups"),
       description = L("The group board and the popup of join requests."),
     },
-    layers = {
-      label = L("Layers"),
-      description = L("Your layer and the layers of your guildmates."),
-    },
     map = {
       label = L("Map pins"),
       description = L("Guildmates' positions on the map and the minimap."),

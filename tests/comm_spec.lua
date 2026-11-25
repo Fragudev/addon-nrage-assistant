@@ -40,7 +40,6 @@ local function load_addon()
     "Sync/RosterSync",
     "Sync/PvPSeasonSync",
     "Sync/RecipeSync",
-    "Sync/LayerSync",
     "Sync/LfgSync",
     "Sync/RankMapSync",
     "Sync/AnnouncementSync",
@@ -2137,92 +2136,26 @@ describe("Comm readiness rules", function()
   end)
 end)
 
-describe("Comm layers", function()
+describe("Comm removed layer messages", function()
   local env
 
   before_each(function()
     env = build_env()
     env.roles["Ann-Realm"] = "member"
-    env.layerStates, env.layerChanges = {}, {}
-    env.comm.layerDirectory = {
-      Apply = function(_, sender, state)
-        env.layerStates[#env.layerStates + 1] = { sender = sender, state = state }
-        return true
-      end,
-    }
-    env.comm.onLayerChange = function(messageType)
-      env.layerChanges[#env.layerChanges + 1] = messageType
+  end)
+
+  it("silently drops the LAYER_STATE and LAYER_SWAP of an older client as unknown types", function()
+    for _, case in ipairs({
+      { "LAYER_STATE", { map = 1, layer = 50 } },
+      { "LAYER_SWAP", { rid = "r-1", s = "offer" } },
+    }) do
+      local ok, reason = true, nil
+      assert.has_no.errors(function()
+        ok, reason = env.comm:HandleMessage(env.wire(case[1], case[2], "l-1"), "Ann-Realm", "GUILD")
+      end)
+      assert.is_false(ok, case[1])
+      assert.are.equal("unknown_type", reason, case[1])
     end
-  end)
-
-  it("hands a received layer to the directory with the sender as its owner", function()
-    assert.is_true(
-      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Ann-Realm", "GUILD")
-    )
-    assert.are.same({ { sender = "Ann-Realm", state = { map = 1, layer = 50 } } }, env.layerStates)
-    assert.are.same({ "LAYER_STATE" }, env.layerChanges)
-  end)
-
-  it("silently ignores the LAYER_SWAP of an older client", function()
-    local ok, reason = true, nil
-    assert.has_no.errors(function()
-      ok, reason =
-        env.comm:HandleMessage(env.wire("LAYER_SWAP", { rid = "r-1", s = "offer" }, "l-2"), "Ann-Realm", "GUILD")
-    end)
-    assert.is_false(ok)
-    assert.are.equal("unknown_type", reason)
-    assert.are.same({}, env.layerStates)
-    assert.are.same({}, env.layerChanges)
-  end)
-
-  it("needs a sender the guild roster knows", function()
-    local ok, reason =
-      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Stranger-Realm", "GUILD")
-    assert.is_false(ok)
-    assert.are.equal("unknown_sender", reason)
-    assert.are.same({}, env.layerStates)
-    assert.are.same({}, env.layerChanges)
-  end)
-
-  it("is not accepted as a whisper", function()
-    local ok, reason =
-      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-1"), "Ann-Realm", "WHISPER")
-    assert.is_false(ok)
-    assert.are_not.equal(nil, reason)
-    assert.are.same({}, env.layerStates)
-  end)
-
-  it("works without a directory and without a callback", function()
-    env.comm.layerDirectory, env.comm.onLayerChange = nil, nil
-    local ok, reason =
-      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-5"), "Ann-Realm", "GUILD")
-    assert.is_false(ok)
-    assert.are.equal("unsupported", reason)
-  end)
-
-  it("works without a callback", function()
-    env.comm.onLayerChange = nil
-    assert.is_true(
-      env.comm:HandleMessage(env.wire("LAYER_STATE", { map = 1, layer = 50 }, "l-6"), "Ann-Realm", "GUILD")
-    )
-  end)
-
-  it("sends the own layer under one queue key, and refuses it during the lockdown", function()
-    assert.is_true(env.comm:SendLayerState({ map = 1, layer = 50 }))
-    assert.are.equal(1, #env.sent)
-    env.locked = true
-    local ok, reason = env.comm:SendLayerState({ map = 1, layer = 51 })
-    assert.is_false(ok)
-    assert.are.equal("locked", reason)
-    assert.are.equal(0, env.queue:Pending())
-  end)
-
-  it("sends what the receiver accepts", function()
-    env.comm:SendLayerState({ map = 1, layer = 50 })
-    local decoded = env.codec:Decode(env.sent[1])
-    local message = Protocol.Validate(decoded)
-    assert.are.equal("LAYER_STATE", message.t)
-    assert.are.same({ map = 1, layer = 50 }, message.p)
   end)
 end)
 

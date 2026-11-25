@@ -369,23 +369,17 @@ describe("Init", function()
       assert.is_true(env.ns.lfgService:Apply("p-1", "dps"))
     end)
 
-    it("asks the game to invite through the platform and leaves a trace in the probe log", function()
+    it("asks the game to invite through the platform", function()
       start()
       local invited = {}
       env.ns.Platform.InviteByName = function(name)
         invited[#invited + 1] = name
         return true
       end
-      local noted
-      env.ns.LayerProbe.Note = function(kind, text)
-        noted = { kind, text }
-      end
       env.ns.lfgService:Post({ kind = "quest", title = "Q", needs = { dps = 2 } })
       env.ns.lfgService:OnApply("Ann-Realm", { pid = "pid-1", s = "apply", role = "dps" })
       assert.is_true(env.ns.lfgService:Invite("Ann-Realm"))
       assert.are.same({ "Ann-Realm" }, invited)
-      assert.are.equal("invite", noted[1])
-      assert.is_truthy(noted[2]:find("Ann-Realm", 1, true))
     end)
   end)
 
@@ -973,7 +967,7 @@ describe("Init", function()
         return "1.2.3"
       end
       local before = #env.frames
-      for _, probe in ipairs({ env.ns.Probe, env.ns.PvPProbe, env.ns.LayerProbe }) do
+      for _, probe in ipairs({ env.ns.Probe, env.ns.PvPProbe }) do
         probe.Handle("start")
         probe.Handle("send")
       end
@@ -985,7 +979,7 @@ describe("Init", function()
           unavailable = unavailable + 1
         end
       end
-      assert.are.equal(6, unavailable)
+      assert.are.equal(4, unavailable)
     end)
   end)
 end)

@@ -14,7 +14,7 @@ end
 
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
-  SCHEMA_VERSION = 20,
+  SCHEMA_VERSION = 21,
 
   GUILD_NAME = "Nrage",
   -- Measured on the Forever live client with /nrage debug identity. The beta guild had another id.
@@ -418,21 +418,8 @@ ns.Constants = {
   BLACKLIST_SNAPSHOT_MAX = 200,
   BLACKLIST_REDRAW_SECONDS = 1,
 
-  -- Layers. A layer is read from creature GUIDs (LayerModel); a new one is confirmed after LAYER_CONFIRM_READINGS
-  -- readings from different spawns, and a reading or a received state is stale after LAYER_STATE_TTL. The own layer
-  -- is sent when it changes and every LAYER_REPUBLISH_SECONDS, at most once per LAYER_PUBLISH_MIN_SECONDS.
-  -- "Unmeasured" values (plan sections 1.1 and 3.2) are defaults until they are measured in game.
-  LAYER_CONFIRM_READINGS = 2,
-  LAYER_READINGS_MAX = 12,
-  LAYER_STATE_TTL = 900,
-  LAYER_REPUBLISH_SECONDS = 300,
-  LAYER_PUBLISH_MIN_SECONDS = 30,
-  LAYER_MAP_MAX = 9999,
-  LAYER_ID_MAX = 2147483647,
-  -- The zone (a uiMapId at zone level) a layer was read in. Layers are per zone on Forever.
-  LAYER_ZONE_MAX = 99999,
-  -- A redraw of the Layers tab because of a received state waits at least this long after the previous one.
-  LAYER_REDRAW_SECONDS = 1,
+  -- The highest uiMapId accepted from a saved or received map position.
+  MAP_ID_MAX = 9999,
 
   -- Groups (docs/LFG_PLAN.md). A post is kept by the receiver for LFG_POST_TTL after the last message and the leader
   -- repeats it every LFG_REPUBLISH_SECONDS; a post closes itself after LFG_POST_MAX_AGE. LFG_LEVEL_MAX only bounds

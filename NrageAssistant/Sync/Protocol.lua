@@ -422,29 +422,6 @@ local function validatePvPReset(payload)
   return { target = payload.target, rev = payload.rev }
 end
 
--- Layers. LAYER_STATE is the sender's own layer (`layer = 0` means "forget me"). It names nobody: the actor is always
--- the sender. (Older clients also sent LAYER_SWAP; it is no longer known and is dropped as an unknown type.)
-
--- The optional `zone` of a layer message (older clients send none): nil when absent, false when malformed.
-local function layerZone(payload)
-  if payload.zone == nil then
-    return nil
-  end
-  return isInt(payload.zone, 1, ns.Constants.LAYER_ZONE_MAX) and payload.zone or false
-end
-
-local function validateLayerState(payload)
-  local constants = ns.Constants
-  if not (isInt(payload.map, 0, constants.LAYER_MAP_MAX) and isInt(payload.layer, 0, constants.LAYER_ID_MAX)) then
-    return nil
-  end
-  local zone = layerZone(payload)
-  if zone == false then
-    return nil
-  end
-  return { map = payload.map, layer = payload.layer, zone = zone }
-end
-
 -- Groups (docs/LFG_PLAN.md). LFG_POST is the post of its sender (the owner is always the sender); LFG_APPLY is one step
 -- of an application, and the actor is always the sender. Only `to` of an accept or a decline names someone, as plain
 -- text like any character name. The needs plus the members of an open post never exceed its size: a party, or for the
@@ -758,7 +735,6 @@ local VALIDATORS = {
   KOS_UPSERT = validateKosUpsert,
   KOS_DELETE = validateKosDelete,
   ROSTER_RULES = validateRosterRules,
-  LAYER_STATE = validateLayerState,
   LFG_POST = validateLfgPost,
   LFG_APPLY = validateLfgApply,
   RECIPES = validateRecipes,

@@ -1,20 +1,17 @@
 local _, ns = ...
 
--- The view model of the guild map: which pins to draw, from what the directory, the guild roster and the layers know.
+-- The view model of the guild map: which pins to draw, from what the directory, the guild roster and the received
+-- profiles know.
 -- Pure; the clock and every lookup are injected.
 --
 -- ctx = { list = { { name, map, x, y, at } } (PositionDirectory:List()),
 --         now = function() -> seconds (monotonic),
 --         lookup = function(name) -> { class, level } or nil (the guild roster),
 --         profile = function(name) -> { class, level } or nil (a received profile; optional),
---         ownLayer = { map, layer } or nil,
---         layerOf = function(name) -> { map, layer } or nil (optional),
 --         isGroupMember = function(name) -> boolean (optional),
 --         settings = { minimap, worldmap } }
 --
--- Each pin is { key, name, class, level, map, x, y, layer, sameLayer, age } with x and y as zone coordinates 0..1.
--- `layer` is nil when the member's layer is unknown and `sameLayer` when either layer is unknown, so the pin is drawn
--- normally.
+-- Each pin is { key, name, class, level, map, x, y, age } with x and y as zone coordinates 0..1.
 local PositionPins = {}
 
 local function text(value)
@@ -43,11 +40,6 @@ function PositionPins.Build(ctx)
       local profile = safeCall(ctx.profile, entry.name) or {}
       local x, y = ns.PositionModel.ToZone(entry.x, entry.y)
       if x then
-        local theirs = safeCall(ctx.layerOf, entry.name)
-        local layer, sameLayer = theirs and theirs.layer, nil
-        if theirs and ctx.ownLayer then
-          sameLayer = ns.LayerModel.SameLayer(ctx.ownLayer, theirs)
-        end
         pins[#pins + 1] = {
           key = entry.name,
           name = entry.name,
@@ -56,8 +48,6 @@ function PositionPins.Build(ctx)
           map = entry.map,
           x = x,
           y = y,
-          layer = layer,
-          sameLayer = sameLayer,
           age = math.max(0, now - entry.at),
         }
       end

@@ -7,7 +7,6 @@ local function load_pins()
     "Core/Locale",
     "Locales/esES",
     "Core/Validate",
-    "Domain/LayerModel",
     "Domain/IntelModel",
     "UI/MapPins",
   }) do
@@ -206,28 +205,26 @@ describe("MapPins.Controller:Request", function()
 end)
 
 describe("MapPins.TooltipLines", function()
-  it("lists the level, the layer and the age", function()
-    local lines = MapPins.TooltipLines(pin("Ann", { layer = 123456, sameLayer = true }))
+  it("lists the level and the age", function()
+    local lines = MapPins.TooltipLines(pin("Ann"))
     assert.are.same({
       { text = "Level 60" },
-      { text = "Layer #3456", green = true },
       { text = "12 s ago" },
     }, lines)
   end)
 
-  it("does not paint another layer green, and leaves out what is unknown", function()
-    local lines = MapPins.TooltipLines(pin("Ann", { layer = 7, sameLayer = false, level = false, age = 3.9 }))
-    assert.are.same({ { text = "Layer #0007", green = false }, { text = "3 s ago" } }, lines)
+  it("leaves out what is unknown", function()
+    local lines = MapPins.TooltipLines(pin("Ann", { level = false, age = 3.9 }))
+    assert.are.same({ { text = "3 s ago" } }, lines)
     assert.are.same({ { text = "Level 60" }, { text = "0 s ago" } }, MapPins.TooltipLines(pin("Ann", { age = false })))
   end)
 
   it("is translated", function()
     ns.Locale.Use("esES")
-    local lines = MapPins.TooltipLines(pin("Ann", { layer = 7 }))
+    local lines = MapPins.TooltipLines(pin("Ann"))
     ns.Locale.Use("enUS")
     assert.are.equal("Nivel 60", lines[1].text)
-    assert.are.equal("Capa #0007", lines[2].text)
-    assert.are.equal("hace 12 s", lines[3].text)
+    assert.are.equal("hace 12 s", lines[2].text)
   end)
 end)
 
@@ -239,15 +236,12 @@ describe("MapPins.EnemyTooltipLines", function()
       kos = "guild",
       stealth = true,
       reporter = "Bob-Realm",
-      layer = 9,
-      sameLayer = true,
     }))
     assert.are.same({
       { text = "Level 60? Rogue" },
       { text = "Kill on Sight", red = true },
       { text = "Used a stealth ability" },
       { text = "Reported by Bob" },
-      { text = "Layer #0009", green = true },
       { text = "12 s ago" },
     }, lines)
   end)
@@ -452,7 +446,7 @@ describe("MapPins frames", function()
 
   it("shows the class icon in a diamond in the class colour, so it does not look like a party member", function()
     local frame = MapPins.BuildPin("minimap")
-    MapPins.DressPin(frame, pin("Ann", { sameLayer = true }))
+    MapPins.DressPin(frame, pin("Ann"))
     assert.are.equal("Interface\\AddOns\\NrageAssistant\\Media\\Icons\\pin-diamond", frame.border.texture)
     assert.are.equal("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES", frame.icon.texture)
     assert.are.same({ 0.25, 0.78, 0.92, 1 }, frame.border.vertex)
@@ -460,25 +454,14 @@ describe("MapPins frames", function()
     -- The cell is cropped inward so the baked square frame is cut off.
     local tc = frame.icon.texcoord
     assert.is_true(tc[1] > 0.25 and tc[2] < 0.5 and tc[3] > 0 and tc[4] < 0.25)
-    MapPins.DressPin(frame, pin("Ann", { layer = nil, sameLayer = nil }))
-    assert.are.same({ 0.25, 0.78, 0.92, 1 }, frame.border.vertex)
   end)
 
-  it("greys the ring on another layer and never makes the pin transparent", function()
-    local frame = MapPins.BuildPin("minimap")
-    MapPins.DressPin(frame, pin("Ann", { sameLayer = false }))
-    assert.are.same({ 0.5, 0.5, 0.5, 1 }, frame.border.vertex)
-    assert.are.equal(1, frame.alpha)
-  end)
-
-  it("rings an enemy in red, and in grey on another layer", function()
+  it("rings an enemy in red with a red badge, and never makes the pin transparent", function()
     local frame = MapPins.BuildEnemyPin("minimap")
-    MapPins.DressEnemyPin(frame, pin("Ann", { sameLayer = true }))
+    MapPins.DressEnemyPin(frame, pin("Ann"))
     assert.are.same({ 1, 0.35, 0.35, 1 }, frame.border.vertex)
     assert.are.equal("Interface\\AddOns\\NrageAssistant\\Media\\Icons\\pin-diamond", frame.border.texture)
-    MapPins.DressEnemyPin(frame, pin("Ann", { sameLayer = false }))
-    assert.are.same({ 0.5, 0.5, 0.5, 1 }, frame.border.vertex)
-    assert.are.same({ 0.5, 0.5, 0.5, 1 }, frame.badge.vertex)
+    assert.are.same({ 1, 0.35, 0.35, 1 }, frame.badge.vertex)
     assert.are.equal(1, frame.alpha)
   end)
 
@@ -491,7 +474,7 @@ describe("MapPins frames", function()
 
   it("shows a grey dot when the class is unknown", function()
     local frame = MapPins.BuildPin("worldmap")
-    MapPins.DressPin(frame, pin("Ann", { class = "UNKNOWN", sameLayer = true }))
+    MapPins.DressPin(frame, pin("Ann", { class = "UNKNOWN" }))
     assert.are.equal("Interface\\Buttons\\WHITE8X8", frame.icon.texture)
     assert.are.same({ 0.5, 0.5, 0.5, 1 }, frame.border.vertex)
     MapPins.DressPin(frame, pin("Ann", { class = false }))
@@ -508,13 +491,12 @@ describe("MapPins frames", function()
 
   it("shows a tooltip on enter and hides it on leave", function()
     local frame = MapPins.BuildPin("minimap")
-    MapPins.DressPin(frame, pin("Ann", { layer = 9, sameLayer = true }))
+    MapPins.DressPin(frame, pin("Ann"))
     frame.scripts.OnEnter(frame)
     local tooltip = _G.GameTooltip
     assert.are.equal(frame, tooltip.owner)
     assert.are.same({ "Ann", 0.25, 0.78, 0.92 }, tooltip.lines[1])
     assert.are.equal("Level 60", tooltip.lines[2][1])
-    assert.are.same({ "Layer #0009", 0.3, 1, 0.3 }, tooltip.lines[3])
     assert.is_true(tooltip.shown)
     frame.scripts.OnLeave(frame)
     assert.is_false(tooltip.shown)

@@ -204,8 +204,6 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
   Both are untested on Forever. A value that is secret or unreadable leaves the slot or buff out (unknown, never
   met). The Profile tab shows what was read, with its source.
 
-- The layer feature (reading the layer from creature GUIDs, group invites and leaves, nameplate units) is built on
-  unmeasured assumptions: see "Layers (assumed, not measured yet)" below.
 - The libraries (Ace3 parts, LibSerialize, LibDeflate) load on the Forever build.
 - The `sender` of `CHAT_MSG_ADDON` is the full name, with or without the realm suffix. If it turns out to be the
   first word only, like `UnitName`, permission lookups by sender will not work. `/nrage debug senders` (after
@@ -216,42 +214,19 @@ from other clients are compared without a `-<this realm>` suffix. `/nrage debug 
 - Whether `CHAT_MSG_LOOT` and item links arrive as secret values during an encounter. Loot sessions currently take
   the item from a link typed after the encounter.
 
-## Layers (assumed, not measured yet)
-
-The whole layer feature was built on the assumptions below **without measuring them on
-Forever** (decided 2026-10-20). Every client call is guarded, so a wrong assumption turns the feature off quietly
-(nil or false means unavailable) instead of raising. **All of this must be verified in game before release**, with
-two clients: `/nrage debug layer start`, target and mouse over NPCs, group up, then `/nrage debug layer log` and
-`/nrage debug layer status`, and copy the result here.
-
-| # | Question | API | Assumption in the code | Result |
-|---|---|---|---|---|
-| 1 | Does `UnitGUID` return a readable creature GUID for `target`, `mouseover` and `nameplateN`, outside combat? In combat? | `UnitGUID` | yes; a secret or unreadable value is skipped (`LayerModel.Parse`) | not measured yet |
-| 2 | Is the fifth field of `Creature-0-<server>-<instance>-<zoneUid>-<npc>-<spawn>` stable for one layer and different between layers of one continent? | GUID | yes: the layer key is `(instanceId, zoneUid)`, and two readings from different spawns confirm it | not measured yet |
-| 3 | Does `zoneUid` change after a realm restart? | GUID | yes, hence a 15 minute time to live and no saved layer | not measured yet |
-| 4 | After joining a group led by someone on another layer: is the move automatic, how long does it take, is there a cooldown, what blocks it? | game behaviour | automatic after a short delay, not in combat or an instance; the addon never moves anyone itself | not measured yet |
-| 7 | Are `NAME_PLATE_UNIT_ADDED` and `nameplateN` available and readable? | event, unit | yes; registered with `TryRegisterEvent`, so a refusal only drops that source | not measured yet |
-| 8 | `InCombatLockdown`, `UnitIsGroupLeader("player")`, `IsInInstance`, `GetNumGroupMembers`, `IsInRaid` behave as on Mainline | group | yes; each is read through `pcall` and a missing one reads as false/unknown | not measured yet |
-| 10 | Since the Forever launch (Nov 2026), layers are per zone and the game only moves a player in the same zone as the leader. Does the fifth GUID field differ per zone, and is `C_Map.GetBestMapForUnit("player")` walked up to `Enum.UIMapType.Zone` the right "same zone" (cities, joined zones such as Dalaran and Silverpine)? | GUID, `C_Map` | the zone is the uiMapId at zone level; the layer is forgotten when it changes | not measured yet |
-
-The probe logs every GUID read (raw string and parsed fields), the zone and group events, the confirmed layer and the
-result of the invites made from the Groups tab. `/nrage debug layer status` also prints which of the invite APIs
-exist on the client. If question 1 or 2 turns out to be false, the layer cannot be read and the feature should be
-removed.
-
 ## Groups (not measured yet)
 
 The Groups feature (`docs/LFG_PLAN.md`) is built for v1.2.0 without measuring the four P0 questions of its plan
 (decided 2026-11-06). It calls the invite and group APIs through `Core/Platform.lua`. Check
 these in game before relying on Groups: two clients, one with a multi-word name. Invite from the Groups tab, form and
-leave a party, and read the results in `/nrage debug layer status` and the probe log (the invite is logged there too).
+leave a party, and check what the Groups tab shows.
 
 | # | Question | API | Assumption in the code | Result |
 |---|---|---|---|---|
-| G1 | Does `InviteByName` invite the right character for a multi-word name? | `InviteByName` | the name as the guild roster gives it; the same as layer question 5 | not measured yet |
+| G1 | Does `InviteByName` invite the right character for a multi-word name? | `InviteByName` | the name as the guild roster gives it | not measured yet |
 | G2 | Does it work with the `sender` of `CHAT_MSG_ADDON` as delivered? Run `/nrage debug senders`, then invite that exact string | `CHAT_MSG_ADDON`, `InviteByName` | the sender is the full name (see the `sender` assumption above) | not measured yet |
-| G3 | Does the invite need a hardware event? Groups calls it only from a button click, and a refused call must show in the Groups tab | invite | a click; the same as layer question 5 | not measured yet |
-| G4 | Do `IsGroupLeader`, `GetGroupSize`, `IsGroupMember` and `GROUP_ROSTER_UPDATE` behave as assumed when a party is formed and left? | group, event | yes; the same as layer question 8 | not measured yet |
+| G3 | Does the invite need a hardware event? Groups calls it only from a button click, and a refused call must show in the Groups tab | invite | a click | not measured yet |
+| G4 | Do `IsGroupLeader`, `GetGroupSize`, `IsGroupMember` and `GROUP_ROSTER_UPDATE` behave as assumed when a party is formed and left? | group, event | yes | not measured yet |
 
 If G1 or G2 fails, Invite does not work for that name. The fallback in the plan, a prefilled whisper through
 `Platform.PrefillChat`, is also unmeasured. Nothing in this section is measured yet, and no result should be written

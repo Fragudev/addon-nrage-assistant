@@ -128,9 +128,7 @@ local COMMANDS = {
     elseif sub == "lockdown" then
       ns.Probe.Handle(action)
     elseif sub == "pvp" then
-      ns.PvPProbe.Handle(action, args)
-    elseif sub == "layer" then
-      ns.LayerProbe.Handle(action)
+      ns.PvPProbe.Handle(action)
     elseif sub == "roster" then
       PrintRoster()
     elseif sub == "senders" then
@@ -162,7 +160,7 @@ local COMMANDS = {
     else
       say(
         "usage: /nrage debug identity | roster | senders | selftest | info | sync | publish | lockdown <action>"
-          .. " | pvp <action> | layer <action>"
+          .. " | pvp <action>"
       )
     end
   end,

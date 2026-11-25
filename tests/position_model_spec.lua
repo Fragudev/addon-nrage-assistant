@@ -81,7 +81,7 @@ describe("PositionModel.Encode", function()
   end)
 
   it("always fits the size limit", function()
-    local text = PositionModel.Encode({ map = Constants.LAYER_MAP_MAX, x = 10000, y = 10000 })
+    local text = PositionModel.Encode({ map = Constants.MAP_ID_MAX, x = 10000, y = 10000 })
     assert.is_true(#text <= Constants.POSITION_MAX_BYTES)
   end)
 
