@@ -547,11 +547,212 @@ local function fileToken(value)
   return nil
 end
 
+local function plainGUID(value)
+  local ok, guid = pcall(function()
+    if type(_G.issecretvalue) == "function" and _G.issecretvalue(value) then
+      return nil
+    end
+    if type(value) == "string" and value:find("^Player%-") then
+      return value .. ""
+    end
+  end)
+  return ok and guid or nil
+end
+
+local function worldReadError(value)
+  local ok, text = pcall(function()
+    if type(_G.issecretvalue) == "function" and _G.issecretvalue(value) then
+      return "restricted_error"
+    end
+    return tostring(value):sub(1, 160)
+  end)
+  return ok and text or "unreadable_error"
+end
+
+-- Separate readings are required: honor points and raid-member change notifications are not HK credits.
+function Platform.GetPvPKillCounters()
+  local ok, snapshot = pcall(function()
+    local session = Platform.GetPvPSessionKills()
+    local lifetime = _G.GetPVPLifetimeStats and _G.GetPVPLifetimeStats()
+    if type(session) == "number" and type(lifetime) == "number" and lifetime >= 0 and lifetime % 1 == 0 then
+      return { sessionHK = session, lifetimeHK = lifetime }
+    end
+    return { error = "unavailable" }
+  end)
+  return ok and snapshot or { error = "restricted" }
+end
+
+-- false = definitely not an eligible player; nil = unknown (must make a correlation ambiguous).
+-- No faction inference here: live credit requires a matching hostile unit or a recent hostile GUID observation.
+function Platform.GetPlayerDeathInfo(rawGUID)
+  local detail = { stage = "query", query = "missing", hostility = "unverified" }
+  local values
+  if type(_G.GetPlayerInfoByGUID) == "function" then
+    values = { pcall(_G.GetPlayerInfoByGUID, rawGUID) }
+    detail.query = values[1] and "ok" or "error"
+    if not values[1] then
+      detail.queryError = worldReadError(values[2])
+    end
+  end
+  local ok, result = pcall(function()
+    detail.stage = "guid"
+    local guid = plainGUID(rawGUID)
+    if not guid then
+      if type(_G.issecretvalue) == "function" and _G.issecretvalue(rawGUID) then
+        detail.guidState, detail.platformReason = "restricted", "guid_restricted"
+        return nil
+      end
+      if type(rawGUID) == "string" and rawGUID ~= "" then
+        detail.guidState, detail.platformReason = "non_player", "non_player_guid"
+        return false
+      end
+      detail.guidState, detail.platformReason = "invalid", "guid_invalid"
+      return nil
+    end
+    detail.guidState, detail.stage = "readable", "self"
+    if UnitGUID and guid == UnitGUID("player") then
+      detail.platformReason = "self"
+      return false
+    end
+    detail.stage = "group"
+    for _, prefix in ipairs({ "party", "raid" }) do
+      for index = 1, prefix == "party" and 4 or 40 do
+        if UnitGUID and plainGUID(UnitGUID(prefix .. index)) == guid then
+          detail.platformReason, detail.matchedUnit = "group_ally", prefix .. index
+          return false
+        end
+      end
+    end
+    -- Current friendliness overrides any earlier hostile cache entry (for example after a control effect ends).
+    detail.stage = "visible_units"
+    for _, unit in ipairs(ns.EnemyPlayerUnits()) do
+      local sideOk, friendly = pcall(function()
+        if not UnitGUID or plainGUID(UnitGUID(unit)) ~= guid then
+          return nil
+        end
+        detail.matchedUnit = unit
+        if UnitIsPlayer and UnitIsPlayer(unit) == false then
+          detail.platformReason = "visible_non_player"
+          return true
+        end
+        if UnitIsEnemy and UnitIsEnemy("player", unit) == false then
+          detail.platformReason = "visible_not_hostile"
+          return true
+        end
+      end)
+      if sideOk and friendly then
+        return false
+      end
+    end
+    local info = { guid = guid }
+    detail.stage = "identity_fields"
+    if values and values[1] then
+      info.name = readableName(values[7])
+      info.class, info.race = fileToken(values[3]), fileToken(values[5])
+    end
+    detail.nameReadable, detail.classReadable, detail.raceReadable =
+      info.name ~= nil, info.class ~= nil, info.race ~= nil
+    detail.platformReason, detail.stage = "player_guid_resolved", "complete"
+    return info
+  end)
+  if not ok then
+    detail.platformReason = "platform_read_error"
+    detail.platformError = worldReadError(result)
+    return nil, detail
+  end
+  return result, detail
+end
+
+-- Diagnostic only: same-GUID hostility through another group member's target is stronger evidence than race.
+-- This does not add observations to the production cache or alter eligibility.
+function Platform.GetWorldKillHostilityEvidence(guid, attacker)
+  local evidence = { hostility = "unknown", matchedUnits = 0, restrictedUnits = 0, readErrors = 0 }
+  local units = {}
+  for _, unit in ipairs(ns.EnemyPlayerUnits()) do
+    units[#units + 1] = { token = unit, source = "visible" }
+  end
+  for _, prefix in ipairs({ "party", "raid" }) do
+    for index = 1, prefix == "party" and 4 or 40 do
+      local unit = prefix .. index
+      local ok, matched = pcall(function()
+        local actor = plainGUID(attacker)
+        return actor and UnitGUID and plainGUID(UnitGUID(unit)) == actor
+      end)
+      if ok and matched then
+        evidence.attackerUnit = unit
+      end
+      units[#units + 1] = { token = unit .. "target", source = "group_target" }
+    end
+  end
+  evidence.checkedUnits = #units
+  for _, row in ipairs(units) do
+    local ok, err = pcall(function()
+      local unit = row.token
+      if not UnitGUID then
+        return
+      end
+      local unitGUID = UnitGUID(unit)
+      if type(_G.issecretvalue) == "function" and _G.issecretvalue(unitGUID) then
+        evidence.restrictedUnits = evidence.restrictedUnits + 1
+        return
+      end
+      if plainGUID(unitGUID) ~= guid then
+        return
+      end
+      evidence.matchedUnits = evidence.matchedUnits + 1
+      if UnitIsPlayer and UnitIsPlayer(unit) == true and UnitIsEnemy then
+        local enemy = UnitIsEnemy("player", unit)
+        if enemy == true then
+          if row.source == "visible" then
+            evidence.visibleHostileUnit = unit
+          else
+            evidence.groupHostileUnit = unit
+          end
+        elseif enemy == false then
+          evidence.friendlyUnit = unit
+        end
+      end
+    end)
+    if not ok then
+      evidence.readErrors = evidence.readErrors + 1
+      evidence.lastReadError = worldReadError(err)
+    end
+  end
+  local hostile = evidence.visibleHostileUnit or evidence.groupHostileUnit
+  evidence.hostilityUnit = hostile or evidence.friendlyUnit
+  evidence.hostility = hostile and (evidence.friendlyUnit and "conflict" or "enemy")
+    or (evidence.friendlyUnit and "friendly" or "unknown")
+  return evidence
+end
+
+-- A readable living/Feign Death unit vetoes a delayed attribution. Missing/hidden units give no such evidence.
+function Platform.IsWorldVictimAlive(guid)
+  for _, unit in ipairs(ns.EnemyPlayerUnits()) do
+    local ok, alive = pcall(function()
+      if not UnitGUID or plainGUID(UnitGUID(unit)) ~= guid then
+        return nil
+      end
+      local feigning = _G.UnitIsFeignDeath
+      if type(feigning) == "function" and feigning(unit) == true then
+        return true
+      end
+      local dead = _G.UnitIsDeadOrGhost or _G.UnitIsDead
+      if type(dead) == "function" and dead(unit) == false then
+        return true
+      end
+    end)
+    if ok and alive then
+      return true
+    end
+  end
+  return nil
+end
+
 -- What is known of the enemy player on `unit` ("target", "mouseover", "nameplate3"): { name, class, race } with the
 -- full name as the client gives it and the class and race file tokens (which do not depend on the locale); `class`
 -- and `race` are nil when one is not readable. Nil when the unit is not an enemy player or nothing is readable.
 function Platform.GetEnemyPlayerInfo(unit)
-  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy and UnitClass and UnitRace) then
+  if type(unit) ~= "string" or not (UnitIsPlayer and UnitIsEnemy) then
     return nil
   end
   local ok, info = pcall(function()
@@ -559,12 +760,23 @@ function Platform.GetEnemyPlayerInfo(unit)
       return nil
     end
     local name = readableName(GetUnitName and GetUnitName(unit, true) or UnitName(unit))
-    local class = fileToken(select(2, UnitClass(unit)))
-    local race = fileToken(select(2, UnitRace(unit)))
+    local class = UnitClass and fileToken(select(2, UnitClass(unit))) or nil
+    local race = UnitRace and fileToken(select(2, UnitRace(unit))) or nil
+    if not (class and race) and UnitGUID and type(_G.GetPlayerInfoByGUID) == "function" then
+      local guid = UnitGUID(unit)
+      local guidOk, _, guidClass, _, guidRace = pcall(_G.GetPlayerInfoByGUID, guid)
+      if guidOk then
+        class = class or fileToken(guidClass)
+        race = race or fileToken(guidRace)
+      end
+    end
     if not name or not (class or race) then
       return nil
     end
-    return { name = name, class = class, race = race }
+    local guidOk, guid = pcall(function()
+      return UnitGUID and plainGUID(UnitGUID(unit)) or nil
+    end)
+    return { name = name, class = class, race = race, guid = guidOk and guid or nil }
   end)
   return ok and info or nil
 end

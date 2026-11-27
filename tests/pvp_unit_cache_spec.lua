@@ -1,6 +1,6 @@
 local function load_cache()
   local ns = {}
-  for _, path in ipairs({ "Core/Constants", "Domain/PvPUnitCache" }) do
+  for _, path in ipairs({ "Core/Constants", "Core/Validate", "Domain/PvPUnitCache" }) do
     assert(loadfile("NrageAssistant/" .. path .. ".lua"))("NrageAssistant", ns)
   end
   return ns
@@ -29,6 +29,23 @@ describe("PvPUnitCache", function()
     assert.is_nil(env.cache:Lookup("Nobody"))
   end)
 
+  it("matches names when repeated spacing differs", function()
+    local env = build()
+    assert.is_true(env.cache:Remember("Az  Kano", "MAGE", "SCOURGE"))
+    local class, race = env.cache:Lookup("az kano")
+    assert.are.equal("MAGE", class)
+    assert.are.equal("SCOURGE", race)
+  end)
+
+  it("keeps word boundaries so similar names do not collide", function()
+    local env = build()
+    env.cache:Remember("Ana B", "MAGE", "ORC")
+    env.cache:Remember("Anab", "ROGUE", "TROLL")
+    assert.are.same({ "MAGE", "ORC" }, { env.cache:Lookup("ana b") })
+    assert.are.same({ "ROGUE", "TROLL" }, { env.cache:Lookup("ANAB") })
+    assert.are.equal(2, env.cache:Count())
+  end)
+
   it("keeps what is known when a later sighting only gives one of the two", function()
     local env = build()
     env.cache:Remember("Zed", "MAGE", "TROLL")
@@ -37,6 +54,17 @@ describe("PvPUnitCache", function()
     assert.are.equal("MAGE", class)
     assert.are.equal("TAUREN", race)
     assert.are.equal(1, env.cache:Count())
+  end)
+
+  it("returns a sorted diagnostic view without exposing the cache entries", function()
+    local env = build()
+    env.cache:Remember("Zed", "MAGE", "ORC")
+    env.clock = 1005
+    env.cache:Remember("Ann", "ROGUE", "TROLL")
+    assert.are.same({
+      { name = "ann", class = "ROGUE", race = "TROLL", age = 0 },
+      { name = "zed", class = "MAGE", race = "ORC", age = 5 },
+    }, env.cache:DebugRows())
   end)
 
   it("ignores names and tokens that are not usable", function()

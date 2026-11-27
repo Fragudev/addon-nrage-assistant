@@ -31,6 +31,7 @@ PvPMissionService.__index = PvPMissionService
 function PvPMissionService.New(deps)
   return setmetatable({
     deps = deps,
+    units = ns.EnemyPlayerUnits(),
     unitSource = false,
     winSource = false,
     duelSource = false,
@@ -114,16 +115,8 @@ function PvPMissionService:Append(log, row)
   end
 end
 
--- An own honour kill, as the feed entry (`victim`, `where`, `time`). Returns true when it was logged.
-function PvPMissionService:OnHonorKill(entry)
-  if not (entry and entry.victim and entry.time) then
-    return false
-  end
-  local log = self:WriteLog()
-  if not log then
-    return false
-  end
-  local class, race = self.deps.cache:Lookup(entry.victim)
+-- Capture filters at observation time: a delayed attribution must not inherit a later map, group or KOS change.
+function PvPMissionService:KillContext(victim)
   -- A bounty counts a kill by what the guild KOS said at this moment: the flag is saved with the kill and later list
   -- changes do not touch it.
   local isKos = self.deps.isGuildKos
@@ -136,17 +129,44 @@ function PvPMissionService:OnHonorKill(entry)
       inGroup = math.floor(count)
     end
   end
+  return {
+    mapId = self.deps.platform.GetPlayerMapId(),
+    kos = isKos and isKos(victim) == true or nil,
+    guildInGroup = inGroup,
+  }
+end
+
+-- An own honour kill. A world lifetime-HK credit ID is stable across duplicate events and reloads.
+function PvPMissionService:OnHonorKill(entry)
+  if not (entry and entry.victim and entry.time) then
+    return false
+  end
+  local log = self:WriteLog()
+  if not log then
+    return false
+  end
+  if entry.creditId then
+    for _, row in ipairs(log.events) do
+      if row.creditId == entry.creditId then
+        return false
+      end
+    end
+  end
+  local class, race = self.deps.cache:Lookup(entry.victim)
+  local context = entry.context or self:KillContext(entry.victim)
   self:Append(log, {
     kind = "kill",
     honor = true,
-    kos = isKos and isKos(entry.victim) == true or nil,
+    kos = context.kos,
     at = entry.time,
     victim = entry.victim,
-    mapId = self.deps.platform.GetPlayerMapId(),
+    mapId = context.mapId,
     place = entry.where,
-    class = class,
-    race = race,
-    guildInGroup = inGroup,
+    class = entry.class or class,
+    race = entry.race or race,
+    guildInGroup = context.guildInGroup,
+    guid = entry.guid,
+    creditId = entry.creditId,
   })
   self:Changed()
   self:AutoClaim()
@@ -206,7 +226,22 @@ end
 -- race, so a kill logged later (also one logged before the season is known) carries them.
 function PvPMissionService:OnUnit(unit)
   local info = self.deps.platform.GetEnemyPlayerInfo(unit)
+  if info and self.deps.onEnemy then
+    self.deps.onEnemy(info, unit)
+  end
   return info ~= nil and self.deps.cache:Remember(info.name, info.class, info.race)
+end
+
+-- Retry visible units whose data was not ready at NAME_PLATE_UNIT_ADDED. Independent of the Intel module.
+function PvPMissionService:RescanUnits()
+  local count = 0
+  for _, unit in ipairs(self.units) do
+    local ok, remembered = pcall(self.OnUnit, self, unit)
+    if ok and remembered then
+      count = count + 1
+    end
+  end
+  return count
 end
 
 -- The battleground result (docs/ANNOUNCEMENTS_MODULES_PVP_PLAN.md, C.4). Three sources, the first that gives a winner

@@ -107,7 +107,11 @@ local PVP_COMBAT_LOG_EVENT = "COMBAT_LOG_EVENT_UNFILTERED"
 -- The events the PvP missions listen to (docs/PVP_MISSIONS_PLAN.md, 2.2 and 2.3), each registered on its own so a
 -- client that refuses one keeps the others. The first three fill the unit cache (the unit is the event argument for
 -- a nameplate, otherwise the one named here); none of them is measured on Forever yet (M3 to M5).
-local PVP_MISSION_UNITS = { PLAYER_TARGET_CHANGED = "target", UPDATE_MOUSEOVER_UNIT = "mouseover" }
+local PVP_MISSION_UNITS = {
+  PLAYER_TARGET_CHANGED = "target",
+  PLAYER_FOCUS_CHANGED = "focus",
+  UPDATE_MOUSEOVER_UNIT = "mouseover",
+}
 local PVP_MISSION_NAMEPLATE_EVENT = "NAME_PLATE_UNIT_ADDED"
 local PVP_MISSION_WIN_EVENT = "UPDATE_BATTLEFIELD_STATUS"
 local PVP_MISSION_WORLD_EVENT = "PLAYER_ENTERING_WORLD"
@@ -142,6 +146,11 @@ local function StartPvPMissions(feed)
       return ns.character and ns.character.pvpClaims
     end,
     cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
+    onEnemy = function(info, unit)
+      if ns.pvpWorldKills then
+        ns.pvpWorldKills:Remember(info, unit)
+      end
+    end,
     now = ns.Platform.ServerTime,
     platform = ns.Platform,
     killsAvailable = function()
@@ -241,6 +250,12 @@ local function StartPvPMissions(feed)
       pcall(missions.OnUnit, missions, PVP_MISSION_UNITS[event] or unit)
     end
   end)
+  C_Timer.NewTicker(Constants.INTEL_RESCAN_SECONDS, function()
+    if ns.active and ns.modules:IsEnabled("pvp") then
+      GuardedMissionCall("pvpMissions.unitScan", missions.RescanUnits, missions)
+    end
+  end)
+  missions:RescanUnits()
   missions:StartAnnouncing()
   return missions
 end
@@ -313,7 +328,7 @@ local function StartPvP()
     -- The own honour kills also go to the mission log.
     onHonorKill = function(entry)
       if ns.pvpMissions then
-        ns.pvpMissions:OnHonorKill(entry)
+        return ns.pvpMissions:OnHonorKill(entry)
       end
     end,
   })
@@ -325,19 +340,82 @@ local function StartPvP()
   for _, event in ipairs(PVP_HONOR_EVENTS) do
     ns.Platform.TryRegisterEvent(pvpFrame, event)
   end
+  local world = ns.PvPWorldKills.New({
+    now = ns.Platform.Now,
+    serverTime = ns.Platform.ServerTime,
+    contextKey = function()
+      if not ns.active or not ns.modules:IsEnabled("pvp") or ns.Platform.GetInstanceKind() ~= "none" then
+        return nil
+      end
+      local map = ns.Platform.GetPlayerMapId()
+      return map and "world:" .. map or nil
+    end,
+    counters = ns.Platform.GetPvPKillCounters,
+    deathInfo = ns.Platform.GetPlayerDeathInfo,
+    hostilityEvidence = ns.Platform.GetWorldKillHostilityEvidence,
+    isAlive = ns.Platform.IsWorldVictimAlive,
+    killContext = function(victim)
+      return ns.pvpMissions:KillContext(victim)
+    end,
+    commit = function(info)
+      return feed:OnHonorKill(info.name, "world", info)
+    end,
+    onDecision = function(decision)
+      if ns.PvPProbe.RecordWorldDecision then
+        ns.PvPProbe.RecordWorldDecision(decision)
+      end
+    end,
+    onTrace = function(kind, fields)
+      if ns.PvPProbe.RecordWorldTrace then
+        ns.PvPProbe.RecordWorldTrace(kind, fields)
+      end
+    end,
+  })
+  ns.pvpWorldKills = world
+  local deathSource = false
+  for _, event in ipairs({ "UNIT_DIED", "PARTY_KILL" }) do
+    deathSource = ns.Platform.TryRegisterEvent(pvpFrame, event) or deathSource
+  end
+  ns.Platform.TryRegisterEvent(pvpFrame, "PLAYER_ENTERING_WORLD")
+  ns.Platform.TryRegisterEvent(pvpFrame, "ZONE_CHANGED_NEW_AREA")
+  world.enabled = deathSource and ns.pvpMissions ~= nil
+  feed.worldNames = world.enabled
+  if ns.pvpMissions then
+    ns.pvpMissions:RescanUnits()
+  end
+  C_Timer.NewTicker(0.5, function()
+    GuardedMissionCall("pvpWorldKills.poll", world.Poll, world)
+  end)
   -- A protected event: even inside a pcall, registering it shows the client's "blocked action" dialog.
   tracker.blowsAvailable = Constants.PVP_COMBAT_LOG_ENABLED
       and ns.Platform.TryRegisterEvent(pvpFrame, PVP_COMBAT_LOG_EVENT)
     or false
   feed.blowNames = tracker.blowsAvailable
-  pvpFrame:SetScript("OnEvent", function(_, event, text)
+  pvpFrame:SetScript("OnEvent", function(_, event, text, targetGUID)
     if not ns.modules:IsEnabled("pvp") then
       return
     end
     if not ns.active then
       return
     end
-    if event == PVP_COMBAT_LOG_EVENT then
+    if event == "UNIT_DIED" or event == "PARTY_KILL" then
+      GuardedMissionCall("pvpWorldKills.poll", world.Poll, world)
+      if ns.pvpMissions then
+        GuardedMissionCall("pvpWorldKills.scan", ns.pvpMissions.RescanUnits, ns.pvpMissions)
+      end
+      GuardedMissionCall(
+        "pvpWorldKills.death",
+        world.OnDeath,
+        world,
+        event == "PARTY_KILL" and targetGUID or text,
+        event,
+        event == "PARTY_KILL" and text or nil
+      )
+      return
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+      world:Reset(event)
+      return
+    elseif event == PVP_COMBAT_LOG_EVENT then
       local info = ns.Platform.GetCombatLogInfo()
       if info and tracker:OnCombatLog(info) and info.destName then
         feed:OnKillingBlow(info.destName, tracker:Where())
@@ -347,7 +425,12 @@ local function StartPvP()
       if event == PVP_HONOR_TEXT_EVENT then
         local victim = ns.Platform.ParseHonorVictim(text)
         if victim then
-          feed:OnHonorKill(victim, tracker:Where())
+          local handled = world:OnHonorName(victim)
+          local kind = ns.Platform.GetInstanceKind()
+          -- Never bypass the world arbiter during an uncertain map/loading transition.
+          if not handled and (not world.enabled or (kind and kind ~= "none")) then
+            feed:OnHonorKill(victim, tracker:Where())
+          end
           -- The same honour kill is a win against that enemy in Intel.
           if ns.intel and ns.intelDetector and ns.intelDetector:Allowed() then
             pcall(ns.intel.OnWin, ns.intel, victim)

@@ -1,5 +1,17 @@
 local _, ns = ...
 
+-- Shared enumeration for Intel and mission scans; each caller owns its list.
+function ns.EnemyPlayerUnits()
+  local units = {}
+  for index = 1, ns.Constants.INTEL_NAMEPLATE_UNITS do
+    units[#units + 1] = "nameplate" .. index
+  end
+  for _, unit in ipairs({ "target", "focus", "mouseover" }) do
+    units[#units + 1] = unit
+  end
+  return units
+end
+
 ns.Constants = {
   ADDON_PREFIX = "NRAGE",
   SCHEMA_VERSION = 21,

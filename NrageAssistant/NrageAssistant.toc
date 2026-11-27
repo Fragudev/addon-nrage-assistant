@@ -18,6 +18,7 @@ Core\Validate.lua
 Core\AccessGuard.lua
 Core\LockdownGuard.lua
 Core\LockdownProbe.lua
+Core\PvPCounterGuard.lua
 Core\PvPProbeLog.lua
 Core\PvPProbe.lua
 Core\Store.lua
@@ -49,6 +50,7 @@ Domain\PvPTracker.lua
 Domain\PvPPublisher.lua
 Domain\PvPFeed.lua
 Domain\PvPUnitCache.lua
+Domain\PvPWorldKills.lua
 Domain\PvPMissionTracker.lua
 Domain\PvPMissionService.lua
 Domain\PvPProgressPublisher.lua

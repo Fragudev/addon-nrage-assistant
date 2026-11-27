@@ -121,14 +121,14 @@ local COMMANDS = {
   spy = IntelCommand,
   lfg = LfgCommand,
   debug = function(rest)
-    local sub, action = rest:match("^(%S*)%s*(%S*)")
+    local sub, action, args = rest:match("^(%S*)%s*(%S*)%s*(.*)$")
     sub, action = sub:lower(), action:lower()
     if sub == "identity" then
       PrintIdentity()
     elseif sub == "lockdown" then
       ns.Probe.Handle(action)
     elseif sub == "pvp" then
-      ns.PvPProbe.Handle(action)
+      ns.PvPProbe.Handle(action, args)
     elseif sub == "roster" then
       PrintRoster()
     elseif sub == "senders" then

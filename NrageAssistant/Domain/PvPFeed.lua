@@ -42,7 +42,7 @@ end
 
 -- Can this client ever give the name of a killed player?
 function PvPFeed:Available()
-  return self.honorNames or self.blowNames
+  return self.honorNames or self.blowNames or self.worldNames == true
 end
 
 function PvPFeed:Entries()
@@ -136,13 +136,23 @@ function PvPFeed:Own(victim, where, blow)
   return true
 end
 
-function PvPFeed:OnHonorKill(victim, where)
+function PvPFeed:OnHonorKill(victim, where, evidence)
   -- The mission log hears every honour kill before the feed merges it with another one of the same victim: the merge
   -- is for the display and the guild message only.
+  local credited = false
   if self.deps.onHonorKill and validKill(victim, where) then
-    pcall(self.deps.onHonorKill, { victim = victim, where = where, time = self.deps.serverTime() })
+    local entry = { victim = victim, where = where, time = evidence and evidence.time or self.deps.serverTime() }
+    if evidence then
+      entry.class, entry.race, entry.guid = evidence.class, evidence.race, evidence.guid
+      entry.creditId, entry.context = evidence.creditId, evidence.context
+    end
+    local ok, accepted = pcall(self.deps.onHonorKill, entry)
+    credited = ok and accepted == true
+    if ok and accepted == false then
+      return false
+    end
   end
-  return self:Own(victim, where, false)
+  return self:Own(victim, where, false) or (evidence ~= nil and credited)
 end
 
 function PvPFeed:OnKillingBlow(victim, where)

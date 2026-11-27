@@ -34,6 +34,61 @@ end
 describe("PvPProbeLog", function()
   local PvPProbeLog = load_log()
 
+  describe("persistent capture retention", function()
+    it("stores safe flat structured details separately from the bounded display text", function()
+      local character, platform = {}, fake_platform()
+      local capture = PvPProbeLog.NewCapture(character, platform)
+      PvPProbeLog.CaptureRecord(capture, platform, 7, "world_kill_death", string.rep("x", 2000), {
+        rejection = "cache_missing",
+        cacheAge = 16,
+        nameReadable = false,
+        hidden = secret(),
+        nested = { unsafe = true },
+      })
+      local row = capture.records[1]
+      assert.are.equal(1024, #row.detail)
+      assert.are.equal("cache_missing", row.fields.rejection)
+      assert.are.equal("16", row.fields.cacheAge)
+      assert.are.equal("false", row.fields.nameReadable)
+      assert.is_nil(row.fields.hidden)
+      assert.is_nil(row.fields.nested)
+    end)
+    it("bounds sessions, windows and raw evidence while reporting discarded data", function()
+      local character, platform = {}, fake_platform()
+      for _ = 1, 4 do
+        PvPProbeLog.NewCapture(character, platform)
+      end
+      local archive = character.pvpProbe
+      assert.are.equal(3, #archive.sessions)
+      assert.are.equal(2, archive.sessions[1].id)
+      local capture = archive.sessions[3]
+      for index = 1, 601 do
+        PvPProbeLog.CaptureWindow(capture, platform, index)
+      end
+      for index = 1, 4001 do
+        PvPProbeLog.CaptureRecord(capture, platform, 601, "raw", index)
+      end
+      assert.are.equal(600, #capture.windows)
+      assert.are.equal(1, capture.droppedWindows)
+      assert.are.equal(4000, #capture.records)
+      assert.are.equal(1, capture.droppedRecords)
+      assert.are.equal("2", capture.records[1].detail)
+      assert.are.equal(2, capture.windows[1].id)
+    end)
+
+    it("stores safe bounded text for restricted values and long messages", function()
+      assert.are.equal("<secret>", PvPProbeLog.SavedText(secret()))
+      assert.are.equal(1024, #PvPProbeLog.SavedText(string.rep("x", 5000)))
+      local savedSecretCheck = _G.issecretvalue
+      _G.issecretvalue = function(value)
+        return value == "restricted"
+      end
+      local text = PvPProbeLog.SavedText("restricted")
+      _G.issecretvalue = savedSecretCheck
+      assert.are.equal("<secret>", text)
+    end)
+  end)
+
   describe("log", function()
     it("records entries with the injected clocks", function()
       local log = PvPProbeLog.New(fake_platform())

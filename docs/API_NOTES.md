@@ -4,6 +4,209 @@ What has been measured on the WoW: Forever client, what the addon assumes, and w
 The API reference used is [warcraft.wiki.gg](https://warcraft.wiki.gg/wiki/Api) (Mainline branch); only deviations
 from it and measured behaviour belong here.
 
+## Independent PARTY_KILL probe (2026-11-22)
+
+### Production world HK attribution (2026-11-23)
+
+#### Rejection diagnostics, version 3 (2026-11-27)
+
+The live save contains six distinct mission credits, but two more HKs (Hubertus Hafer and Fury Waffe) were rejected
+as `unresolved_deaths`. Both GUID queries resolved and both finishing blows came from a group member; the probe
+classified hostility by race rather than by a currently readable hostile unit. Old logs do not retain the production
+cache state, so they cannot establish the exact failed gate retroactively.
+
+Credit rules remain unchanged. New `quiet` captures carry `diagnosticVersion=3` as well as `rulesVersion=2` and record:
+
+- `world_kill_death`: production batch ID, event type, resolved identity, query result/read stage or error, reason for
+  ignoring self/allies/nonplayers, live cache state/age/source unit, and last cached observation state/age/unit. A bounded
+  512-GUID history distinguishes expiry, capacity removal and world reset when that history is still available.
+- Exact subrejections: `identity_unresolved`, `cache_missing`, `cache_expired`, `name_unavailable`, or `repeat_death`.
+  Duplicates log `duplicate_ignored`, the earlier outcome and the *current* cache state. This detects the case where
+  an early rejection prevents a second event with better evidence from being considered.
+- `world_kill_hostility`: an independent, diagnostic-only same-GUID check of local visible tokens and `partyNtarget` /
+  `raidNtarget`, including the matching attacker group unit when readable. It distinguishes enemy, friendly, conflicting
+  and unknown results. It does not populate the production cache, infer hostility from race, or grant credit.
+- `world_kill_decision`: victim identity even for an unresolved known player, HK and candidate/name/unknown counts,
+  a sorted breakdown such as `cache_missing:1`, counter invalidation reason, and (when evaluable) death-credit offset.
+
+Records include flat sanitized `fields` alongside the human-readable text. The latter is still capped at 1,024
+characters; structured fields preserve the evidence separately. The production `batchId` is independent of probe
+window numbering. `/nrage debug pvp world` shows recent final decisions and their details; `capturelog` and the saved
+file contain the per-event traces. `quiet`, `stop`, reload and file export work as before. Older captures are unchanged.
+
+The promising extension is to use verified hostile group-target observations of the *same GUID*, with the existing
+one-HK/no-competing-deaths/counter/Feign-Death checks. If a duplicate supplies new valid evidence, it could promote the
+existing unresolved GUID rather than add a second death; only that GUID's unresolved marker could be cleared. Unknown
+GUIDs and other victims must continue to block attribution. Merely accepting opposite-faction races, group finishing
+blows, longer cache TTLs or an HK increase alone does not prove an unambiguous hostile identity. The new traces are
+intended to validate that narrower extension before changing live attribution or backfilling rejected kills.
+
+The live world test identified an attackable orc hunter through UNIT_DIED and a readable GUID; both HK counters rose
+by one 316 ms later. The earlier nearby warlock death gave no HK. This supports a conservative world-only mission
+route, not BG identity attribution. `PvPWorldKills` now runs automatically with the PvP module, independently of debug.
+
+The route observes independent UNIT_DIED and PARTY_KILL, reuses the mission service's hostile-unit scans, and requires
+a recent (15 seconds) matching hostile GUID on the same world/map. Self, current group members and readable non-player
+GUIDs are ignored. Other unresolvable deaths invalidate attribution. No race-only faction guess qualifies for production.
+It waits six seconds, accepts exactly one HK agreed by session and lifetime counters, exactly one hostile victim (or
+one explicit legacy honor-text victim), and no competing identities or unresolved deaths. Death and credit must be
+within two seconds. Repeated event notifications for the same GUID within three seconds are deduplicated. Several
+HKs or enemy deaths in the observation window are skipped, even when that omits genuine kills.
+Before settlement, a matching visible unit that is alive or using Feign Death also vetoes attribution. A missing unit
+does not supply that extra check; readable HK and identity evidence are still required.
+
+Parsed world honor names enter the same arbiter instead of writing immediately, so the chat and GUID paths cannot
+both award the same credit. BG legacy text behavior is unchanged; this fallback never identifies victims inside BGs,
+arenas or instances. World/map changes, counter rebases, unavailable reads, module deactivation and reload abandon
+pending evidence. Both the probe and production use the shared `PvPCounterGuard` against temporary counter zeros.
+
+Accepted evidence is passed through the existing feed and mission service with its class/race and a
+`world-hk:<lifetime-total>` credit ID. The mission row retains that ID and rejects replay against retained mission rows
+after reload. Map, time, KOS and guild-group context are captured when the death/name is observed. Class/race filters,
+season dates, caps, progress publication and automatic claims still use the existing mission tracker. The generic HK
+statistics are not incremented by this route: their existing counter tracker remains the owner of those totals.
+
+In development builds, `/nrage debug pvp world` prints the latest 20 production decisions. `credited` confirms an actual
+write; `unresolved_deaths`, `multiple_victims`, `multiple_hks`, `no_hk`, and `counter_or_world_changed` explain omissions.
+`victim_alive_or_feigning` means a readable live unit vetoed the candidate at settlement.
+While `quiet` is recording, `world_kill_decision` entries are also included in its persistent capture. Production and
+probe windows are independent, so a production decision can arrive after the probe's own six-second summary. Check
+the decision and actual mission events, rather than requiring both summaries to close in the same polling tick.
+No active mission is needed to retain a kill row, but advancing progress requires an active matching mission/season.
+
+There are new TOC-listed files: restart the client after updating before an in-game test. Activate `quiet` if evidence
+is wanted, repeat the isolated solo/group/outsider world tests, wait eight seconds, inspect `world` and `events`, then
+stop the probe and reload to export the SavedVariables file. Automated tests replay the 316 ms world observation,
+duplicate death/honor notifications, conflicting identities, counter disagreements/resets, and persistent credit replay.
+
+The [Forever 1.60.1.71037 client export](https://github.com/reckhou/WoWBlzCode) documents
+`PARTY_KILL(attackerGUID, targetGUID)` and `UNIT_DIED(unitGUID)` as independent events in `UnitDocumentation.lua`, separate from the restricted
+combat-log events. Its GUIDs carry `SecretWhenUnitIdentityRestricted`; both events have now been observed, with
+context-dependent identity restrictions (see the rules-version-2 measurements below).
+[PvP Tally](https://github.com/Albert-RC/wow-pvp-tally/blob/main/PvPTally/Game/Tracker.lua) uses that independent event,
+classifies the attacker as player/pet/group, and resolves victims through a GUID cache or `GetPlayerInfoByGUID`.
+Our diagnostic uses the direct GUID query to test that route without changing mission credit.
+
+### GUID-first diagnostic, rules version 2 (2026-11-22)
+
+A recorded battleground gave 54 session HKs, while all 61 honor messages lacked a victim name. Independent events
+did arrive, but 97 UNIT_DIED and 9 PARTY_KILL observations failed at the probe's GUID comparison before the resolver
+was called. Readable deaths included allies and the player's own GUID. Therefore the old single-candidate summaries
+did not validate enemy attribution. Temporary zero counters at instance boundaries also produced false increases.
+
+New `quiet` / `kills` captures call `GetPlayerInfoByGUID` with the original event argument *before* its type, prefix,
+equality, text or table-key inspection. `guid_probe` records the query result (`resolved`, `partial`, `missing`,
+`error`), readable class/race/name/realm, and whether the GUID itself is readable or restricted. This is a test of
+what the client API permits, not a way to remove restrictions; returned secret fields stay unreadable and are never
+saved as identity data. Readable non-player GUIDs are discarded after the query.
+
+Self and group deaths are excluded using readable GUIDs. For other readable GUIDs the probe checks matching visible
+unit tokens for hostility/friendliness. As a conservative fallback, same-faction classic races are excluded; opposing
+classic races are labelled `enemy_race`, an inference rather than proof of battleground team. A visible hostile unit
+is labelled `enemy_unit`. Unknown races/factions remain unresolved instead of being assumed enemies. When a restricted
+GUID resolves to readable name/realm and race, that identity can be retained without comparing or keying the restricted
+GUID. `death_ignored` retains exclusions for review. Ignored deaths do not open attribution windows.
+
+Unresolved deaths increment `unknownDeaths`; any such observation makes the window `ambiguous` even with just one
+readable enemy candidate. Reports include that count and each retained identity's classification. Fully unknown
+deaths are retained as raw warnings, not inserted into the enemy candidate set. These checks still do not establish
+which individual death granted honor.
+
+The HK observer rebases after world/zone events, instance/map changes, or counter decreases. A previous readable
+lifetime total remains a floor, so a temporary zero cannot generate fresh HK credit when the total recovers. After
+recovery, two valid samples and at least two seconds since invalidation are required to establish the new baseline.
+Windows crossing an invalidation show `hk=counters_rebased`, with zero credited `hkDelta`; raw counter deltas remain
+available for diagnosis. Real HKs inside this uncertain transition can be omitted deliberately. Stable subsequent
+increases are observed normally. These rules affect the probe, not production mission credit or PvP statistics.
+
+Persistent captures carry `rulesVersion=2`; reports label older captures as version 1 and do not rewrite their results.
+Update, `/reload`, then `/nrage debug pvp quiet` for the next BG. The same `report`, `detail`, `capturelog` and saved-file
+workflow applies. The key next measurement is whether restricted enemy GUID queries succeed and which returned fields
+are actually readable in the client. Automated secret-value stand-ins verify call order and error handling only.
+
+In a development build, `/nrage debug pvp kills` starts a continuous diagnostic on its own; no `start` or `watch` is
+required. It prints and retains independent kill/death events, attacker category (PARTY_KILL only), victim GUID, class/race/name/realm from
+`GetPlayerInfoByGUID`, instance and map. Repeated events for the same victim within three seconds are marked as
+duplicates, not discarded. Honor chat arguments and HK counter snapshots are recorded separately, including a delayed
+snapshot after 0.5 seconds. Each death also triggers a delayed counter snapshot. Both live output and retained records
+include monotonic timestamps to compare event order. They are observations, not proof of a particular victim's honor credit.
+`unit_died_direct` identifies an observed player death, not its attacker or whether the player earned an HK for it.
+Readable NPC deaths are skipped. Registrations are independent, so one unavailable event does not prevent the others.
+
+Test a personal killing blow, a group member's killing blow (pets too if possible), and an HK credited when an outsider
+lands the killing blow. Both death events skip readable non-player victim GUIDs, but retain warnings for unavailable
+or restricted GUIDs. Player victims killed by pets remain eligible for diagnostic output. Compare the victim's full
+name and the attacker category with what happened. `/nrage debug pvp killlog` reprints up to 200 retained records,
+isolated from noisy nameplate logs. `/nrage debug pvp status` reports whether it is active; `stop` unregisters it.
+The diagnostic lasts until stopped or reloaded; its records are in memory only. It never registers
+`COMBAT_LOG_EVENT_UNFILTERED` and never writes kills into the mission log.
+
+### Observing the complete mission chain
+
+For a full battleground, prefer the silent persistent mode:
+
+```text
+/nrage debug pvp quiet
+```
+
+It captures the same evidence without printing live events (including unreadable GUID warnings, which are retained).
+One startup acknowledgement is printed. No `start` or `watch` is required; enabling `quiet` stops older verbose probes.
+Repeating `quiet` while it is running preserves the current capture. After the last kill, wait seven seconds and use:
+
+```text
+/nrage debug pvp stop
+/nrage debug pvp report
+/nrage debug pvp report ambiguous
+```
+
+`report` defaults to windows with a measured HK increase and shows victim GUID/name/class/race and attacker category
+when known. `report all` also includes nearby deaths without credit and pending/partial windows. Reports show five
+windows per page; for example `report hk 2` shows the next page. `detail <window> [page] [session]` shows the stored
+victims, location, and raw evidence (20 records per page). `capturelog [page] [session]` includes registration errors
+and unreadable GUID warnings even when no death window could be opened. `sessions` lists retained capture IDs;
+`report hk 1 2` explicitly selects session 2. Without a session ID the latest capture is used.
+
+Captures are stored locally in `NrageAssistantDB.chars[characterKey].pvpProbe`, outside the actual mission log, and
+never shared. They survive normal reloads/logouts; WoW writes SavedVariables at reload/logout, so crashes can lose
+unsaved data. Reloading stops capture: review stored data immediately or run `quiet` again to start a new capture.
+Logout/reload/stop finalizes any open window; one shorter than six seconds is marked `partial`. An unexpected
+interruption can leave `pending` data, which `report all` exposes. Existing captures are not cleared by `pvp clear`.
+
+Retention is the latest three captures, each with 600 window summaries, 4,000 raw records and at most 64 victim
+descriptions per window; each saved text field is limited to 1,024 characters. Older raw records can roll off without
+erasing their structured victim/HK summaries. Reports expose dropped-window/record counts; victim truncation is
+flagged. Restricted client values are replaced with `<secret>` before saving. Multiple HKs in one window are marked
+ambiguous even if only one victim GUID was observed. These remain temporal observations, not automatic mission credit.
+
+After updating the addon and reloading, run only `/nrage debug pvp kills`. The diagnostic also polls counters and
+the existing mission service every second. It opens a six-second observation window on a player death, honor event,
+or polled HK increase. The baseline is the previous poll (or startup), because counters may already have updated
+when an event is delivered. Wait at least seven seconds after the kill, then use `/nrage debug pvp killlog`.
+
+The window prints `chain_parser` (the existing honor-text parser's result), `chain_cache` (the cache lookup for that
+parsed name), `chain_feed` (new or changed feed entries), `chain_mission_event` (actual new retained mission rows),
+and `chain_progress` (before/after values for active missions whose progress changed). A final `chain_summary` includes:
+
+- `hk=increase_observed`: session or lifetime HK increased; honor points alone do not establish an HK.
+- `candidates`: distinct observed player GUIDs; PARTY_KILL and UNIT_DIED for the same GUID are one candidate.
+- `relation=single_temporal_candidate`, `ambiguous`, or `no_victim`: temporal evidence only, never a guaranteed pairing.
+- `missionEvents`, `progressChanges`, `activeMissions`, and `missionStatus`: actual production results, including an
+  absent mission service or no active season. A logged kill need not advance a mission if its filters/caps exclude it.
+- Counter deltas, including reset or unavailable counters. Each window has an `id` linking its stage records.
+
+Test solo, a party/raid member's final blow, and an outsider's final blow after your participation. Also observe a
+nearby death that gives you no HK. For mission progress, have an active season and an active mission with matching
+race/class/place and remaining capacity. Expect an HK increase, the victim data, an actual mission event, and a progress
+change. If HK rises but `missionEvents=0`, the production route still has a gap; the GUID probe does not bridge it.
+An absent parsed name alongside readable GUID data identifies a candidate replacement route for a later implementation.
+Several deaths or HKs in a window, activity across window boundaries, and updates later than six seconds require manual
+inspection of timestamps; the summary does not prove individual attribution or automatically award mission credit.
+
+Automated tests simulate both event orders, duplicate death notifications, outsider deaths, missing APIs, multiple
+victims, honor without HKs, counter resets, delayed/polled HK changes, and capped mission logs. One integration case
+uses the real feed, unit cache, mission service and tracker to verify race/class-filtered progress. Client event
+delivery and GUID restrictions still require the in-game tests above.
+
 ## Measured
 
 | Item | Value | Where it is used |

@@ -40,6 +40,131 @@ function PvPProbeLog:Clear()
   self.log = {}
 end
 
+-- Diagnostic data is local to the character and is never sent to the guild. Keep explicit retention counts.
+function PvPProbeLog.Archive(character)
+  if type(character.pvpProbe) ~= "table" then
+    character.pvpProbe = { version = 1, nextId = 0, sessions = {} }
+  end
+  return character.pvpProbe
+end
+
+-- SavedVariables must never receive a restricted client value (including restricted strings).
+function PvPProbeLog.SavedText(value)
+  local ok, text = pcall(function()
+    if type(_G.issecretvalue) == "function" and _G.issecretvalue(value) then
+      return SECRET
+    end
+    return tostring(value):sub(1, 1024)
+  end)
+  if not ok then
+    return SECRET
+  end
+  return text
+end
+
+-- The GUID is passed straight through to the API: do not test its type, compare it, stringify it or index it first.
+function PvPProbeLog.QueryGUID(guid)
+  local fn = _G.GetPlayerInfoByGUID
+  if type(fn) ~= "function" then
+    return { status = "missing" }
+  end
+  local values = { pcall(fn, guid) }
+  if not values[1] then
+    return { status = "error", error = PvPProbeLog.SavedText(values[2]) }
+  end
+  local function field(value)
+    local readable, text = pcall(function()
+      if type(_G.issecretvalue) == "function" and _G.issecretvalue(value) then
+        return nil
+      end
+      if type(value) == "string" then
+        return value:sub(1, 256)
+      end
+    end)
+    return readable and text or nil
+  end
+  local result =
+    { class = field(values[3]), race = field(values[5]), name = field(values[7]), realm = field(values[8]) }
+  result.status = result.class and result.race and result.name and result.name ~= "" and "resolved" or "partial"
+  return result
+end
+
+function PvPProbeLog.DescribeGUIDQuery(result)
+  return ("GetPlayerInfoByGUID %s classToken=%s raceToken=%s name=%s realm=%s error=%s"):format(
+    result.status,
+    result.class or "unreadable",
+    result.race or "unreadable",
+    result.name or "unreadable",
+    result.realm or "unreadable",
+    result.error or "none"
+  )
+end
+
+-- Rebase across loading screens and decreases. In particular, a temporary lifetimeHK=0 must never become a new floor.
+function PvPProbeLog.NewCounterGuard(initial, context)
+  return ns.PvPCounterGuard.New(initial, context)
+end
+
+function PvPProbeLog.NewCapture(character, platform)
+  local archive = PvPProbeLog.Archive(character)
+  archive.nextId = archive.nextId + 1
+  local capture = {
+    id = archive.nextId,
+    started = PvPProbeLog.SavedText(platform.WallClock()),
+    windows = {},
+    records = {},
+    droppedRecords = 0,
+    droppedWindows = 0,
+  }
+  archive.sessions[#archive.sessions + 1] = capture
+  if #archive.sessions > 3 then
+    table.remove(archive.sessions, 1)
+  end
+  return capture
+end
+
+function PvPProbeLog.CaptureRecord(capture, platform, windowId, kind, detail, fields)
+  local records = capture.records
+  local safeFields
+  if fields then
+    safeFields = {}
+    for key, value in pairs(fields) do
+      if type(key) == "string" and (type(value) == "string" or type(value) == "number" or type(value) == "boolean") then
+        safeFields[PvPProbeLog.SavedText(key)] = PvPProbeLog.SavedText(value)
+      end
+    end
+  end
+  records[#records + 1] = {
+    t = platform.Now(),
+    wall = PvPProbeLog.SavedText(platform.WallClock()),
+    windowId = windowId,
+    kind = PvPProbeLog.SavedText(kind),
+    detail = PvPProbeLog.SavedText(detail),
+    fields = safeFields,
+  }
+  if #records > 4000 then
+    table.remove(records, 1)
+    capture.droppedRecords = capture.droppedRecords + 1
+  end
+end
+
+function PvPProbeLog.CaptureWindow(capture, platform, id)
+  local row = {
+    id = id,
+    wall = PvPProbeLog.SavedText(platform.WallClock()),
+    status = "pending",
+    hk = "pending",
+    victims = {},
+    truncatedVictims = false,
+  }
+  capture.windows[#capture.windows + 1] = row
+  if #capture.windows > 600 then
+    table.remove(capture.windows, 1)
+    capture.droppedWindows = capture.droppedWindows + 1
+  end
+  return row
+end
+
 -- Text for any value; a value that cannot be turned into text (a secret) becomes "<secret>".
 function PvPProbeLog.ToText(value)
   local ok, text = pcall(tostring, value)
