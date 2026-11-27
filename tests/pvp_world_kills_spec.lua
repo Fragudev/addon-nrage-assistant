@@ -15,7 +15,8 @@ for _, file in ipairs({
 end
 
 local function build()
-  local env = { now = 100, hk = 172, session = 1, context = "world:2548", commits = {}, map = 2548, group = 0 }
+  local env =
+    { now = 100, hk = 172, session = 1, context = "world:2548", commits = {}, map = 2548, group = 0, traces = {} }
   env.tracker = ns.PvPWorldKills.New({
     now = function()
       return env.now
@@ -55,6 +56,9 @@ local function build()
     commit = function(info)
       env.commits[#env.commits + 1] = info
       return true
+    end,
+    onTrace = function(kind, fields)
+      env.traces[#env.traces + 1] = { kind = kind, fields = fields }
     end,
   })
   env.tracker.enabled = true
@@ -326,5 +330,84 @@ describe("PvPWorldKills", function()
     env.advance(7)
     assert.are.equal(0, #env.commits)
     assert.are.equal("victim_alive_or_feigning", env.tracker.decisions[1].reason)
+  end)
+
+  it("explains the missing-cache rejection with identity, event, cache and batch counters", function()
+    local env = build()
+    env.tracker:OnDeath("hunter", "PARTY_KILL", "friend")
+    env.credit()
+    env.advance(7)
+    local decision = env.tracker.decisions[1]
+    assert.are.equal("unresolved_deaths", decision.reason)
+    assert.are.equal("Xtrap Xtratos", decision.victim)
+    assert.are.equal("cache_missing:1", decision.details.unresolvedReasons)
+    assert.are.equal(1, decision.details.credits)
+    assert.are.equal(0, decision.details.candidates)
+    local trace = env.traces[1].fields
+    assert.are.equal("PARTY_KILL", trace.event)
+    assert.are.equal("missing", trace.cache)
+    assert.are.equal("cache_missing", trace.rejection)
+    assert.are.equal("HUNTER", trace.class)
+    assert.are.equal(decision.details.batchId, trace.batchId)
+  end)
+
+  it("retains an expired observation's age and source after it was removed from the live cache", function()
+    local env = build()
+    env.tracker:Remember({ guid = "hunter", name = "Xtrap Xtratos" }, "nameplate3")
+    env.advance(16)
+    env.see("warlock") -- prunes the old hunter and preserves the diagnostic tombstone
+    env.tracker:OnDeath("hunter")
+    local fields = env.traces[1].fields
+    assert.are.equal("missing", fields.cache)
+    assert.are.equal("expired", fields.historyState)
+    assert.are.equal(16, fields.historyAge)
+    env.credit()
+    env.advance(7)
+    assert.are.equal(0, #env.commits)
+  end)
+
+  it("exposes a duplicate with improved evidence without silently changing credit eligibility", function()
+    local env = build()
+    env.tracker:OnDeath("hunter", "PARTY_KILL")
+    env.tracker:Remember({ guid = "hunter", name = "Xtrap Xtratos" }, "party4target")
+    env.advance(0.1)
+    env.tracker:OnDeath("hunter", "UNIT_DIED")
+    local fields = env.traces[2].fields
+    assert.are.equal("duplicate_ignored", fields.outcome)
+    assert.are.equal("cache_missing", fields.previousOutcome)
+    assert.are.equal("present", fields.cache)
+    assert.are.equal("party4target", fields.cacheUnit)
+    env.credit()
+    env.advance(7)
+    assert.are.equal(0, #env.commits)
+    assert.are.equal(1, env.tracker.decisions[1].details.unknown)
+  end)
+
+  it("measures group-target hostility as a proposed route, not an automatic production bypass", function()
+    local env = build()
+    env.tracker.deps.hostilityEvidence = function(guid, attacker)
+      assert.are.equal("hunter", guid)
+      assert.are.equal("friend", attacker)
+      return { hostility = "enemy", hostilityUnit = "party4target", attackerUnit = "party4" }
+    end
+    env.tracker:OnDeath("hunter", "PARTY_KILL", "friend")
+    env.credit()
+    env.advance(7)
+    assert.are.equal(0, #env.commits)
+    assert.are.equal("world_kill_hostility", env.traces[1].kind)
+    assert.are.equal("party4target", env.traces[1].fields.hostilityUnit)
+    assert.are.equal("cache_missing", env.traces[2].fields.rejection)
+  end)
+
+  it("does not let diagnostic failures prevent a valid mission credit", function()
+    local env = build()
+    env.tracker.deps.onTrace = function()
+      error("diagnostic unavailable")
+    end
+    env.see("hunter")
+    env.tracker:OnDeath("hunter")
+    env.credit()
+    env.advance(7)
+    assert.are.equal(1, #env.commits)
   end)
 end)

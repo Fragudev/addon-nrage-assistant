@@ -123,14 +123,24 @@ function PvPProbeLog.NewCapture(character, platform)
   return capture
 end
 
-function PvPProbeLog.CaptureRecord(capture, platform, windowId, kind, detail)
+function PvPProbeLog.CaptureRecord(capture, platform, windowId, kind, detail, fields)
   local records = capture.records
+  local safeFields
+  if fields then
+    safeFields = {}
+    for key, value in pairs(fields) do
+      if type(key) == "string" and (type(value) == "string" or type(value) == "number" or type(value) == "boolean") then
+        safeFields[PvPProbeLog.SavedText(key)] = PvPProbeLog.SavedText(value)
+      end
+    end
+  end
   records[#records + 1] = {
     t = platform.Now(),
     wall = PvPProbeLog.SavedText(platform.WallClock()),
     windowId = windowId,
     kind = PvPProbeLog.SavedText(kind),
     detail = PvPProbeLog.SavedText(detail),
+    fields = safeFields,
   }
   if #records > 4000 then
     table.remove(records, 1)

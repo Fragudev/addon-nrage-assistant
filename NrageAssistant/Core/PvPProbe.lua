@@ -45,6 +45,18 @@ local function say(text)
   print(PREFIX .. " " .. text)
 end
 
+local function WorldFieldsText(fields)
+  local keys, parts = {}, {}
+  for key in pairs(fields) do
+    keys[#keys + 1] = key
+  end
+  table.sort(keys)
+  for _, key in ipairs(keys) do
+    parts[#parts + 1] = key .. "=" .. Log.SavedText(fields[key])
+  end
+  return table.concat(parts, " ")
+end
+
 -- Calls a global client function if it exists; "missing" when it does not, the error text when it raises.
 local function Read(name, ...)
   local fn = _G[name]
@@ -500,14 +512,15 @@ local function WatchPartyKills(quiet)
   local capture = quiet and Log.NewCapture(ns.character, ns.Platform) or nil
   if capture then
     capture.rulesVersion = 2
+    capture.diagnosticVersion = 3
   end
   killQuiet = quiet == true
   local window
   local candidate = CreateFrame("Frame")
-  local function record(kind, text)
+  local function record(kind, text, fields)
     killLog:Record(kind, text)
     if capture then
-      Log.CaptureRecord(capture, ns.Platform, window and window.id, kind, text)
+      Log.CaptureRecord(capture, ns.Platform, window and window.id, kind, text, fields)
     else
       say(("[%.2f %s] %s"):format(ns.Platform.Now(), kind, text))
     end
@@ -1196,6 +1209,9 @@ local ACTIONS = {
     say("world kill attribution enabled=" .. tostring(world.enabled))
     for _, decision in ipairs(world.decisions) do
       say(("%.2f reason=%s victim=%s"):format(decision.at, decision.reason, decision.victim or "unknown"))
+      if decision.details then
+        say(WorldFieldsText(decision.details))
+      end
     end
   end,
   kills = function()
@@ -1280,9 +1296,17 @@ ns.PvPProbe = PvPProbe
 
 function PvPProbe.RecordWorldDecision(decision)
   if worldDecisionRecord then
-    worldDecisionRecord(
-      "world_kill_decision",
-      ("reason=%s victim=%s guid=%s"):format(decision.reason, decision.victim or "unknown", decision.guid or "unknown")
-    )
+    local fields =
+      { reason = decision.reason, victim = decision.victim or "unknown", guid = decision.guid or "unknown" }
+    for key, value in pairs(decision.details or {}) do
+      fields[key] = value
+    end
+    worldDecisionRecord("world_kill_decision", WorldFieldsText(fields), fields)
+  end
+end
+
+function PvPProbe.RecordWorldTrace(kind, fields)
+  if worldDecisionRecord then
+    worldDecisionRecord(kind, WorldFieldsText(fields), fields)
   end
 end

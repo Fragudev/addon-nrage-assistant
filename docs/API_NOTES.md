@@ -8,6 +8,39 @@ from it and measured behaviour belong here.
 
 ### Production world HK attribution (2026-11-23)
 
+#### Rejection diagnostics, version 3 (2026-11-27)
+
+The live save contains six distinct mission credits, but two more HKs (Hubertus Hafer and Fury Waffe) were rejected
+as `unresolved_deaths`. Both GUID queries resolved and both finishing blows came from a group member; the probe
+classified hostility by race rather than by a currently readable hostile unit. Old logs do not retain the production
+cache state, so they cannot establish the exact failed gate retroactively.
+
+Credit rules remain unchanged. New `quiet` captures carry `diagnosticVersion=3` as well as `rulesVersion=2` and record:
+
+- `world_kill_death`: production batch ID, event type, resolved identity, query result/read stage or error, reason for
+  ignoring self/allies/nonplayers, live cache state/age/source unit, and last cached observation state/age/unit. A bounded
+  512-GUID history distinguishes expiry, capacity removal and world reset when that history is still available.
+- Exact subrejections: `identity_unresolved`, `cache_missing`, `cache_expired`, `name_unavailable`, or `repeat_death`.
+  Duplicates log `duplicate_ignored`, the earlier outcome and the *current* cache state. This detects the case where
+  an early rejection prevents a second event with better evidence from being considered.
+- `world_kill_hostility`: an independent, diagnostic-only same-GUID check of local visible tokens and `partyNtarget` /
+  `raidNtarget`, including the matching attacker group unit when readable. It distinguishes enemy, friendly, conflicting
+  and unknown results. It does not populate the production cache, infer hostility from race, or grant credit.
+- `world_kill_decision`: victim identity even for an unresolved known player, HK and candidate/name/unknown counts,
+  a sorted breakdown such as `cache_missing:1`, counter invalidation reason, and (when evaluable) death-credit offset.
+
+Records include flat sanitized `fields` alongside the human-readable text. The latter is still capped at 1,024
+characters; structured fields preserve the evidence separately. The production `batchId` is independent of probe
+window numbering. `/nrage debug pvp world` shows recent final decisions and their details; `capturelog` and the saved
+file contain the per-event traces. `quiet`, `stop`, reload and file export work as before. Older captures are unchanged.
+
+The promising extension is to use verified hostile group-target observations of the *same GUID*, with the existing
+one-HK/no-competing-deaths/counter/Feign-Death checks. If a duplicate supplies new valid evidence, it could promote the
+existing unresolved GUID rather than add a second death; only that GUID's unresolved marker could be cleared. Unknown
+GUIDs and other victims must continue to block attribution. Merely accepting opposite-faction races, group finishing
+blows, longer cache TTLs or an HK increase alone does not prove an unambiguous hostile identity. The new traces are
+intended to validate that narrower extension before changing live attribution or backfilling rejected kills.
+
 The live world test identified an attackable orc hunter through UNIT_DIED and a readable GUID; both HK counters rose
 by one 316 ms later. The earlier nearby warlock death gave no HK. This supports a conservative world-only mission
 route, not BG identity attribution. `PvPWorldKills` now runs automatically with the PvP module, independently of debug.

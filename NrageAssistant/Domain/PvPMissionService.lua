@@ -227,7 +227,7 @@ end
 function PvPMissionService:OnUnit(unit)
   local info = self.deps.platform.GetEnemyPlayerInfo(unit)
   if info and self.deps.onEnemy then
-    self.deps.onEnemy(info)
+    self.deps.onEnemy(info, unit)
   end
   return info ~= nil and self.deps.cache:Remember(info.name, info.class, info.race)
 end

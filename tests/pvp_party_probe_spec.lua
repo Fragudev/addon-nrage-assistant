@@ -717,4 +717,40 @@ describe("independent PARTY_KILL probe", function()
     assert.are.equal(1, row.unknownDeaths)
     assert.are.equal("ambiguous", row.relation)
   end)
+
+  it(
+    "persists production rejection details and event traces silently without truncating structured evidence",
+    function()
+      ns.character = {}
+      ns.PvPProbe.Handle("quiet")
+      local count = #messages
+      ns.PvPProbe.RecordWorldTrace("world_kill_death", {
+        batchId = 7,
+        event = "PARTY_KILL",
+        name = "Hubertus Hafer",
+        cache = "missing",
+        historyState = "unavailable",
+        outcome = "unresolved",
+        rejection = "cache_missing",
+      })
+      ns.PvPProbe.RecordWorldDecision({
+        reason = "unresolved_deaths",
+        victim = "Hubertus Hafer",
+        guid = "Player-enemy",
+        details = { batchId = 7, credits = 1, unknown = 1, unresolvedReasons = "cache_missing:1" },
+      })
+      assert.are.equal(count, #messages)
+      local session = ns.character.pvpProbe.sessions[1]
+      assert.are.equal(3, session.diagnosticVersion)
+      local trace, decision = session.records[#session.records - 1], session.records[#session.records]
+      assert.are.equal("world_kill_death", trace.kind)
+      assert.are.equal("7", trace.fields.batchId)
+      assert.are.equal("cache_missing", trace.fields.rejection)
+      assert.are.equal("cache_missing:1", decision.fields.unresolvedReasons)
+      ns.PvPProbe.Handle("stop")
+      local records = #session.records
+      ns.PvPProbe.RecordWorldTrace("world_kill_death", { rejection = "outside_capture" })
+      assert.are.equal(records, #session.records)
+    end
+  )
 end)

@@ -35,6 +35,24 @@ describe("PvPProbeLog", function()
   local PvPProbeLog = load_log()
 
   describe("persistent capture retention", function()
+    it("stores safe flat structured details separately from the bounded display text", function()
+      local character, platform = {}, fake_platform()
+      local capture = PvPProbeLog.NewCapture(character, platform)
+      PvPProbeLog.CaptureRecord(capture, platform, 7, "world_kill_death", string.rep("x", 2000), {
+        rejection = "cache_missing",
+        cacheAge = 16,
+        nameReadable = false,
+        hidden = secret(),
+        nested = { unsafe = true },
+      })
+      local row = capture.records[1]
+      assert.are.equal(1024, #row.detail)
+      assert.are.equal("cache_missing", row.fields.rejection)
+      assert.are.equal("16", row.fields.cacheAge)
+      assert.are.equal("false", row.fields.nameReadable)
+      assert.is_nil(row.fields.hidden)
+      assert.is_nil(row.fields.nested)
+    end)
     it("bounds sessions, windows and raw evidence while reporting discarded data", function()
       local character, platform = {}, fake_platform()
       for _ = 1, 4 do

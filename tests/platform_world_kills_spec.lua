@@ -132,4 +132,74 @@ describe("Platform world kill evidence", function()
     end
     assert.is_nil(platform.IsWorldVictimAlive("Player-enemy"))
   end)
+
+  it("reports precisely which platform step ignored self and group deaths", function()
+    local ignored, detail = platform.GetPlayerDeathInfo("Player-self")
+    assert.is_false(ignored)
+    assert.are.equal("self", detail.platformReason)
+    ignored, detail = platform.GetPlayerDeathInfo("Player-ally")
+    assert.is_false(ignored)
+    assert.are.equal("group_ally", detail.platformReason)
+    assert.are.equal("party1", detail.matchedUnit)
+  end)
+
+  it("distinguishes query failure from GUID restrictions and missing identity fields", function()
+    _G.GetPlayerInfoByGUID = function()
+      error("query rejected")
+    end
+    local info, detail = platform.GetPlayerDeathInfo("Player-enemy")
+    assert.are.equal("Player-enemy", info.guid)
+    assert.are.equal("error", detail.query)
+    assert.is_truthy(detail.queryError:find("query rejected", 1, true))
+    assert.is_false(detail.nameReadable)
+    local restricted = {}
+    _G.issecretvalue = function(value)
+      return rawequal(value, restricted)
+    end
+    info, detail = platform.GetPlayerDeathInfo(restricted)
+    assert.is_nil(info)
+    assert.are.equal("guid_restricted", detail.platformReason)
+    assert.are.equal("restricted", detail.guidState)
+  end)
+
+  it("measures a hostile party target by exact GUID even when no local unit exposes the victim", function()
+    units.target, units.party4, units.party4target = nil, "Player-friend", "Player-enemy"
+    _G.UnitIsPlayer = function(unit)
+      return unit == "party4target"
+    end
+    _G.UnitIsEnemy = function(_, unit)
+      return unit == "party4target"
+    end
+    local evidence = platform.GetWorldKillHostilityEvidence("Player-enemy", "Player-friend")
+    assert.are.equal("enemy", evidence.hostility)
+    assert.are.equal("party4target", evidence.groupHostileUnit)
+    assert.are.equal("party4", evidence.attackerUnit)
+    assert.is_nil(evidence.visibleHostileUnit)
+    evidence = platform.GetWorldKillHostilityEvidence("Player-different", "Player-friend")
+    assert.are.equal("unknown", evidence.hostility)
+    assert.are.equal(0, evidence.matchedUnits)
+  end)
+
+  it("does not classify a friendly group target as hostile and contains individual unit errors", function()
+    units.target, units.party4target = nil, "Player-enemy"
+    _G.UnitIsPlayer = function()
+      return true
+    end
+    _G.UnitIsEnemy = function()
+      return false
+    end
+    local readGuid = _G.UnitGUID
+    _G.UnitGUID = function(unit)
+      if unit == "party1target" then
+        error("restricted")
+      end
+      return readGuid(unit)
+    end
+    local evidence = platform.GetWorldKillHostilityEvidence("Player-enemy")
+    assert.are.equal("friendly", evidence.hostility)
+    assert.are.equal("party4target", evidence.friendlyUnit)
+    assert.is_nil(evidence.groupHostileUnit)
+    assert.are.equal(1, evidence.readErrors)
+    assert.is_truthy(evidence.lastReadError:find("restricted", 1, true))
+  end)
 end)

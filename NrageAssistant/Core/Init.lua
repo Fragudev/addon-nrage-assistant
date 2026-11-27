@@ -146,9 +146,9 @@ local function StartPvPMissions(feed)
       return ns.character and ns.character.pvpClaims
     end,
     cache = ns.PvPUnitCache.New({ now = ns.Platform.Now }),
-    onEnemy = function(info)
+    onEnemy = function(info, unit)
       if ns.pvpWorldKills then
-        ns.pvpWorldKills:Remember(info)
+        ns.pvpWorldKills:Remember(info, unit)
       end
     end,
     now = ns.Platform.ServerTime,
@@ -352,6 +352,7 @@ local function StartPvP()
     end,
     counters = ns.Platform.GetPvPKillCounters,
     deathInfo = ns.Platform.GetPlayerDeathInfo,
+    hostilityEvidence = ns.Platform.GetWorldKillHostilityEvidence,
     isAlive = ns.Platform.IsWorldVictimAlive,
     killContext = function(victim)
       return ns.pvpMissions:KillContext(victim)
@@ -362,6 +363,11 @@ local function StartPvP()
     onDecision = function(decision)
       if ns.PvPProbe.RecordWorldDecision then
         ns.PvPProbe.RecordWorldDecision(decision)
+      end
+    end,
+    onTrace = function(kind, fields)
+      if ns.PvPProbe.RecordWorldTrace then
+        ns.PvPProbe.RecordWorldTrace(kind, fields)
       end
     end,
   })
@@ -397,7 +403,14 @@ local function StartPvP()
       if ns.pvpMissions then
         GuardedMissionCall("pvpWorldKills.scan", ns.pvpMissions.RescanUnits, ns.pvpMissions)
       end
-      GuardedMissionCall("pvpWorldKills.death", world.OnDeath, world, event == "PARTY_KILL" and targetGUID or text)
+      GuardedMissionCall(
+        "pvpWorldKills.death",
+        world.OnDeath,
+        world,
+        event == "PARTY_KILL" and targetGUID or text,
+        event,
+        event == "PARTY_KILL" and text or nil
+      )
       return
     elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
       world:Reset(event)
